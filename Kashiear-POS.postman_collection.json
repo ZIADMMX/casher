@@ -1,0 +1,380 @@
+{
+  "info": {
+    "_postman_id": "kashiear-pos-collection-v1",
+    "name": "Kashiear POS System API",
+    "description": "مجموعة طلبات Postman لاختبار كافة واجهات وبرمجيات نظام كاشير OONYX POS",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. التوثيق والمستخدمين (Auth & Users)",
+      "item": [
+        {
+          "name": "تسجيل الدخول (Login)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"admin123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "الجلسة الحالية (Current Session)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/session",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "session"]
+            }
+          }
+        },
+        {
+          "name": "قائمة المستخدمين (Get Users)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/users",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. المنتجات والمخزون (Products & Stock)",
+      "item": [
+        {
+          "name": "جلب كل المنتجات بالأصناف (Get All Products)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/products",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "products"]
+            }
+          }
+        },
+        {
+          "name": "بحث عن منتج بالباركود (Get By Barcode)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/products/barcode/P1-V1-XL",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "products", "barcode", "P1-V1-XL"]
+            }
+          }
+        },
+        {
+          "name": "إضافة منتج جديد مع المقاسات (Add Product)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"قميص كاجوال كتان\",\n  \"categoryId\": 1,\n  \"image\": \"\",\n  \"variants\": [\n    {\n      \"size\": \"L\",\n      \"color\": \"أبيض\",\n      \"barcode\": \"SHIRT-W-L\",\n      \"sku\": \"SHIRT-W-L\",\n      \"purchasePrice\": 180,\n      \"sellingPrice\": 320,\n      \"stockQuantity\": 15,\n      \"lowStockThreshold\": 3\n    },\n    {\n      \"size\": \"XL\",\n      \"color\": \"كحلي\",\n      \"barcode\": \"SHIRT-N-XL\",\n      \"sku\": \"SHIRT-N-XL\",\n      \"purchasePrice\": 180,\n      \"sellingPrice\": 320,\n      \"stockQuantity\": 20,\n      \"lowStockThreshold\": 3\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/products",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "products"]
+            }
+          }
+        },
+        {
+          "name": "جلب التصنيفات (Get Categories)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/categories",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "categories"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. المبيعات ونقطة البيع (Sales & POS)",
+      "item": [
+        {
+          "name": "إنشاء فاتورة بيع جديدة (Create Sale)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"variantId\": 1,\n      \"quantity\": 1\n    }\n  ],\n  \"discount\": 0,\n  \"paymentMethod\": \"cash\",\n  \"customerId\": null,\n  \"customerName\": null,\n  \"customerPhone\": null\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/sales",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "sales"]
+            }
+          }
+        },
+        {
+          "name": "جلب تفاصيل فاتورة برقمها (Get Sale By ID)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/sales/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "sales", "1"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. الورديات وتقفيل الدرج (Shifts & Z-Report)",
+      "item": [
+        {
+          "name": "الوردية المفتوحة حالياً (Current Shift)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/shifts/current",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "shifts", "current"]
+            }
+          }
+        },
+        {
+          "name": "فتح وردية جديدة (Open Shift)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"shiftType\": \"morning\",\n  \"posStation\": \"الدرج الرئيسي - POS 1\",\n  \"openingCash\": 500,\n  \"openingNotes\": \"رصيد بداية الوردية الصباحية\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/shifts/open",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "shifts", "open"]
+            }
+          }
+        },
+        {
+          "name": "إضافة مصروف من الدرج (Add Expense)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 35,\n  \"category\": \"ضيافة ونظافة\",\n  \"notes\": \"شاي وقهوة للكاشير\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/shifts/expenses",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "shifts", "expenses"]
+            }
+          }
+        },
+        {
+          "name": "إغلاق وتقفيل الوردية (Close Shift)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"actualCash\": 535,\n  \"closingNotes\": \"تقفيل سليم بدون عجز\",\n  \"cashBreakdown\": \"{\\\"200\\\": 2, \\\"100\\\": 1, \\\"20\\\": 1, \\\"10\\\": 1, \\\"5\\\": 1}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/shifts/close",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "shifts", "close"]
+            }
+          }
+        },
+        {
+          "name": "مؤشرات وأداء الورديات (Shifts KPIs)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/shifts/kpis",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "shifts", "kpis"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. المرتجعات والاستبدال (Returns & Exchanges)",
+      "item": [
+        {
+          "name": "البحث عن فاتورة للإرجاع (Find Sale For Return)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/returns/find-sale/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "returns", "find-sale", "1"]
+            }
+          }
+        },
+        {
+          "name": "تنفيذ عملية إرجاع نقدي (Process Return)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"saleId\": 1,\n  \"variantId\": 1,\n  \"quantity\": 1,\n  \"reason\": \"مقاس غير مناسب\",\n  \"mode\": \"return\",\n  \"exchangeVariantId\": null\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/returns/process",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "returns", "process"]
+            }
+          }
+        },
+        {
+          "name": "سجل المرتجعات الأخيرة (Recent Returns)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/returns/recent",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "returns", "recent"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. العملاء والديون (Customers)",
+      "item": [
+        {
+          "name": "جلب كل العملاء مع الإحصائيات (Get Customers)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/customers",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "customers"]
+            }
+          }
+        },
+        {
+          "name": "إضافة عميل جديد (Add Customer)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"أحمد محمود\",\n  \"phone\": \"01112223334\",\n  \"notes\": \"عميل مميز\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/customers",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "customers"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. الموردين والمشتريات (Suppliers & Purchases)",
+      "item": [
+        {
+          "name": "جلب قائمة الموردين (Get Suppliers)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/suppliers",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "suppliers"]
+            }
+          }
+        },
+        {
+          "name": "جلب فواتير المشتريات (Get Purchases)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/purchases",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "purchases"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. التقارير والإشعارات (Reports & Notifications)",
+      "item": [
+        {
+          "name": "تقرير اليوم (Today's Report)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/reports?period=today",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "reports"],
+              "query": [
+                { "key": "period", "value": "today" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "جلب الإشعارات اللحظية (Get Notifications)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notifications"]
+            }
+          }
+        },
+        {
+          "name": "إعدادات المحل (Get Settings)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/settings",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "settings"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

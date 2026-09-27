@@ -1,0 +1,78 @@
+{
+  "name": "kashiear",
+  "version": "1.0.0",
+  "description": "نظام الكاشير الذكي لمحلات الملابس",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "vite",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"src/**/*.{js,jsx}\" \"electron/**/*.js\"",
+    "prebuild": "npm run lint",
+    "build": "vite build",
+    "test": "jest --runInBand",
+    "test:watch": "jest --watch",
+    "start": "npm run build && electron .",
+    "api": "node api-server.js",
+    "rebuild": "electron-rebuild -f -w better-sqlite3",
+    "package": "npm run build && npm run rebuild && electron-builder --win",
+    "package:win": "npm run build && npm run rebuild && electron-builder --win --publish never",
+    "package:dir": "npm run build && npm run rebuild && electron-builder --win --dir"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "build": {
+    "appId": "com.kashiear.pos",
+    "productName": "Kashiear POS",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis",
+      "arch": [
+        "x64"
+      ],
+      "signAndEditExecutable": false,
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "npmRebuild": false,
+    "nodeGypRebuild": false
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^4.1.0",
+    "@eslint/js": "^9.39.5",
+    "@vitejs/plugin-react": "^6.1.1",
+    "electron": "^44.1.0",
+    "electron-builder": "^25.1.8",
+    "eslint": "^9.39.5",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.12.0",
+    "jest": "^30.5.1",
+    "prettier": "^3.9.8",
+    "vite": "^8.2.2"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^13.0.3",
+    "electron-log": "^5.4.4",
+    "electron-updater": "^6.8.9",
+    "jsonwebtoken": "^9.0.3",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "xlsx": "^0.18.5"
+  },
+  "packageManager": "pnpm@12.5.1+sha512.e3f305bc784a2bc89f5ad3b6138889470fae8d2af5f36b61216ec91c2c3d64089775f9de38aac331044ea40f245cb0d5666392dfdf65824e1907ef6a2c62de5f"
+}
