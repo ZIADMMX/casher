@@ -20,8 +20,50 @@ function createOrder(orderData, items = [], userSession = {}) {
     throw new Error('أولوية الطلب غير صحيحة');
   }
 
+  if (orderData.requested_part !== undefined && orderData.requested_part !== null) {
+    if (orderData.order_type !== 'online' || !String(orderData.requested_part).trim()) {
+      throw new Error('اسم قطعة الغيار مطلوب لطلب القطع');
+    }
+    if (!String(orderData.vehicle_make || '').trim() || !String(orderData.vehicle_model || '').trim()) {
+      throw new Error('ماركة السيارة وموديلها مطلوبان لطلب قطعة الغيار');
+    }
+    if (!String(orderData.customer_name || '').trim() || !String(orderData.customer_phone || '').trim()) {
+      throw new Error('اسم العميل ورقم هاتفه مطلوبان لطلب قطعة الغيار');
+    }
+    if (!Number.isInteger(Number(orderData.requested_quantity)) || Number(orderData.requested_quantity) <= 0) {
+      throw new Error('كمية قطعة الغيار يجب أن تكون عددًا صحيحًا أكبر من الصفر');
+    }
+  }
+  if (orderData.vehicle_plate || orderData.vehicle_make || orderData.vehicle_model
+    || orderData.vehicle_year || orderData.odometer || orderData.fault_description) {
+    if (!['maintenance', 'online'].includes(orderData.order_type)) {
+      throw new Error('بيانات السيارة مسموحة لطلبات السيارات فقط');
+    }
+    if (orderData.order_type === 'maintenance'
+      && (!String(orderData.vehicle_plate || '').trim() || !String(orderData.fault_description || '').trim())) {
+      throw new Error('رقم لوحة السيارة ووصف العطل مطلوبان');
+    }
+    if (orderData.vehicle_year !== undefined && orderData.vehicle_year !== null
+      && (!Number.isInteger(Number(orderData.vehicle_year)) || Number(orderData.vehicle_year) < 1900)) {
+      throw new Error('سنة صنع السيارة غير صالحة');
+    }
+    if (orderData.odometer !== undefined && orderData.odometer !== null
+      && (!Number.isInteger(Number(orderData.odometer)) || Number(orderData.odometer) < 0)) {
+      throw new Error('قراءة عداد السيارة غير صالحة');
+    }
+  }
+
   const payload = {
     ...orderData,
+    vehicle_plate: orderData.vehicle_plate?.trim() || null,
+    vehicle_make: orderData.vehicle_make?.trim() || null,
+    vehicle_model: orderData.vehicle_model?.trim() || null,
+    fault_description: orderData.fault_description?.trim() || null,
+    requested_part: orderData.requested_part?.trim() || null,
+    part_number: orderData.part_number?.trim() || null,
+    requested_quantity: Number(orderData.requested_quantity) || 1,
+    estimated_amount: Number(orderData.estimated_amount) || 0,
+    due_date: orderData.due_date || null,
     created_by_user_id: userSession?.id || orderData.created_by_user_id || null
   };
 
@@ -72,9 +114,35 @@ function getOrderById(orderId) {
   return ordersRepo.getOrderById(orderId);
 }
 
+function addOrderItem(orderId, item, userSession = {}) {
+  const normalizedOrderId = Number(orderId);
+  const variantId = Number(item?.variantId);
+  const quantity = Number(item?.quantity);
+  if (!Number.isInteger(normalizedOrderId) || normalizedOrderId <= 0
+    || !Number.isInteger(variantId) || variantId <= 0) {
+    throw new Error('أمر الشغل أو الصنف المحدد غير صالح');
+  }
+  if (!Number.isInteger(quantity) || quantity <= 0) {
+    throw new Error('كمية الصنف يجب أن تكون عددًا صحيحًا أكبر من الصفر');
+  }
+  ordersRepo.addOrderItem(normalizedOrderId, { variantId, quantity }, userSession?.id || null);
+  ordersCache.invalidate();
+  return ordersRepo.getOrderById(normalizedOrderId);
+}
+
 function updateOrderStatus(orderId, newStatus, userSession = {}, description = null) {
   if (!ALLOWED_STATUSES.includes(newStatus)) {
     throw new Error('حالة الطلب غير صالحة');
+  }
+
+  const order = ordersRepo.getOrderForCheckout(orderId);
+  if (order?.sale_id && newStatus !== 'delivered') {
+    throw new Error('لا يمكن تغيير حالة أمر الشغل بعد إصدار فاتورته');
+  }
+  if (newStatus === 'delivered') {
+    if (order?.order_type === 'maintenance' && !order.sale_id) {
+      throw new Error('يجب إصدار فاتورة أمر الشغل من نقطة البيع قبل تسجيل التسليم');
+    }
   }
 
   const userId = userSession?.id || null;
@@ -154,6 +222,7 @@ module.exports = {
   createOrder,
   getOrders,
   getOrderById,
+  addOrderItem,
   updateOrderStatus,
   assignOrder,
   addOrderComment,

@@ -1,0 +1,107 @@
+[
+  {
+    "moduleName": "شاشة الكاشير والمبيعات (POS)",
+    "moduleKey": "pos",
+    "permissions": ["pos.view", "pos.sell", "pos.discount", "pos.refund"]
+  },
+  {
+    "moduleName": "إدارة المنتجات والمخزون",
+    "moduleKey": "inventory",
+    "permissions": ["products.view", "products.create", "products.edit", "products.delete"]
+  },
+  {
+    "moduleName": "سجل الفواتير والمبيعات",
+    "moduleKey": "sales",
+    "permissions": ["sales.view", "sales.refund", "sales.export"]
+  },
+  {
+    "moduleName": "العملاء والاتصالات (CRM)",
+    "moduleKey": "customers",
+    "permissions": ["customers.view", "customers.create", "customers.edit", "customers.delete"]
+  },
+  {
+    "moduleName": "مركز الطلبات والعمليات",
+    "moduleKey": "orders",
+    "permissions": ["orders.view", "orders.manage", "orders.delete"]
+  },
+  {
+    "moduleName": "الاشتراكات والباقات",
+    "moduleKey": "subscriptions",
+    "permissions": ["subscriptions.view", "subscriptions.manage", "subscriptions.freeze"]
+  },
+  {
+    "moduleName": "العمولات والحوافز",
+    "moduleKey": "commissions",
+    "permissions": ["commissions.view", "commissions.manage"]
+  },
+  {
+    "moduleName": "التقارير والتحليلات",
+    "moduleKey": "reports",
+    "permissions": ["reports.view", "reports.export"]
+  },
+  {
+    "moduleName": "إعدادات النظام والأمان",
+    "moduleKey": "settings",
+    "permissions": ["settings.view", "settings.manage"]
+  },
+  {
+    "moduleName": "البنية والديناميكية (Enterprise)",
+    "moduleKey": "enterprise",
+    "permissions": ["enterprise.view", "enterprise.manage"]
+  },
+  {
+    "moduleName": "فريق العمل",
+    "moduleKey": "team",
+    "permissions": ["team.view", "team.manage", "team.import", "team.export"]
+  },
+  {
+    "moduleName": "الحضور والانصراف",
+    "moduleKey": "attendance",
+    "permissions": ["attendance.view", "attendance.manage"]
+  },
+  {
+    "moduleName": "الإجازات",
+    "moduleKey": "leaves",
+    "permissions": ["leaves.view", "leaves.manage"]
+  },
+  {
+    "moduleName": "الأدوار والصلاحيات",
+    "moduleKey": "roles",
+    "permissions": ["roles.manage"]
+  },
+  {
+    "moduleName": "الموردون والمشتريات",
+    "moduleKey": "procurement",
+    "permissions": ["suppliers.view", "suppliers.manage", "purchases.view", "purchases.manage"]
+  },
+  {
+    "moduleName": "الورديات",
+    "moduleKey": "shifts",
+    "permissions": ["shifts.view", "shifts.manage"]
+  },
+  {
+    "moduleName": "الحجوزات",
+    "moduleKey": "appointments",
+    "permissions": ["appointments.view", "appointments.manage"]
+  },
+  {
+    "moduleName": "العروض والخصومات",
+    "moduleKey": "promotions",
+    "permissions": ["promotions.view", "promotions.manage"]
+  },
+  {
+    "moduleName": "قنوات البيع",
+    "moduleKey": "channels",
+    "permissions": ["channels.view", "channels.manage"]
+  },
+  {
+    "moduleName": "مساعد الذكاء الاصطناعي",
+    "moduleKey": "ai",
+    "permissions": ["ai.view", "ai.manage"]
+  },
+  {
+    "moduleName": "القضايا والمحاكم",
+    "moduleKey": "cases",
+    "permissions": ["cases.view", "cases.manage", "cases.delete"]
+  }
+]

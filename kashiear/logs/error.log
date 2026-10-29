@@ -1,0 +1,70 @@
+[2026-10-17T17:02:00.772Z] [CreateSale] Error: لا يمكن إتمام عملية البيع لعدم وجود وردية مفتوحة. يرجى فتح وردية أولاً
+    at Object.createSale (D:\my-electron-app\electron\services\sales.service.js:67:13)
+    at D:\my-electron-app\electron\handlers\sales.handler.js:9:25
+    at D:\my-electron-app\electron\handlers\safeHandle.js:42:18
+    at AsyncLocalStorage.run (node:internal/async_local_storage/async_context_frame:65:14)
+    at Object.runWithPermission (D:\my-electron-app\electron\services\auth.service.js:338:28)
+    at D:\my-electron-app\electron\handlers\safeHandle.js:40:34
+    at AsyncLocalStorage.run (node:internal/async_local_storage/async_context_frame:65:14)
+    at Object.runWithSession (D:\my-electron-app\electron\services\auth.service.js:334:25)
+    at D:\my-electron-app\electron\handlers\safeHandle.js:33:32
+    at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+[2026-10-17T17:02:50.668Z] [CreateSale] Error: لا يمكن إتمام عملية البيع لعدم وجود وردية مفتوحة. يرجى فتح وردية أولاً
+    at Object.createSale (D:\my-electron-app\electron\services\sales.service.js:67:13)
+    at D:\my-electron-app\electron\handlers\sales.handler.js:9:25
+    at D:\my-electron-app\electron\handlers\safeHandle.js:42:18
+    at AsyncLocalStorage.run (node:internal/async_local_storage/async_context_frame:65:14)
+    at Object.runWithPermission (D:\my-electron-app\electron\services\auth.service.js:338:28)
+    at D:\my-electron-app\electron\handlers\safeHandle.js:40:34
+    at AsyncLocalStorage.run (node:internal/async_local_storage/async_context_frame:65:14)
+    at Object.runWithSession (D:\my-electron-app\electron\services\auth.service.js:334:25)
+    at D:\my-electron-app\electron\handlers\safeHandle.js:33:32
+    at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+[2026-10-17T17:26:01.631Z] [AutoBackupOnClose] SqliteError: database or disk is full
+    at Immediate.step (D:\my-electron-app\node_modules\.pnpm\better-sqlite3@13.0.3\node_modules\better-sqlite3\lib\methods\backup.js:43:29)
+    at process.processImmediate (node:internal/timers:574:21)
+[2026-10-17T17:26:47.752Z] [AutoBackupOnClose] SqliteError: database or disk is full
+    at Immediate.step (D:\my-electron-app\node_modules\.pnpm\better-sqlite3@13.0.3\node_modules\better-sqlite3\lib\methods\backup.js:43:29)
+    at process.processImmediate (node:internal/timers:574:21)
+[2026-10-18T12:12:03.521Z] [OnboardingGetPreset] Error: القطاع التجاري المحدد (salon_barbershop) غير متوفر
+    at Object.getPresetByKey (D:\my-electron-app\electron\services\onboarding.service.js:51:11)
+    at D:\my-electron-app\electron\handlers\onboarding.handler.js:27:55
+    at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+    at Session.emit (node:events:514:28)
+[2026-10-18T12:12:04.432Z] [OnboardingGetPreset] Error: القطاع التجاري المحدد (salon_barbershop) غير متوفر
+    at Object.getPresetByKey (D:\my-electron-app\electron\services\onboarding.service.js:51:11)
+    at D:\my-electron-app\electron\handlers\onboarding.handler.js:27:55
+    at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+    at Session.emit (node:events:514:28)
+[2026-10-18T12:12:04.433Z] [OnboardingGetPreset] Error: القطاع التجاري المحدد (salon_barbershop) غير متوفر
+    at Object.getPresetByKey (D:\my-electron-app\electron\services\onboarding.service.js:51:11)
+    at D:\my-electron-app\electron\handlers\onboarding.handler.js:27:55
+    at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+    at Session.emit (node:events:514:28)
+[2026-10-18T13:35:52.255Z] [OnboardingProvision] Error: تم إعداد المتجر بالفعل مسبقاً. لإعادة التهيئة يرجى استخدام وضع التعديل الإداري المتقدم
+    at Object.provisionSectorData (D:\my-electron-app\electron\services\onboarding.service.js:157:13)
+    at D:\my-electron-app\electron\handlers\onboarding.handler.js:64:41
+    at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+    at Session.emit (node:events:514:28)
+[2026-10-18T14:04:36.744Z] [CreateSale] Error: لا يمكن إتمام عملية البيع لعدم وجود وردية مفتوحة. يرجى فتح وردية أولاً
+    at Object.createSale (D:\my-electron-app\electron\services\sales.service.js:67:13)
+    at D:\my-electron-app\electron\handlers\sales.handler.js:9:25
+    at D:\my-electron-app\electron\handlers\safeHandle.js:42:18
+    at AsyncLocalStorage.run (node:internal/async_local_storage/async_context_frame:65:14)
+    at Object.runWithPermission (D:\my-electron-app\electron\services\auth.service.js:340:28)
+    at D:\my-electron-app\electron\handlers\safeHandle.js:40:34
+    at AsyncLocalStorage.run (node:internal/async_local_storage/async_context_frame:65:14)
+    at Object.runWithSession (D:\my-electron-app\electron\services\auth.service.js:336:25)
+    at D:\my-electron-app\electron\handlers\safeHandle.js:33:32
+    at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)
+[2026-10-18T15:12:10.691Z] [CreateSale] Error: لا يمكن إتمام عملية البيع لعدم وجود وردية مفتوحة. يرجى فتح وردية أولاً
+    at Object.createSale (D:\my-electron-app\electron\services\sales.service.js:67:13)
+    at D:\my-electron-app\electron\handlers\sales.handler.js:9:25
+    at D:\my-electron-app\electron\handlers\safeHandle.js:42:18
+    at AsyncLocalStorage.run (node:internal/async_local_storage/async_context_frame:65:14)
+    at Object.runWithPermission (D:\my-electron-app\electron\services\auth.service.js:340:28)
+    at D:\my-electron-app\electron\handlers\safeHandle.js:40:34
+    at AsyncLocalStorage.run (node:internal/async_local_storage/async_context_frame:65:14)
+    at Object.runWithSession (D:\my-electron-app\electron\services\auth.service.js:336:25)
+    at D:\my-electron-app\electron\handlers\safeHandle.js:33:32
+    at Session.<anonymous> (node:electron/js2c/browser_init:1:118178)

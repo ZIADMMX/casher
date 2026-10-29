@@ -2,8 +2,8 @@ const os = require('node:os');
 const crypto = require('node:crypto');
 const dbRepo = require('../repositories/settings.repository');
 
-// Master Secret Key used by Developer to sign and verify dynamic license keys
-const DEVELOPER_MASTER_SECRET = process.env.KASHIEAR_LICENSE_SECRET || 'KASHIEAR_OFFLINE_SECRET_KEY_2026_PRO';
+const DEVELOPER_MASTER_SECRET = process.env.KASHIEAR_LICENSE_SECRET || '';
+
 const TRIAL_DURATION_DAYS = 14;
 
 /**
@@ -31,6 +31,9 @@ function getMachineHardwareId() {
  * Generate a HMAC signature for a specific HWID and Expiry Date
  */
 function generateLicenseKey({ hwid, expiryTimestamp }) {
+  if (!DEVELOPER_MASTER_SECRET) {
+    throw new Error('KASHIEAR_LICENSE_SECRET غير معرف في متغيرات البيئة');
+  }
   const cleanHwid = String(hwid).trim().toUpperCase();
   const payload = `${cleanHwid}:${expiryTimestamp}`;
   const signature = crypto
@@ -77,7 +80,11 @@ function verifyLicenseKey(keyString, targetHwid = getMachineHardwareId()) {
     return { valid: false, reason: 'سيريال التفعيل تالف أو غير صحيح' };
   }
 
-  // Verify HMAC signature
+  if (!DEVELOPER_MASTER_SECRET) {
+    return { valid: false, reason: 'مفتاح التحقق غير مهيأ في النظام' };
+  }
+
+  // Verify HMAC signature in constant time
   const expectedPayload = `${keyHwid}:${expiryTimestamp}`;
   const expectedSig = crypto
     .createHmac('sha256', DEVELOPER_MASTER_SECRET)
@@ -86,7 +93,9 @@ function verifyLicenseKey(keyString, targetHwid = getMachineHardwareId()) {
     .substring(0, 8)
     .toUpperCase();
 
-  if (signature !== expectedSig) {
+  const hashExpected = crypto.createHash('sha256').update(expectedSig).digest();
+  const hashActual = crypto.createHash('sha256').update(signature).digest();
+  if (!crypto.timingSafeEqual(hashExpected, hashActual)) {
     return { valid: false, reason: 'توقيع المفتاح غير صحيح أو تم التلاعب به' };
   }
 

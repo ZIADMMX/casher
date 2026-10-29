@@ -1,0 +1,26 @@
+/* Button.css – basic button styles using design tokens */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--touch-min-height);
+  padding: 0 var(--spacing-12);
+  font-family: var(--font-family-base);
+  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-base);
+  border: none;
+  border-radius: var(--spacing-4);
+  cursor: pointer;
+  transition: background 0.2s ease, opacity 0.2s ease;
+}
+
+/* Variants */
+.btn-primary { background: var(--color-brand); color: var(--color-text-inverse); }
+.btn-secondary { background: var(--color-surface-variant); color: var(--color-text-primary); }
+.btn-danger { background: var(--color-danger); color: var(--color-text-inverse); }
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

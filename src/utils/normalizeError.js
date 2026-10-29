@@ -12,6 +12,7 @@ export function normalizeErrorMessage(error, fallback = 'حدث خطأ غير م
   do {
     previous = cleaned;
     cleaned = cleaned
+      .replace(/\s*:?\s*Error invoking remote method\s+['"][^'"]+['"]:\s*(?:Error)?\s*$/i, '')
       .replace(/^Error invoking remote method\s+['"][^'"]+['"]:\s*/i, '')
       .replace(/^Error invoking remote method.*?:\s*/i, '')
       .replace(/^Uncaught\s+/i, '')
@@ -20,7 +21,7 @@ export function normalizeErrorMessage(error, fallback = 'حدث خطأ غير م
       .trim();
   } while (cleaned !== previous);
 
-  return cleaned || fallback;
+  return cleaned && cleaned !== 'Error' ? cleaned : fallback;
 }
 
 export default normalizeErrorMessage;

@@ -11,8 +11,16 @@ module.exports = [
       'release/**',
       'build/**',
       'node_modules/**',
+      'coverage/**',
+      '.jest-cache/**',
+      '.tmp*/**',
+      '.tmp*',
       'electron/services/JsBarcode.all.min.js',
       'eslint.config.js',
+      'e2e/**',
+      'lib/**',
+      'boosthis-kit-node/**',
+      'undefined/**',
     ],
   },
   js.configs.recommended,
@@ -38,12 +46,13 @@ module.exports = [
       'no-unused-vars': 'warn',
     },
   },
+  // ✅ بعد الإصلاح (إضافة routes/**/*.js لقائمة بيئة Node CommonJS):
   {
-    files: ['electron/**/*.js', 'api-server.js', 'vite.config.js'],
+    files: ['electron/**/*.js', 'routes/**/*.js', '*.js', 'scripts/**/*.js'],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'commonjs',
-      globals: { ...globals.node },
+      globals: { ...globals.node, ...globals.nodeBuiltin },
     },
     rules: {
       'no-unused-vars': 'warn',
@@ -52,17 +61,9 @@ module.exports = [
     },
   },
   {
-    files: ['renderer.js'],
+    files: ['**/*.test.js', '**/__tests__/**/*.js', 'tests/**/*.js'],
     languageOptions: {
-      ecmaVersion: 2022,
-      sourceType: 'script',
-      globals: { ...globals.browser },
-    },
-  },
-  {
-    files: ['**/*.test.js', '**/__tests__/**/*.js'],
-    languageOptions: {
-      globals: { ...globals.jest, ...globals.node },
+      globals: { ...globals.jest, ...globals.node, ...globals.nodeBuiltin },
     },
   },
   prettier,

@@ -24,8 +24,18 @@ function createOrder(orderData, items = []) {
     due_date,
     estimated_amount = 0,
     paid_amount = 0,
+    vehicle_plate,
+    vehicle_make,
+    vehicle_model,
+    vehicle_year,
+    odometer,
+    fault_description,
+    requested_part,
+    part_number,
+    requested_quantity = 1,
     notes,
-    created_by_user_id
+    created_by_user_id,
+    appointment_id,
   } = orderData;
 
   const order_number = generateOrderNumber();
@@ -35,12 +45,17 @@ function createOrder(orderData, items = []) {
       INSERT INTO orders (
         order_number, order_type, customer_id, customer_name, customer_phone,
         assigned_user_id, status, priority, due_date, estimated_amount,
-        paid_amount, notes, created_by_user_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        paid_amount, vehicle_plate, vehicle_make, vehicle_model, vehicle_year,
+        odometer, fault_description, requested_part, part_number, requested_quantity,
+        notes, created_by_user_id, appointment_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       order_number, order_type, customer_id || null, customer_name || null, customer_phone || null,
-      assigned_user_id || null, status, priority, due_date || null, estimated_amount,
-      paid_amount, notes || null, created_by_user_id || null
+      assigned_user_id || null, status, priority, due_date || null, estimated_amount || 0,
+      paid_amount || 0, vehicle_plate || null, vehicle_make || null, vehicle_model || null,
+      vehicle_year || null, odometer || null, fault_description || null, requested_part || null,
+      part_number || null, requested_quantity || 1, notes || null,
+      created_by_user_id || null, appointment_id || null
     );
 
     const orderId = result.lastInsertRowid;
@@ -117,9 +132,9 @@ function getOrders(filters = {}) {
     params.push(customer_id);
   }
   if (search) {
-    query += ` AND (o.order_number LIKE ? OR o.customer_name LIKE ? OR o.customer_phone LIKE ? OR o.notes LIKE ?)`;
+    query += ` AND (o.order_number LIKE ? OR o.customer_name LIKE ? OR o.customer_phone LIKE ? OR o.vehicle_plate LIKE ? OR o.fault_description LIKE ? OR o.requested_part LIKE ? OR o.part_number LIKE ? OR o.notes LIKE ?)`;
     const searchPattern = `%${search}%`;
-    params.push(searchPattern, searchPattern, searchPattern, searchPattern);
+    params.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern);
   }
 
   query += ` ORDER BY o.created_at DESC LIMIT ? OFFSET ?`;
@@ -272,10 +287,92 @@ function getOrderStats() {
   return stats;
 }
 
+function getOrderForCheckout(orderId) {
+  return db.prepare(`
+    SELECT id, order_type, status, sale_id, customer_id, customer_name, customer_phone
+    FROM orders
+    WHERE id = ?
+  `).get(orderId);
+}
+
+function completeOrderWithSale(orderId, saleId, paidAmount, userId) {
+  const result = db.prepare(`
+    UPDATE orders
+    SET sale_id = ?, status = 'delivered', paid_amount = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ? AND order_type = 'maintenance' AND status = 'ready' AND sale_id IS NULL
+  `).run(saleId, paidAmount, orderId);
+
+  if (result.changes !== 1) {
+    throw new Error('أمر الشغل لم يعد جاهزًا للفوترة أو تم إصدار فاتورته مسبقًا');
+  }
+
+  const saleItems = db.prepare(`
+    SELECT si.variant_id, si.quantity, si.unit_price,
+      p.name AS product_name, pv.sku, pv.size, pv.color
+    FROM sale_items si
+    LEFT JOIN product_variants pv ON pv.id = si.variant_id
+    LEFT JOIN products p ON p.id = pv.product_id
+    WHERE si.sale_id = ?
+  `).all(saleId);
+  db.prepare('DELETE FROM order_items WHERE order_id = ?').run(orderId);
+  const insertItem = db.prepare(`
+    INSERT INTO order_items (order_id, variant_id, title, quantity, unit_price, total_price)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `);
+  for (const item of saleItems) {
+    const title = [item.product_name, item.sku, item.size, item.color].filter(Boolean).join(' - ');
+    insertItem.run(orderId, item.variant_id, title, item.quantity, item.unit_price, item.quantity * item.unit_price);
+  }
+
+  db.prepare(`
+    INSERT INTO order_history (order_id, user_id, action_type, new_value, description)
+    VALUES (?, ?, 'sale_linked', ?, ?)
+  `).run(orderId, userId || null, String(saleId), `تم إصدار الفاتورة #${saleId} وتسليم أمر الشغل`);
+}
+
+function addOrderItem(orderId, { variantId, quantity }, userId) {
+  const order = db.prepare(`
+    SELECT order_type, status, sale_id
+    FROM orders
+    WHERE id = ?
+  `).get(orderId);
+  if (!order || order.order_type !== 'maintenance' || ['delivered', 'cancelled'].includes(order.status) || order.sale_id) {
+    throw new Error('لا يمكن تعديل بنود أمر الشغل بعد التسليم أو إلغاء الطلب');
+  }
+
+  const variant = db.prepare(`
+    SELECT p.name AS product_name, pv.sku, pv.size, pv.color, pv.selling_price
+    FROM product_variants pv
+    JOIN products p ON p.id = pv.product_id
+    WHERE pv.id = ?
+  `).get(variantId);
+  if (!variant) throw new Error('قطعة الغيار أو الخدمة المحددة غير موجودة');
+
+  const unitPrice = Number(variant.selling_price) || 0;
+  const title = [variant.product_name, variant.sku, variant.size, variant.color].filter(Boolean).join(' - ');
+  const addItem = db.transaction(() => {
+    const itemId = db.prepare(`
+      INSERT INTO order_items (order_id, variant_id, title, quantity, unit_price, total_price)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(orderId, variantId, title, quantity, unitPrice, quantity * unitPrice).lastInsertRowid;
+
+    db.prepare(`
+      INSERT INTO order_history (order_id, user_id, action_type, description)
+      VALUES (?, ?, 'item_added', ?)
+    `).run(orderId, userId || null, `تمت إضافة ${title} إلى أمر الشغل`);
+
+    return itemId;
+  });
+  return addItem();
+}
+
 module.exports = {
   createOrder,
   getOrders,
   getOrderById,
+  getOrderForCheckout,
+  completeOrderWithSale,
+  addOrderItem,
   updateOrderStatus,
   assignOrder,
   addOrderComment,

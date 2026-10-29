@@ -161,7 +161,7 @@ function ShiftOpenModal({
                   style={{
                     background: 'none',
                     border: 'none',
-                    color: '#2E5BFF',
+                    color: '#F2600C',
                     fontSize: '12.5px',
                     fontWeight: '700',
                     cursor: 'pointer'

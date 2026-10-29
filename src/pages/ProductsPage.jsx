@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import useProducts from '../hooks/useProducts.js';
 import { useDebounce } from '../hooks/useDebounce.js';
 import useBarcodeScanner, { normalizeBarcodeText } from '../hooks/useBarcodeScanner.js';
@@ -6,12 +6,19 @@ import ImportExcelModal from '../components/ImportExcelModal.jsx';
 import { playSuccessBeep } from '../utils/beep.js';
 import { formatProductImageUrl } from '../utils/media.js';
 import { useBusinessProfile } from '../contexts/BusinessProfileContext.jsx';
+import ThreeLoadingScreen from '../components/ThreeLoadingScreen.jsx';
+import BundlePromotionsPanel from '../components/products/BundlePromotionsPanel.jsx';
+import { useUser } from '../contexts/UserContext.jsx';
+import ProductUnitsModal from '../components/products/ProductUnitsModal.jsx';
+import ExpiryManagerModal from '../components/products/ExpiryManagerModal.jsx';
+import { useDispatch } from 'react-redux';
+import { setProducts } from '../features/products/productsSlice';
 
 function ProductAttributeFields({ definitions, values, onChange }) {
   if (!definitions.length) return null;
 
   return (
-    <div className="onyx-form-grid-main" style={{ marginTop: '12px' }}>
+    <div className="fox-form-grid-main" style={{ marginTop: '12px' }}>
       {definitions.map((definition) => {
         let options = [];
         try {
@@ -20,7 +27,7 @@ function ProductAttributeFields({ definitions, values, onChange }) {
           console.error(`خيارات الخاصية ${definition.attribute_key} غير صالحة:`, err);
         }
         const commonProps = {
-          className: 'onyx-lux-input',
+          className: 'fox-lux-input',
           required: Boolean(definition.is_required),
           value: values[definition.id] ?? '',
           onChange: (event) => onChange(definition.id, event.target.value),
@@ -63,6 +70,8 @@ function ProductVariantsModal({
   onEditVariant,
   onDeleteVariant,
   onPrintBarcode,
+  onPrintPriceTag,
+  onOpenUnits,
 }) {
   const sizeLabel = attributes.find((attribute) => attribute.attribute_key === 'size')?.attribute_name || 'المقاس';
   const colorLabel = attributes.find((attribute) => attribute.attribute_key === 'color')?.attribute_name || 'اللون';
@@ -258,26 +267,115 @@ function ProductVariantsModal({
           <tbody>
             {product.variants.map((v) => (
               editingVariantId === v.id ? (
-                <tr key={v.id}>
-                  <td colSpan={5 + customAttributes.length + Number(attributes.some((attribute) => attribute.attribute_key === 'size')) + Number(attributes.some((attribute) => attribute.attribute_key === 'color'))}>
-                    <form className="edit-variant-row" onSubmit={(e) => handleSaveEdit(e, v.id)}>
-                      {attributes.some((attribute) => attribute.attribute_key === 'size') && (
-                        <input type="text" placeholder={sizeLabel} value={editVariantForm.size} onChange={(e) => setEditVariantForm({ ...editVariantForm, size: e.target.value })} />
-                      )}
-                      {attributes.some((attribute) => attribute.attribute_key === 'color') && (
-                        <input type="text" placeholder={colorLabel} value={editVariantForm.color} onChange={(e) => setEditVariantForm({ ...editVariantForm, color: e.target.value })} />
-                      )}
-                      <input type="text" placeholder="الباركود" value={editVariantForm.barcode} onChange={(e) => setEditVariantForm({ ...editVariantForm, barcode: e.target.value })} />
-                      <input type="number" placeholder="السعر (ج.م)" value={editVariantForm.price} onChange={(e) => setEditVariantForm({ ...editVariantForm, price: e.target.value })} required />
-                      <input type="number" placeholder="الكمية" value={editVariantForm.stockQuantity} onChange={(e) => setEditVariantForm({ ...editVariantForm, stockQuantity: e.target.value })} required />
-                      <ProductAttributeFields
-                        definitions={customAttributes}
-                        values={editAttributeValues}
-                        onChange={(id, value) => setEditAttributeValues((previous) => ({ ...previous, [id]: value }))}
+                <tr key={v.id} style={{ background: '#f8fafc', borderBottom: '2px solid #F2600C' }}>
+                  <td>
+                    <input
+                      type="text"
+                      placeholder="الباركود"
+                      value={editVariantForm.barcode}
+                      onChange={(e) => setEditVariantForm({ ...editVariantForm, barcode: e.target.value })}
+                      style={{ width: '100%', minWidth: '90px', padding: '6px 8px', border: '1px solid #94a3b8', borderRadius: '6px', fontSize: '12px' }}
+                    />
+                  </td>
+                  {attributes.some((attribute) => attribute.attribute_key === 'size') && (
+                    <td>
+                      <input
+                        type="text"
+                        placeholder={sizeLabel}
+                        value={editVariantForm.size}
+                        onChange={(e) => setEditVariantForm({ ...editVariantForm, size: e.target.value })}
+                        style={{ width: '100%', minWidth: '70px', padding: '6px 8px', border: '1px solid #94a3b8', borderRadius: '6px', fontSize: '12px' }}
                       />
-                      <button type="submit" className="small-btn">حفظ</button>
-                      <button type="button" className="small-btn-outline" onClick={() => setEditingVariantId(null)}>إلغاء</button>
-                    </form>
+                    </td>
+                  )}
+                  {attributes.some((attribute) => attribute.attribute_key === 'color') && (
+                    <td>
+                      <input
+                        type="text"
+                        placeholder={colorLabel}
+                        value={editVariantForm.color}
+                        onChange={(e) => setEditVariantForm({ ...editVariantForm, color: e.target.value })}
+                        style={{ width: '100%', minWidth: '70px', padding: '6px 8px', border: '1px solid #94a3b8', borderRadius: '6px', fontSize: '12px' }}
+                      />
+                    </td>
+                  )}
+                  {customAttributes.map((attribute) => {
+                    let options = [];
+                    try {
+                      options = JSON.parse(attribute.options_json || '[]');
+                    } catch {
+                      options = [];
+                    }
+
+                    return (
+                      <td key={attribute.id}>
+                        {attribute.data_type === 'select' && options.length > 0 ? (
+                          <select
+                            value={editAttributeValues[attribute.id] ?? ''}
+                            onChange={(e) => setEditAttributeValues((prev) => ({ ...prev, [attribute.id]: e.target.value }))}
+                            style={{ width: '100%', minWidth: '80px', padding: '6px 8px', border: '1px solid #94a3b8', borderRadius: '6px', fontSize: '12px' }}
+                          >
+                            <option value="">—</option>
+                            {options.map((opt) => (
+                              <option key={opt.value ?? opt} value={opt.value ?? opt}>
+                                {opt.label ?? opt}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            type={attribute.data_type === 'number' ? 'number' : attribute.data_type === 'date' ? 'date' : 'text'}
+                            placeholder={attribute.attribute_name}
+                            value={editAttributeValues[attribute.id] ?? ''}
+                            onChange={(e) => setEditAttributeValues((prev) => ({ ...prev, [attribute.id]: e.target.value }))}
+                            style={{ width: '100%', minWidth: '80px', padding: '6px 8px', border: '1px solid #94a3b8', borderRadius: '6px', fontSize: '12px' }}
+                          />
+                        )}
+                      </td>
+                    );
+                  })}
+                  <td>
+                    <input
+                      type="number"
+                      placeholder="السعر"
+                      value={editVariantForm.price}
+                      onChange={(e) => setEditVariantForm({ ...editVariantForm, price: e.target.value })}
+                      required
+                      style={{ width: '100%', minWidth: '70px', padding: '6px 8px', border: '1px solid #94a3b8', borderRadius: '6px', fontSize: '12px' }}
+                    />
+                  </td>
+                  <td>
+                    <input
+                      type="number"
+                      placeholder="الكمية"
+                      value={editVariantForm.stockQuantity}
+                      onChange={(e) => setEditVariantForm({ ...editVariantForm, stockQuantity: e.target.value })}
+                      required
+                      style={{ width: '100%', minWidth: '60px', padding: '6px 8px', border: '1px solid #94a3b8', borderRadius: '6px', fontSize: '12px' }}
+                    />
+                  </td>
+                  <td>
+                    <span className="badge badge-warning" style={{ fontSize: '11px' }}>تعديل...</span>
+                  </td>
+                  <td>
+                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                      <button
+                        type="button"
+                        className="primary-btn"
+                        style={{ padding: '4px 10px', fontSize: '12px', minWidth: '45px' }}
+                        onClick={(e) => handleSaveEdit(e, v.id)}
+                      >
+                        حفظ
+                      </button>
+                      <button
+                        type="button"
+                        className="secondary-btn"
+                        style={{ padding: '4px 8px', fontSize: '12px', minWidth: '40px', margin: 0 }}
+                        onClick={() => setEditingVariantId(null)}
+                      >
+                        إلغاء
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ) : (
@@ -302,7 +400,7 @@ function ProductVariantsModal({
                       {v.attributes?.find((value) => value.attribute_id === attribute.id)?.value || '—'}
                     </td>
                   ))}
-                  <td><strong style={{ color: '#2E5BFF' }}>{v.selling_price} ج.م</strong></td>
+                  <td><strong style={{ color: '#F2600C' }}>{v.selling_price} ج.م</strong></td>
                   <td><strong>{v.stock_quantity}</strong></td>
                   <td>
                     {v.stock_quantity === 0 ? (
@@ -316,7 +414,9 @@ function ProductVariantsModal({
                   <td>
                     <div style={{ display: 'flex', gap: '4px' }}>
                       <button className="icon-btn" title="تعديل هذا المقاس" onClick={() => startEdit(v)}>✎</button>
+                      <button className="icon-btn" title="تعدد وحدات القياس (كرتونة / باكت)" onClick={() => onOpenUnits?.(v, product.name)}>📦</button>
                       <button className="icon-btn" title="طباعة باركود" onClick={() => onPrintBarcode(v, product.name)}>🏷</button>
+                      <button className="icon-btn" title="طباعة بطاقة سعر معلقة" onClick={() => onPrintPriceTag(v, product.name)}>💳</button>
                       <button className="icon-btn icon-btn-danger" title="حذف المقاس" onClick={() => onDeleteVariant(v.id)}>🗑</button>
                     </div>
                   </td>
@@ -332,6 +432,7 @@ function ProductVariantsModal({
 
 function ProductsPage() {
   const { attributes, configuration, getTerm } = useBusinessProfile();
+  const { currentUser } = useUser();
   const {
     products, loading, error, stats,
     addProduct, addVariant,
@@ -339,12 +440,21 @@ function ProductsPage() {
     editVariant, removeVariant, refresh
   } = useProducts();
 
+const dispatch = useDispatch();
+
+useEffect(() => {
+  if (products) {
+    dispatch(setProducts(products));
+  }
+}, [products, dispatch]);
+
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 150);
   const [activeCategory, setActiveCategory] = useState('الكل');
   const [categories, setCategories] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [selectedProductForModal, setSelectedProductForModal] = useState(null);
+  const [showBundlePromotions, setShowBundlePromotions] = useState(false);
 
   // فورم إضافة منتج
   const [form, setForm] = useState({
@@ -363,13 +473,32 @@ function ProductsPage() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [editProductForm, setEditProductForm] = useState({ name: '', categoryName: '' });
 
+  // سوبر ماركت: الصلاحيات وتعدد الوحدات
+  const [expirySummary, setExpirySummary] = useState(null);
+  const [showExpiryModal, setShowExpiryModal] = useState(false);
+  const [selectedVariantForUnits, setSelectedVariantForUnits] = useState(null);
+
+  const loadExpirySummary = useCallback(async () => {
+    if (window.electronAPI?.getGroceryExpirySummary) {
+      try {
+        const sum = await window.electronAPI.getGroceryExpirySummary(30);
+        setExpirySummary(sum);
+      } catch (err) {
+        console.error('فشل جلب ملخص الصلاحيات:', err);
+      }
+    }
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     window.electronAPI.getAllCategories()
       .then((cats) => { if (!cancelled) setCategories(cats); })
       .catch((err) => console.error('فشل جلب التصنيفات:', err));
+
+    loadExpirySummary();
+
     return () => { cancelled = true; };
-  }, [products]);
+  }, [products, loadExpirySummary]);
 
   const allCategoryNames = useMemo(() => {
     return ['الكل', ...new Set(products.map((p) => p.categoryName).filter(Boolean)), 'نقص المخزون ⚠️'];
@@ -463,7 +592,15 @@ function ProductsPage() {
 
   async function handlePrintBarcode(variant, productName) {
     try {
-      await window.electronAPI.printBarcodeLabel({ ...variant, productName });
+      await window.electronAPI.printBarcodeLabel({ ...variant, productName, labelType: 'barcode' });
+    } catch (err) {
+      alert('فشلت الطباعة: ' + err.message);
+    }
+  }
+
+  async function handlePrintPriceTag(variant, productName) {
+    try {
+      await window.electronAPI.printBarcodeLabel({ ...variant, productName, labelType: 'hangTag' });
     } catch (err) {
       alert('فشلت الطباعة: ' + err.message);
     }
@@ -485,6 +622,33 @@ function ProductsPage() {
           </p>
         </div>
         <div className="header-action-group" style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          {currentUser?.role === 'admin' && <button
+            type="button"
+            className="secondary-btn"
+            onClick={() => setShowBundlePromotions((visible) => !visible)}
+          >
+            {showBundlePromotions ? 'إغلاق العروض' : '🎁 العروض المركبة'}
+          </button>}
+          <button
+            type="button"
+            className="secondary-btn"
+            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+            onClick={() => setShowExpiryModal(true)}
+            title="إدارة تواريخ الصلاحية وتنبيهات الهالك وإعدادات الميزان"
+          >
+            <span>🛡️</span>
+            <span>الصلاحيات والموازين</span>
+            {expirySummary?.expiringCount > 0 && (
+              <span style={{ background: '#F59E0B', color: '#fff', fontSize: '10px', padding: '1px 5px', borderRadius: '10px', fontWeight: 800 }}>
+                {expirySummary.expiringCount}
+              </span>
+            )}
+            {expirySummary?.expiredCount > 0 && (
+              <span style={{ background: '#EF4444', color: '#fff', fontSize: '10px', padding: '1px 5px', borderRadius: '10px', fontWeight: 800 }}>
+                {expirySummary.expiredCount}
+              </span>
+            )}
+          </button>
           <button
             type="button"
             className="secondary-btn"
@@ -501,39 +665,84 @@ function ProductsPage() {
         </div>
       </div>
 
-      {/* Onyx Stats Cards */}
-      <div className="onyx-stats-row">
-        <div className="onyx-stat-card onyx-stat-blue onyx-hover-lift">
-          <div className="onyx-stat-icon">💎</div>
-          <span className="onyx-stat-label">القيمة البيعية المقدرة</span>
-          <span className="onyx-stat-value">{stats.estimatedSaleValue.toLocaleString()} ج.م</span>
+      {showBundlePromotions && currentUser?.role === 'admin' && (
+        <BundlePromotionsPanel products={products} onClose={() => setShowBundlePromotions(false)} />
+      )}
+
+      {/* Fox Stats Cards */}
+      <div className="fox-stats-row">
+        <div className="fox-stat-card fox-stat-blue fox-hover-lift">
+          <div className="fox-stat-icon">💎</div>
+          <span className="fox-stat-label">القيمة البيعية المقدرة</span>
+          <span className="fox-stat-value">{stats.estimatedSaleValue.toLocaleString()} ج.م</span>
         </div>
 
-        <div className="onyx-stat-card onyx-stat-purple onyx-hover-lift">
-          <div className="onyx-stat-icon">📦</div>
-          <span className="onyx-stat-label">قيمة رأس مال المخزون</span>
-          <span className="onyx-stat-value">{stats.inventoryValue.toLocaleString()} ج.م</span>
+        <div className="fox-stat-card fox-stat-purple fox-hover-lift">
+          <div className="fox-stat-icon">📦</div>
+          <span className="fox-stat-label">قيمة رأس مال المخزون</span>
+          <span className="fox-stat-value">{stats.inventoryValue.toLocaleString()} ج.م</span>
         </div>
 
-        <div className="onyx-stat-card onyx-stat-amber onyx-hover-lift">
-          <div className="onyx-stat-icon">⚠️</div>
-          <span className="onyx-stat-label">تنبيهات نقص المخزون</span>
-          <span className={`onyx-stat-value ${stats.lowStockCount > 0 ? 'text-danger' : ''}`}>
+        <div className="fox-stat-card fox-stat-amber fox-hover-lift">
+          <div className="fox-stat-icon">⚠️</div>
+          <span className="fox-stat-label">تنبيهات نقص المخزون</span>
+          <span className={`fox-stat-value ${stats.lowStockCount > 0 ? 'text-danger' : ''}`}>
             {stats.lowStockCount} أصناف
           </span>
         </div>
 
-        <div className="onyx-stat-card onyx-stat-green onyx-hover-lift">
-          <div className="onyx-stat-icon">📦</div>
-          <span className="onyx-stat-label">إجمالي وحدات المخزون</span>
-          <span className="onyx-stat-value">{stats.totalPieces.toLocaleString()} وحدة</span>
+        <div className="fox-stat-card fox-stat-green fox-hover-lift">
+          <div className="fox-stat-icon">📦</div>
+          <span className="fox-stat-label">إجمالي وحدات المخزون</span>
+          <span className="fox-stat-value">{stats.totalPieces.toLocaleString()} وحدة</span>
         </div>
       </div>
 
-      {/* Add Product Form - Onyx Luxury Card */}
+      {/* Expiry Warning Banner (Supermarket Food Safety & Loss Prevention) */}
+      {expirySummary && (expirySummary.expiredCount > 0 || expirySummary.expiringCount > 0) && (
+        <div
+          onClick={() => setShowExpiryModal(true)}
+          style={{
+            background: expirySummary.expiredCount > 0 ? '#FEF2F2' : '#FFFBEB',
+            border: `1.5px solid ${expirySummary.expiredCount > 0 ? '#FCA5A5' : '#FCD34D'}`,
+            borderRadius: '12px',
+            padding: '12px 18px',
+            marginBottom: '16px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            cursor: 'pointer',
+            boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
+            transition: 'transform 0.15s ease',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span style={{ fontSize: '24px' }}>{expirySummary.expiredCount > 0 ? '🚫' : '⚠️'}</span>
+            <div>
+              <div style={{ fontWeight: 800, color: expirySummary.expiredCount > 0 ? '#991B1B' : '#92400E', fontSize: '14px' }}>
+                {expirySummary.expiredCount > 0
+                  ? `يوجد ${expirySummary.expiredCount} تشغيلة منتهية الصلاحية تماماً و ${expirySummary.expiringCount} قريبة من الانتهاء!`
+                  : `تنبيه أمان المخزون الغذائي: ${expirySummary.expiringCount} تشغيلة تقترب من انتهاء الصلاحية خلال 30 يوماً`}
+              </div>
+              <div style={{ fontSize: '12px', color: expirySummary.expiredCount > 0 ? '#B91C1C' : '#B45309', marginTop: '2px' }}>
+                إجمالي القيمة المعرضة للهلاك: <strong>{((expirySummary.expiredValue || 0) + (expirySummary.expiringValue || 0)).toFixed(2)} ج.م</strong> · اضغط هنا لفتح لوحة الصلاحيات والإعدام
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="fox-btn-secondary"
+            style={{ fontSize: '12px', fontWeight: 700, padding: '6px 12px', whiteSpace: 'nowrap' }}
+          >
+            عرض التشغيلات والهالك 🔍
+          </button>
+        </div>
+      )}
+
+      {/* Add Product Form - Fox Luxury Card */}
       {showForm && (
-        <form className="onyx-form-card reports-fade-in" onSubmit={handleAddProduct}>
-          <div className="onyx-form-card-header">
+        <form className="fox-form-card reports-fade-in" onSubmit={handleAddProduct}>
+          <div className="fox-form-card-header">
             <div className="form-card-title-group">
               <span className="form-title-badge">✨ إضافة صنف</span>
               <h3 className="form-card-title">إضافة {getTerm('product', 'منتج')} جديد للمخزون</h3>
@@ -543,15 +752,15 @@ function ProductsPage() {
 
           {error && <p className="form-error">{error}</p>}
 
-          <div className="onyx-form-grid-main">
+          <div className="fox-form-grid-main">
             {/* الحقول الأساسية */}
             <div className="form-field-group">
               <label className="form-label">اسم المنتج <span className="req-star">*</span></label>
-              <div className="onyx-field-input-wrap">
+              <div className="fox-field-input-wrap">
                 <span className="field-icon">🏷️</span>
                 <input
                   type="text"
-                  className="onyx-lux-input"
+                  className="fox-lux-input"
                   placeholder="اسم المنتج"
                   value={form.name}
                   onChange={(e) => updateForm('name', e.target.value)}
@@ -562,11 +771,11 @@ function ProductsPage() {
 
             <div className="form-field-group">
               <label className="form-label">الفئة أو التصنيف</label>
-              <div className="onyx-field-input-wrap">
+              <div className="fox-field-input-wrap">
                 <span className="field-icon">📁</span>
                 <input
                   type="text"
-                  className="onyx-lux-input"
+                  className="fox-lux-input"
                   list="category-list"
                   placeholder="اسم الفئة أو التصنيف"
                   value={form.categoryName}
@@ -584,12 +793,12 @@ function ProductsPage() {
             <span>تفاصيل المتغير والأسعار المبدئية</span>
           </div>
 
-          <div className="onyx-form-row-5">
+          <div className="fox-form-row-5">
             {hasSize && <div className="form-field-group">
               <label className="form-label">المقاس</label>
               <input
                 type="text"
-                className="onyx-lux-input"
+                className="fox-lux-input"
                 placeholder="M, L, XL, 32.."
                 value={form.size}
                 onChange={(e) => updateForm('size', e.target.value)}
@@ -600,7 +809,7 @@ function ProductsPage() {
               <label className="form-label">اللون</label>
               <input
                 type="text"
-                className="onyx-lux-input"
+                className="fox-lux-input"
                 placeholder="أسود, كحلي.."
                 value={form.color}
                 onChange={(e) => updateForm('color', e.target.value)}
@@ -609,11 +818,11 @@ function ProductsPage() {
 
             <div className="form-field-group">
               <label className="form-label">السعر (ج.م) <span className="req-star">*</span></label>
-              <div className="onyx-field-input-wrap">
+              <div className="fox-field-input-wrap">
                 <span className="field-icon">💰</span>
                 <input
                   type="number"
-                  className="onyx-lux-input"
+                  className="fox-lux-input"
                   placeholder="0.00"
                   value={form.price}
                   onChange={(e) => updateForm('price', e.target.value)}
@@ -629,11 +838,11 @@ function ProductsPage() {
 
             <div className="form-field-group">
               <label className="form-label">الكمية بالمخزن <span className="req-star">*</span></label>
-              <div className="onyx-field-input-wrap">
+              <div className="fox-field-input-wrap">
                 <span className="field-icon">📦</span>
                 <input
                   type="number"
-                  className="onyx-lux-input"
+                  className="fox-lux-input"
                   placeholder="0"
                   value={form.stockQuantity}
                   onChange={(e) => updateForm('stockQuantity', e.target.value)}
@@ -646,7 +855,7 @@ function ProductsPage() {
               <label className="form-label">الباركود</label>
               <input
                 type="text"
-                className="onyx-lux-input"
+                className="fox-lux-input"
                 placeholder="تلقائي لو فارغ"
                 value={form.barcode}
                 onChange={(e) => updateForm('barcode', e.target.value)}
@@ -655,9 +864,9 @@ function ProductsPage() {
           </div>
 
           {/* اختيار الصورة وزر الحفظ */}
-          <div className="onyx-form-footer-row">
+          <div className="fox-form-footer-row">
             <div className="image-pick-area">
-              <button type="button" className="onyx-img-btn" onClick={handlePickImage}>
+              <button type="button" className="fox-img-btn" onClick={handlePickImage}>
                 <span>🖼️</span>
                 <span>{form.imagePath ? 'تغيير صورة المنتج' : 'اختيار صورة المنتج من الجهاز'}</span>
               </button>
@@ -669,7 +878,7 @@ function ProductsPage() {
               )}
             </div>
 
-            <button type="submit" className="onyx-save-btn">
+            <button type="submit" className="fox-save-btn">
               <span>حفظ وإضافة المنتج للمحل</span>
               <span>←</span>
             </button>
@@ -707,7 +916,11 @@ function ProductsPage() {
 
       {/* Products Grid / Cards */}
       {loading ? (
-        <div className="table-loading-box">جاري تحميل تشكيلة المنتجات والمخزون...</div>
+        <ThreeLoadingScreen
+          size="sm"
+          text="جاري عرض تشكيلة المنتجات..."
+          subtext="لحظات وتكون كل التفاصيل جاهزة أمامك..."
+        />
       ) : (
         <div className="products-grid-modern">
           {filteredProducts.map((product) => {
@@ -718,7 +931,7 @@ function ProductsPage() {
             const priceText = minPrice === maxPrice ? `${minPrice} ج.م` : `${minPrice} - ${maxPrice} ج.م`;
 
             return (
-              <div key={product.id} className="onyx-product-card onyx-hover-lift">
+              <div key={product.id} className="fox-product-card fox-hover-lift">
                 {/* Card Top Image & Badges */}
                 <div className="prod-card-top-image">
                   {product.image_path ? (
@@ -783,7 +996,7 @@ function ProductsPage() {
                         </span>
                       ))}
                       {product.variants.length > 5 && (
-                        <span className="size-chip-badge" style={{ background: '#EEF2FF', color: '#2E5BFF' }}>
+                        <span className="size-chip-badge" style={{ background: '#EEF2FF', color: '#F2600C' }}>
                           +{product.variants.length - 5} أكثر
                         </span>
                       )}
@@ -799,6 +1012,16 @@ function ProductsPage() {
                     >
                       <span>⚙️ إدارة المقاسات والأسعار ({product.variants.length})</span>
                     </button>
+                    {product.variants?.[0] && (
+                      <button
+                        type="button"
+                        className="icon-btn"
+                        title="تعدد وحدات القياس (كرتونة / باكت / علبة)"
+                        onClick={() => setSelectedVariantForUnits({ variant: product.variants[0], productName: product.name })}
+                      >
+                        📦
+                      </button>
+                    )}
                     <button className="icon-btn" title="تعديل اسم المنتج" onClick={() => startEditProduct(product)}>✎</button>
                     <button className="icon-btn icon-btn-danger" title="حذف المنتج" onClick={() => handleDeleteProduct(product.id, product.name)}>🗑</button>
                   </div>
@@ -827,8 +1050,30 @@ function ProductsPage() {
           onEditVariant={editVariant}
           onDeleteVariant={removeVariant}
           onPrintBarcode={handlePrintBarcode}
+          onPrintPriceTag={handlePrintPriceTag}
+          onOpenUnits={(v, name) => setSelectedVariantForUnits({ variant: v, productName: name })}
         />
       )}
+
+      {/* Modal for Multi-UOM Secondary Units (Carton / Box / Pack) */}
+      {selectedVariantForUnits && (
+        <ProductUnitsModal
+          isOpen={Boolean(selectedVariantForUnits)}
+          onClose={() => setSelectedVariantForUnits(null)}
+          productVariant={selectedVariantForUnits.variant}
+          productName={selectedVariantForUnits.productName}
+        />
+      )}
+
+      {/* Modal for Expiry, Batches, and Scale Barcode Configuration */}
+      <ExpiryManagerModal
+        isOpen={showExpiryModal}
+        onClose={() => {
+          setShowExpiryModal(false);
+          loadExpirySummary();
+        }}
+        products={products}
+      />
 
       {/* Import Excel Modal */}
       <ImportExcelModal 

@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Modal from '../components/Modal.jsx';
+import MembershipPlanModal from '../components/MembershipPlanModal.jsx';
+import '../styles/subscriptions.css';
 
 const PACKAGE_TYPES = [
   { key: 'time_based', label: 'اشتراك زمني (شهري/سنوي)', badgeColor: '#3B82F6' },
@@ -20,12 +22,15 @@ export default function SubscriptionsPage() {
   const [subscriptions, setSubscriptions] = useState([]);
   const [packages, setPackages] = useState([]);
   const [customers, setCustomers] = useState([]);
+  const [availableProducts, setAvailableProducts] = useState([]);
+  const [availableBranches, setAvailableBranches] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
 
   // Modals
   const [showSubModal, setShowSubModal] = useState(false);
   const [showPkgModal, setShowPkgModal] = useState(false);
+  const [editingPackage, setEditingPackage] = useState(null);
   const [showFreezeModal, setShowFreezeModal] = useState(false);
   const [selectedSubForFreeze, setSelectedSubForFreeze] = useState(null);
   const [freezeReason, setFreezeReason] = useState('');
@@ -38,32 +43,25 @@ export default function SubscriptionsPage() {
     notes: ''
   });
 
-  const [pkgForm, setPkgForm] = useState({
-    name: '',
-    type: 'session_based',
-    price: 0,
-    duration_days: 30,
-    total_credits: 10,
-    discount_percentage: 0,
-    max_freeze_days: 7,
-    description: ''
-  });
-
   const loadData = useCallback(async () => {
     if (!window.electronAPI) return;
     try {
       setLoading(true);
-      const [subsList, pkgsList, subStats, custsList] = await Promise.all([
+      const [subsList, pkgsList, subStats, custsList, prodsList, branchesList] = await Promise.all([
         window.electronAPI.getAllSubscriptions(),
         window.electronAPI.getAllPackages(),
         window.electronAPI.getSubscriptionStats(),
-        window.electronAPI.getAllCustomersWithStats ? window.electronAPI.getAllCustomersWithStats() : []
+        window.electronAPI.getAllCustomersWithStats ? window.electronAPI.getAllCustomersWithStats() : [],
+        window.electronAPI.getAllProductsWithVariants ? window.electronAPI.getAllProductsWithVariants() : [],
+        window.electronAPI.getInventoryBranches ? window.electronAPI.getInventoryBranches() : []
       ]);
 
       setSubscriptions(subsList || []);
       setPackages(pkgsList || []);
       setStats(subStats || null);
       setCustomers(custsList || []);
+      setAvailableProducts(prodsList || []);
+      setAvailableBranches(branchesList || []);
     } catch (err) {
       console.error('فشل جلب بيانات الاشتراكات:', err);
     } finally {
@@ -75,27 +73,30 @@ export default function SubscriptionsPage() {
     loadData();
   }, [loadData]);
 
-  // Create Package
-  async function handleCreatePackage(e) {
-    e.preventDefault();
-    if (!pkgForm.name.trim()) return alert('اسم الباقة مطلوب');
-
+  // Create or Update Package using MembershipPlanModal
+  async function handleSavePackage(payload) {
     try {
-      await window.electronAPI.createPackage(pkgForm);
+      if (editingPackage) {
+        await window.electronAPI.updatePackage(editingPackage.id, payload);
+      } else {
+        await window.electronAPI.createPackage(payload);
+      }
       setShowPkgModal(false);
-      setPkgForm({
-        name: '',
-        type: 'session_based',
-        price: 0,
-        duration_days: 30,
-        total_credits: 10,
-        discount_percentage: 0,
-        max_freeze_days: 7,
-        description: ''
-      });
+      setEditingPackage(null);
       loadData();
     } catch (err) {
-      alert('فشل إنشاء الباقة: ' + err.message);
+      alert('فشل حفظ الباقة: ' + err.message);
+    }
+  }
+
+  // Delete Package
+  async function handleDeletePackage(pkgId) {
+    if (!window.confirm('هل أنت متأكد من حذف هذه الباقة؟')) return;
+    try {
+      await window.electronAPI.deletePackage(pkgId);
+      loadData();
+    } catch (err) {
+      alert('تعذر حذف الباقة: ' + err.message);
     }
   }
 
@@ -169,41 +170,30 @@ export default function SubscriptionsPage() {
   }
 
   return (
-    <div className="subscriptions-page" style={{ padding: '24px', color: '#0F172A' }}>
+    <div className="subscriptions-page">
       {/* Header & Main Stats */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+      <div className="subscriptions-header">
         <div>
-          <h1 style={{ fontSize: '24px', fontWeight: '800', margin: 0, color: '#0F172A' }}>إدارة الاشتراكات والباقات</h1>
-          <p style={{ color: '#475569', margin: '4px 0 0 0', fontSize: '14px', fontWeight: '500' }}>
+          <h1 className="subscriptions-title">إدارة الاشتراكات والباقات</h1>
+          <p className="subscriptions-subtitle">
             اشتراكات الجلسات، العضويات الزمنيّة، وتجميد وتجديد باقات العملاء
           </p>
         </div>
-        <div style={{ display: 'flex', gap: '10px' }}>
+        <div className="subscriptions-header-actions">
           <button
-            onClick={() => setShowPkgModal(true)}
-            style={{
-              backgroundColor: '#334155',
-              color: '#FFF',
-              border: 'none',
-              padding: '10px 16px',
-              borderRadius: '8px',
-              fontWeight: 'bold',
-              cursor: 'pointer'
+            type="button"
+            className="subscription-btn subscription-btn-secondary"
+            onClick={() => {
+              setEditingPackage(null);
+              setShowPkgModal(true);
             }}
           >
             📦 إضافة باقة جديدة
           </button>
           <button
+            type="button"
+            className="subscription-btn subscription-btn-primary"
             onClick={() => setShowSubModal(true)}
-            style={{
-              backgroundColor: '#10B981',
-              color: '#FFF',
-              border: 'none',
-              padding: '10px 16px',
-              borderRadius: '8px',
-              fontWeight: 'bold',
-              cursor: 'pointer'
-            }}
           >
             💳 اشتراك عميل جديد
           </button>
@@ -212,57 +202,47 @@ export default function SubscriptionsPage() {
 
       {/* Stats Summary Bar */}
       {stats && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px', marginBottom: '20px' }}>
-          <div style={{ background: '#1E293B', padding: '12px 16px', borderRadius: '10px', border: '1px solid #334155' }}>
-            <div style={{ fontSize: '12px', color: '#94A3B8' }}>إجمالي الاشتراكات</div>
-            <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#F8FAFC' }}>{stats.total_subscriptions || 0}</div>
+        <div className="subscriptions-stats">
+          <div className="subscription-stat-card">
+            <div className="subscription-stat-label">إجمالي الاشتراكات</div>
+            <div className="subscription-stat-value">{stats.total_subscriptions || 0}</div>
           </div>
-          <div style={{ background: '#1E293B', padding: '12px 16px', borderRadius: '10px', border: '1px solid #10B981' }}>
-            <div style={{ fontSize: '12px', color: '#10B981' }}>اشتراكات نشطة</div>
-            <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#10B981' }}>{stats.active_count || 0}</div>
+          <div className="subscription-stat-card subscription-stat-active">
+            <div className="subscription-stat-label">اشتراكات نشطة</div>
+            <div className="subscription-stat-value">{stats.active_count || 0}</div>
           </div>
-          <div style={{ background: '#1E293B', padding: '12px 16px', borderRadius: '10px', border: '1px solid #3B82F6' }}>
-            <div style={{ fontSize: '12px', color: '#3B82F6' }}>مجمدة 🧊</div>
-            <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#3B82F6' }}>{stats.frozen_count || 0}</div>
+          <div className="subscription-stat-card subscription-stat-frozen">
+            <div className="subscription-stat-label">مجمدة 🧊</div>
+            <div className="subscription-stat-value">{stats.frozen_count || 0}</div>
           </div>
-          <div style={{ background: '#1E293B', padding: '12px 16px', borderRadius: '10px', border: '1px solid #EF4444' }}>
-            <div style={{ fontSize: '12px', color: '#EF4444' }}>منتهية ⚠️</div>
-            <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#EF4444' }}>{stats.expired_count || 0}</div>
+          <div className="subscription-stat-card subscription-stat-expired">
+            <div className="subscription-stat-label">منتهية ⚠️</div>
+            <div className="subscription-stat-value">{stats.expired_count || 0}</div>
           </div>
-          <div style={{ background: '#1E293B', padding: '12px 16px', borderRadius: '10px', border: '1px solid #F59E0B' }}>
-            <div style={{ fontSize: '12px', color: '#F59E0B' }}>نفد الرصيد 🛑</div>
-            <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#F59E0B' }}>{stats.depleted_count || 0}</div>
+          <div className="subscription-stat-card subscription-stat-depleted">
+            <div className="subscription-stat-label">نفد الرصيد 🛑</div>
+            <div className="subscription-stat-value">{stats.depleted_count || 0}</div>
           </div>
         </div>
       )}
 
       {/* Tabs Navigation */}
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', borderBottom: '1px solid #334155', paddingBottom: '8px' }}>
+      <div className="subscriptions-tabs" role="tablist" aria-label="أقسام الاشتراكات">
         <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'subscriptions'}
+          className={`subscriptions-tab${activeTab === 'subscriptions' ? ' active' : ''}`}
           onClick={() => setActiveTab('subscriptions')}
-          style={{
-            background: activeTab === 'subscriptions' ? '#10B981' : 'transparent',
-            color: '#FFF',
-            border: 'none',
-            padding: '8px 16px',
-            borderRadius: '6px',
-            fontWeight: 'bold',
-            cursor: 'pointer'
-          }}
         >
           اشتراكات العملاء ({subscriptions.length})
         </button>
         <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'packages'}
+          className={`subscriptions-tab${activeTab === 'packages' ? ' active' : ''}`}
           onClick={() => setActiveTab('packages')}
-          style={{
-            background: activeTab === 'packages' ? '#10B981' : 'transparent',
-            color: '#FFF',
-            border: 'none',
-            padding: '8px 16px',
-            borderRadius: '6px',
-            fontWeight: 'bold',
-            cursor: 'pointer'
-          }}
         >
           دليل الباقات والأنواع ({packages.length})
         </button>
@@ -328,8 +308,9 @@ export default function SubscriptionsPage() {
                         <div style={{ display: 'flex', gap: '6px' }}>
                           {sub.package_type === 'session_based' && sub.status === 'active' && sub.remaining_credits > 0 && (
                             <button
+                              type="button"
+                              className="subscription-btn subscription-btn-success subscription-action-btn"
                               onClick={() => handleConsumeCredit(sub.id)}
-                              style={{ background: '#10B981', color: '#FFF', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}
                               title="خصم 1 جلسة"
                             >
                               🎟️ خصم جلسة
@@ -338,11 +319,12 @@ export default function SubscriptionsPage() {
 
                           {sub.status === 'active' && (
                             <button
+                              type="button"
+                              className="subscription-btn subscription-btn-info subscription-action-btn"
                               onClick={() => {
                                 setSelectedSubForFreeze(sub);
                                 setShowFreezeModal(true);
                               }}
-                              style={{ background: '#3B82F6', color: '#FFF', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}
                             >
                               🧊 تجميد
                             </button>
@@ -350,16 +332,18 @@ export default function SubscriptionsPage() {
 
                           {sub.status === 'frozen' && (
                             <button
+                              type="button"
+                              className="subscription-btn subscription-btn-warning subscription-action-btn"
                               onClick={() => handleUnfreeze(sub.id)}
-                              style={{ background: '#F59E0B', color: '#FFF', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}
                             >
                               🔥 فك التجميد
                             </button>
                           )}
 
                           <button
+                            type="button"
+                            className="subscription-btn subscription-btn-secondary subscription-action-btn"
                             onClick={() => handleRenew(sub.id)}
-                            style={{ background: '#334155', color: '#FFF', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}
                           >
                             🔄 تجديد
                           </button>
@@ -374,12 +358,18 @@ export default function SubscriptionsPage() {
         </div>
       ) : (
         /* PACKAGES CATALOG GRID */
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
           {packages.length === 0 ? (
             <div style={{ color: '#94A3B8', padding: '30px', textAlign: 'center', gridColumn: '1/-1' }}>لا توجد باقات متاحة</div>
           ) : (
             packages.map((pkg) => {
               const typeInfo = PACKAGE_TYPES.find((t) => t.key === pkg.type);
+              const cycleLabel =
+                pkg.billing_cycle === 'yearly'
+                  ? 'سنوي'
+                  : pkg.billing_cycle === 'quarterly'
+                  ? 'ربع سنوي'
+                  : 'شهري';
 
               return (
                 <div
@@ -391,31 +381,183 @@ export default function SubscriptionsPage() {
                     border: '1px solid #334155',
                     display: 'flex',
                     flexDirection: 'column',
-                    justify: 'space-between'
+                    justifyContent: 'space-between',
+                    position: 'relative',
+                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
                   }}
                 >
                   <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                      <span style={{ fontWeight: 'bold', fontSize: '16px', color: '#F8FAFC' }}>{pkg.name}</span>
-                      <span style={{ fontSize: '11px', padding: '2px 6px', borderRadius: '4px', background: `${typeInfo?.badgeColor}22`, color: typeInfo?.badgeColor }}>
-                        {typeInfo?.label}
+                    {/* Badges Bar */}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center', marginBottom: '10px' }}>
+                      {pkg.badge_text && (
+                        <span
+                          style={{
+                            fontSize: '11px',
+                            fontWeight: 'bold',
+                            padding: '3px 8px',
+                            borderRadius: '6px',
+                            background: pkg.badge_color || '#3b82f6',
+                            color: '#ffffff',
+                          }}
+                        >
+                          {pkg.badge_text}
+                        </span>
+                      )}
+
+                      {pkg.is_featured ? (
+                        <span
+                          style={{
+                            fontSize: '11px',
+                            fontWeight: 'bold',
+                            padding: '3px 8px',
+                            borderRadius: '6px',
+                            background: '#f59e0b',
+                            color: '#ffffff',
+                          }}
+                        >
+                          ⭐ مميزة
+                        </span>
+                      ) : null}
+
+                      <span
+                        style={{
+                          fontSize: '11px',
+                          padding: '2px 8px',
+                          borderRadius: '4px',
+                          background: `${typeInfo?.badgeColor || '#0891b2'}22`,
+                          color: typeInfo?.badgeColor || '#0891b2',
+                          fontWeight: '600',
+                        }}
+                      >
+                        {cycleLabel}
                       </span>
+
+                      {!pkg.is_active && (
+                        <span
+                          style={{
+                            fontSize: '10px',
+                            padding: '2px 6px',
+                            borderRadius: '4px',
+                            background: '#ef444422',
+                            color: '#ef4444',
+                            fontWeight: 'bold',
+                          }}
+                        >
+                          معطلة
+                        </span>
+                      )}
                     </div>
 
-                    <div style={{ fontSize: '22px', fontWeight: 'bold', color: '#10B981', marginBottom: '12px' }}>
-                      {pkg.price} ج.م <span style={{ fontSize: '12px', color: '#94A3B8' }}>/ {pkg.duration_days} يوم</span>
+                    {/* Title */}
+                    <h3 style={{ margin: '0 0 8px 0', fontWeight: 'bold', fontSize: '17px', color: '#F8FAFC' }}>
+                      {pkg.name}
+                    </h3>
+
+                    {/* Price and Savings */}
+                    <div style={{ marginBottom: '14px', display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                      <span style={{ fontSize: '24px', fontWeight: '800', color: '#10B981' }}>
+                        {pkg.price} ج.م
+                      </span>
+                      <span style={{ fontSize: '12px', color: '#94A3B8' }}>
+                        / {pkg.duration_days} يوم
+                      </span>
+
+                      {pkg.original_price > pkg.price && (
+                        <div style={{ marginRight: 'auto', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ fontSize: '13px', textDecoration: 'line-through', color: '#64748B' }}>
+                            {pkg.original_price} ج.م
+                          </span>
+                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#059669', background: '#ecfdf5', padding: '2px 6px', borderRadius: '4px' }}>
+                            وفر {pkg.discount_percentage || Math.round(((pkg.original_price - pkg.price) / pkg.original_price) * 100)}%
+                          </span>
+                        </div>
+                      )}
                     </div>
 
-                    <div style={{ fontSize: '13px', color: '#CBD5E1', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      {pkg.total_credits > 0 && <div>🎟️ عدد الجلسات/الرصيد: <strong>{pkg.total_credits}</strong></div>}
-                      {pkg.discount_percentage > 0 && <div>🏷️ خصم الـ POS الممنوح: <strong>{pkg.discount_percentage}%</strong></div>}
-                      {pkg.max_freeze_days > 0 && <div>🧊 أقصى أيام تجميد مسموحة: <strong>{pkg.max_freeze_days} يوم</strong></div>}
-                      {pkg.description && <div style={{ fontSize: '12px', color: '#94A3B8', marginTop: '6px' }}>{pkg.description}</div>}
+                    {/* Features list */}
+                    <div style={{ fontSize: '13px', color: '#CBD5E1', display: 'flex', flexDirection: 'column', gap: '7px' }}>
+                      <div>
+                        {pkg.is_unlimited_sessions ? (
+                          <span style={{ color: '#38bdf8', fontWeight: 'bold' }}>♾️ جلسات غير محدودة</span>
+                        ) : (
+                          <span>🎟️ عدد الجلسات / الرصيد: <strong style={{ color: '#F8FAFC' }}>{pkg.total_credits || 0}</strong></span>
+                        )}
+                      </div>
+
+                      {pkg.advance_booking_days > 0 ? (
+                        <div>📅 أيام الحجز المسبق: <strong>{pkg.advance_booking_days} يوم</strong></div>
+                      ) : (
+                        <div>📅 الحجز المسبق: <span style={{ color: '#94A3B8' }}>غير محدود</span></div>
+                      )}
+
+                      {Array.isArray(pkg.eligible_services) && pkg.eligible_services.length > 0 ? (
+                        <div style={{ color: '#a7f3d0' }}>
+                          ✨ <strong>{pkg.eligible_services.length}</strong> خدمات مؤهلة ومشمولة
+                        </div>
+                      ) : (
+                        <div style={{ color: '#94A3B8' }}>✨ جميع الخدمات مؤهلة بالخطة</div>
+                      )}
+
+                      {pkg.discount_percentage > 0 && (
+                        <div>🏷️ خصم الـ POS الممنوح: <strong>{pkg.discount_percentage}%</strong></div>
+                      )}
+
+                      {pkg.grace_period_days > 0 && (
+                        <div>⏳ فترة السماح: <strong>{pkg.grace_period_days} أيام</strong></div>
+                      )}
+
+                      {pkg.description && (
+                        <div style={{ fontSize: '12px', color: '#94A3B8', marginTop: '4px', fontStyle: 'italic', borderTop: '1px dashed #334155', paddingTop: '6px' }}>
+                          {pkg.description}
+                        </div>
+                      )}
                     </div>
                   </div>
 
-                  <div style={{ marginTop: '16px', paddingTop: '10px', borderTop: '1px solid #334155', fontSize: '12px', color: '#64748B' }}>
-                    المشتركون النشطون حالياً: <strong>{pkg.active_subscribers_count || 0}</strong>
+                  {/* Footer & Actions */}
+                  <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid #334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ fontSize: '12px', color: '#94A3B8' }}>
+                      مشتركون حالياً: <strong style={{ color: '#F8FAFC' }}>{pkg.active_subscribers_count || 0}</strong>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button
+                        type="button"
+                        style={{
+                          background: '#0284c7',
+                          border: 'none',
+                          color: '#FFF',
+                          padding: '6px 12px',
+                          borderRadius: '6px',
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                        }}
+                        onClick={() => {
+                          setEditingPackage(pkg);
+                          setShowPkgModal(true);
+                        }}
+                      >
+                        ✏️ تعديل
+                      </button>
+
+                      <button
+                        type="button"
+                        style={{
+                          background: 'rgba(239, 68, 68, 0.2)',
+                          border: '1px solid #ef4444',
+                          color: '#ef4444',
+                          padding: '6px 10px',
+                          borderRadius: '6px',
+                          fontSize: '12px',
+                          cursor: 'pointer',
+                        }}
+                        onClick={() => handleDeletePackage(pkg.id)}
+                        title="حذف الباقة"
+                      >
+                        🗑️
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
@@ -424,103 +566,18 @@ export default function SubscriptionsPage() {
         </div>
       )}
 
-      {/* CREATE PACKAGE MODAL */}
-      {showPkgModal && (
-        <Modal title="إضافة باقة جديدة" onClose={() => setShowPkgModal(false)}>
-          <form onSubmit={handleCreatePackage} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '13px', color: '#94A3B8', marginBottom: '4px' }}>اسم الباقة *</label>
-              <input
-                type="text"
-                placeholder="مثال: باقة 10 جلسات صيانة أو اشتراك شهري VIP"
-                value={pkgForm.name}
-                onChange={(e) => setPkgForm({ ...pkgForm, name: e.target.value })}
-                style={{ width: '100%', background: '#0F172A', border: '1px solid #334155', color: '#FFF', padding: '8px', borderRadius: '6px' }}
-                required
-              />
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '13px', color: '#94A3B8', marginBottom: '4px' }}>نوع الباقة</label>
-                <select
-                  value={pkgForm.type}
-                  onChange={(e) => setPkgForm({ ...pkgForm, type: e.target.value })}
-                  style={{ width: '100%', background: '#0F172A', border: '1px solid #334155', color: '#FFF', padding: '8px', borderRadius: '6px' }}
-                >
-                  {PACKAGE_TYPES.map((t) => (
-                    <option key={t.key} value={t.key}>{t.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '13px', color: '#94A3B8', marginBottom: '4px' }}>السعر (ج.م)</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={pkgForm.price}
-                  onChange={(e) => setPkgForm({ ...pkgForm, price: parseFloat(e.target.value) || 0 })}
-                  style={{ width: '100%', background: '#0F172A', border: '1px solid #334155', color: '#FFF', padding: '8px', borderRadius: '6px' }}
-                />
-              </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '13px', color: '#94A3B8', marginBottom: '4px' }}>مدة الصلاحية (بالأيام)</label>
-                <input
-                  type="number"
-                  min="1"
-                  value={pkgForm.duration_days}
-                  onChange={(e) => setPkgForm({ ...pkgForm, duration_days: parseInt(e.target.value) || 30 })}
-                  style={{ width: '100%', background: '#0F172A', border: '1px solid #334155', color: '#FFF', padding: '8px', borderRadius: '6px' }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '13px', color: '#94A3B8', marginBottom: '4px' }}>عدد الجلسات / الرصيد</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={pkgForm.total_credits}
-                  onChange={(e) => setPkgForm({ ...pkgForm, total_credits: parseInt(e.target.value) || 0 })}
-                  style={{ width: '100%', background: '#0F172A', border: '1px solid #334155', color: '#FFF', padding: '8px', borderRadius: '6px' }}
-                />
-              </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '13px', color: '#94A3B8', marginBottom: '4px' }}>نسبة خصومات الـ POS (%)</label>
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={pkgForm.discount_percentage}
-                  onChange={(e) => setPkgForm({ ...pkgForm, discount_percentage: parseFloat(e.target.value) || 0 })}
-                  style={{ width: '100%', background: '#0F172A', border: '1px solid #334155', color: '#FFF', padding: '8px', borderRadius: '6px' }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '13px', color: '#94A3B8', marginBottom: '4px' }}>أقصى أيام تجميد مسموحة</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={pkgForm.max_freeze_days}
-                  onChange={(e) => setPkgForm({ ...pkgForm, max_freeze_days: parseInt(e.target.value) || 0 })}
-                  style={{ width: '100%', background: '#0F172A', border: '1px solid #334155', color: '#FFF', padding: '8px', borderRadius: '6px' }}
-                />
-              </div>
-            </div>
-
-            <button type="submit" style={{ background: '#10B981', color: '#FFF', border: 'none', padding: '10px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', marginTop: '6px' }}>
-              حفظ وتأكيد الباقة
-            </button>
-          </form>
-        </Modal>
-      )}
+      {/* MEMBERSHIP PLAN MODAL (CREATE / EDIT MATCHING REFERENCE) */}
+      <MembershipPlanModal
+        isOpen={showPkgModal}
+        onClose={() => {
+          setShowPkgModal(false);
+          setEditingPackage(null);
+        }}
+        onSubmit={handleSavePackage}
+        initialData={editingPackage}
+        availableProducts={availableProducts}
+        availableBranches={availableBranches}
+      />
 
       {/* SUBSCRIBE CUSTOMER MODAL */}
       {showSubModal && (
@@ -556,7 +613,7 @@ export default function SubscriptionsPage() {
               </select>
             </div>
 
-            <button type="submit" style={{ background: '#10B981', color: '#FFF', border: 'none', padding: '10px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', marginTop: '6px' }}>
+            <button type="submit" className="subscription-btn subscription-btn-primary subscription-submit-btn">
               تفعيل الاشتراك وحفظ
             </button>
           </form>
@@ -580,7 +637,7 @@ export default function SubscriptionsPage() {
                 style={{ width: '100%', background: '#0F172A', border: '1px solid #334155', color: '#FFF', padding: '8px', borderRadius: '6px' }}
               />
             </div>
-            <button type="submit" style={{ background: '#3B82F6', color: '#FFF', border: 'none', padding: '10px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
+            <button type="submit" className="subscription-btn subscription-btn-info subscription-submit-btn">
               تأكيد التجميد
             </button>
           </form>

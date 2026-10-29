@@ -12,10 +12,16 @@ function getStmts() {
       `),
       getAll: db.prepare('SELECT * FROM product_variants'),
       getByProductId: db.prepare('SELECT * FROM product_variants WHERE product_id = ?'),
-      getById: db.prepare('SELECT * FROM product_variants WHERE id = ?'),
+      getById: db.prepare(`
+        SELECT pv.*, p.is_service
+        FROM product_variants pv
+        JOIN products p ON p.id = pv.product_id
+        WHERE pv.id = ?
+      `),
       getByBarcode: db.prepare(`
-        SELECT * FROM product_variants 
-        WHERE barcode = ? OR sku = ? OR TRIM(barcode) = TRIM(?) OR TRIM(sku) = TRIM(?)
+        SELECT pv.* FROM product_variants pv
+        JOIN products p ON p.id = pv.product_id AND p.is_active = 1
+        WHERE pv.barcode = ? OR pv.sku = ? OR TRIM(pv.barcode) = TRIM(?) OR TRIM(pv.sku) = TRIM(?)
         LIMIT 1
       `),
       decreaseStock: db.prepare('UPDATE product_variants SET stock_quantity = stock_quantity - ? WHERE id = ? AND stock_quantity >= ?'),
@@ -64,6 +70,23 @@ function getByBarcode(barcode) {
   return getStmts().getByBarcode.get(clean, clean, clean, clean);
 }
 
+function hasTransactionHistory(id) {
+  return Boolean(db.prepare(`
+    SELECT 1
+    FROM sale_items
+    WHERE variant_id = ?
+    UNION ALL
+    SELECT 1
+    FROM purchase_items
+    WHERE variant_id = ?
+    UNION ALL
+    SELECT 1
+    FROM returns
+    WHERE variant_id = ?
+    LIMIT 1
+  `).get(id, id, id));
+}
+
 function decreaseStock(id, quantity) {
   const result = getStmts().decreaseStock.run(quantity, id, quantity);
   if (result.changes === 0) {
@@ -94,6 +117,6 @@ function remove(id) {
 }
 
 module.exports = {
-  create, getAll, getByProductId, getById, getByBarcode,
+  create, getAll, getByProductId, getById, getByBarcode, hasTransactionHistory,
   decreaseStock, updateSku, update, remove,
 };

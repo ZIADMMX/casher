@@ -10,3 +10,8 @@ release/
 *.key
 *.p12
 *.pfx
+data/
+.jest-cache/
+coverage/
+undefined/
+D:*

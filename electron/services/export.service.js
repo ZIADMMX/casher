@@ -1,7 +1,8 @@
-const XLSX = require('xlsx');
 const { dialog } = require('electron');
+const path = require('node:path');
+const { writeXlsxFile, writeCsvFile } = require('./excel.util');
 
-function exportToExcel(data, sheetName, defaultFileName) {
+async function exportToExcel(data, sheetName, defaultFileName) {
   if (!data || data.length === 0) {
     throw new Error('لا توجد بيانات للتصدير');
   }
@@ -16,12 +17,31 @@ function exportToExcel(data, sheetName, defaultFileName) {
     return { canceled: true };
   }
 
-  const worksheet = XLSX.utils.json_to_sheet(data);
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
-  XLSX.writeFile(workbook, result);
-
+  await writeXlsxFile(result, sheetName, data);
   return { canceled: false, path: result };
 }
 
-module.exports = { exportToExcel };
+async function exportToExcelOrCsv(data, sheetName, defaultFileName) {
+  if (!data || data.length === 0) {
+    throw new Error('لا توجد بيانات للتصدير');
+  }
+
+  const result = dialog.showSaveDialogSync({
+    title: 'تصدير بيانات الموظفين',
+    defaultPath: defaultFileName,
+    filters: [
+      { name: 'Excel Workbook', extensions: ['xlsx'] },
+      { name: 'CSV UTF-8', extensions: ['csv'] },
+    ],
+  });
+  if (!result) return { canceled: true };
+
+  if (path.extname(result).toLowerCase() === '.csv') {
+    writeCsvFile(result, data);
+  } else {
+    await writeXlsxFile(result, sheetName, data);
+  }
+  return { canceled: false, path: result };
+}
+
+module.exports = { exportToExcel, exportToExcelOrCsv };

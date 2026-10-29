@@ -142,6 +142,11 @@ describe('Security & Permissions (RBAC Enforcement)', () => {
   beforeEach(() => {
     authService.logout();
     jest.clearAllMocks();
+    usersRepo.getById.mockImplementation((id) => {
+      if (id === 1) return adminUser;
+      if (id === 2) return cashierUser;
+      return null;
+    });
   });
 
   describe('Unauthenticated Access Guards', () => {

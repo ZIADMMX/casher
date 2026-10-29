@@ -1,0 +1,730 @@
+/* ==========================================================================
+   FOX .CLOUD - Modern Launch Business & Setup Screen Styling (Glassmorphism)
+   Matches the reference design with high-end dark luxury & orange branding
+   ========================================================================== */
+
+.launch-container {
+  position: relative;
+  min-height: 100vh;
+  width: 100vw;
+  background-color: #0B0D14;
+  background-image: 
+    radial-gradient(circle at 50% 15%, rgba(242, 96, 12, 0.16) 0%, transparent 60%),
+    radial-gradient(circle at 80% 85%, rgba(211, 84, 0, 0.08) 0%, transparent 50%),
+    radial-gradient(circle at 20% 75%, rgba(242, 96, 12, 0.06) 0%, transparent 45%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  direction: rtl;
+  font-family: 'Cairo', sans-serif;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.launch-bg-glow {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(242, 96, 12, 0.12) 0%, transparent 70%);
+  pointer-events: none;
+  filter: blur(40px);
+  z-index: 0;
+}
+
+/* Glass Card */
+.launch-card {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 470px;
+  background: rgba(16, 18, 27, 0.88);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 28px;
+  padding: 36px 32px;
+  box-shadow: 
+    0 25px 60px -15px rgba(0, 0, 0, 0.85),
+    0 0 35px -5px rgba(242, 96, 12, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  transition: max-width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-sizing: border-box;
+}
+
+.launch-card-wide {
+  max-width: 820px;
+}
+
+/* Header */
+.launch-header {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.setup-stepper {
+  display: flex;
+  direction: rtl;
+  margin: 0 auto 22px;
+  max-width: 590px;
+}
+
+.setup-stepper-item {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+
+.setup-stepper-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  flex: 0 0 auto;
+  color: #64748B;
+}
+
+.setup-stepper-number {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 12px;
+  font-weight: 800;
+  transition: all 0.2s ease;
+}
+
+.setup-stepper-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.setup-stepper-step.is-current {
+  color: #FFFFFF;
+}
+
+.setup-stepper-step.is-current .setup-stepper-number {
+  color: #FFFFFF;
+  border-color: #F2600C;
+  background: linear-gradient(135deg, #F2600C, #FF8F3D);
+  box-shadow: 0 0 18px rgba(242, 96, 12, 0.4);
+}
+
+.setup-stepper-step.is-complete {
+  color: #FDBA74;
+}
+
+.setup-stepper-step.is-complete .setup-stepper-number {
+  color: #FDBA74;
+  border-color: rgba(242, 96, 12, 0.5);
+  background: rgba(242, 96, 12, 0.12);
+}
+
+.setup-stepper-line {
+  height: 1px;
+  flex: 1;
+  margin: 0 10px 20px;
+  background: rgba(255, 255, 255, 0.12);
+  transition: background 0.2s ease;
+}
+
+.setup-stepper-line.is-complete {
+  background: linear-gradient(90deg, rgba(242, 96, 12, 0.3), #F2600C);
+}
+
+.launch-logo-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 74px;
+  height: 74px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(242, 96, 12, 0.25);
+  box-shadow: 0 8px 24px -4px rgba(242, 96, 12, 0.3);
+  margin-bottom: 14px;
+  overflow: hidden;
+}
+
+.launch-logo-img {
+  width: 58px;
+  height: 58px;
+  object-fit: contain;
+}
+
+.launch-title {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 800;
+  color: #FFFFFF;
+  letter-spacing: -0.02em;
+}
+
+.launch-title-dot {
+  color: #F2600C;
+}
+
+.launch-title-cloud {
+  color: #FF8F3D;
+  font-weight: 700;
+}
+
+.launch-subtitle {
+  margin: 6px 0 0 0;
+  font-size: 13.5px;
+  color: #94A3B8;
+  line-height: 1.5;
+}
+
+/* Divider */
+.launch-divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin: 20px 0 24px 0;
+}
+
+.launch-divider::before,
+.launch-divider::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.launch-divider span {
+  padding: 0 14px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #64748B;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* Form Fields */
+.launch-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.launch-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: right;
+}
+
+.launch-label {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #E2E8F0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.field-sub {
+  font-size: 11px;
+  font-weight: 500;
+  color: #64748B;
+}
+
+.launch-input {
+  width: 100%;
+  height: 44px;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 0 14px;
+  font-size: 13.5px;
+  color: #FFFFFF;
+  font-family: inherit;
+  outline: none;
+  box-sizing: border-box;
+  transition: all 0.2s ease;
+}
+
+.launch-input::placeholder {
+  color: #475569;
+  font-size: 12.5px;
+}
+
+.launch-input:focus {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: #F2600C;
+  box-shadow: 0 0 0 3px rgba(242, 96, 12, 0.22);
+}
+
+/* Password wrapper */
+.launch-input-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.launch-input-box .launch-input {
+  padding-left: 44px;
+}
+
+.launch-eye-btn {
+  position: absolute;
+  left: 10px;
+  background: transparent;
+  border: none;
+  color: #64748B;
+  cursor: pointer;
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: color 0.15s ease;
+}
+
+.launch-eye-btn:hover {
+  color: #F2600C;
+}
+
+/* Phone Flag Badge */
+.launch-phone-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.launch-phone-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 44px;
+  padding: 0 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.launch-flag {
+  font-size: 18px;
+}
+
+.launch-country-code {
+  font-size: 13px;
+  font-weight: 700;
+  color: #CBD5E1;
+  direction: ltr;
+}
+
+.launch-phone-input {
+  flex: 1;
+}
+
+/* Terms */
+.launch-terms {
+  font-size: 11.5px;
+  color: #64748B;
+  text-align: center;
+  line-height: 1.6;
+  margin: 4px 0 6px 0;
+}
+
+.launch-terms-link {
+  color: #06B6D4;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Error Banner */
+.launch-error-banner {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #FCA5A5;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 10px;
+  padding: 10px 14px;
+  text-align: center;
+}
+
+/* Big Launch Button */
+.launch-btn {
+  width: 100%;
+  height: 48px;
+  background: linear-gradient(135deg, #F2600C 0%, #FF7A1A 100%);
+  border: none;
+  border-radius: 14px;
+  color: #FFFFFF;
+  font-family: inherit;
+  font-size: 14.5px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 8px 24px -4px rgba(242, 96, 12, 0.5);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.launch-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px -4px rgba(242, 96, 12, 0.65);
+  filter: brightness(1.05);
+}
+
+.launch-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.launch-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.launch-btn-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.launch-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #FFFFFF;
+  border-radius: 50%;
+  animation: launchSpin 0.7s linear infinite;
+}
+
+@keyframes launchSpin {
+  to { transform: rotate(360deg); }
+}
+
+/* Footer Row */
+.launch-footer-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #94A3B8;
+  margin-top: 6px;
+}
+
+.launch-signin-btn {
+  background: transparent;
+  border: none;
+  color: #06B6D4;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: color 0.15s ease;
+}
+
+.launch-signin-btn:hover {
+  color: #38BDF8;
+}
+
+/* ==========================================================================
+   STEP 2: Recovery Key Styles
+   ========================================================================== */
+
+.launch-step-box {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  text-align: center;
+}
+
+.recovery-badge-circle {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  color: #F59E0B;
+  font-size: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto;
+}
+
+.recovery-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #FFFFFF;
+  margin: 0;
+}
+
+.recovery-desc {
+  font-size: 13px;
+  color: #94A3B8;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.recovery-card {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 16px;
+  text-align: right;
+}
+
+.recovery-card-label {
+  font-size: 12px;
+  color: #94A3B8;
+  font-weight: 600;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.recovery-key-display {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px dashed rgba(245, 158, 11, 0.4);
+  border-radius: 10px;
+  padding: 10px 14px;
+}
+
+.recovery-key-code {
+  font-family: 'Fira Code', 'Cascadia Code', monospace;
+  font-size: 16px;
+  font-weight: 700;
+  color: #FBBF24;
+  letter-spacing: 0.05em;
+  direction: ltr;
+}
+
+.recovery-copy-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #FFFFFF;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.recovery-copy-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.recovery-copy-btn.copied {
+  background: rgba(16, 185, 129, 0.2);
+  border-color: rgba(16, 185, 129, 0.4);
+  color: #34D399;
+}
+
+.recovery-hint {
+  font-size: 11.5px;
+  color: #64748B;
+  margin: 10px 0 0 0;
+}
+
+.recovery-confirm-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12.5px;
+  color: #CBD5E1;
+  font-weight: 600;
+  cursor: pointer;
+  margin: 6px 0;
+}
+
+.recovery-confirm-check input {
+  width: 18px;
+  height: 18px;
+  accent-color: #F2600C;
+  cursor: pointer;
+}
+
+/* ==========================================================================
+   STEP 3: Sector Selection Grid
+   ========================================================================== */
+
+.sector-grid-container {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 10px;
+}
+
+.sector-step-heading {
+  text-align: center;
+}
+
+.sector-step-heading h2 {
+  margin: 0;
+  color: #FFFFFF;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.sector-step-heading p {
+  margin: 6px 0 0;
+  color: #94A3B8;
+  font-size: 12px;
+}
+
+.sector-tile {
+  min-height: 104px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 18px 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  text-align: right;
+  color: #FFFFFF;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sector-tile:focus-visible {
+  outline: 2px solid #FF8F3D;
+  outline-offset: 3px;
+}
+
+.sector-tile:hover:not(:disabled) {
+  background: rgba(242, 96, 12, 0.08);
+  border-color: rgba(242, 96, 12, 0.4);
+  transform: translateY(-3px);
+  box-shadow: 0 10px 25px -5px rgba(242, 96, 12, 0.2);
+}
+
+.sector-tile.is-selected,
+.sector-tile.is-selected:hover:not(:disabled) {
+  background:
+    radial-gradient(circle at 10% 0%, rgba(242, 96, 12, 0.19), transparent 62%),
+    rgba(242, 96, 12, 0.08);
+  border-color: rgba(255, 143, 61, 0.85);
+  box-shadow:
+    0 0 0 1px rgba(242, 96, 12, 0.18),
+    0 12px 30px -8px rgba(242, 96, 12, 0.42),
+    inset 0 0 24px rgba(242, 96, 12, 0.06);
+}
+
+.sector-tile.is-activated .sector-tile-arrow {
+  color: #FDBA74;
+}
+
+.sector-tile-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: rgba(242, 96, 12, 0.12);
+  border: 1px solid rgba(242, 96, 12, 0.25);
+  color: #F2600C;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.sector-tile-body {
+  flex: 1;
+}
+
+.sector-tile-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #FFFFFF;
+  margin: 0 0 4px 0;
+}
+
+.sector-tile-desc {
+  font-size: 11.5px;
+  color: #94A3B8;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.sector-tile-arrow {
+  font-size: 18px;
+  color: #64748B;
+  transition: transform 0.2s ease, color 0.2s ease;
+}
+
+.sector-tile:hover .sector-tile-arrow {
+  color: #F2600C;
+  transform: translateX(-4px);
+}
+
+.custom-sector-fields {
+  display: grid;
+  gap: 14px;
+  max-width: 520px;
+  width: 100%;
+  margin: 4px auto 0;
+}
+
+.sector-activate-btn {
+  height: 44px;
+}
+
+.launch-btn:focus-visible,
+.recovery-copy-btn:focus-visible,
+.launch-signin-btn:focus-visible {
+  outline: 2px solid #FF8F3D;
+  outline-offset: 3px;
+}
+
+@media (max-width: 720px) {
+  .sector-grid-container {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 480px) {
+  .launch-container {
+    padding: 20px 12px;
+  }
+
+  .launch-card {
+    padding: 28px 18px;
+    border-radius: 22px;
+  }
+
+  .sector-grid-container {
+    grid-template-columns: 1fr;
+  }
+
+  .sector-tile {
+    min-height: 88px;
+  }
+
+  .setup-stepper-label {
+    font-size: 9px;
+  }
+
+  .setup-stepper-line {
+    margin-right: 5px;
+    margin-left: 5px;
+  }
+}

@@ -2,8 +2,64 @@ import { useState } from 'react';
 import { formatProductImageUrl } from '../utils/media.js';
 import { useBusinessProfile } from '../contexts/BusinessProfileContext.jsx';
 
-function getCategoryIcon(catName = '', prodName = '') {
-  const text = `${catName} ${prodName}`.toLowerCase();
+function getCategoryIcon(catName = '', prodName = '', sectorKey = 'retail') {
+  const text = `${catName} ${prodName}`.toLowerCase().replace(/[إأآا]/g, 'ا');
+
+  if (sectorKey === 'salon_barbershop') {
+    if (text.includes('بشرة') || text.includes('هيدرا') || text.includes('مساج')) return '💆';
+    if (text.includes('صبغ') || text.includes('بروتين') || text.includes('معالج')) return '🧴';
+    if (text.includes('باقة') || text.includes('بكج')) return '💈';
+    return '✂️';
+  }
+  
+  // المطاعم والكافيهات
+  if (sectorKey === 'cafe_restaurant' || text.includes('قهوة') || text.includes('برجر') || text.includes('بيتزا') || text.includes('شاورما') || text.includes('عصير') || text.includes('كفتة') || text.includes('مشوي') || text.includes('طاووق') || text.includes('فراخ') || text.includes('دجاج') || text.includes('ملوخية') || text.includes('كشري') || text.includes('سلطة') || text.includes('طحينة') || text.includes('حلو') || text.includes('ام علي') || text.includes('مشروب')) {
+    if (text.includes('عصير') || text.includes('مشروب') || text.includes('بيبسي') || text.includes('كولا') || text.includes('مياه') || text.includes('بارد')) return '🥤';
+    if (text.includes('قهوة') || text.includes('شاي') || text.includes('لاتيه') || text.includes('اسبريسو') || text.includes('كابتشينو') || text.includes('ساخن')) return '☕';
+    if (text.includes('بيتزا')) return '🍕';
+    if (text.includes('برجر') || text.includes('ساندوتش')) return '🍔';
+    if (text.includes('كفتة') || text.includes('مشوي') || text.includes('طاووق') || text.includes('لحم') || text.includes('كباب')) return '🥩';
+    if (text.includes('فراخ') || text.includes('دجاج')) return '🍗';
+    if (text.includes('ملوخية') || text.includes('كشري') || text.includes('ارز') || text.includes('شوربة')) return '🍲';
+    if (text.includes('سلطة') || text.includes('طحينة')) return '🥗';
+    if (text.includes('حلو') || text.includes('كيك') || text.includes('سينابون') || text.includes('ام علي') || text.includes('قشطة')) return '🍰';
+    if (text.includes('جبن') || text.includes('رومي')) return '🧀';
+    return '🍽️';
+  }
+
+  // سوبر ماركت وبقالة
+  if (sectorKey === 'grocery' || text.includes('لبن') || text.includes('جبن') || text.includes('شيبسي') || text.includes('زيت') || text.includes('أرز')) {
+    if (text.includes('لبن') || text.includes('حليب') || text.includes('زبادي')) return '🥛';
+    if (text.includes('جبن') || text.includes('رومي')) return '🧀';
+    if (text.includes('تفاح') || text.includes('موز') || text.includes('طماطم') || text.includes('خضار')) return '🍎';
+    if (text.includes('شوكولاتة') || text.includes('بسكويت') || text.includes('شيبسي')) return '🍫';
+    return '🛒';
+  }
+
+  // إلكترونيات
+  if (sectorKey === 'electronics' || text.includes('هاتف') || text.includes('ايفون') || text.includes('سامسونج') || text.includes('شاحن') || text.includes('سماعة')) {
+    if (text.includes('هاتف') || text.includes('موبايل') || text.includes('phone')) return '📱';
+    if (text.includes('سماعة') || text.includes('ايربودز') || text.includes('headphone')) return '🎧';
+    if (text.includes('شاحن') || text.includes('كابل') || text.includes('cable')) return '🔌';
+    if (text.includes('لاب') || text.includes('كمبيوتر') || text.includes('شاشة')) return '💻';
+    return '📱';
+  }
+
+  // ورش وصيانة
+  if (sectorKey === 'maintenance' || text.includes('صيانة') || text.includes('تصليح') || text.includes('شاشة مكسورة') || text.includes('بطارية')) {
+    if (text.includes('بطارية')) return '🔋';
+    if (text.includes('شاشة')) return '🖥️';
+    return '🔧';
+  }
+
+  // صالات رياضية وجيم
+  if (sectorKey === 'subscriptions_gym' || text.includes('جيم') || text.includes('اشتراك') || text.includes('بروتين') || text.includes('كرياتين') || text.includes('حصة')) {
+    if (text.includes('بروتين') || text.includes('مكمل') || text.includes('كرياتين')) return '🥤';
+    if (text.includes('حصة') || text.includes('تدريب') || text.includes('pt')) return '🏆';
+    return '🏋️‍♂️';
+  }
+
+  // التجزئة والملابس الافتراضي
   if (text.includes('بنطلون') || text.includes('جينز') || text.includes('pant') || text.includes('jeans')) return '👖';
   if (text.includes('حذاء') || text.includes('كوتش') || text.includes('شوز') || text.includes('shoe')) return '👟';
   if (text.includes('بدلة') || text.includes('قميص') || text.includes('suit') || text.includes('shirt')) return '👔';
@@ -11,17 +67,18 @@ function getCategoryIcon(catName = '', prodName = '') {
   if (text.includes('فستان') || text.includes('عباية') || text.includes('dress')) return '👗';
   if (text.includes('كاب') || text.includes('طاقية') || text.includes('cap') || text.includes('hat')) return '🧢';
   if (text.includes('شنطة') || text.includes('حقيبة') || text.includes('bag')) return '🎒';
-  return '👕';
+  return sectorKey === 'cafe_restaurant' ? '🍽️' : '👕';
 }
 
+
 // مكون صورة المنتج مع fallback آمن بدون تعديل مباشر على الـ DOM
-function ProductImage({ product }) {
+function ProductImage({ product, sectorKey }) {
   const [hasError, setHasError] = useState(false);
 
-  if (hasError || !product.image_path) {
+  if (hasError || !product?.image_path) {
     return (
       <span className="prod-emoji-fallback">
-        {getCategoryIcon(product.categoryName, product.name)}
+        {getCategoryIcon(product?.categoryName, product?.name, sectorKey)}
       </span>
     );
   }
@@ -36,31 +93,35 @@ function ProductImage({ product }) {
   );
 }
 
-function ProductGrid({ products, selectedVariant, pickVariant, addToCart, getStockBadge, cart = [] }) {
+function ProductGrid({ products = [], selectedVariant = {}, pickVariant, addToCart, getStockBadge, cart = [], sectorConfig }) {
   const { attributes } = useBusinessProfile();
+  const sectorKey = sectorConfig?.key || 'retail';
+
   if (!products || products.length === 0) {
     return (
       <div className="pos-no-products">
         <div className="no-prod-icon">🔍</div>
-        <h3>لا توجد منتجات مطابقة للبحث</h3>
+        <h3>لا توجد عناصر مطابقة للبحث</h3>
         <p>جرب البحث بكلمة أخرى أو اختر تصنيفاً مختلفاً من الأعلى</p>
       </div>
     );
   }
+
 
   return (
     <div className="pos-grid-container">
       {products.map((product) => {
         const activeVariantId = selectedVariant[product.id] || product.variants[0]?.id;
         const activeVariant = product.variants.find((v) => v.id === activeVariantId) || product.variants[0];
-        const badge = getStockBadge(product);
+        const isService = Boolean(product.is_service);
+        const badge = isService ? null : getStockBadge(product);
 
         // حساب عدد القطع في السلة لهذا المنتج
         const inCartCount = cart
           .filter((item) => product.variants.some((v) => v.id === item.variantId))
           .reduce((sum, item) => sum + item.quantity, 0);
 
-        const isOutOfStock = !activeVariant || activeVariant.stock_quantity === 0;
+        const isOutOfStock = !activeVariant || (!isService && activeVariant.stock_quantity === 0);
 
         return (
           <div key={product.id} className={`pos-product-card ${isOutOfStock ? 'is-out-of-stock' : ''}`}>
@@ -85,7 +146,7 @@ function ProductGrid({ products, selectedVariant, pickVariant, addToCart, getSto
 
             {/* Visual Image / Hero Area */}
             <div className="pos-card-visual" onClick={() => !isOutOfStock && addToCart(product)}>
-              <ProductImage product={product} />
+              <ProductImage product={product} sectorKey={sectorKey} />
               
               {/* Quick Hover Add Overlay */}
               {!isOutOfStock && (
@@ -103,10 +164,10 @@ function ProductGrid({ products, selectedVariant, pickVariant, addToCart, getSto
 
               <div className="pos-prod-code-line">
                 <span className="pos-code-badge">
-                  {activeVariant?.barcode || activeVariant?.sku || 'بدون باركود'}
+                  {isService ? 'خدمة' : (activeVariant?.barcode || activeVariant?.sku || 'بدون باركود')}
                 </span>
                 <span className="pos-variant-stock-hint">
-                  {activeVariant ? `المتاح: ${activeVariant.stock_quantity}` : ''}
+                  {activeVariant ? (isService ? 'لا تحتاج مخزون' : `المتاح: ${activeVariant.stock_quantity}`) : ''}
                 </span>
               </div>
 
@@ -115,7 +176,7 @@ function ProductGrid({ products, selectedVariant, pickVariant, addToCart, getSto
                 <div className="pos-variants-chip-list">
                   {product.variants.map((v) => {
                     const isSelected = v.id === activeVariantId;
-                    const disabled = v.stock_quantity === 0;
+                    const disabled = !isService && v.stock_quantity === 0;
                     const customValue = attributes
                       .map((attribute) => (
                         attribute.attribute_key === 'size'
@@ -135,7 +196,7 @@ function ProductGrid({ products, selectedVariant, pickVariant, addToCart, getSto
                           pickVariant(product.id, v.id);
                         }}
                         disabled={disabled}
-                        title={`المتاح: ${v.stock_quantity} قطعة`}
+                        title={isService ? 'خدمة' : `المتاح: ${v.stock_quantity} قطعة`}
                       >
                         {v.size || v.color || customValue || 'متغير'}
                       </button>

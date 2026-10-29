@@ -75,15 +75,22 @@ export default function ShiftsPage() {
     try {
       setLoading(true);
       if (window.electronAPI) {
-        const [current, all, kpiData, lastClosed, sess] = await Promise.all([
-          window.electronAPI.getCurrentShift?.(),
-          window.electronAPI.getAllShifts?.(),
-          window.electronAPI.getShiftsKPIs?.(),
-          window.electronAPI.getLastClosedShift?.(),
-          window.electronAPI.getSession?.(),
+        const results = await Promise.allSettled([
+          window.electronAPI.getCurrentShift ? window.electronAPI.getCurrentShift() : Promise.resolve(null),
+          window.electronAPI.getAllShifts ? window.electronAPI.getAllShifts() : Promise.resolve([]),
+          window.electronAPI.getShiftsKPIs ? window.electronAPI.getShiftsKPIs() : Promise.resolve(null),
+          window.electronAPI.getLastClosedShift ? window.electronAPI.getLastClosedShift() : Promise.resolve(null),
+          window.electronAPI.getSession ? window.electronAPI.getSession() : Promise.resolve(null),
         ]);
+
+        const current = results[0].status === 'fulfilled' ? results[0].value : null;
+        const all = results[1].status === 'fulfilled' ? results[1].value : [];
+        const kpiData = results[2].status === 'fulfilled' ? results[2].value : null;
+        const lastClosed = results[3].status === 'fulfilled' ? results[3].value : null;
+        const sess = results[4].status === 'fulfilled' ? results[4].value : null;
+
         setActiveShift(current || null);
-        setShiftsList(all || []);
+        setShiftsList(Array.isArray(all) ? all : []);
         if (kpiData) setKpis(kpiData);
         setLastClosedShift(lastClosed || null);
         setSessionUser(sess || null);
@@ -251,7 +258,11 @@ export default function ShiftsPage() {
 
   // التصفية والبحث
   const filteredShifts = useMemo(() => {
-    return shiftsList.filter((s) => {
+    let list = shiftsList;
+    if (sessionUser && sessionUser.role !== 'admin') {
+      list = list.filter((s) => s.user_id === sessionUser.id);
+    }
+    return list.filter((s) => {
       const matchesStatus =
         filterStatus === 'all' ||
         (filterStatus === 'open' && s.status === 'open') ||
@@ -268,7 +279,7 @@ export default function ShiftsPage() {
 
       return matchesStatus && matchesSearch;
     });
-  }, [shiftsList, filterStatus, searchTerm]);
+  }, [shiftsList, sessionUser, filterStatus, searchTerm]);
 
   return (
     <div className="shifts-page-container">
@@ -316,6 +327,7 @@ export default function ShiftsPage() {
               >
                 <span>💸</span> سحب مصروف من الدرج
               </button>
+            {sessionUser?.role === 'admin' && (
               <button
                 type="button"
                 className="secondary-btn"
@@ -323,6 +335,7 @@ export default function ShiftsPage() {
               >
                 <span>📊</span> تقرير استطلاعي (X-Report)
               </button>
+            )}
               <button
                 type="button"
                 className="danger-btn"
@@ -346,42 +359,44 @@ export default function ShiftsPage() {
         </div>
       </div>
 
-      {/* KPI Stats Cards */}
-      <div className="onyx-stats-row">
-        <div className="onyx-stat-card blue">
-          <div className="stat-icon">💰</div>
-          <span className="stat-label">مبيعات الورديات المغلقة</span>
-          <span className="stat-value">{kpis.totalSalesVolume?.toLocaleString('ar-EG')} ج.م</span>
-          <span className="stat-sub">{kpis.closedShiftsCount} وردية مكتملة ومقفلة</span>
-        </div>
+      {/* KPI Stats Cards - Admin Only */}
+      {sessionUser?.role === 'admin' && (
+        <div className="fox-stats-row">
+          <div className="fox-stat-card blue">
+            <div className="stat-icon">💰</div>
+            <span className="stat-label">مبيعات الورديات المغلقة</span>
+            <span className="stat-value">{kpis.totalSalesVolume?.toLocaleString('ar-EG')} ج.م</span>
+            <span className="stat-sub">{kpis.closedShiftsCount} وردية مكتملة ومقفلة</span>
+          </div>
 
-        <div className="onyx-stat-card rose">
-          <div className="stat-icon">⚠️</div>
-          <span className="stat-label">إجمالي العجز المسجل</span>
-          <span className="stat-value" style={{ color: kpis.totalShortage > 0 ? '#DC2626' : '#64748B' }}>
-            {kpis.totalShortage?.toLocaleString('ar-EG')} ج.م
-          </span>
-          <span className="stat-sub">نقص مالي مرصود على الكاشيرية</span>
-        </div>
+          <div className="fox-stat-card rose">
+            <div className="stat-icon">⚠️</div>
+            <span className="stat-label">إجمالي العجز المسجل</span>
+            <span className="stat-value" style={{ color: kpis.totalShortage > 0 ? '#DC2626' : '#64748B' }}>
+              {kpis.totalShortage?.toLocaleString('ar-EG')} ج.م
+            </span>
+            <span className="stat-sub">نقص مالي مرصود على الكاشيرية</span>
+          </div>
 
-        <div className="onyx-stat-card emerald">
-          <div className="stat-icon">📈</div>
-          <span className="stat-label">إجمالي الفائض / الزيادات</span>
-          <span className="stat-value" style={{ color: kpis.totalOverage > 0 ? '#15803D' : '#64748B' }}>
-            {kpis.totalOverage?.toLocaleString('ar-EG')} ج.م
-          </span>
-          <span className="stat-sub">فائض نقدي مسجل فوق المبيعات</span>
-        </div>
+          <div className="fox-stat-card emerald">
+            <div className="stat-icon">📈</div>
+            <span className="stat-label">إجمالي الفائض / الزيادات</span>
+            <span className="stat-value" style={{ color: kpis.totalOverage > 0 ? '#15803D' : '#64748B' }}>
+              {kpis.totalOverage?.toLocaleString('ar-EG')} ج.م
+            </span>
+            <span className="stat-sub">فائض نقدي مسجل فوق المبيعات</span>
+          </div>
 
-        <div className="onyx-stat-card amber">
-          <div className="stat-icon">💸</div>
-          <span className="stat-label">مصروفات ونثريات الدرج</span>
-          <span className="stat-value" style={{ color: '#D97706' }}>
-            {kpis.totalExpensesAmount?.toLocaleString('ar-EG')} ج.م
-          </span>
-          <span className="stat-sub">سحوبات مسجلة خلال الورديات</span>
+          <div className="fox-stat-card amber">
+            <div className="stat-icon">💸</div>
+            <span className="stat-label">مصروفات ونثريات الدرج</span>
+            <span className="stat-value" style={{ color: '#D97706' }}>
+              {kpis.totalExpensesAmount?.toLocaleString('ar-EG')} ج.م
+            </span>
+            <span className="stat-sub">سحوبات مسجلة خلال الورديات</span>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Active Shift Hero Card */}
       {activeShift ? (
@@ -415,14 +430,16 @@ export default function ShiftsPage() {
             </div>
 
             <div style={{ display: 'flex', gap: '8px' }}>
-              <button
-                type="button"
-                className="secondary-btn"
-                style={{ padding: '8px 14px', fontSize: '12.5px' }}
-                onClick={handleShowXReport}
-              >
-                <span>📊</span> معاينة X
-              </button>
+              {sessionUser?.role === 'admin' && (
+                <button
+                  type="button"
+                  className="secondary-btn"
+                  style={{ padding: '8px 14px', fontSize: '12.5px' }}
+                  onClick={handleShowXReport}
+                >
+                  <span>📊</span> معاينة X
+                </button>
+              )}
               <button
                 type="button"
                 className="danger-btn"
@@ -450,10 +467,21 @@ export default function ShiftsPage() {
               <span className="shift-metric-lbl">مصروفات الدرج (-)</span>
               <span className="shift-metric-val red">-{Number(activeShift.liveTotals?.totalExpenses || 0).toFixed(2)} ج.م</span>
             </div>
-            <div className="shift-metric-item" style={{ background: '#F0F9FF', padding: '6px 12px', borderRadius: '8px' }}>
-              <span className="shift-metric-lbl" style={{ color: '#0369A1' }}>النقدية المفترضة بالدرج (=)</span>
-              <span className="shift-metric-val blue">{Number(activeShift.liveTotals?.expectedCash || 0).toFixed(2)} ج.م</span>
-            </div>
+            {Number(activeShift.liveTotals?.cashExchangeNet || 0) !== 0 && (
+              <div className="shift-metric-item">
+                <span className="shift-metric-lbl">صافي فروق الاستبدال النقدية</span>
+                <span className={`shift-metric-val ${activeShift.liveTotals.cashExchangeNet > 0 ? 'green' : 'red'}`}>
+                  {activeShift.liveTotals.cashExchangeNet > 0 ? '+' : ''}
+                  {Number(activeShift.liveTotals.cashExchangeNet).toFixed(2)} ج.م
+                </span>
+              </div>
+            )}
+            {sessionUser?.role === 'admin' && (
+              <div className="shift-metric-item" style={{ background: '#F0F9FF', padding: '6px 12px', borderRadius: '8px' }}>
+                <span className="shift-metric-lbl" style={{ color: '#0369A1' }}>النقدية المفترضة بالدرج (=)</span>
+                <span className="shift-metric-val blue">{Number(activeShift.liveTotals?.expectedCash || 0).toFixed(2)} ج.م</span>
+              </div>
+            )}
           </div>
         </div>
       ) : (
@@ -553,7 +581,7 @@ export default function ShiftsPage() {
                   return (
                     <tr key={s.id}>
                       <td>
-                        <strong style={{ color: '#2E5BFF' }}>#{s.id}</strong>
+                        <strong style={{ color: '#F2600C' }}>#{s.id}</strong>
                         <div style={{ fontSize: '10.5px', color: s.shift_type === 'evening' ? '#4F46E5' : '#D97706', fontWeight: '700' }}>
                           {s.shift_type === 'evening' ? '🌙 مسائية' : '☀️ صباحية'}
                         </div>
@@ -711,7 +739,7 @@ export default function ShiftsPage() {
                       style={{
                         background: 'none',
                         border: 'none',
-                        color: '#2E5BFF',
+                        color: '#F2600C',
                         fontSize: '12.5px',
                         fontWeight: '700',
                         cursor: 'pointer'
@@ -942,7 +970,7 @@ export default function ShiftsPage() {
                     style={{
                       background: 'none',
                       border: 'none',
-                      color: '#2E5BFF',
+                      color: '#F2600C',
                       fontSize: '12.5px',
                       fontWeight: '700',
                       cursor: 'pointer'

@@ -1,0 +1,111 @@
+.auto-order-label {
+  display: block;
+  margin-bottom: 4px;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.auto-order-input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 1px solid #CBD5E1;
+  border-radius: 8px;
+  background: #FFFFFF;
+  color: #0F172A;
+  font: inherit;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.auto-order-input:focus {
+  border-color: #F59E0B;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.22);
+}
+
+/* Primary Action Buttons */
+.orders-primary-btn {
+  background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+  color: #FFFFFF;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.28);
+  transition: all 0.2s ease;
+}
+
+.orders-primary-btn:hover {
+  background: linear-gradient(135deg, #D97706 0%, #B45309 100%);
+  box-shadow: 0 6px 16px rgba(245, 158, 11, 0.4);
+  transform: translateY(-1px);
+}
+
+.orders-primary-btn:active {
+  transform: translateY(0);
+}
+
+/* Modal Submit Button */
+.orders-submit-btn {
+  background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+  color: #FFFFFF;
+  border: none;
+  padding: 12px 18px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  margin-top: 8px;
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.28);
+  transition: all 0.2s ease;
+}
+
+.orders-submit-btn:hover {
+  background: linear-gradient(135deg, #D97706 0%, #B45309 100%);
+  box-shadow: 0 6px 16px rgba(245, 158, 11, 0.4);
+}
+
+/* View Mode Buttons */
+.orders-view-btn {
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: #94A3B8;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  transition: all 0.15s ease;
+}
+
+.orders-view-btn.active {
+  background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+  color: #FFFFFF;
+  box-shadow: 0 2px 6px rgba(245, 158, 11, 0.35);
+}
+
+/* Notice Banner */
+.orders-notice-banner {
+  padding: 11px 14px;
+  border-radius: 8px;
+  background: #FFFBEB;
+  border: 1px solid #FDE68A;
+  color: #92400E;
+  font-size: 13px;
+  line-height: 1.5;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Order Number Highlights */
+.orders-number-highlight {
+  color: #F59E0B !important;
+  font-weight: 700;
+}

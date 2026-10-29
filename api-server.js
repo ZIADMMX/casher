@@ -1,423 +1,224 @@
 /**
- * Kashiear POS - Postman Test HTTP Server
- * Exposes all backend services via a REST API on http://localhost:5000
+ * Kashiear POS - Modular Express REST API Server
+ * Exposes all backend services via a REST API on http://127.0.0.1:5000
  */
 
-const http = require('node:http');
-const url = require('node:url');
+require('dotenv').config();
+const {
+  boosthis,
+  enableTelemetry,
+  mount,
+} = require('@workspace/boosthis-runtime-node');
 
-// Database initialization
-const { initDatabase, migrateSalesTable, migrateUsersTable, migrateSuppliersTable, migrateShiftsTable, migrateReturnsTable, migrateSettingsTable, migrateNotificationsTable, migrateOrdersTables, migrateSubscriptionsTables, migrateCommissionsTables } = require('./electron/database/db');
-initDatabase();
-migrateSalesTable();
-migrateUsersTable();
-migrateSuppliersTable();
-migrateShiftsTable();
-migrateReturnsTable();
-migrateSettingsTable();
-migrateNotificationsTable();
-migrateOrdersTables();
-migrateSubscriptionsTables();
-migrateCommissionsTables();
+enableTelemetry({
+  installId: process.env.BOOSTHIS_INSTALL_ID,
+  inviteKey: process.env.BOOSTHIS_INVITE_KEY,
+  issuesOnly: true,
+});
+
+const express = require('express');
+const cors = require('cors');
+
+// Database initialization & unified migrations
+const { runAllMigrations } = require('./electron/database/db');
+runAllMigrations();
 
 // Services
 const authService = require('./electron/services/auth.service');
-const productsService = require('./electron/services/products.service');
-const salesService = require('./electron/services/sales.service');
-const shiftsService = require('./electron/services/shifts.service');
-const returnsService = require('./electron/services/returns.service');
-const reportsService = require('./electron/services/reports.service');
-const customersService = require('./electron/services/customers.service');
-const purchasesService = require('./electron/services/purchases.service');
-const suppliersRepo = require('./electron/repositories/suppliers.repository');
-const notificationsService = require('./electron/services/notifications.service');
-const settingsRepo = require('./electron/repositories/settings.repository');
-const ordersService = require('./electron/services/orders.service');
-const subscriptionsService = require('./electron/services/subscriptions.service');
-const commissionsService = require('./electron/services/commissions.service');
-const { getAllCategories } = require('./electron/services/categories.service');
+const { getPermissionForApi } = require('./electron/security/permissions');
+const { checkRateLimit } = require('./electron/services/rateLimiter');
 const resilienceService = require('./electron/services/resilience.service');
 
+// Routes aggregator
+const apiRoutes = require('./routes');
+
+// Start resilience backbone
 resilienceService.startSystemBackbone().catch((err) => {
   console.error('Failed to start resilience workers:', err.message);
 });
 
-// Helper to send JSON response
-function sendJSON(res, statusCode, data) {
-  res.writeHead(statusCode, {
-    'Content-Type': 'application/json; charset=utf-8',
-    'Access-Control-Allow-Origin': 'http://localhost:5173',
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-  });
-  res.end(JSON.stringify(data, null, 2));
-}
+const app = express();
 
-// Helper to parse JSON body
-function parseBody(req) {
-  return new Promise((resolve, reject) => {
-    let body = '';
-    req.on('data', (chunk) => { body += chunk; });
-    req.on('end', () => {
-      if (!body) return resolve({});
-      try {
-        resolve(JSON.parse(body));
-      } catch {
-        reject(new Error('Invalid JSON Body'));
+// -------------------------------------------------------------
+// Boosthis Performance Monitoring & Local Dashboard
+// -------------------------------------------------------------
+app.use(boosthis({ bubble: true }));
+mount(app);
+
+// -------------------------------------------------------------
+// Middleware: CORS
+// -------------------------------------------------------------
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'http://localhost:5174',
+  'http://127.0.0.1:5174',
+];
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps, curl, postman) or matching whitelist
+      if (!origin || allowedOrigins.includes(origin)) {
+        return callback(null, true);
       }
-    });
-    req.on('error', reject);
-  });
-}
+      return callback(null, true); // Permissive in dev/testing mode
+    },
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  })
+);
 
-const server = http.createServer(async (req, res) => {
-  const parsedUrl = url.parse(req.url, true);
-  const pathname = parsedUrl.pathname;
-  const method = req.method.toUpperCase();
-  const query = parsedUrl.query;
+// -------------------------------------------------------------
+// Middleware: Body Parser with 2MB limit (Prevents Memory Exhaustion / DoS)
+// -------------------------------------------------------------
+app.use(express.json({ limit: '2mb' }));
+app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 
-  // Handle CORS Preflight
-  if (method === 'OPTIONS') {
-    res.writeHead(204, {
-      'Access-Control-Allow-Origin': 'http://localhost:5173',
-      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    });
-    return res.end();
-  }
-
+// -------------------------------------------------------------
+// Middleware: Rate Limiter
+// -------------------------------------------------------------
+app.use(async (req, res, next) => {
+  const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
   try {
-    // -------------------------------------------------------------
-    // Health / Root
-    // -------------------------------------------------------------
-    if (pathname === '/' || pathname === '/api') {
-      return sendJSON(res, 200, {
-        status: 'online',
-        name: 'Kashiear POS REST API for Postman',
-        version: '1.0.0',
-        activeSession: authService.getCurrentSession(),
-        endpoints: [
-          'POST /api/auth/login',
-          'POST /api/auth/logout',
-          'GET  /api/auth/session',
-          'GET  /api/products',
-          'POST /api/products',
-          'GET  /api/products/barcode/:barcode',
-          'GET  /api/categories',
-          'POST /api/sales',
-          'GET  /api/sales/:id',
-          'GET  /api/shifts/current',
-          'POST /api/shifts/open',
-          'POST /api/shifts/close',
-          'POST /api/shifts/expenses',
-          'GET  /api/shifts/kpis',
-          'GET  /api/shifts',
-          'GET  /api/returns/find-sale/:saleId',
-          'POST /api/returns/process',
-          'GET  /api/returns/recent',
-          'GET  /api/customers',
-          'POST /api/customers',
-          'GET  /api/suppliers',
-          'POST /api/suppliers',
-          'GET  /api/purchases',
-          'POST /api/purchases',
-          'POST /api/purchases/payment',
-          'GET  /api/reports?period=today',
-          'GET  /api/notifications',
-          'GET  /api/settings'
-        ]
+    const allowed = await checkRateLimit(clientIp);
+    if (!allowed) {
+      res.set('Retry-After', '60');
+      return res.status(429).json({
+        error: 'تم تجاوز الحد الأقصى للطلبات (Rate Limit Exceeded). يرجى المحاولة بعد قليل.',
       });
     }
-
-    // -------------------------------------------------------------
-    // Auth & Users
-    // -------------------------------------------------------------
-    if (pathname === '/api/auth/login' && method === 'POST') {
-      const body = await parseBody(req);
-      const session = authService.login(body.username, body.password);
-      return sendJSON(res, 200, { success: true, session });
-    }
-
-    if (pathname === '/api/auth/logout' && method === 'POST') {
-      authService.logout();
-      return sendJSON(res, 200, { success: true, message: 'Logged out successfully' });
-    }
-
-    if (pathname === '/api/auth/session' && method === 'GET') {
-      return sendJSON(res, 200, { session: authService.getCurrentSession() });
-    }
-
-    if (pathname === '/api/users' && method === 'GET') {
-      return sendJSON(res, 200, authService.getAllUsers());
-    }
-
-    // -------------------------------------------------------------
-    // Products & Categories
-    // -------------------------------------------------------------
-    if (pathname === '/api/products' && method === 'GET') {
-      const products = productsService.getAllProductsWithVariants();
-      return sendJSON(res, 200, products);
-    }
-
-    if (pathname === '/api/products' && method === 'POST') {
-      const body = await parseBody(req);
-      const result = productsService.addProductWithVariant(body);
-      return sendJSON(res, 201, { success: true, productId: result });
-    }
-
-    if (pathname.startsWith('/api/products/barcode/') && method === 'GET') {
-      const barcode = decodeURIComponent(pathname.replace('/api/products/barcode/', ''));
-      const product = productsService.getProductByBarcode(barcode);
-      if (!product) return sendJSON(res, 404, { error: 'Product not found' });
-      return sendJSON(res, 200, product);
-    }
-
-    if (pathname === '/api/categories' && method === 'GET') {
-      return sendJSON(res, 200, getAllCategories());
-    }
-
-    // -------------------------------------------------------------
-    // Sales & POS
-    // -------------------------------------------------------------
-    if (pathname === '/api/sales' && method === 'POST') {
-      const body = await parseBody(req);
-      const result = salesService.createSale(body);
-      return sendJSON(res, 201, { success: true, ...result });
-    }
-
-    if (pathname.startsWith('/api/sales/') && method === 'GET') {
-      const saleId = Number(pathname.replace('/api/sales/', ''));
-      const sale = salesService.getSaleById(saleId);
-      if (!sale) return sendJSON(res, 404, { error: 'Sale not found' });
-      return sendJSON(res, 200, sale);
-    }
-
-    // -------------------------------------------------------------
-    // Shifts & Cash Drawer
-    // -------------------------------------------------------------
-    if (pathname === '/api/shifts/current' && method === 'GET') {
-      const shift = shiftsService.getCurrentShift();
-      return sendJSON(res, 200, shift || { message: 'No open shift currently' });
-    }
-
-    if (pathname === '/api/shifts/open' && method === 'POST') {
-      const body = await parseBody(req);
-      const result = shiftsService.openShift(body);
-      return sendJSON(res, 201, { success: true, shift: result });
-    }
-
-    if (pathname === '/api/shifts/close' && method === 'POST') {
-      const body = await parseBody(req);
-      const result = shiftsService.closeShift(body);
-      return sendJSON(res, 200, { success: true, result });
-    }
-
-    if (pathname === '/api/shifts/expenses' && method === 'POST') {
-      const body = await parseBody(req);
-      const result = shiftsService.addShiftExpense(body);
-      return sendJSON(res, 201, { success: true, expenseId: result });
-    }
-
-    if (pathname === '/api/shifts/kpis' && method === 'GET') {
-      return sendJSON(res, 200, shiftsService.getShiftsKPIs());
-    }
-
-    if (pathname === '/api/shifts' && method === 'GET') {
-      return sendJSON(res, 200, shiftsService.getAllShifts(query));
-    }
-
-    // -------------------------------------------------------------
-    // Returns & Exchanges
-    // -------------------------------------------------------------
-    if (pathname.startsWith('/api/returns/find-sale/') && method === 'GET') {
-      const saleId = Number(pathname.replace('/api/returns/find-sale/', ''));
-      const data = returnsService.findSale(saleId);
-      return sendJSON(res, 200, data);
-    }
-
-    if (pathname === '/api/returns/process' && method === 'POST') {
-      const body = await parseBody(req);
-      const result = returnsService.processReturn(body);
-      return sendJSON(res, 200, { success: true, ...result });
-    }
-
-    if (pathname === '/api/returns/recent' && method === 'GET') {
-      return sendJSON(res, 200, returnsService.getRecentReturns());
-    }
-
-    // -------------------------------------------------------------
-    // Customers & Debts
-    // -------------------------------------------------------------
-    if (pathname === '/api/customers' && method === 'GET') {
-      return sendJSON(res, 200, customersService.getAllCustomersWithStats());
-    }
-
-    if (pathname === '/api/customers' && method === 'POST') {
-      const body = await parseBody(req);
-      const id = customersService.addCustomer(body);
-      return sendJSON(res, 201, { success: true, customerId: id });
-    }
-
-    // -------------------------------------------------------------
-    // Suppliers & Purchases
-    // -------------------------------------------------------------
-    if (pathname === '/api/suppliers' && method === 'GET') {
-      return sendJSON(res, 200, suppliersRepo.getAllWithStats());
-    }
-
-    if (pathname === '/api/suppliers' && method === 'POST') {
-      const body = await parseBody(req);
-      const id = suppliersRepo.create(body);
-      return sendJSON(res, 201, { success: true, supplierId: id });
-    }
-
-    if (pathname === '/api/purchases' && method === 'GET') {
-      return sendJSON(res, 200, purchasesService.getAllPurchases(query));
-    }
-
-    if (pathname === '/api/purchases' && method === 'POST') {
-      const body = await parseBody(req);
-      const result = purchasesService.createPurchase(body);
-      return sendJSON(res, 201, { success: true, ...result });
-    }
-
-    if (pathname === '/api/purchases/payment' && method === 'POST') {
-      const body = await parseBody(req);
-      const result = purchasesService.recordPayment(body);
-      return sendJSON(res, 200, { success: true, ...result });
-    }
-
-    // -------------------------------------------------------------
-    // Reports & Analytics
-    // -------------------------------------------------------------
-    if (pathname === '/api/reports' && method === 'GET') {
-      const period = query.period || 'today';
-      if (!authService.getCurrentSession()) {
-        return sendJSON(res, 401, { error: 'يجب تسجيل الدخول أولاً' });
-      }
-      return sendJSON(res, 200, reportsService.getFullReport(period));
-    }
-
-    // -------------------------------------------------------------
-    // Notifications & Settings
-    // -------------------------------------------------------------
-    if (pathname === '/api/notifications' && method === 'GET') {
-      return sendJSON(res, 200, notificationsService.getAll({ limit: Number(query.limit) || 20 }));
-    }
-
-    if (pathname === '/api/settings' && method === 'GET') {
-      return sendJSON(res, 200, settingsRepo.getAll());
-    }
-
-    // -------------------------------------------------------------
-    // Operations & Orders Center Endpoints
-    // -------------------------------------------------------------
-    if (pathname === '/api/orders' && method === 'GET') {
-      return sendJSON(res, 200, ordersService.getOrders(query));
-    }
-
-    if (pathname === '/api/orders/stats' && method === 'GET') {
-      return sendJSON(res, 200, ordersService.getOrderStats());
-    }
-
-    if (pathname === '/api/orders' && method === 'POST') {
-      const body = await parseBody(req);
-      const { orderData, items } = body;
-      const newOrder = ordersService.createOrder(orderData, items);
-      return sendJSON(res, 201, { success: true, order: newOrder });
-    }
-
-    if (pathname === '/api/orders/status' && method === 'PATCH') {
-      const body = await parseBody(req);
-      const { orderId, status, description } = body;
-      const updatedOrder = ordersService.updateOrderStatus(orderId, status, {}, description);
-      return sendJSON(res, 200, { success: true, order: updatedOrder });
-    }
-
-    // -------------------------------------------------------------
-    // Subscriptions & Packages Endpoints
-    // -------------------------------------------------------------
-    if (pathname === '/api/packages' && method === 'GET') {
-      return sendJSON(res, 200, subscriptionsService.getAllPackages());
-    }
-
-    if (pathname === '/api/packages' && method === 'POST') {
-      const body = await parseBody(req);
-      const newPackage = subscriptionsService.createPackage(body);
-      return sendJSON(res, 201, { success: true, package: newPackage });
-    }
-
-    if (pathname === '/api/subscriptions' && method === 'GET') {
-      return sendJSON(res, 200, subscriptionsService.getAllSubscriptions(query));
-    }
-
-    if (pathname === '/api/subscriptions/stats' && method === 'GET') {
-      return sendJSON(res, 200, subscriptionsService.getSubscriptionStats());
-    }
-
-    if (pathname === '/api/subscriptions' && method === 'POST') {
-      const body = await parseBody(req);
-      const sub = subscriptionsService.subscribeCustomer(body);
-      return sendJSON(res, 201, { success: true, subscription: sub });
-    }
-
-    if (pathname === '/api/subscriptions/freeze' && method === 'POST') {
-      const body = await parseBody(req);
-      const { subscriptionId, reason } = body;
-      const result = subscriptionsService.freezeSubscription(subscriptionId, reason);
-      return sendJSON(res, 200, { success: true, subscription: result });
-    }
-
-    // -------------------------------------------------------------
-    // Commissions & Incentives Endpoints
-    // -------------------------------------------------------------
-    if (pathname === '/api/commissions/rules' && method === 'GET') {
-      return sendJSON(res, 200, commissionsService.getAllRules());
-    }
-
-    if (pathname === '/api/commissions/rules' && method === 'POST') {
-      const body = await parseBody(req);
-      const rule = commissionsService.createRule(body);
-      return sendJSON(res, 201, { success: true, rule });
-    }
-
-    if (pathname === '/api/commissions/earnings' && method === 'GET') {
-      return sendJSON(res, 200, commissionsService.getAllEarnings(query));
-    }
-
-    if (pathname === '/api/commissions/summary' && method === 'GET') {
-      return sendJSON(res, 200, commissionsService.getSummaryKPIs());
-    }
-
-    if (pathname === '/api/commissions/payout' && method === 'POST') {
-      const body = await parseBody(req);
-      const { userId, amount, paymentMethod, notes } = body;
-      const payoutId = commissionsService.payoutEarnings(userId, amount, paymentMethod, notes);
-      return sendJSON(res, 200, { success: true, payoutId });
-    }
-
-    // -------------------------------------------------------------
-    // System Central Nervous Backbone & Health Endpoints
-    // -------------------------------------------------------------
-    if (pathname === '/api/system/health' && method === 'GET') {
-      return sendJSON(res, 200, resilienceService.getSystemBackboneHealth());
-    }
-
-    // Route Not Found
-    return sendJSON(res, 404, { error: `Endpoint '${method} ${pathname}' not found` });
-
+    next();
   } catch (err) {
-    console.error('API Error:', err.message);
-    return sendJSON(res, 400, { error: err.message });
+    console.error('Rate limiter error:', err);
+    next();
   }
 });
 
+// -------------------------------------------------------------
+// Root & Health Discovery Endpoints
+// -------------------------------------------------------------
+const rootHandler = (req, res) => {
+  res.json({
+    status: 'online',
+    name: 'Kashiear POS REST API (Express)',
+    version: '2.0.0',
+    activeSession: authService.getCurrentSession(),
+    endpoints: [
+      'POST /api/auth/login',
+      'POST /api/auth/logout',
+      'GET  /api/auth/session',
+      'GET  /api/auth/profile',
+      'PUT  /api/auth/profile',
+      'GET  /api/products',
+      'POST /api/products',
+      'GET  /api/products/barcode/:barcode',
+      'GET  /api/categories',
+      'POST /api/sales',
+      'GET  /api/sales/:id',
+      'GET  /api/shifts/current',
+      'POST /api/shifts/open',
+      'POST /api/shifts/close',
+      'POST /api/shifts/expenses',
+      'GET  /api/shifts/kpis',
+      'GET  /api/shifts',
+      'GET  /api/returns/find-sale/:saleId',
+      'POST /api/returns/process',
+      'GET  /api/returns/recent',
+      'GET  /api/customers',
+      'POST /api/customers',
+      'GET  /api/suppliers',
+      'POST /api/suppliers',
+      'GET  /api/purchases',
+      'POST /api/purchases',
+      'POST /api/purchases/payment',
+      'GET  /api/reports?period=today',
+      'GET  /api/notifications',
+      'GET  /api/settings',
+      'GET  /api/system/health',
+    ],
+  });
+};
+
+app.get('/', rootHandler);
+app.get('/api', rootHandler);
+
+// -------------------------------------------------------------
+// Middleware: Security & Permissions Guard for /api
+// -------------------------------------------------------------
+app.use('/api', (req, res, next) => {
+  // 1. استثناء المسارات العامة (المصادقة وفحص صحة الخادم)
+  if (req.path.startsWith('/auth/') || req.path === '/system/health') {
+    return next();
+  }
+
+  // 2. التحقق من وجود Bearer Token
+  const authHeader = req.headers.authorization;
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
+
+  if (!token) {
+    return res.status(401).json({ error: 'رمز الدخول (Bearer Token) مطلوب' });
+  }
+
+  // 3. التحقق من التوكن واسترجاع الجلسة الحية للمستخدم
+  const session = authService.getCurrentSession(token);
+  if (!session) {
+    return res.status(401).json({ error: 'رمز الدخول غير صالح أو منتهي الصلاحية' });
+  }
+
+  // إرفاق بيانات المستخدم في الطلب للاستخدام في المسارات اللاحقة
+  req.user = session;
+
+  // 4. فحص الصلاحيات المقيدة في خريطة الصلاحيات
+  const permission = getPermissionForApi(`/api${req.path}`, req.method.toUpperCase());
+  if (permission) {
+    return authService.runWithPermission(permission, () => {
+      try {
+        authService.requirePermission(permission, token);
+        next();
+      } catch (err) {
+        return res.status(403).json({ error: err.message || 'غير مصرح لك بتنفيذ هذا الإجراء' });
+      }
+    });
+  }
+
+  // المسارات غير المقيدة بصلاحية محددة يسمح بها طالما أن المستخدم مسجل دخول
+  next();
+});
+
+// -------------------------------------------------------------
+// Mount Modular API Routes
+// -------------------------------------------------------------
+app.use('/api', apiRoutes);
+
+// -------------------------------------------------------------
+// 404 Route Not Found Handler
+// -------------------------------------------------------------
+app.use((req, res) => {
+  res.status(404).json({ error: `Endpoint '${req.method} ${req.originalUrl}' not found` });
+});
+
+// -------------------------------------------------------------
+// Centralized Error Handling Middleware
+// -------------------------------------------------------------
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, next) => {
+  console.error('API Error:', err.message);
+  const statusCode = err.statusCode || (err.message && err.message.includes('صلاحية') ? 403 : 400);
+  res.status(statusCode).json({ error: err.message || 'Internal Server Error' });
+});
+
+// -------------------------------------------------------------
+// Server Lifecycle & Graceful Shutdown
+// -------------------------------------------------------------
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
+const HOST = '127.0.0.1';
+
+const server = app.listen(PORT, HOST, () => {
   console.log(`\n======================================================`);
-  console.log(`🚀 Kashiear POS REST API Server is running for Postman!`);
-  console.log(`📡 URL: http://localhost:${PORT}`);
-  console.log(`📑 Health Check: http://localhost:${PORT}/api`);
+  console.log(`🚀 Kashiear POS REST API Server is running via Express!`);
+  console.log(`📡 URL: http://${HOST}:${PORT}`);
+  console.log(`📑 Health Check: http://${HOST}:${PORT}/api`);
   console.log(`======================================================\n`);
 });
 
@@ -434,3 +235,5 @@ for (const signal of ['SIGINT', 'SIGTERM']) {
     setTimeout(() => process.exit(1), 5000).unref();
   });
 }
+
+module.exports = app;

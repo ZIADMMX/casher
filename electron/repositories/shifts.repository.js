@@ -1,6 +1,16 @@
 const { db } = require('../database/db');
 
-function getCurrentOpenShift() {
+function getCurrentOpenShift(userId = null) {
+  if (userId != null) {
+    return db.prepare(`
+      SELECT s.*, u.username as cashier_username
+      FROM shifts s
+      JOIN users u ON u.id = s.user_id
+      WHERE s.status = 'open' AND s.user_id = ?
+      ORDER BY s.id DESC
+      LIMIT 1
+    `).get(userId) || null;
+  }
   return db.prepare(`
     SELECT s.*, u.username as cashier_username
     FROM shifts s
@@ -45,7 +55,7 @@ function getShiftLiveTotals(shiftId) {
   if (!shift) return null;
 
   const salesStats = db.prepare(`
-    SELECT 
+    SELECT
       COUNT(id) as sales_count,
       COALESCE(SUM(CASE WHEN payment_method = 'cash' THEN total_amount ELSE 0 END), 0) as cash_sales,
       COALESCE(SUM(CASE WHEN payment_method = 'card' THEN total_amount ELSE 0 END), 0) as card_sales,
@@ -57,10 +67,38 @@ function getShiftLiveTotals(shiftId) {
   `).get(shiftId);
 
   const expenseStats = db.prepare(`
-    SELECT 
+    SELECT
       COUNT(id) as expense_count,
       COALESCE(SUM(amount), 0) as total_expenses
     FROM shift_expenses
+    WHERE shift_id = ?
+  `).get(shiftId);
+
+  // إحصائيات سداد ديون العملاء النقدية والبنكية المرتبطة بالوردية
+  const customerPaymentStats = db.prepare(`
+    SELECT
+      COUNT(id) as payment_count,
+      COALESCE(SUM(CASE WHEN payment_method = 'cash' THEN amount ELSE 0 END), 0) as customer_cash_payments,
+      COALESCE(SUM(CASE WHEN payment_method = 'card' THEN amount ELSE 0 END), 0) as customer_card_payments,
+      COALESCE(SUM(amount), 0) as total_customer_payments
+    FROM customer_payments
+    WHERE shift_id = ?
+  `).get(shiftId);
+
+  // إحصائيات المرتجعات النقدية المستردة من الدرج أثناء الوردية
+  const refundStats = db.prepare(`
+    SELECT
+      COUNT(id) as refund_count,
+      COALESCE(SUM(CASE WHEN exchange_variant_id IS NULL THEN refund_amount ELSE 0 END), 0) as cash_refunds,
+      COALESCE(SUM(refund_amount), 0) as total_refunds,
+      COALESCE(SUM(
+        CASE
+          WHEN exchange_variant_id IS NOT NULL AND exchange_payment_method = 'cash'
+          THEN exchange_price_difference
+          ELSE 0
+        END
+      ), 0) as cash_exchange_net
+    FROM returns
     WHERE shift_id = ?
   `).get(shiftId);
 
@@ -71,7 +109,17 @@ function getShiftLiveTotals(shiftId) {
   const totalSales = Number(salesStats?.total_sales || 0);
   const totalExpenses = Number(expenseStats?.total_expenses || 0);
   const salesCount = Number(salesStats?.sales_count || 0);
-  const expectedCash = Math.round((openingCash + cashSales - totalExpenses) * 100) / 100;
+  const customerCashPayments = Number(customerPaymentStats?.customer_cash_payments || 0);
+  const totalCustomerPayments = Number(customerPaymentStats?.total_customer_payments || 0);
+  const cashRefunds = Number(refundStats?.cash_refunds || 0);
+  const totalRefunds = Number(refundStats?.total_refunds || 0);
+  const cashExchangeNet = Number(refundStats?.cash_exchange_net || 0);
+
+  // المعادلة المالية المتكاملة والدقيقة للنقدية المتوقعة داخل الدرج:
+  // النقدية الافتتاحية + المبيعات النقدية + تحصيلات ديون العملاء كاش - المصروفات - المرتجعات النقدية
+  const expectedCash = Math.round(
+    (openingCash + cashSales + customerCashPayments + cashExchangeNet - totalExpenses - cashRefunds) * 100
+  ) / 100;
 
   return {
     shiftId,
@@ -81,8 +129,15 @@ function getShiftLiveTotals(shiftId) {
     creditSales,
     totalSales,
     totalExpenses,
+    customerCashPayments,
+    totalCustomerPayments,
+    cashRefunds,
+    totalRefunds,
+    cashExchangeNet,
     salesCount,
     expenseCount: Number(expenseStats?.expense_count || 0),
+    customerPaymentCount: Number(customerPaymentStats?.payment_count || 0),
+    refundCount: Number(refundStats?.refund_count || 0),
     expectedCash,
     status: shift.status,
   };
@@ -105,6 +160,7 @@ function closeShift({ shiftId, actualCash, cashBreakdown, notes, closedByUserId 
         total_cash_sales = ?,
         total_card_sales = ?,
         total_credit_sales = ?,
+        total_refunds = ?,
         total_expenses = ?,
         expected_cash = ?,
         actual_cash = ?,
@@ -117,6 +173,7 @@ function closeShift({ shiftId, actualCash, cashBreakdown, notes, closedByUserId 
       liveTotals.cashSales,
       liveTotals.cardSales,
       liveTotals.creditSales,
+      liveTotals.cashRefunds,
       liveTotals.totalExpenses,
       expected,
       actual,
@@ -216,11 +273,30 @@ function getShiftDetails(shiftId) {
     ORDER BY id DESC
   `).all(shiftId);
 
+  const customerPayments = db.prepare(`
+    SELECT cp.*, c.name as customer_name
+    FROM customer_payments cp
+    LEFT JOIN customers c ON c.id = cp.customer_id
+    WHERE cp.shift_id = ?
+    ORDER BY cp.id DESC
+  `).all(shiftId);
+
+  const returnsList = db.prepare(`
+    SELECT r.*, pv.size, pv.color, p.name as product_name
+    FROM returns r
+    LEFT JOIN product_variants pv ON pv.id = r.variant_id
+    LEFT JOIN products p ON p.id = pv.product_id
+    WHERE r.shift_id = ?
+    ORDER BY r.id DESC
+  `).all(shiftId);
+
   return {
     ...shift,
     liveTotals,
     expenses,
     sales,
+    customerPayments,
+    returns: returnsList,
     cashBreakdownParsed: shift.cash_breakdown ? JSON.parse(shift.cash_breakdown) : null,
     openingCashBreakdownParsed: shift.opening_cash_breakdown ? JSON.parse(shift.opening_cash_breakdown) : null,
   };

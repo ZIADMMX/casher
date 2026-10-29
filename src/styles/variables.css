@@ -1,25 +1,107 @@
 :root {
-  --primary-color: #2E5BFF;
-  --primary-secondary: #1D4ED8;
-  --primary-hover: #2448d6;
-  --primary-gradient: linear-gradient(135deg, #2E5BFF 0%, #1D4ED8 100%);
-  --primary-rgb: 46, 91, 255;
-  --primary-light: #eef2ff;
-  --primary-shadow: rgba(46, 91, 255, 0.3);
+  color-scheme: light;
 
-  /* Status Colors */
-  --success-color: #10B981;
-  --warning-color: #F59E0B;
-  --danger-color: #EF4444;
-  --info-color: #3B82F6;
+  /* Brand: warm white surfaces with restrained gold accents. */
+  --color-brand-50: #fbf8ef;
+  --color-brand-100: #f4ecd8;
+  --color-brand-200: #e9d9ad;
+  --color-brand-300: #d8bf7d;
+  --color-brand-400: #c5a653;
+  --color-brand-500: #b79443;
+  --color-brand-600: #9f7b2e;
+  --color-brand-700: #806522;
+  --color-brand-800: #69531f;
+  --color-brand-900: #51421e;
+  --color-brand-rgb: 183, 148, 67;
 
-  /* Surfaces & Backgrounds */
-  --bg-main: #f5f6fa;
-  --bg-card: #ffffff;
-  --bg-sidebar: #111116;
-  --text-main: #15151A;
-  --text-muted: #94A3B8;
-  --border-subtle: rgba(255, 255, 255, 0.07);
+  /* Semantic status colors are reserved for status, not decoration. */
+  --color-success-50: #edf5ef;
+  --color-success-600: #397354;
+  --color-warning-50: #faf4e5;
+  --color-warning-700: #806522;
+  --color-danger-50: #fbefed;
+  --color-danger-600: #9b4e4d;
+  --color-info-50: #edf4f8;
+  --color-info-700: #416d86;
+
+  /* Surfaces, text and borders. */
+  --color-surface-canvas: #f5f6fa;
+  --color-surface: #ffffff;
+  --color-surface-subtle: #f8f7f3;
+  --color-surface-accent: #fffdf8;
+  --color-surface-sidebar: #15151b;
+  --color-text-primary: #292821;
+  --color-text-secondary: #625e54;
+  --color-text-muted: #827d70;
+  --color-border: #e8e4d9;
+  --color-border-strong: #d8c89f;
+
+  /* Typography scale. */
+  --font-family-ui: 'Cairo', sans-serif;
+  --font-family-numeric: 'Space Grotesk', 'Cairo', sans-serif;
+  --font-size-xs: 0.6875rem;
+  --font-size-sm: 0.75rem;
+  --font-size-md: 0.8125rem;
+  --font-size-base: 0.875rem;
+  --font-size-lg: 1rem;
+  --font-size-xl: 1.125rem;
+  --font-size-2xl: 1.25rem;
+  --font-size-3xl: 1.5rem;
+  --font-weight-regular: 400;
+  --font-weight-medium: 600;
+  --font-weight-bold: 700;
+  --font-weight-heavy: 800;
+  --line-height-tight: 1.25;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.7;
+
+  /* Spacing scale, in 4px increments. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* Corners, elevation and stacking. */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-control: 8px;
+  --radius-card: 12px;
+  --radius-panel: 16px;
+  --radius-pill: 999px;
+  --shadow-sm: 0 1px 3px rgba(47, 41, 25, 0.05);
+  --shadow-md: 0 2px 8px rgba(47, 41, 25, 0.06);
+  --shadow-lg: 0 8px 24px rgba(47, 41, 25, 0.12);
+  --z-base: 0;
+  --z-raised: 10;
+  --z-sticky: 20;
+  --z-dropdown: 30;
+  --z-overlay: 40;
+  --z-modal: 50;
+  --z-toast: 60;
+
+  /* Legacy aliases: migrate component styles to semantic tokens gradually. */
+  --primary-color: var(--color-brand-600);
+  --primary-secondary: var(--color-brand-500);
+  --primary-hover: var(--color-brand-700);
+  --primary-gradient: linear-gradient(135deg, var(--color-brand-500), var(--color-brand-600));
+  --primary-rgb: var(--color-brand-rgb);
+  --primary-light: var(--color-brand-50);
+  --primary-shadow: rgba(var(--color-brand-rgb), 0.18);
+  --success-color: #397354;
+  --warning-color: #a9822f;
+  --danger-color: #b14f4b;
+  --info-color: #527f99;
+  --bg-main: var(--color-surface-canvas);
+  --bg-card: var(--color-surface);
+  --bg-sidebar: var(--color-surface-sidebar);
+  --text-main: var(--color-text-primary);
+  --text-muted: #858071;
+  --border-subtle: var(--color-border);
 }
 
 /* ===== Reset & Base ===== */
@@ -27,13 +109,20 @@
   margin: 0;
   padding: 0;
   box-sizing: border-box;
-  font-family: 'Cairo', 'Segoe UI', Tahoma, sans-serif;
+  font-family: var(--font-family-ui);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
 }
 
 body {
   direction: rtl;
-  background: var(--bg-main);
-  color: var(--text-main);
+  background: var(--color-surface-canvas);
+  color: var(--color-text-primary);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -48,10 +137,10 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #CBD5E1;
-  border-radius: 4px;
+  background: #d8d4c9;
+  border-radius: var(--radius-sm);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #94A3B8;
+  background: #aaa596;
 }

@@ -5,7 +5,18 @@ const path = require('node:path');
 const fs = require('node:fs');
 
 function getLogFile() {
-  const logsDir = path.join(app.getPath('appData'), 'kashiear', 'logs');
+  const isDev = !app?.isPackaged;
+  const baseDir = app?.getPath
+    ? app.getPath('userData')
+    : ((isDev && fs.existsSync('D:\\my-electron-app\\data'))
+        ? 'D:\\my-electron-app\\data'
+        : path.join(process.env.APPDATA || __dirname, 'kashiear'));
+  // Ensure the 'kashiear' subdirectory exists
+  const appDir = path.join(baseDir, 'kashiear');
+  if (!fs.existsSync(appDir)) {
+    fs.mkdirSync(appDir, { recursive: true });
+  }
+  const logsDir = path.join(appDir, 'logs');
   if (!fs.existsSync(logsDir)) {
     fs.mkdirSync(logsDir, { recursive: true });
   }

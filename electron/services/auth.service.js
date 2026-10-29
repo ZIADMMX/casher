@@ -1,10 +1,91 @@
 const crypto = require('node:crypto');
+const { AsyncLocalStorage } = require('node:async_hooks');
 const bcrypt = require('bcryptjs');
 const usersRepo = require('../repositories/users.repository');
 const sessionService = require('./session.service');
 const { getMachineHardwareId, DEVELOPER_MASTER_SECRET } = require('./license.service');
+const permissionContext = new AsyncLocalStorage();
+const { personalProfileSchema } = require('../validators/schema');
 
-let currentToken = null;
+const MAX_FAILED_LOGIN_ATTEMPTS = 5;
+const LOGIN_LOCKOUT_MS = 60 * 1000; // 1 minute lockout
+const loginAttempts = new Map();
+const requestSession = new AsyncLocalStorage();
+
+function safeTimingCompare(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  const hashA = crypto.createHash('sha256').update(a).digest();
+  const hashB = crypto.createHash('sha256').update(b).digest();
+  return crypto.timingSafeEqual(hashA, hashB);
+}
+
+function recordFailedLoginAttempt(usernameKey) {
+  if (!usernameKey) return;
+  const current = loginAttempts.get(usernameKey) || { count: 0, lockoutUntil: 0 };
+  current.count += 1;
+  if (current.count >= MAX_FAILED_LOGIN_ATTEMPTS) {
+    current.lockoutUntil = Date.now() + LOGIN_LOCKOUT_MS;
+    current.count = 0;
+    loginAttempts.set(usernameKey, current);
+    throw new Error(`تم تجاوز الحد الأقصى للمحاولات الخاطئة (${MAX_FAILED_LOGIN_ATTEMPTS} محاولات). تم قفل الحساب مؤقتًا لمدة دقيقة.`);
+  } else {
+    loginAttempts.set(usernameKey, current);
+  }
+}
+
+const activeSessions = new Map();
+let fallbackToken = null;
+
+function persistSessionToken(token) {
+  try {
+    const settingsRepo = require('../repositories/settings.repository');
+    settingsRepo.set('last_active_session_token', token || '');
+  } catch {
+    // silently ignore if DB/repo not available in unit tests
+  }
+}
+
+function getPersistedSessionToken() {
+  try {
+    const settingsRepo = require('../repositories/settings.repository');
+    return settingsRepo.get('last_active_session_token') || null;
+  } catch {
+    return null;
+  }
+}
+
+function setSessionForCaller(callerId, token) {
+  if (callerId !== undefined && callerId !== null) {
+    activeSessions.set(callerId, token);
+  }
+  if (callerId === undefined || callerId === null || callerId === 'default') {
+    fallbackToken = token;
+    persistSessionToken(token);
+  }
+}
+
+function getSessionToken(callerId = 'default') {
+  const callerToken = activeSessions.get(callerId);
+  if (callerToken) return callerToken;
+  return callerId === 'default' ? fallbackToken || getPersistedSessionToken() : null;
+}
+
+function clearAllSessions() {
+  for (const token of activeSessions.values()) {
+    if (token) sessionService.invalidateToken(token);
+  }
+  if (fallbackToken) {
+    sessionService.invalidateToken(fallbackToken);
+  }
+  activeSessions.clear();
+  fallbackToken = null;
+  persistSessionToken('');
+}
+
+function _resetMemoryForTesting() {
+  activeSessions.clear();
+  fallbackToken = null;
+}
 
 function isSetupRequired() {
   return usersRepo.countAll() === 0;
@@ -15,7 +96,7 @@ function generateRecoveryKey() {
   return `REC-${rand.substring(0, 4)}-${rand.substring(4, 8)}-${rand.substring(8, 12)}`;
 }
 
-function createInitialAdmin({ username, password }) {
+function createInitialAdmin({ username, password, fullName, phone }, callerId = 'default') {
   if (!isSetupRequired()) {
     throw new Error('تم إنشاء حساب المدير بالفعل');
   }
@@ -34,42 +115,98 @@ function createInitialAdmin({ username, password }) {
     username: username.trim(),
     passwordHash,
     role: 'admin',
+    fullName: fullName ? fullName.trim() : null,
+    phone: phone ? phone.trim() : null,
     forcePasswordChange: false,
     recoveryKeyHash,
   });
 
-  const loginRes = login(username.trim(), password);
+  const loginRes = login(username.trim(), password, callerId);
   return {
     ...loginRes,
     recoveryKey,
   };
 }
 
-function login(username, password) {
+function login(username, password, callerId = 'default') {
+  const normUser = String(username || '').trim().toLowerCase();
+
+  // Check brute-force lockout
+  const attemptInfo = loginAttempts.get(normUser);
+  if (attemptInfo && attemptInfo.lockoutUntil && Date.now() < attemptInfo.lockoutUntil) {
+    const remainingSeconds = Math.ceil((attemptInfo.lockoutUntil - Date.now()) / 1000);
+    throw new Error(`تم قفل الحساب مؤقتًا بسبب كثرة المحاولات الخاطئة. يرجى المحاولة بعد ${remainingSeconds} ثانية.`);
+  }
+
   const user = usersRepo.getByUsername(username);
 
   if (!user) {
+    recordFailedLoginAttempt(normUser);
+    try {
+      require('./audit.service').logAction({
+        actionType: 'failed_login',
+        title: 'محاولة تسجيل دخول فاشلة',
+        details: `محاولة دخول فاشلة باسم: ${username}`,
+        severity: 'danger',
+      });
+    } catch {}
     throw new Error('اسم المستخدم أو كلمة المرور غير صحيحة');
   }
 
   if (user.is_active === 0) {
+    try {
+      require('./audit.service').logAction({
+        actionType: 'failed_login',
+        title: 'محاولة دخول بحساب معطل',
+        details: `محاولة دخول بحساب معطل (${user.username})`,
+        userId: user.id,
+        username: user.username,
+        severity: 'warning',
+      });
+    } catch {}
     throw new Error('هذا الحساب معطل حاليًا. تواصل مع المدير');
   }
 
   const isValid = bcrypt.compareSync(password, user.password_hash);
   if (!isValid) {
+    recordFailedLoginAttempt(normUser);
+    try {
+      require('./audit.service').logAction({
+        actionType: 'failed_login',
+        title: 'كلمة مرور خاطئة',
+        details: `كلمة مرور خاطئة للمستخدم (${user.username})`,
+        userId: user.id,
+        username: user.username,
+        severity: 'danger',
+      });
+    } catch {}
     throw new Error('اسم المستخدم أو كلمة المرور غير صحيحة');
   }
+
+  // Clear failed attempts upon successful login
+  loginAttempts.delete(normUser);
 
   // Generate JWT token using session service
   const payload = {
     id: user.id,
     username: user.username,
-    role: user.role,
+    role: user.system_role_key || user.role,
     forcePasswordChange: user.force_password_change === 1,
   };
   const token = sessionService.generateToken(payload);
-  currentToken = token;
+
+  setSessionForCaller(callerId, token);
+
+  try {
+    require('./audit.service').logAction({
+      actionType: 'login',
+      title: 'تسجيل دخول للنظام',
+      details: `تسجيل دخول ناجح بصلاحية [${user.role === 'admin' ? 'مدير' : 'كاشير'}]`,
+      userId: user.id,
+      username: user.username,
+      severity: 'success',
+    });
+  } catch {}
 
   // Return both the token and a clean user object so the renderer can
   // store the user immediately without a separate getSession round-trip.
@@ -78,56 +215,172 @@ function login(username, password) {
     user: {
       id: user.id,
       username: user.username,
-      role: user.role,
+      role: user.system_role_key || user.role,
+      systemRoleKey: user.system_role_key || null,
+      permissions: getPermissionsForUser(user),
       forcePasswordChange: user.force_password_change === 1,
     },
   };
 }
 
-function logout() {
-  if (currentToken) {
-    sessionService.invalidateToken(currentToken);
+function logout(callerOrToken = 'default') {
+  let loggedOutUser = null;
+  try {
+    const session = getCurrentSession(callerOrToken);
+    if (session) loggedOutUser = session;
+  } catch {}
+
+  if (!callerOrToken || callerOrToken === 'default') {
+    const token = activeSessions.get('default') || fallbackToken || getPersistedSessionToken();
+    if (token) {
+      sessionService.invalidateToken(token);
+    }
+    activeSessions.delete('default');
+    fallbackToken = null;
+    persistSessionToken('');
+    if (loggedOutUser) {
+      try {
+        require('./audit.service').logAction({
+          actionType: 'logout',
+          title: 'تسجيل خروج من النظام',
+          details: `تسجيل خروج للمستخدم (${loggedOutUser.username})`,
+          userId: loggedOutUser.id,
+          username: loggedOutUser.username,
+          severity: 'info',
+        });
+      } catch {}
+    }
+    return;
   }
-  currentToken = null;
+
+  if (typeof callerOrToken === 'string' && (callerOrToken.startsWith('eyJ') || callerOrToken.includes('.') || callerOrToken.startsWith('token-'))) {
+    sessionService.invalidateToken(callerOrToken);
+    for (const [key, val] of activeSessions.entries()) {
+      if (val === callerOrToken) activeSessions.delete(key);
+    }
+    if (fallbackToken === callerOrToken) fallbackToken = null;
+    if (getPersistedSessionToken() === callerOrToken) persistSessionToken('');
+    if (loggedOutUser) {
+      try {
+        require('./audit.service').logAction({
+          actionType: 'logout',
+          title: 'تسجيل خروج من النظام',
+          details: `تسجيل خروج للمستخدم (${loggedOutUser.username})`,
+          userId: loggedOutUser.id,
+          username: loggedOutUser.username,
+          severity: 'info',
+        });
+      } catch {}
+    }
+    return;
+  }
+
+  const token = activeSessions.get(callerOrToken);
+  if (token) {
+    sessionService.invalidateToken(token);
+    activeSessions.delete(callerOrToken);
+    if (fallbackToken === token) fallbackToken = null;
+  }
+  if (activeSessions.size === 0) {
+    fallbackToken = null;
+    persistSessionToken('');
+  }
 }
 
-function getCurrentSession() {
-  if (!currentToken) return null;
+function getCurrentSession(callerOrToken = 'default') {
+  if (callerOrToken === 'default' && requestSession.getStore()) {
+    return requestSession.getStore();
+  }
+  let token = null;
+
+  if (typeof callerOrToken === 'string' && (callerOrToken.startsWith('eyJ') || callerOrToken.includes('.') || callerOrToken.startsWith('token-'))) {
+    token = callerOrToken;
+  } else {
+    token = activeSessions.get(callerOrToken) || (callerOrToken === 'default' ? fallbackToken : null);
+    if (!token && callerOrToken === 'default') {
+      const persisted = getPersistedSessionToken();
+      if (persisted) {
+        token = persisted;
+        activeSessions.set('default', token);
+        fallbackToken = token;
+      }
+    }
+  }
+
+  if (!token) return null;
+
   try {
-    const decoded = sessionService.verifyToken(currentToken);
+    const decoded = sessionService.verifyToken(token);
+    const user = usersRepo.getById(decoded.id);
+    if (!user || user.is_active === 0) return null;
+    const sessionRole = user.system_role_key || user.role || decoded.role;
     return {
       id: decoded.id,
       username: decoded.username,
-      role: decoded.role,
+      role: sessionRole,
+      systemRoleKey: user.system_role_key || null,
+      permissions: getPermissionsForUser(user),
       forcePasswordChange: decoded.forcePasswordChange === true,
     };
   } catch {
-    currentToken = null;
+    if (typeof callerOrToken !== 'string' || (!callerOrToken.startsWith('eyJ') && !callerOrToken.includes('.') && !callerOrToken.startsWith('token-'))) {
+      activeSessions.delete(callerOrToken);
+      if (fallbackToken === token) fallbackToken = null;
+      if (callerOrToken === 'default') persistSessionToken('');
+    }
     return null;
   }
+}
+
+function runWithSession(session, callback) {
+  return requestSession.run(session, callback);
+}
+
+function runWithPermission(permission, callback) {
+  return permissionContext.run(permission, callback);
+}
+
+function setPermissionContext(permission) {
+  permissionContext.enterWith(permission);
 }
 
 /**
  * Refresh the current session token.
  * Returns the new token + user object, or null if no active session.
  */
-function refreshSession() {
-  if (!currentToken) return null;
+function refreshSession(callerOrToken = 'default') {
+  let oldToken = null;
+  let callerKey = callerOrToken;
+
+  if (typeof callerOrToken === 'string' && (callerOrToken.startsWith('eyJ') || callerOrToken.includes('.') || callerOrToken.startsWith('token-'))) {
+    oldToken = callerOrToken;
+    callerKey = 'default';
+  } else {
+    oldToken = activeSessions.get(callerOrToken)
+      || (callerOrToken === 'default' ? fallbackToken || getPersistedSessionToken() : null);
+  }
+
+  if (!oldToken) return null;
+
   try {
-    const newToken = sessionService.refreshToken(currentToken);
-    currentToken = newToken;
+    const newToken = sessionService.refreshToken(oldToken);
+    setSessionForCaller(callerKey, newToken);
     const decoded = sessionService.verifyToken(newToken);
     return {
       token: newToken,
       user: {
         id: decoded.id,
         username: decoded.username,
-        role: decoded.role,
+        role: usersRepo.getById(decoded.id)?.system_role_key || decoded.role,
+        systemRoleKey: usersRepo.getById(decoded.id)?.system_role_key || null,
+        permissions: getPermissionsForUser(usersRepo.getById(decoded.id) || {}),
         forcePasswordChange: decoded.forcePasswordChange === true,
       },
     };
   } catch {
-    currentToken = null;
+    activeSessions.delete(callerKey);
+    if (fallbackToken === oldToken) fallbackToken = null;
+    persistSessionToken('');
     return null;
   }
 }
@@ -135,31 +388,73 @@ function refreshSession() {
 /**
  * Get the remaining TTL (in seconds) of the current session token.
  */
-function getSessionTTL() {
-  if (!currentToken) return 0;
-  return sessionService.getTokenTTL(currentToken);
+function getSessionTTL(callerOrToken = 'default') {
+  let token = null;
+  if (typeof callerOrToken === 'string' && (callerOrToken.startsWith('eyJ') || callerOrToken.includes('.') || callerOrToken.startsWith('token-'))) {
+    token = callerOrToken;
+  } else {
+    token = activeSessions.get(callerOrToken)
+      || (callerOrToken === 'default' ? fallbackToken || getPersistedSessionToken() : null);
+  }
+  if (!token) return 0;
+  return sessionService.getTokenTTL(token);
 }
 
 /** Guard: require any authenticated session */
-function requireAuth() {
-  const session = getCurrentSession();
+function requireAuth(callerOrToken = 'default') {
+  const session = getCurrentSession(callerOrToken);
   if (!session) {
     throw new Error('يجب تسجيل الدخول أولاً');
   }
   return session;
 }
 
-/** Guard: require admin role */
-function requireAdmin() {
-  const session = getCurrentSession();
-  if (!session || session.role !== 'admin') {
+function getPermissionsForUser(user) {
+  if (user.role === 'admin' && !user.system_role_key) return ['*'];
+  if (!user.system_role_key) {
+    return user.role === 'cashier' ? ['pos.view', 'pos.sell', 'orders.view'] : [];
+  }
+  return require('../repositories/enterprise.repository').getRolePermissions(user.system_role_key);
+}
+
+function requirePermission(permission, callerOrToken = 'default') {
+  const session = requireAuth(callerOrToken);
+  const user = usersRepo.getById(session.id);
+  if (!user) throw new Error('غير مصرح لك بتنفيذ هذا الإجراء');
+  if (user.role === 'admin' && !user.system_role_key) return session;
+  if (!permission || permission !== permissionContext.getStore()) {
+    throw new Error('غير مصرح لك بتنفيذ هذا الإجراء');
+  }
+
+  const permissions = getPermissionsForUser(user);
+  const granted = permissions.includes('*')
+    || permissions.includes(permission)
+    || (permission.endsWith('.view') && permissions.some((item) => (
+      item.startsWith(`${permission.slice(0, -'.view'.length)}.`)
+      && item !== permission
+    )));
+  if (!granted) {
     throw new Error('غير مصرح لك بتنفيذ هذا الإجراء');
   }
   return session;
 }
 
-function addCashier({ username, password }) {
-  requireAdmin();
+/** Guard: require admin role */
+function requireAdmin(callerOrToken = 'default') {
+  const session = getCurrentSession(callerOrToken);
+  if (!session) throw new Error('غير مصرح لك بتنفيذ هذا الإجراء');
+  const user = usersRepo.getById(session.id);
+  if (user?.role === 'admin' && !user.system_role_key) return session;
+  const permission = permissionContext.getStore();
+  if (user?.system_role_key && permission) return requirePermission(permission, callerOrToken);
+  throw new Error('غير مصرح لك بتنفيذ هذا الإجراء');
+}
+
+function addCashier({
+  username, password, role, firstName, lastName, fullName, phone, email, jobTitle,
+  specialty, workingHours, profileImage, payType, payAmount, commissionRate, isActive, notes, systemRoleKey,
+}) {
+  const actor = requireAdmin();
 
   if (!username || !username.trim()) {
     throw new Error('اسم المستخدم مطلوب');
@@ -173,14 +468,92 @@ function addCashier({ username, password }) {
     throw new Error('اسم المستخدم مستخدم بالفعل');
   }
 
+  if (role === 'admin' && actor.role !== 'admin') {
+    throw new Error('لا يمكن منح صلاحية مدير النظام من هذا الدور');
+  }
+  if (systemRoleKey) {
+    if (systemRoleKey === 'admin' || role === 'admin') {
+      throw new Error('لا يمكن تعيين دور مدير النظام كدور وظيفي');
+    }
+    const roleExists = require('../repositories/enterprise.repository')
+      .getRoles().some((systemRole) => systemRole.role_key === systemRoleKey);
+    if (!roleExists) throw new Error('الدور الوظيفي المحدد غير موجود');
+    if (systemRoleKey === 'admin') throw new Error('لا يمكن تعيين دور مدير النظام كدور وظيفي');
+  }
+
   const passwordHash = bcrypt.hashSync(password, 10);
-  usersRepo.create({ username: username.trim(), passwordHash, role: 'cashier' });
+  usersRepo.create({
+    username: username.trim(),
+    passwordHash,
+    role: role || 'cashier',
+    systemRoleKey,
+    firstName: firstName?.trim() || null,
+    lastName: lastName?.trim() || null,
+    fullName: fullName?.trim() || [firstName, lastName].filter(Boolean).map((name) => name.trim()).join(' ') || null,
+    phone: phone?.trim() || null,
+    email: email?.trim() || null,
+    jobTitle: jobTitle?.trim() || null,
+    specialty: specialty?.trim() || null,
+    workingHours: workingHours?.trim() || null,
+    profileImage: profileImage?.trim() || null,
+    payType: payType || null,
+    payAmount: payAmount ?? null,
+    commissionRate: commissionRate ?? null,
+    isActive: isActive !== false,
+    notes: notes?.trim() || null,
+    forcePasswordChange: true,
+  });
   return { success: true };
 }
 
 function getAllUsers() {
   requireAdmin();
   return usersRepo.getAll();
+}
+
+function getUserDetails(userId) {
+  requireAdmin();
+  const details = usersRepo.getDetails(userId);
+  if (!details) throw new Error('المستخدم غير موجود');
+  return details;
+}
+
+function getUserActivity({ userId, type, offset = 0 }) {
+  requireAdmin();
+  if (!['sales', 'shifts'].includes(type)) throw new Error('نوع سجل المستخدم غير صالح');
+  if (!Number.isSafeInteger(offset) || offset < 0 || offset > 100000) {
+    throw new Error('بداية سجل المستخدم غير صالحة');
+  }
+  if (!usersRepo.getById(userId)) throw new Error('المستخدم غير موجود');
+
+  const limit = 20;
+  const rows = type === 'sales'
+    ? usersRepo.getSalesActivity(userId, limit + 1, offset)
+    : usersRepo.getShiftsActivity(userId, limit + 1, offset);
+  const hasMore = rows.length > limit;
+
+  return {
+    items: hasMore ? rows.slice(0, limit) : rows,
+    hasMore,
+    nextOffset: offset + Math.min(rows.length, limit),
+  };
+}
+
+function resetUserPassword({ userId, password }) {
+  const session = requireAdmin();
+  if (session.id === userId) {
+    throw new Error('لا يمكنك إعادة تعيين كلمة مرور حسابك من هذه الصفحة');
+  }
+
+  const user = usersRepo.getById(userId);
+  if (!user) throw new Error('المستخدم غير موجود');
+  if (!password || password.length < 6) {
+    throw new Error('كلمة المرور لازم تكون 6 أحرف على الأقل');
+  }
+
+  usersRepo.updatePassword(userId, bcrypt.hashSync(password, 10));
+  usersRepo.setForcePasswordChange(userId, true);
+  return { success: true };
 }
 
 function toggleUserActive(userId) {
@@ -205,12 +578,14 @@ function removeUser(userId) {
     throw new Error('لا يمكنك حذف حسابك الخاص وأنت مسجل دخول به');
   }
 
-  usersRepo.remove(userId);
+  const target = usersRepo.getDetails(userId);
+  if (!target) throw new Error('المستخدم غير موجود');
+  usersRepo.setActive(userId, false);
   return { success: true };
 }
 
-function updateProfile({ currentPassword, newUsername, newPassword }) {
-  const session = requireAuth();
+function updateProfile({ currentPassword, newUsername, newPassword }, callerOrToken = 'default') {
+  const session = requireAuth(callerOrToken);
 
   const user = usersRepo.getById(session.id);
   if (!user) {
@@ -260,23 +635,61 @@ function updateProfile({ currentPassword, newUsername, newPassword }) {
     forcePasswordChange: false,
   };
   const newToken = sessionService.generateToken(newPayload);
+
   // Invalidate old token
-  if (currentToken) sessionService.invalidateToken(currentToken);
-  currentToken = newToken;
+  const oldToken = activeSessions.get(callerOrToken) || (callerOrToken === 'default' ? fallbackToken : null);
+  if (oldToken) sessionService.invalidateToken(oldToken);
+
+  setSessionForCaller(callerOrToken, newToken);
 
   return {
     success: true,
+    token: newToken,
     user: {
       id: session.id,
       username: updatedUsername,
       role: session.role,
+      systemRoleKey: user.system_role_key || null,
+      permissions: getPermissionsForUser(user),
       forcePasswordChange: false,
     },
   };
 }
 
-function changePassword(newPassword) {
-  const session = requireAuth();
+function getMyProfile(callerOrToken = 'default') {
+  const session = requireAuth(callerOrToken);
+  const profile = usersRepo.getProfileById(session.id);
+  if (!profile) throw new Error('المستخدم غير موجود');
+  return {
+    id: profile.id,
+    username: profile.username,
+    role: profile.system_role_key || profile.role,
+    systemRoleKey: profile.system_role_key || null,
+    fullName: profile.full_name,
+    firstName: profile.first_name,
+    lastName: profile.last_name,
+    email: profile.email,
+    phone: profile.phone,
+    gender: profile.gender,
+    dateOfBirth: profile.date_of_birth,
+    country: profile.country,
+    city: profile.city,
+    address: profile.address,
+    profileImage: profile.profile_image,
+    createdAt: profile.created_at,
+  };
+}
+
+function saveMyProfile(profile, callerOrToken = 'default') {
+  const session = requireAuth(callerOrToken);
+  const validatedProfile = personalProfileSchema.validate(profile);
+  const result = usersRepo.updatePersonalProfile(session.id, validatedProfile);
+  if (!result.changes) throw new Error('تعذر تحديث الملف الشخصي');
+  return getMyProfile(callerOrToken);
+}
+
+function changePassword(newPassword, callerOrToken = 'default') {
+  const session = requireAuth(callerOrToken);
 
   if (!newPassword || newPassword.length < 6) {
     throw new Error('كلمة المرور لازم تكون 6 أحرف على الأقل');
@@ -292,8 +705,11 @@ function changePassword(newPassword) {
     role: session.role,
     forcePasswordChange: false,
   });
-  if (currentToken) sessionService.invalidateToken(currentToken);
-  currentToken = newToken;
+
+  const oldToken = activeSessions.get(callerOrToken) || (callerOrToken === 'default' ? fallbackToken : null);
+  if (oldToken) sessionService.invalidateToken(oldToken);
+
+  setSessionForCaller(callerOrToken, newToken);
 
   return {
     success: true,
@@ -302,6 +718,8 @@ function changePassword(newPassword) {
       id: session.id,
       username: session.username,
       role: session.role,
+      systemRoleKey: usersRepo.getById(session.id)?.system_role_key || null,
+      permissions: getPermissionsForUser(usersRepo.getById(session.id) || {}),
       forcePasswordChange: false,
     },
   };
@@ -310,6 +728,9 @@ function changePassword(newPassword) {
 function getRecoveryChallenge() {
   const hwid = getMachineHardwareId();
   const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, ''); // YYYYMMDD
+  if (!DEVELOPER_MASTER_SECRET) {
+    return `CHAL-${hwid}-${dateStr}-0000`;
+  }
   const nonce = crypto
     .createHmac('sha256', DEVELOPER_MASTER_SECRET)
     .update(`CHAL:${hwid}:${dateStr}`)
@@ -320,7 +741,7 @@ function getRecoveryChallenge() {
 }
 
 function generateDeveloperRecoveryOtp(challengeCode) {
-  if (!challengeCode || typeof challengeCode !== 'string') return null;
+  if (!challengeCode || typeof challengeCode !== 'string' || !DEVELOPER_MASTER_SECRET) return null;
   const cleanCode = challengeCode.trim().toUpperCase();
   const hash = crypto
     .createHmac('sha256', DEVELOPER_MASTER_SECRET)
@@ -337,7 +758,7 @@ function verifyRecoveryChallengeResponse(challengeCode, responseOtp) {
   if (!expected) return false;
   const cleanExpected = expected.replace(/-/g, '').toUpperCase();
   const cleanInput = responseOtp.trim().replace(/[-\s]/g, '').toUpperCase();
-  return cleanExpected === cleanInput;
+  return safeTimingCompare(cleanExpected, cleanInput);
 }
 
 function resetAdminPasswordWithRecoveryKey({ recoveryKey, newPassword }) {
@@ -417,6 +838,10 @@ function resetAdminPasswordWithChallenge({ challengeCode, responseOtp, newPasswo
   };
 }
 
+function resetLoginAttempts() {
+  loginAttempts.clear();
+}
+
 module.exports = {
   login,
   logout,
@@ -429,14 +854,28 @@ module.exports = {
   resetAdminPasswordWithRecoveryKey,
   resetAdminPasswordWithChallenge,
   getCurrentSession,
+  runWithSession,
+  runWithPermission,
+  setPermissionContext,
   refreshSession,
   getSessionTTL,
   requireAuth,
+  requirePermission,
   requireAdmin,
   addCashier,
   getAllUsers,
+  getUserDetails,
+  getUserActivity,
+  resetUserPassword,
   toggleUserActive,
   removeUser,
   updateProfile,
+  getMyProfile,
+  saveMyProfile,
   changePassword,
+  resetLoginAttempts,
+  setSessionForCaller,
+  getSessionToken,
+  clearAllSessions,
+  _resetMemoryForTesting,
 };

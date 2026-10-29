@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 
 /**
  * ShiftStatus component
@@ -16,6 +16,7 @@ import React from 'react';
  */
 export default function ShiftStatus({
   activeShift,
+  posSessionUser,
   onOpenExpenseModal,
   onShowXReport,
   onCloseShiftModal,
@@ -23,8 +24,72 @@ export default function ShiftStatus({
   playSuccessBeep,
   setMessage,
 }) {
+  const [attendanceRecord, setAttendanceRecord] = useState(null);
+  const [attendanceLoading, setAttendanceLoading] = useState(false);
+  const [attendanceSaving, setAttendanceSaving] = useState(false);
+  const isCashier = Boolean(posSessionUser && posSessionUser.role !== 'admin');
+  const ownsOpenShift = Boolean(activeShift && Number(activeShift.user_id) === Number(posSessionUser?.id));
+
+  useEffect(() => {
+    if (!isCashier || !window.electronAPI?.getMyAttendanceStatus) return undefined;
+    let mounted = true;
+    setAttendanceLoading(true);
+    window.electronAPI.getMyAttendanceStatus()
+      .then((record) => { if (mounted) setAttendanceRecord(record); })
+      .catch((error) => { if (mounted) setMessage({ type: 'error', text: error.message || 'تعذر تحميل حالة الحضور' }); })
+      .finally(() => { if (mounted) setAttendanceLoading(false); });
+    return () => { mounted = false; };
+  }, [isCashier, posSessionUser?.id, activeShift?.id, setMessage]);
+
+  async function handleAttendanceAction() {
+    if (!isCashier || attendanceSaving) return;
+    if (attendanceRecord?.check_in && ownsOpenShift) {
+      setMessage({ type: 'warning', text: 'أغلق الوردية أولاً قبل تسجيل الانصراف.' });
+      return;
+    }
+    setAttendanceSaving(true);
+    try {
+      const today = new Date();
+      const date = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+      if (attendanceRecord?.check_in) {
+        await window.electronAPI.checkOutEmployee({ date });
+        setAttendanceRecord(await window.electronAPI.getMyAttendanceStatus());
+        setMessage({ type: 'success', text: 'تم تسجيل الانصراف.' });
+      } else {
+        await window.electronAPI.checkInEmployee({ date });
+        setAttendanceRecord(await window.electronAPI.getMyAttendanceStatus());
+        setMessage({ type: 'success', text: 'تم تسجيل حضورك. يمكنك الآن فتح الوردية.' });
+      }
+    } catch (error) {
+      setMessage({ type: 'error', text: error.message || 'تعذر تسجيل الحضور.' });
+    } finally {
+      setAttendanceSaving(false);
+    }
+  }
+
+  const attendanceButtonText = attendanceLoading || attendanceSaving
+    ? 'جارٍ التسجيل...'
+    : attendanceRecord?.check_out
+      ? 'اكتمل حضور اليوم'
+      : attendanceRecord?.check_in
+        ? ownsOpenShift ? 'أغلق الوردية للانصراف' : 'تسجيل الانصراف'
+        : 'تسجيل الحضور';
+
   return (
     <div className="pos-status-pills">
+      {isCashier && (
+        <div className={`attendance-clock-pill${attendanceRecord?.check_in && !attendanceRecord?.check_out ? ' is-present' : ''}`}>
+          <span>{attendanceRecord?.check_in ? 'حالة اليوم' : 'قبل فتح الوردية'}</span>
+          <button
+            type="button"
+            onClick={handleAttendanceAction}
+            disabled={attendanceLoading || attendanceSaving || Boolean(attendanceRecord?.check_out) || (ownsOpenShift && Boolean(attendanceRecord?.check_in))}
+            title={ownsOpenShift ? 'يمكن تسجيل الانصراف بعد إغلاق الوردية' : 'تسجيل حضورك أو انصرافك'}
+          >
+            {attendanceButtonText}
+          </button>
+        </div>
+      )}
       <div
         className="shift-pos-pill"
         style={{
@@ -72,14 +137,16 @@ export default function ShiftStatus({
             >
               💸 مصروف
             </button>
-            <button
-              type="button"
-              className="shift-action-btn btn-info"
-              onClick={onShowXReport}
-              title="تقرير استطلاعي X-Report"
-            >
-              📊 X
-            </button>
+            {posSessionUser?.role === 'admin' && (
+              <button
+                type="button"
+                className="shift-action-btn btn-info"
+                onClick={onShowXReport}
+                title="تقرير استطلاعي X-Report"
+              >
+                📊 X
+              </button>
+            )}
             <button
               type="button"
               className="shift-action-btn btn-close-shift"

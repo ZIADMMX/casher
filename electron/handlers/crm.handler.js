@@ -31,6 +31,22 @@ function registerCRMHandlers() {
   safeHandle('crm:checkDueReminders', () => {
     return crmService.checkDueReminders();
   });
+
+  safeHandle('crm:getCampaigns', () => {
+    return crmService.getAllCampaigns();
+  });
+
+  safeHandle('crm:createCampaign', (event, data) => {
+    return crmService.createCampaign(data);
+  });
+
+  safeHandle('crm:getCampaignAudience', (event, campaignId) => {
+    return crmService.getCampaignAudience(campaignId);
+  });
+
+  safeHandle('crm:createCampaignReminders', (event, campaignId) => {
+    return crmService.createCampaignReminders(campaignId);
+  });
 }
 
 module.exports = { registerCRMHandlers };

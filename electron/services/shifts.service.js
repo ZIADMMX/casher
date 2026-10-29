@@ -1,10 +1,11 @@
 const shiftsRepo = require('../repositories/shifts.repository');
 const NotificationsService = require('./notifications.service');
-const { requireAdmin, requireAuth, getCurrentSession } = require('./auth.service');
+const { requireAuth, getCurrentSession } = require('./auth.service');
+const attendanceService = require('./attendance.service');
 
 function getCurrentShift() {
-  requireAuth();
-  const openShift = shiftsRepo.getCurrentOpenShift();
+  const session = requireAuth();
+  const openShift = shiftsRepo.getCurrentOpenShift(session?.id) || (session?.role === 'admin' ? shiftsRepo.getCurrentOpenShift() : null);
   if (!openShift) return null;
   const liveTotals = shiftsRepo.getShiftLiveTotals(openShift.id);
   return {
@@ -14,8 +15,13 @@ function getCurrentShift() {
 }
 
 function getLastClosedShift() {
-  requireAdmin();
-  return shiftsRepo.getLastClosedShift();
+  const session = requireAuth();
+  if (session.role === 'admin') {
+    return shiftsRepo.getLastClosedShift();
+  }
+  // Return cashier's own last closed shift for non-admins
+  const cashierShifts = shiftsRepo.getAllShifts({ userId: session.id, status: 'closed', limit: 1 });
+  return cashierShifts[0] || null;
 }
 
 function getAuthorizedShift(shiftId) {
@@ -32,9 +38,13 @@ function openShift({ openingCash = 0, shiftType = 'morning', posStation = 'ال�
   const session = getCurrentSession();
   if (!session) throw new Error('يجب تسجيل الدخول أولاً');
 
-  const existing = shiftsRepo.getCurrentOpenShift();
+  const existing = shiftsRepo.getCurrentOpenShift(session.id);
   if (existing) {
-    throw new Error(`توجد وردية مفتوحة بالفعل حالياً برقم #${existing.id} باسم ${existing.cashier_username || existing.opened_by_name}`);
+    throw new Error(`لديك وردية مفتوحة بالفعل حالياً برقم #${existing.id}`);
+  }
+
+  if (session.role !== 'admin' && !attendanceService.isCheckedInToday(session.id)) {
+    throw new Error('سجّل حضورك أولاً قبل فتح الوردية');
   }
 
   const initialAmount = Number(openingCash);
@@ -59,6 +69,16 @@ function openShift({ openingCash = 0, shiftType = 'morning', posStation = 'ال�
       message: `قام ${session.username} بفتح وردية #${newShift.id} (${shiftType === 'evening' ? 'مسائية 🌙' : 'صباحية ☀️'}) بعهدة فكة ${initialAmount.toFixed(2)} ج.م`,
       linkPage: 'shifts',
     });
+    require('./audit.service').logAction({
+      actionType: 'shift_open',
+      title: `فتح وردية #${newShift.id}`,
+      details: `فتح وردية جديدة (${shiftType === 'evening' ? 'مسائية' : 'صباحية'}) بعهدة نقدية ${initialAmount.toFixed(2)} ج.م`,
+      amount: initialAmount,
+      shiftId: newShift.id,
+      userId: session.id,
+      username: session.username,
+      severity: 'success',
+    });
   } catch {}
 
   return newShift;
@@ -70,7 +90,7 @@ function closeShift({ shiftId, actualCash, cashBreakdown, notes } = {}) {
 
   let targetShiftId = shiftId;
   if (!targetShiftId) {
-    const current = shiftsRepo.getCurrentOpenShift();
+    const current = shiftsRepo.getCurrentOpenShift(session?.id) || shiftsRepo.getCurrentOpenShift();
     if (!current) throw new Error('لا توجد وردية مفتوحة لإغلاقها');
     targetShiftId = current.id;
   }
@@ -99,12 +119,24 @@ function closeShift({ shiftId, actualCash, cashBreakdown, notes } = {}) {
 
   try {
     const diff = Number(closedShift.cash_difference || 0);
+    const auditService = require('./audit.service');
+
     if (diff < 0) {
       NotificationsService.notify({
         type: 'shift_shortage',
         title: '🔴 تنبيه: عجز مالي في تقفيل الوردية!',
         message: `تم إغلاق الوردية #${targetShiftId} بعجز مالي قدره ${Math.abs(diff).toFixed(2)} ج.م (المتوقع: ${Number(closedShift.expected_cash || 0).toFixed(2)}، الفعلي: ${actual.toFixed(2)})`,
         linkPage: 'shifts',
+      });
+      auditService.logAction({
+        actionType: 'shift_close',
+        title: `إغلاق وردية #${targetShiftId} (عجز مالي: ${Math.abs(diff).toFixed(2)} ج.م)`,
+        details: `تقفيل وردية #${targetShiftId} - الفعلي: ${actual.toFixed(2)} ج.م | المتوقع: ${Number(closedShift.expected_cash || 0).toFixed(2)} ج.م | العجز: ${Math.abs(diff).toFixed(2)} ج.م`,
+        amount: diff,
+        shiftId: targetShiftId,
+        userId: session.id,
+        username: session.username,
+        severity: 'danger',
       });
     } else if (diff > 0) {
       NotificationsService.notify({
@@ -113,12 +145,32 @@ function closeShift({ shiftId, actualCash, cashBreakdown, notes } = {}) {
         message: `تم إغلاق الوردية #${targetShiftId} بفائض قدره +${diff.toFixed(2)} ج.م (الفعلي: ${actual.toFixed(2)} ج.م)`,
         linkPage: 'shifts',
       });
+      auditService.logAction({
+        actionType: 'shift_close',
+        title: `إغلاق وردية #${targetShiftId} (فائض نقدية: +${diff.toFixed(2)} ج.م)`,
+        details: `تقفيل وردية #${targetShiftId} - الفعلي: ${actual.toFixed(2)} ج.م | المتوقع: ${Number(closedShift.expected_cash || 0).toFixed(2)} ج.م | الزيادة: +${diff.toFixed(2)} ج.م`,
+        amount: diff,
+        shiftId: targetShiftId,
+        userId: session.id,
+        username: session.username,
+        severity: 'warning',
+      });
     } else {
       NotificationsService.notify({
         type: 'shift_closed',
         title: '🔒 تم تقفيل الوردية بمطابقة تامة',
         message: `تم تقفيل الوردية #${targetShiftId} بمطابقة تامة 100% للدرج (${actual.toFixed(2)} ج.م)`,
         linkPage: 'shifts',
+      });
+      auditService.logAction({
+        actionType: 'shift_close',
+        title: `إغلاق وردية #${targetShiftId} (مطابقة تامة)`,
+        details: `تقفيل وردية #${targetShiftId} بمطابقة 100% - إجمالي النقدية: ${actual.toFixed(2)} ج.م`,
+        amount: actual,
+        shiftId: targetShiftId,
+        userId: session.id,
+        username: session.username,
+        severity: 'success',
       });
     }
   } catch {}
@@ -129,7 +181,8 @@ function closeShift({ shiftId, actualCash, cashBreakdown, notes } = {}) {
 function getShiftXReport(shiftId) {
   let targetShiftId = shiftId;
   if (!targetShiftId) {
-    const current = shiftsRepo.getCurrentOpenShift();
+    const session = getCurrentSession();
+    const current = shiftsRepo.getCurrentOpenShift(session?.id) || shiftsRepo.getCurrentOpenShift();
     if (!current) return null;
     targetShiftId = current.id;
   }
@@ -142,7 +195,7 @@ function addShiftExpense({ shiftId, amount, category, notes } = {}) {
 
   let targetShiftId = shiftId;
   if (!targetShiftId) {
-    const current = shiftsRepo.getCurrentOpenShift();
+    const current = shiftsRepo.getCurrentOpenShift(session?.id) || shiftsRepo.getCurrentOpenShift();
     if (!current) {
       throw new Error('لا يمكن تسجيل مصروف للدرج لعدم وجود وردية مفتوحة حالياً');
     }
@@ -182,6 +235,16 @@ function addShiftExpense({ shiftId, amount, category, notes } = {}) {
       message: `قام ${session.username} بسحب ${expenseAmount.toFixed(2)} ج.م (${category.trim()}) من عهدة الوردية #${targetShiftId}`,
       linkPage: 'shifts',
     });
+    require('./audit.service').logAction({
+      actionType: 'expense_added',
+      title: `سحب مصروف من الدرج (${expenseAmount.toFixed(2)} ج.م)`,
+      details: `بند: ${category.trim()} | الملاحظات: ${notes?.trim() || 'بدون ملاحظات'}`,
+      amount: expenseAmount,
+      shiftId: targetShiftId,
+      userId: session.id,
+      username: session.username,
+      severity: 'warning',
+    });
   } catch {}
 
   return { id, success: true };
@@ -190,7 +253,8 @@ function addShiftExpense({ shiftId, amount, category, notes } = {}) {
 function getShiftExpenses(shiftId) {
   let targetShiftId = shiftId;
   if (!targetShiftId) {
-    const current = shiftsRepo.getCurrentOpenShift();
+    const session = getCurrentSession();
+    const current = shiftsRepo.getCurrentOpenShift(session?.id) || shiftsRepo.getCurrentOpenShift();
     if (!current) return [];
     targetShiftId = current.id;
   }
@@ -198,9 +262,13 @@ function getShiftExpenses(shiftId) {
   return shiftsRepo.getShiftExpenses(targetShiftId);
 }
 
-function getAllShifts(filters) {
-  requireAdmin();
-  return shiftsRepo.getAllShifts(filters);
+function getAllShifts(filters = {}) {
+  const session = requireAuth();
+  if (session.role === 'admin') {
+    return shiftsRepo.getAllShifts(filters);
+  }
+  // Return only the cashier's own shifts for non-admins
+  return shiftsRepo.getAllShifts({ ...filters, userId: session.id });
 }
 
 function getShiftById(shiftId) {
@@ -208,7 +276,16 @@ function getShiftById(shiftId) {
 }
 
 function getShiftsKPIs() {
-  requireAdmin();
+  const session = requireAuth();
+  if (session.role !== 'admin') {
+    return {
+      closedShiftsCount: 0,
+      totalSalesVolume: 0,
+      totalShortage: 0,
+      totalOverage: 0,
+      totalExpensesAmount: 0,
+    };
+  }
   return shiftsRepo.getShiftsKPIs();
 }
 

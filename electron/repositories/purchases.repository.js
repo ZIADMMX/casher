@@ -1,4 +1,5 @@
 const { db } = require('../database/db');
+const inventoryRepo = require('./inventory.repository');
 
 function createPurchase({
   supplierId,
@@ -6,8 +7,12 @@ function createPurchase({
   items,
   totalAmount,
   paidAmount = 0,
+  paymentMethod = 'cash',
   dueDate,
   notes,
+  userId,
+  shiftId,
+  warehouseId,
 }) {
   const verifiedSupplierId = Number(supplierId);
   const total = Number(totalAmount || 0);
@@ -22,6 +27,7 @@ function createPurchase({
   }
 
   return db.transaction(() => {
+    const targetWarehouseId = warehouseId || inventoryRepo.getDefaultWarehouseId();
     // 1. Insert into purchases
     const purchaseResult = db.prepare(`
       INSERT INTO purchases (
@@ -47,7 +53,7 @@ function createPurchase({
 
     const purchaseId = purchaseResult.lastInsertRowid;
 
-    // 2. Insert items and automatically increment stock in product_variants
+    // 2. Insert items and record each receipt against the selected warehouse
     const insertItemStmt = db.prepare(`
       INSERT INTO purchase_items (
         purchase_id,
@@ -61,10 +67,9 @@ function createPurchase({
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
-    const updateStockStmt = db.prepare(`
+    const updatePriceStmt = db.prepare(`
       UPDATE product_variants
-      SET stock_quantity = stock_quantity + ?,
-          purchase_price = CASE WHEN ? > 0 THEN ? ELSE purchase_price END,
+      SET purchase_price = CASE WHEN ? > 0 THEN ? ELSE purchase_price END,
           selling_price = CASE WHEN ? > 0 THEN ? ELSE selling_price END
       WHERE id = ?
     `);
@@ -88,7 +93,17 @@ function createPurchase({
 
       // زيادة رصيد المخزون تلقائياً إذا كان الصنف مرتبط بـ variant
       if (vId) {
-        updateStockStmt.run(qty, pPrice, pPrice, sPrice, sPrice, vId);
+        updatePriceStmt.run(pPrice, pPrice, sPrice, sPrice, vId);
+        inventoryRepo.applyStockChange({
+          warehouseId: targetWarehouseId,
+          variantId: vId,
+          delta: qty,
+          movementType: 'purchase',
+          referenceType: 'purchase',
+          referenceId: purchaseId,
+          userId,
+          notes: invoiceNumber ? `فاتورة شراء ${invoiceNumber}` : null,
+        });
       }
     }
 
@@ -100,14 +115,18 @@ function createPurchase({
           purchase_id,
           amount,
           payment_method,
-          notes
-        ) VALUES (?, ?, ?, ?, ?)
+          notes,
+          user_id,
+          shift_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
       `).run(
         verifiedSupplierId,
         purchaseId,
         paid,
-        'cash',
-        invoiceNumber ? `دفعة مقدمة مع فاتورة #${invoiceNumber}` : 'دفعة مقدمة مع الفاتورة'
+        paymentMethod || 'cash',
+        invoiceNumber ? `دفعة مقدمة مع فاتورة #${invoiceNumber}` : 'دفعة مقدمة مع الفاتورة',
+        userId || null,
+        shiftId || null
       );
     }
 
@@ -170,7 +189,7 @@ function getPurchaseById(id) {
 
   const items = db.prepare(`
     SELECT * FROM purchase_items WHERE purchase_id = ?
-  `).all().map((i) => ({
+  `).all(id).map((i) => ({
     ...i,
     quantity: Number(i.quantity || 0),
     purchase_price: Number(i.purchase_price || 0),
@@ -179,7 +198,7 @@ function getPurchaseById(id) {
 
   const payments = db.prepare(`
     SELECT * FROM supplier_payments WHERE purchase_id = ? ORDER BY payment_date DESC
-  `).all().map((p) => ({
+  `).all(id).map((p) => ({
     ...p,
     amount: Number(p.amount || 0),
   }));
@@ -194,7 +213,7 @@ function getPurchaseById(id) {
   };
 }
 
-function addPayment({ supplierId, purchaseId, amount, paymentMethod = 'cash', notes }) {
+function addPayment({ supplierId, purchaseId, amount, paymentMethod = 'cash', notes, userId, shiftId }) {
   const supId = Number(supplierId);
   const payAmount = Number(amount || 0);
 
@@ -227,9 +246,11 @@ function addPayment({ supplierId, purchaseId, amount, paymentMethod = 'cash', no
           purchase_id,
           amount,
           payment_method,
-          notes
-        ) VALUES (?, ?, ?, ?, ?)
-      `).run(supId, pId, payAmount, paymentMethod, notes || null);
+          notes,
+          user_id,
+          shift_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(supId, pId, payAmount, paymentMethod, notes || null, userId || null, shiftId || null);
 
       return { paymentId: payResult.lastInsertRowid, purchaseId: pId, newRemaining, newStatus };
     }
@@ -266,9 +287,11 @@ function addPayment({ supplierId, purchaseId, amount, paymentMethod = 'cash', no
         purchase_id,
         amount,
         payment_method,
-        notes
-      ) VALUES (?, NULL, ?, ?, ?)
-    `).run(supId, payAmount, paymentMethod, notes || 'سداد دفعة لحساب المورد');
+        notes,
+        user_id,
+        shift_id
+      ) VALUES (?, NULL, ?, ?, ?, ?, ?)
+    `).run(supId, payAmount, paymentMethod, notes || 'سداد دفعة لحساب المورد', userId || null, shiftId || null);
 
     return { paymentId: payResult.lastInsertRowid, amountPaid: payAmount };
   })();

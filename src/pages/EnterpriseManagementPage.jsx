@@ -1,27 +1,17 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useBusinessProfile } from '../contexts/BusinessProfileContext.jsx';
+import WorkflowsPage from './WorkflowsPage.jsx';
+import ALL_PERMISSIONS_BY_MODULE from '../../shared/permissions.json';
 
-const ALL_PERMISSIONS_BY_MODULE = [
-  { moduleName: 'شاشة الكاشير والمبيعات (POS)', moduleKey: 'pos', permissions: ['pos.view', 'pos.sell', 'pos.discount', 'pos.refund'] },
-  { moduleName: 'إدارة المنتجات والمخزون', moduleKey: 'inventory', permissions: ['products.view', 'products.create', 'products.edit', 'products.delete'] },
-  { moduleName: 'سجل الفواتير والمبيعات', moduleKey: 'sales', permissions: ['sales.view', 'sales.refund', 'sales.export'] },
-  { moduleName: 'العملاء والاتصالات (CRM)', moduleKey: 'customers', permissions: ['customers.view', 'customers.create', 'customers.edit', 'customers.delete'] },
-  { moduleName: 'مركز الطلبات والعمليات', moduleKey: 'orders', permissions: ['orders.view', 'orders.manage', 'orders.delete'] },
-  { moduleName: 'الاشتراكات والباقات', moduleKey: 'subscriptions', permissions: ['subscriptions.view', 'subscriptions.manage', 'subscriptions.freeze'] },
-  { moduleName: 'العمولات والحوافز', moduleKey: 'commissions', permissions: ['commissions.view', 'commissions.manage'] },
-  { moduleName: 'التقارير والتحليلات', moduleKey: 'reports', permissions: ['reports.view', 'reports.export'] },
-  { moduleName: 'إعدادات النظام والأمان', moduleKey: 'settings', permissions: ['settings.view', 'settings.manage'] },
-  { moduleName: 'البنية والديناميكية (Enterprise)', moduleKey: 'enterprise', permissions: ['enterprise.view', 'enterprise.manage'] },
-];
+import PageTutorial from '../components/PageTutorial.jsx';
 
-function EnterpriseManagementPage() {
+function EnterpriseManagementPage({ onNavigate }) {
   const { refreshConfiguration } = useBusinessProfile();
   const [activeTab, setActiveTab] = useState('modules'); // 'modules', 'profiles', 'attributes', 'workflows', 'automations', 'roles'
   const [modules, setModules] = useState([]);
   const [profiles, setProfiles] = useState([]);
   const [activeProfile, setActiveProfile] = useState(null);
   const [attributeDefs, setAttributeDefs] = useState([]);
-  const [workflows, setWorkflows] = useState([]);
   const [automations, setAutomations] = useState([]);
   const [roles, setRoles] = useState([]);
   const [selectedRoleKey, setSelectedRoleKey] = useState('manager');
@@ -61,21 +51,31 @@ function EnterpriseManagementPage() {
     const api = getApi();
     setLoading(true);
     try {
-      const [modsList, profsList, activeProf, attrsList, wfsList, autosList, rolesList] = await Promise.all([
+      const [modsList, profsList, activeProf, attrsList, autosList, rolesList] = await Promise.all([
         api.getSystemModules?.() || [],
         api.getBusinessProfiles?.() || [],
         api.getActiveBusinessProfile?.() || null,
         api.getAttributeDefinitions?.() || [],
-        api.getWorkflows?.() || [],
         api.getAutomationRules?.() || [],
         api.getSystemRoles?.() || []
       ]);
+
+      const collections = [
+        ['أقسام النظام', modsList],
+        ['أنماط الأنشطة', profsList],
+        ['الصفات الديناميكية', attrsList],
+        ['قواعد الأتمتة', autosList],
+        ['الأدوار والصلاحيات', rolesList],
+      ];
+      const invalidCollection = collections.find(([, value]) => !Array.isArray(value));
+      if (invalidCollection) {
+        throw new Error(`استجابة ${invalidCollection[0]} غير صالحة`);
+      }
 
       setModules(modsList);
       setProfiles(profsList);
       setActiveProfile(activeProf);
       setAttributeDefs(attrsList);
-      setWorkflows(wfsList);
       setAutomations(autosList);
       setRoles(rolesList);
 
@@ -86,7 +86,8 @@ function EnterpriseManagementPage() {
       }
     } catch (err) {
       console.error('Failed to load enterprise data:', err);
-      setMessage({ type: 'error', text: 'فشل تحميل بيانات إدارة المحرك والتكوين' });
+      const reason = err instanceof Error ? err.message : 'خطأ غير معروف';
+      setMessage({ type: 'error', text: `تعذر تحميل بيانات المحرك الديناميكي: ${reason}` });
     } finally {
       setLoading(false);
     }
@@ -499,39 +500,7 @@ function EnterpriseManagementPage() {
 
           {/* TAB 4: WORKFLOWS */}
           {activeTab === 'workflows' && (
-            <div>
-              <h3 style={{ marginBottom: '10px' }}>🔄 سير العمل والحالات الديناميكية (Dynamic Workflows)</h3>
-              <p style={{ color: '#6b7280', fontSize: '0.9rem', marginBottom: '20px' }}>
-                تخصيص مراحل وحالات الطلبات والصفقات البيعية دون تعديل في الكود البرمجي
-              </p>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                {workflows.map(wf => (
-                  <div key={wf.id} style={{ backgroundColor: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '10px', padding: '16px' }}>
-                    <h4 style={{ margin: '0 0 10px', fontSize: '1.1rem' }}>📌 مسار: {wf.name} ({wf.module_key})</h4>
-                    <p style={{ fontSize: '0.85rem', color: '#6b7280', margin: '0 0 16px' }}>{wf.description}</p>
-
-                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-                      {wf.statuses?.map((st, idx) => (
-                        <div key={st.id} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{
-                            backgroundColor: st.badge_color || '#3b82f6',
-                            color: '#ffffff',
-                            padding: '6px 12px',
-                            borderRadius: '20px',
-                            fontSize: '0.85rem',
-                            fontWeight: 'bold'
-                          }}>
-                            {st.status_label} ({st.status_key})
-                          </span>
-                          {idx < wf.statuses.length - 1 && <span style={{ color: '#9ca3af' }}>➔</span>}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <WorkflowsPage />
           )}
 
           {/* TAB 5: AUTOMATIONS */}
@@ -765,6 +734,10 @@ function EnterpriseManagementPage() {
           )}
 
         </div>
+      )}
+      
+      {activeTab === 'roles' && (
+        <PageTutorial activePage="roles" onNavigate={onNavigate} />
       )}
     </div>
   );

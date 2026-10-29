@@ -15,12 +15,26 @@ function CustomersPage() {
   
   const [activeView, setActiveView] = useState('customers'); // 'customers' | 'pipeline'
   const [selectedTimelineCustomer, setSelectedTimelineCustomer] = useState(null);
+  const [campaigns, setCampaigns] = useState([]);
+  const [selectedCampaign, setSelectedCampaign] = useState(null);
+  const [campaignAudience, setCampaignAudience] = useState([]);
+  const [campaignLoading, setCampaignLoading] = useState(false);
+  const [campaignError, setCampaignError] = useState('');
+  const [campaignForm, setCampaignForm] = useState({
+    name: '',
+    product_keyword: '',
+    months_since_purchase: 10,
+    follow_up_days: 1,
+    offer_title: 'عرض إكسسوارات أو ترقية',
+    offer_details: '',
+    discount_percentage: 0
+  });
 
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 150);
   const [showForm, setShowForm] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
-  const [form, setForm] = useState({ name: '', phone: '', email: '' });
+  const [form, setForm] = useState({ name: '', phone: '', email: '', initialDebt: '', dueDate: '', debtNotes: '' });
   const [copiedPhone, setCopiedPhone] = useState(null);
   const [debtModalCustomer, setDebtModalCustomer] = useState(null);
   const [debtForm, setDebtForm] = useState({ amount: '', notes: '', dueDate: '' });
@@ -60,10 +74,12 @@ function CustomersPage() {
   const stats = useMemo(() => {
     const totalSpentAll = customers.reduce((sum, c) => sum + (c.totalSpent || 0), 0);
     const totalInvoicesAll = customers.reduce((sum, c) => sum + (c.invoiceCount || 0), 0);
+    const totalDebtAll = customers.reduce((sum, c) => sum + (Number(c.debt) || 0), 0);
     return {
       count: customers.length,
       totalSpent: totalSpentAll,
       totalInvoices: totalInvoicesAll,
+      totalDebt: totalDebtAll,
     };
   }, [customers]);
 
@@ -73,9 +89,17 @@ function CustomersPage() {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    const result = await addCustomer(form);
+    const payload = {
+      name: form.name,
+      phone: form.phone || null,
+      email: form.email || null,
+      initialDebt: form.initialDebt ? Number(form.initialDebt) : 0,
+      debtNotes: form.debtNotes || null,
+      dueDate: form.dueDate || null,
+    };
+    const result = await addCustomer(payload);
     if (result) {
-      setForm({ name: '', phone: '', email: '' });
+      setForm({ name: '', phone: '', email: '', initialDebt: '', dueDate: '', debtNotes: '' });
       setShowForm(false);
     }
   }
@@ -142,6 +166,77 @@ function CustomersPage() {
     }
   }, []);
 
+  useEffect(() => {
+    if (activeView !== 'campaigns') return;
+    window.electronAPI.getCRMCampaigns()
+      .then(setCampaigns)
+      .catch((err) => {
+        console.error('Failed to load CRM campaigns:', err);
+        setCampaignError(err.message || 'تعذر تحميل الحملات');
+      });
+  }, [activeView]);
+
+  async function handleCreateCampaign(e) {
+    e.preventDefault();
+    setCampaignError('');
+    setCampaignLoading(true);
+    try {
+      const campaign = await window.electronAPI.createCRMCampaign(campaignForm);
+      setCampaignForm({
+        name: '',
+        product_keyword: '',
+        months_since_purchase: 10,
+        follow_up_days: 1,
+        offer_title: 'عرض إكسسوارات أو ترقية',
+        offer_details: '',
+        discount_percentage: 0
+      });
+      const [campaignList, audience] = await Promise.all([
+        window.electronAPI.getCRMCampaigns(),
+        window.electronAPI.getCRMCampaignAudience(campaign.id)
+      ]);
+      setCampaigns(campaignList);
+      setSelectedCampaign(campaign);
+      setCampaignAudience(audience);
+    } catch (err) {
+      console.error('Failed to create CRM campaign:', err);
+      setCampaignError(err.message || 'تعذر إنشاء الحملة');
+    } finally {
+      setCampaignLoading(false);
+    }
+  }
+
+  async function handleShowCampaignAudience(campaign) {
+    setSelectedCampaign(campaign);
+    setCampaignError('');
+    setCampaignLoading(true);
+    try {
+      setCampaignAudience(await window.electronAPI.getCRMCampaignAudience(campaign.id));
+    } catch (err) {
+      console.error('Failed to load CRM campaign audience:', err);
+      setCampaignError(err.message || 'تعذر تحميل العملاء المؤهلين');
+    } finally {
+      setCampaignLoading(false);
+    }
+  }
+
+  async function handleCreateCampaignReminders() {
+    if (!selectedCampaign) return;
+    setCampaignError('');
+    setCampaignLoading(true);
+    try {
+      const result = await window.electronAPI.createCRMCampaignReminders(selectedCampaign.id);
+      setCampaignAudience(await window.electronAPI.getCRMCampaignAudience(selectedCampaign.id));
+      setCampaigns(await window.electronAPI.getCRMCampaigns());
+      alert(`تم إنشاء ${result.createdCount} تذكير متابعة.`);
+    } catch (err) {
+      console.error('Failed to create campaign reminders:', err);
+      setCampaignError(err.message || 'تعذر إنشاء تذكيرات الحملة');
+    } finally {
+      setCampaignLoading(false);
+    }
+  }
+
   const getTierBadgeClass = (tier) => {
     switch (tier) {
       case 'VIP': return 'badge-purple';
@@ -157,12 +252,12 @@ function CustomersPage() {
       <div className="page-header-row">
         <div>
           <h1>إدارة {getTerm('customer', 'العملاء')} ومركز الاتصالات (CRM)</h1>
-          <p className="page-subtitle">سجل العملاء، السجل الموحد، العمولات وخط صفقات المبيعات</p>
+          <p className="page-subtitle">تواصل ومتابعة العملاء، الشكاوى، الفرص البيعية والحملات حسب سلوك الشراء</p>
         </div>
         <div className="header-action-group" style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           {isAdmin && (
             <>
-              <button 
+              <button
                 type="button" 
                 className="secondary-btn" 
                 onClick={() => setShowImportModal(true)} 
@@ -199,21 +294,135 @@ function CustomersPage() {
         >
           💼 خط صفقات المبيعات (Pipeline)
         </button>
+        <button
+          className={`secondary-btn ${activeView === 'campaigns' ? 'active-tab-btn' : ''}`}
+          onClick={() => setActiveView('campaigns')}
+          style={{ fontWeight: activeView === 'campaigns' ? 'bold' : 'normal' }}
+        >
+          🎯 حملات حسب الشراء
+        </button>
       </div>
 
       {activeView === 'pipeline' ? (
         <SalesPipelineBoard />
+      ) : activeView === 'campaigns' ? (
+        <section style={{ display: 'grid', gap: '18px' }}>
+          <form className="fox-form-card" onSubmit={handleCreateCampaign}>
+            <div className="fox-form-card-header">
+              <div className="form-card-title-group">
+                <span className="form-title-badge">🎯 CRM</span>
+                <h3 className="form-card-title">إنشاء حملة متابعة حسب سلوك الشراء</h3>
+              </div>
+            </div>
+            {campaignError && <p className="form-error" role="alert">{campaignError}</p>}
+            <div className="fox-form-grid-main" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '14px', padding: '18px' }}>
+              <label className="form-field-group">
+                <span className="form-label">اسم الحملة *</span>
+                <input className="fox-lux-input" value={campaignForm.name} onChange={(e) => setCampaignForm({ ...campaignForm, name: e.target.value })} required maxLength={100} placeholder="مثال: متابعة مشتري الهاتف" />
+              </label>
+              <label className="form-field-group">
+                <span className="form-label">اسم المنتج أو جزء منه *</span>
+                <input className="fox-lux-input" value={campaignForm.product_keyword} onChange={(e) => setCampaignForm({ ...campaignForm, product_keyword: e.target.value })} required maxLength={100} placeholder="مثال: هاتف" />
+              </label>
+              <label className="form-field-group">
+                <span className="form-label">الشراء منذ (أشهر) *</span>
+                <input className="fox-lux-input" type="number" min="1" max="120" value={campaignForm.months_since_purchase} onChange={(e) => setCampaignForm({ ...campaignForm, months_since_purchase: Number(e.target.value) })} required />
+              </label>
+              <label className="form-field-group">
+                <span className="form-label">المتابعة بعد (أيام)</span>
+                <input className="fox-lux-input" type="number" min="0" max="365" value={campaignForm.follow_up_days} onChange={(e) => setCampaignForm({ ...campaignForm, follow_up_days: Number(e.target.value) })} required />
+              </label>
+              <label className="form-field-group">
+                <span className="form-label">عنوان العرض *</span>
+                <input className="fox-lux-input" value={campaignForm.offer_title} onChange={(e) => setCampaignForm({ ...campaignForm, offer_title: e.target.value })} required maxLength={120} />
+              </label>
+              <label className="form-field-group">
+                <span className="form-label">الخصم (%)</span>
+                <input className="fox-lux-input" type="number" min="0" max="100" step="0.1" value={campaignForm.discount_percentage} onChange={(e) => setCampaignForm({ ...campaignForm, discount_percentage: Number(e.target.value) })} />
+              </label>
+              <label className="form-field-group" style={{ gridColumn: '1 / -1' }}>
+                <span className="form-label">تفاصيل العرض</span>
+                <textarea className="fox-lux-input" rows="3" value={campaignForm.offer_details} onChange={(e) => setCampaignForm({ ...campaignForm, offer_details: e.target.value })} maxLength={1000} placeholder="إكسسوارات متوافقة أو عرض ترقية مناسب للمنتج" />
+              </label>
+            </div>
+            <div className="form-actions-footer" style={{ padding: '0 18px 18px' }}>
+              <button type="submit" className="primary-btn" disabled={campaignLoading}>{campaignLoading ? 'جارٍ الحفظ...' : 'حفظ الحملة ومعاينة العملاء'}</button>
+            </div>
+          </form>
+
+          <div className="customers-table-card" style={{ padding: '18px' }}>
+            <h3 style={{ marginTop: 0 }}>الحملات المحفوظة</h3>
+            {campaigns.length === 0 ? (
+              <p className="text-muted">لا توجد حملات بعد. أنشئ حملة لتحديد العملاء الذين اشتروا منتجًا منذ مدة معينة.</p>
+            ) : (
+              <div style={{ display: 'grid', gap: '10px' }}>
+                {campaigns.map((campaign) => (
+                  <div key={campaign.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '12px' }}>
+                    <div>
+                      <strong>{campaign.name}</strong>
+                      <div style={{ color: '#64748b', fontSize: '0.9rem', marginTop: '4px' }}>
+                        مشترو «{campaign.target_criteria.product_keyword}» قبل {campaign.target_criteria.months_since_purchase} شهرًا أو أكثر
+                        {' · '}تذكيرات منشأة: {campaign.reminders_created || 0}
+                      </div>
+                    </div>
+                    <button type="button" className="secondary-btn" onClick={() => handleShowCampaignAudience(campaign)} disabled={campaignLoading}>عرض الجمهور</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {selectedCampaign && (
+            <div className="customers-table-card" style={{ padding: '18px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                <div>
+                  <h3 style={{ margin: 0 }}>الجمهور المؤهل: {selectedCampaign.name}</h3>
+                  <p style={{ margin: '5px 0 0', color: '#64748b' }}>آخر شراء للمنتج المطابق كان قبل المدة المحددة أو أكثر.</p>
+                </div>
+                <button type="button" className="primary-btn" onClick={handleCreateCampaignReminders} disabled={campaignLoading || !campaignAudience.some((customer) => !customer.reminder_created)}>
+                  إنشاء تذكيرات العرض ({campaignAudience.filter((customer) => !customer.reminder_created).length})
+                </button>
+              </div>
+              {campaignLoading ? <p>جارٍ تحميل الجمهور...</p> : campaignAudience.length === 0 ? (
+                <p className="text-muted">لا يوجد عملاء مؤهلون لهذه الحملة حاليًا.</p>
+              ) : (
+                <div style={{ overflowX: 'auto', marginTop: '12px' }}>
+                  <table className="customers-table">
+                    <thead><tr><th>العميل</th><th>الهاتف</th><th>آخر شراء مطابق</th><th>التقييم</th><th>المتابعة</th></tr></thead>
+                    <tbody>
+                      {campaignAudience.map((customer) => (
+                        <tr key={customer.id}>
+                          <td>{customer.name}</td>
+                          <td>{customer.phone || '-'}</td>
+                          <td>{new Date(customer.last_matching_purchase_at).toLocaleDateString('ar-EG')}</td>
+                          <td>{'★'.repeat(customer.rating || 5)}{'☆'.repeat(5 - (customer.rating || 5))}</td>
+                          <td>{customer.reminder_created ? 'تم إنشاء التذكير' : 'بانتظار الإنشاء'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+        </section>
       ) : (
         <>
           {/* Stats Cards */}
-          <div className="stats-row">
+          <div className="stats-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '15px' }}>
             <div className="stat-card">
               <span className="stat-label">إجمالي العملاء المسجلين</span>
               <span className="stat-value">{stats.count}</span>
             </div>
             <div className="stat-card">
               <span className="stat-label">إجمالي مشتريات العملاء</span>
-              <span className="stat-value">{stats.totalSpent.toLocaleString()} ج.م</span>
+              <span className="stat-value" style={{ color: '#2563eb' }}>{stats.totalSpent.toLocaleString()} ج.م</span>
+            </div>
+            <div className="stat-card">
+              <span className="stat-label">إجمالي مديونية العملاء (الآجل)</span>
+              <span className="stat-value" style={{ color: stats.totalDebt > 0 ? '#dc2626' : '#16a34a' }}>
+                {stats.totalDebt.toLocaleString()} ج.م
+              </span>
             </div>
             <div className="stat-card">
               <span className="stat-label">عدد فواتير العملاء</span>
@@ -228,8 +437,8 @@ function CustomersPage() {
           </div>
 
           {showForm && (
-            <form className="onyx-form-card reports-fade-in" style={{ marginBottom: '25px' }} onSubmit={handleSubmit}>
-              <div className="onyx-form-card-header">
+            <form className="fox-form-card reports-fade-in" style={{ marginBottom: '25px' }} onSubmit={handleSubmit}>
+              <div className="fox-form-card-header">
                 <div className="form-card-title-group">
                   <span className="form-title-badge">➕ إضافة عميل</span>
                   <h3 className="form-card-title">إضافة عميل جديد</h3>
@@ -239,13 +448,13 @@ function CustomersPage() {
               
               {error && <p className="form-error">{error}</p>}
               
-              <div className="onyx-form-grid-main" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', padding: '20px' }}>
+              <div className="fox-form-grid-main" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', padding: '20px' }}>
                 <div className="form-field-group">
                   <label className="form-label">اسم العميل <span className="req-star">*</span></label>
-                  <div className="onyx-field-input-wrap">
+                  <div className="fox-field-input-wrap">
                     <input
                       type="text"
-                      className="onyx-lux-input"
+                      className="fox-lux-input"
                       placeholder="أدخل اسم العميل..."
                       value={form.name}
                       onChange={(e) => updateForm('name', e.target.value)}
@@ -256,10 +465,10 @@ function CustomersPage() {
                 
                 <div className="form-field-group">
                   <label className="form-label">رقم الهاتف</label>
-                  <div className="onyx-field-input-wrap">
+                  <div className="fox-field-input-wrap">
                     <input
                       type="text"
-                      className="onyx-lux-input"
+                      className="fox-lux-input"
                       placeholder="مهم للمتابعة والواتساب"
                       value={form.phone}
                       onChange={(e) => updateForm('phone', e.target.value)}
@@ -269,16 +478,60 @@ function CustomersPage() {
                 
                 <div className="form-field-group">
                   <label className="form-label">البريد الإلكتروني</label>
-                  <div className="onyx-field-input-wrap">
+                  <div className="fox-field-input-wrap">
                     <input
                       type="email"
-                      className="onyx-lux-input"
+                      className="fox-lux-input"
                       placeholder="اختياري"
                       value={form.email}
                       onChange={(e) => updateForm('email', e.target.value)}
                     />
                   </div>
                 </div>
+
+                <div className="form-field-group">
+                  <label className="form-label">الرصيد الافتتاحي / مديونية سابقة (ج.م)</label>
+                  <div className="fox-field-input-wrap">
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      className="fox-lux-input"
+                      placeholder="0.00 (اختياري عند وجود دين سابق)"
+                      value={form.initialDebt}
+                      onChange={(e) => updateForm('initialDebt', e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                {Number(form.initialDebt || 0) > 0 && (
+                  <>
+                    <div className="form-field-group">
+                      <label className="form-label">تاريخ استحقاق المديونية</label>
+                      <div className="fox-field-input-wrap">
+                        <input
+                          type="date"
+                          className="fox-lux-input"
+                          value={form.dueDate}
+                          onChange={(e) => updateForm('dueDate', e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="form-field-group">
+                      <label className="form-label">ملاحظات الرصيد الافتتاحي</label>
+                      <div className="fox-field-input-wrap">
+                        <input
+                          type="text"
+                          className="fox-lux-input"
+                          placeholder="مثال: رصيد سابق من الدفتر القديم"
+                          value={form.debtNotes}
+                          onChange={(e) => updateForm('debtNotes', e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
               
               <div className="form-actions-footer" style={{ padding: '0 20px 20px', display: 'flex', gap: '10px' }}>
@@ -313,8 +566,9 @@ function CustomersPage() {
                     <th>اسم العميل</th>
                     <th>رقم الهاتف</th>
                     <th>التصنيف والتقييم</th>
-                    <th>إجمالي المشتريات / المديونية</th>
+                    <th>إجمالي المشتريات والمديونية</th>
                     <th>عدد الفواتير</th>
+                    <th>آخر تواصل</th>
                     <th>إجراءات CRM والمالية</th>
                   </tr>
                 </thead>
@@ -354,15 +608,34 @@ function CustomersPage() {
                         </div>
                       </td>
                       <td>
-                        <span className="spent-highlight">{Number(c.totalSpent || 0).toLocaleString()} ج.م</span>
-                        {Number(c.debt || 0) > 0 && (
-                          <small style={{ display: 'block', color: '#b91c1c' }}>
-                            متبقي آجل: {Number(c.debt).toLocaleString()} ج.م
-                          </small>
-                        )}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.9rem' }}>
+                            <span style={{ color: '#6b7280', fontSize: '0.8rem' }}>🛍️ مشتريات:</span>
+                            <strong className="spent-highlight">{Number(c.totalSpent || 0).toLocaleString()} ج.م</strong>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem' }}>
+                            <span style={{ color: '#6b7280', fontSize: '0.8rem' }}>💳 مديونية:</span>
+                            {Number(c.debt || 0) > 0 ? (
+                              <span style={{ color: '#dc2626', fontWeight: 'bold', backgroundColor: '#fee2e2', padding: '1px 6px', borderRadius: '4px' }}>
+                                {Number(c.debt).toLocaleString()} ج.م (آجل)
+                              </span>
+                            ) : (
+                              <span style={{ color: '#16a34a', fontWeight: '500' }}>
+                                0 ج.م (خالص)
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </td>
                       <td>
                         <span className="badge badge-neutral">{c.invoiceCount || 0} فاتورة</span>
+                      </td>
+                      <td>
+                        {c.last_interaction_at ? (
+                          <span title={new Date(c.last_interaction_at).toLocaleString('ar-EG')}>
+                            {new Date(c.last_interaction_at).toLocaleDateString('ar-EG')}
+                          </span>
+                        ) : <span className="text-muted">لا يوجد تواصل</span>}
                       </td>
                       <td>
                         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
@@ -401,7 +674,7 @@ function CustomersPage() {
                   ))}
                   {filtered.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="empty-table-cell">
+                      <td colSpan={7} className="empty-table-cell">
                         {search ? 'لا توجد نتائج مطابقة للبحث' : 'لم يتم تسجيل أي عملاء بعد'}
                       </td>
                     </tr>

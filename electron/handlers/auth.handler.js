@@ -4,40 +4,59 @@ const {
   loginSchema,
   createAdminSchema,
   updateProfileSchema,
+  personalProfileSchema,
   resetWithKeySchema,
   resetWithChallengeSchema,
+  changePasswordSchema,
 } = require('../validators/schema');
 
 function registerAuthHandlers() {
   safeHandle('auth:isSetupRequired', () => authService.isSetupRequired());
 
   safeHandle('auth:createInitialAdmin', createAdminSchema, (event, credentials) => {
-    return authService.createInitialAdmin(credentials);
+    const callerId = event?.sender?.id ?? 'default';
+    return authService.createInitialAdmin(credentials, callerId);
   });
 
   safeHandle('auth:login', loginSchema, (event, credentials) => {
-    return authService.login(credentials.username, credentials.password);
+    const callerId = event?.sender?.id ?? 'default';
+    return authService.login(credentials.username, credentials.password, callerId);
   });
 
-  safeHandle('auth:logout', () => {
-    authService.logout();
+  safeHandle('auth:logout', (event) => {
+    const callerId = event?.sender?.id ?? 'default';
+    authService.logout(callerId);
     return true;
   });
 
-  safeHandle('auth:getSession', () => {
-    return authService.getCurrentSession();
+  safeHandle('auth:getSession', (event) => {
+    const callerId = event?.sender?.id ?? 'default';
+    return authService.getCurrentSession(callerId);
   });
 
-  safeHandle('auth:refreshSession', () => {
-    return authService.refreshSession();
+  safeHandle('auth:refreshSession', (event) => {
+    const callerId = event?.sender?.id ?? 'default';
+    return authService.refreshSession(callerId);
   });
 
   safeHandle('auth:updateProfile', updateProfileSchema, (event, data) => {
-    return authService.updateProfile(data);
+    const callerId = event?.sender?.id ?? 'default';
+    return authService.updateProfile(data, callerId);
   });
 
-  safeHandle('auth:changePassword', (event, newPassword) => {
-    return authService.changePassword(newPassword);
+  safeHandle('auth:getMyProfile', (event) => {
+    const callerId = event?.sender?.id ?? 'default';
+    return authService.getMyProfile(callerId);
+  });
+
+  safeHandle('auth:saveMyProfile', personalProfileSchema, (event, profile) => {
+    const callerId = event?.sender?.id ?? 'default';
+    return authService.saveMyProfile(profile, callerId);
+  });
+
+  safeHandle('auth:changePassword', changePasswordSchema, (event, newPassword) => {
+    const callerId = event?.sender?.id ?? 'default';
+    return authService.changePassword(newPassword, callerId);
   });
 
   safeHandle('auth:getRecoveryChallenge', () => {

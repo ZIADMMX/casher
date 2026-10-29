@@ -8,8 +8,8 @@ function registerImportHandlers() {
   safeHandle('import:selectFile', async () => {
     authService.requireAdmin();
     const result = await dialog.showOpenDialog({
-      title: 'اختر ملف الإكسل',
-      filters: [{ name: 'Excel Files', extensions: ['xlsx', 'xls'] }],
+      title: 'اختر ملف الموظفين',
+      filters: [{ name: 'Excel/CSV Files', extensions: ['xlsx', 'csv'] }],
       properties: ['openFile']
     });
     if (result.canceled || result.filePaths.length === 0) {

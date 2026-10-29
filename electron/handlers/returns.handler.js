@@ -1,13 +1,13 @@
 const returnsService = require('../services/returns.service');
 const { safeHandle } = require('./safeHandle');
-const { processReturnSchema } = require('../validators/schema');
+const { processReturnSchema, positiveIdSchema } = require('../validators/schema');
 
 function registerReturnsHandlers() {
-  safeHandle('returns:findSale', (event, saleId) => {
+  safeHandle('returns:findSale', positiveIdSchema, (_event, saleId) => {
     return returnsService.findSale(saleId);
   });
 
-  safeHandle('returns:process', processReturnSchema, (event, data) => {
+  safeHandle('returns:process', processReturnSchema, (_event, data) => {
     return returnsService.processReturn(data);
   });
 

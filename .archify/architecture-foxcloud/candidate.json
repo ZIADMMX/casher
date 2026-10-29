@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "foxcloud POS Architecture",
+    "output": "foxcloud-architecture.html",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    { "id": "cashier", "type": "external", "label": "Cashier & Staff", "sublabel": "Desktop Operator", "pos": [40, 260], "size": [130, 60] },
+    { "id": "printer", "type": "external", "label": "Thermal Printer", "sublabel": "ESC/POS Receipt & Barcode", "pos": [40, 400], "size": [130, 60] },
+    { "id": "renderer", "type": "frontend", "label": "React Frontend", "sublabel": "Vite + React UI", "tag": "src/", "pos": [220, 260], "size": [140, 60] },
+    { "id": "preload", "type": "security", "label": "Preload Bridge", "sublabel": "contextIsolation + IPC", "tag": "preload.js", "pos": [220, 400], "size": [140, 60] },
+    { "id": "mainproc", "type": "backend", "label": "Electron Main", "sublabel": "Lifecycle & Window", "tag": "main.js", "pos": [420, 120], "size": [140, 60] },
+    { "id": "handlers", "type": "backend", "label": "IPC Handlers", "sublabel": "safeHandle & Auth", "tag": "handlers/*", "pos": [420, 260], "size": [140, 60] },
+    { "id": "services", "type": "backend", "label": "Core Services", "sublabel": "Sales, Stock, Cashier", "tag": "services/*", "pos": [620, 260], "size": [140, 60] },
+    { "id": "lanserver", "type": "backend", "label": "LAN REST Server", "sublabel": "Express :5000", "tag": "lanServer", "pos": [620, 120], "size": [140, 60] },
+    { "id": "repos", "type": "backend", "label": "Repositories", "sublabel": "Data Access Layer", "tag": "repositories/*", "pos": [620, 400], "size": [140, 60] },
+    { "id": "sqlite", "type": "database", "label": "SQLite Database", "sublabel": "better-sqlite3 + WAL", "tag": "shop.db", "pos": [820, 400], "size": [140, 60] },
+    { "id": "centralclient", "type": "backend", "label": "Central Client Sync", "sublabel": "Cloud & Branch Sync", "tag": "centralClient", "pos": [820, 260], "size": [140, 60] },
+    { "id": "loadbalancer", "type": "cloud", "label": "Load Balancer", "sublabel": "Cluster Proxy :8080", "tag": "load-balancer.js", "pos": [1040, 180], "size": [140, 60] },
+    { "id": "pgcluster", "type": "database", "label": "Central Postgres", "sublabel": "Central HQ Database", "tag": "PostgreSQL", "pos": [1040, 320], "size": [140, 60] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "Local Electron Runtime (Cashier Workstation)", "wraps": ["renderer", "preload", "mainproc", "handlers", "services", "lanserver", "repos", "sqlite", "centralclient"] },
+    { "kind": "region", "label": "Central Cloud & HQ Server", "wraps": ["loadbalancer", "pgcluster"] }
+  ],
+  "connections": [
+    { "id": "cashier-to-ui", "from": "cashier", "to": "renderer", "label": "User Actions", "variant": "emphasis" },
+    { "id": "ui-to-preload", "from": "renderer", "to": "preload", "label": "window.electronAPI" },
+    { "id": "preload-to-handlers", "from": "preload", "to": "handlers", "label": "IPC Invoke" },
+    { "id": "main-to-handlers", "from": "mainproc", "to": "handlers", "label": "Registers Handlers", "variant": "dashed" },
+    { "id": "handlers-to-services", "from": "handlers", "to": "services", "label": "Business Logic" },
+    { "id": "lanserver-to-services", "from": "lanserver", "to": "services", "label": "LAN Terminals", "variant": "dashed" },
+    { "id": "services-to-repos", "from": "services", "to": "repos", "label": "Data Operations" },
+    { "id": "repos-to-sqlite", "from": "repos", "to": "sqlite", "label": "SQL Transactions", "variant": "emphasis" },
+    { "id": "services-to-sync", "from": "services", "to": "centralclient", "label": "Offline/Online Sync" },
+    { "id": "sync-to-lb", "from": "centralclient", "to": "loadbalancer", "label": "REST API Sync" },
+    { "id": "lb-to-pg", "from": "loadbalancer", "to": "pgcluster", "label": "Pooled SQL" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Workstation Frontend", "items": ["Vite + React modern cashier interface", "contextIsolation prevents direct Node.js access from UI", "Preload exposed APIs typed under window.electronAPI"] },
+    { "dot": "emerald", "title": "Electron Backend & Data Layer", "items": ["Robust IPC handlers with safeHandle error wrapping", "Better-sqlite3 with Write-Ahead Logging (WAL) for crash resiliency", "Modular services covering Sales, Inventory, Cashier shifts, and Printing"] },
+    { "dot": "violet", "title": "Networking & Multi-Terminal Sync", "items": ["Embedded Express LAN server on port 5000 for secondary registers", "Central client sync with conflict resolution for multi-branch clustering", "Dual database model: local SQLite for offline speed, PostgreSQL for centralized reporting"] }
+  ]
+}

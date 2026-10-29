@@ -128,10 +128,15 @@ class BackboneWorkerPool extends EventEmitter {
     worker.status = 'starting';
     worker.generation++;
     const generation = worker.generation;
+    const safeWorkerEnv = Object.assign(Object.create(null), process.env);
+    delete safeWorkerEnv.NODE_OPTIONS;
+    delete safeWorkerEnv.NODE_PATH;
+    safeWorkerEnv.ELECTRON_RUN_AS_NODE = '1';
+
     const child = fork(this.workerPath, [], {
       stdio: ['ignore', 'ignore', 'inherit', 'ipc'],
       serialization: 'json',
-      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+      env: safeWorkerEnv,
     });
     worker.process = child;
     worker.pid = child.pid || null;

@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { useUser } from './UserContext.jsx';
 
 const defaultSettings = {
@@ -12,23 +12,45 @@ const defaultSettings = {
   show_logo_on_receipt: '1',
   show_barcode_on_receipt: '1',
   show_cashier_name: '1',
-  app_branding_mode: 'onyx_with_store',
-  primary_color: '#2E5BFF',
-  secondary_color: '#1D4ED8',
-  theme_preset: 'onyx_blue',
+  app_branding_mode: 'fox_with_store',
+  primary_color: '#F2600C',
+  secondary_color: '#D35400',
+  thermal_printer_name: '',
+  cash_drawer_pin: '2',
 };
 
 function normalizeHex(value, fallback) {
-  const normalized = String(value || '').trim();
-  return /^#[0-9A-Fa-f]{6}$/.test(normalized) ? normalized : fallback;
+  let normalized = String(value || '').trim();
+  if (!normalized) return fallback;
+  if (!normalized.startsWith('#')) {
+    normalized = `#${normalized}`;
+  }
+  if (/^#[0-9A-Fa-f]{3}$/.test(normalized)) {
+    return `#${normalized[1]}${normalized[1]}${normalized[2]}${normalized[2]}${normalized[3]}${normalized[3]}`.toUpperCase();
+  }
+  if (/^#[0-9A-Fa-f]{6}$/.test(normalized)) {
+    return normalized.toUpperCase();
+  }
+  return fallback;
 }
 
 function hexToRgb(hex) {
-  const value = hex.replace('#', '');
+  if (!hex) return { r: 0, g: 0, b: 0 };
+  let value = String(hex).replace('#', '').trim();
+  if (value.length === 3) {
+    value = value.split('').map((char) => char + char).join('');
+  }
+  if (value.length !== 6) {
+    return { r: 0, g: 0, b: 0 };
+  }
+  const r = parseInt(value.slice(0, 2), 16);
+  const g = parseInt(value.slice(2, 4), 16);
+  const b = parseInt(value.slice(4, 6), 16);
+
   return {
-    r: parseInt(value.slice(0, 2), 16),
-    g: parseInt(value.slice(2, 4), 16),
-    b: parseInt(value.slice(4, 6), 16),
+    r: Number.isNaN(r) ? 0 : r,
+    g: Number.isNaN(g) ? 0 : g,
+    b: Number.isNaN(b) ? 0 : b,
   };
 }
 
@@ -98,7 +120,7 @@ export function SettingsProvider({ children }) {
     root.style.setProperty('--primary-shadow', `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.3)`);
   }, [settings.primary_color, settings.secondary_color]);
 
-  const saveSettings = async (newSettings) => {
+  const saveSettings = useCallback(async (newSettings) => {
     try {
       if (window.electronAPI?.saveSettings) {
         const updated = await window.electronAPI.saveSettings(newSettings);
@@ -111,9 +133,9 @@ export function SettingsProvider({ children }) {
       console.error('خطأ في حفظ الإعدادات:', err);
       return { success: false, error: err.message };
     }
-  };
+  }, []);
 
-  const uploadLogo = async () => {
+  const uploadLogo = useCallback(async () => {
     try {
       if (window.electronAPI?.uploadStoreLogo) {
         const res = await window.electronAPI.uploadStoreLogo();
@@ -128,16 +150,16 @@ export function SettingsProvider({ children }) {
       console.error('خطأ في رفع الشعار:', err);
       throw err;
     }
-  };
+  }, []);
 
-  const backupDatabase = async () => {
+  const backupDatabase = useCallback(async () => {
     if (window.electronAPI?.backupDatabase) {
       return await window.electronAPI.backupDatabase();
     }
     throw new Error('electronAPI غير متوفر');
-  };
+  }, []);
 
-  const restoreDatabase = async () => {
+  const restoreDatabase = useCallback(async () => {
     if (window.electronAPI?.restoreDatabase) {
       const res = await window.electronAPI.restoreDatabase();
       if (res?.success) {
@@ -146,20 +168,28 @@ export function SettingsProvider({ children }) {
       return res;
     }
     throw new Error('electronAPI غير متوفر');
-  };
+  }, [refreshSettings]);
+
+  const value = useMemo(() => ({
+    settings,
+    loading,
+    refreshSettings,
+    saveSettings,
+    uploadLogo,
+    backupDatabase,
+    restoreDatabase,
+  }), [
+    settings,
+    loading,
+    refreshSettings,
+    saveSettings,
+    uploadLogo,
+    backupDatabase,
+    restoreDatabase,
+  ]);
 
   return (
-    <SettingsContext.Provider
-      value={{
-        settings,
-        loading,
-        refreshSettings,
-        saveSettings,
-        uploadLogo,
-        backupDatabase,
-        restoreDatabase,
-      }}
-    >
+    <SettingsContext.Provider value={value}>
       {children}
     </SettingsContext.Provider>
   );

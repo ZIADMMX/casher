@@ -8,7 +8,7 @@ function create({ name, phone, email }) {
 }
 
 function getAll() {
-  return db.prepare('SELECT * FROM customers ORDER BY created_at DESC').all();
+  return db.prepare('SELECT * FROM customers WHERE is_active = 1 ORDER BY created_at DESC').all();
 }
 
 function getById(id) {
@@ -17,11 +17,15 @@ function getById(id) {
 
 function getByPhone(phone) {
   if (!phone) return null;
-  return db.prepare('SELECT * FROM customers WHERE phone = ?').get(phone);
+  return db.prepare('SELECT * FROM customers WHERE phone = ? AND is_active = 1').get(phone);
 }
 
 function countAll() {
-  return db.prepare('SELECT COUNT(*) as count FROM customers').get().count;
+  return db.prepare('SELECT COUNT(*) as count FROM customers WHERE is_active = 1').get().count;
+}
+
+function archive(id) {
+  return db.prepare('UPDATE customers SET is_active = 0 WHERE id = ?').run(id);
 }
 
 function getBalances() {
@@ -35,11 +39,11 @@ function getBalances() {
   `).all();
 }
 
-function createPayment({ customerId, amount, paymentMethod, notes, userId }) {
+function createPayment({ customerId, amount, paymentMethod, notes, userId, shiftId }) {
   const result = db.prepare(`
-    INSERT INTO customer_payments (customer_id, amount, payment_method, notes, user_id)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(customerId, amount, paymentMethod, notes || null, userId || null);
+    INSERT INTO customer_payments (customer_id, amount, payment_method, notes, user_id, shift_id)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(customerId, amount, paymentMethod, notes || null, userId || null, shiftId || null);
   return result.lastInsertRowid;
 }
 
@@ -62,4 +66,4 @@ function getCreditSales(customerId) {
   `).all(customerId);
 }
 
-module.exports = { create, getAll, getById, getByPhone, countAll, getBalances, createPayment, getPayments, getCreditSales };
+module.exports = { create, getAll, getById, getByPhone, countAll, archive, getBalances, createPayment, getPayments, getCreditSales };

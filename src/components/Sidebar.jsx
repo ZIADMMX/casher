@@ -1,12 +1,61 @@
+import { useEffect, useState } from 'react';
 import { useSettings } from '../contexts/SettingsContext.jsx';
 import { useBusinessProfile } from '../contexts/BusinessProfileContext.jsx';
 import NotificationBell from './NotificationBell.jsx';
+import { isBusinessProfilePageEnabled } from '../utils/businessProfilePages.js';
+import foxLogo from '../assets/fox-logo.png';
+import { hasPermission } from '../utils/accessControl.js';
 
-function Sidebar({ activePage, onNavigate, currentUser, onLogout, onOpenProfile }) {
+const PAGE_PERMISSIONS = {
+  today: 'pos.view',
+  pos: 'pos.view',
+  orders: 'orders.view',
+  cases: 'cases.view',
+  appointments: 'appointments.view',
+  subscriptions: 'subscriptions.view',
+  commissions: 'commissions.view',
+  returns: 'pos.refund',
+  products: 'products.view',
+  branches: 'products.view',
+  customers: 'customers.view',
+  suppliers: 'suppliers.view',
+  shifts: 'shifts.view',
+  reports: 'reports.view',
+  users: 'team.view',
+  attendance: 'attendance.view',
+  leaves: 'leaves.view',
+  roles: 'roles.manage',
+  settings: 'settings.view',
+  profile: null,
+  enterprise: 'enterprise.view',
+  workflows: 'enterprise.view',
+};
+
+function Sidebar({ activePage, onNavigate, currentUser, onLogout, onOpenProfile, onOpenReview }) {
+  const [isTeamMenuOpen, setIsTeamMenuOpen] = useState(false);
   const { settings } = useSettings();
-  const { isModuleEnabled, getTerm } = useBusinessProfile();
+  const { configuration, isModuleEnabled, getTerm } = useBusinessProfile();
+  const profileKey = configuration?.profile?.key || settings?.business_type || settings?.onboarding_sector || 'retail';
+
+  useEffect(() => {
+    if (['users', 'attendance', 'leaves', 'roles', 'salaries'].includes(activePage)) setIsTeamMenuOpen(true);
+  }, [activePage]);
 
   const allLinks = [
+    {
+      key: 'today',
+      label: 'اليوم',
+      badge: 'مباشر',
+      icon: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+          <line x1="16" y1="2" x2="16" y2="6" />
+          <line x1="8" y1="2" x2="8" y2="6" />
+          <line x1="3" y1="10" x2="21" y2="10" />
+        </svg>
+      ),
+      roles: ['admin', 'cashier'],
+    },
     {
       key: 'pos',
       label: 'نقطة البيع (POS)',
@@ -22,7 +71,13 @@ function Sidebar({ activePage, onNavigate, currentUser, onLogout, onOpenProfile 
     },
     {
       key: 'orders',
-      label: `مركز ${getTerm('order', 'العمليات والطلبات')}`,
+      label: profileKey === 'spare_parts' || profileKey === 'maintenance'
+        ? 'أوامر وقطع الغيار'
+        : profileKey === 'cafe_restaurant'
+        ? 'طلبات التيك أواي والتوصيل'
+        : profileKey === 'grocery'
+        ? 'طلبات التوصيل والدليفري'
+        : `مركز ${getTerm('order', 'الطلبات')}`,
       badge: 'جديد',
       icon: (
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -31,6 +86,33 @@ function Sidebar({ activePage, onNavigate, currentUser, onLogout, onOpenProfile 
           <line x1="16" y1="13" x2="8" y2="13" />
           <line x1="16" y1="17" x2="8" y2="17" />
           <polyline points="10 9 9 9 8 9" />
+        </svg>
+      ),
+      roles: ['admin', 'cashier'],
+    },
+    {
+      key: 'cases',
+      label: 'القضايا والمحاكم',
+      badge: 'قضايا',
+      icon: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 3v18" />
+          <path d="M4 7h16" />
+          <path d="M4 7l3 7h-6l3-7z" />
+          <path d="M20 7l3 7h-6l3-7z" />
+          <path d="M9 21h6" />
+        </svg>
+      ),
+      roles: ['admin', 'cashier'],
+    },
+    {
+      key: 'appointments',
+      label: getTerm('appointments', 'حجوزات المواعيد والجلسات'),
+      badge: 'مواعيد',
+      icon: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="3" y="4" width="18" height="17" rx="2" />
+          <path d="M16 2v4M8 2v4M3 10h18M8 14h3M8 17h7" />
         </svg>
       ),
       roles: ['admin', 'cashier'],
@@ -79,6 +161,18 @@ function Sidebar({ activePage, onNavigate, currentUser, onLogout, onOpenProfile 
           <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
           <line x1="3" y1="6" x2="21" y2="6" />
           <path d="M16 10a4 4 0 0 1-8 0" />
+        </svg>
+      ),
+      roles: ['admin'],
+    },
+    {
+      key: 'branches',
+      label: 'الفروع والمخازن',
+      badge: 'مخزون',
+      icon: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M3 21V8l9-5 9 5v13" />
+          <path d="M9 21v-8h6v8M3 10h18" />
         </svg>
       ),
       roles: ['admin'],
@@ -135,12 +229,20 @@ function Sidebar({ activePage, onNavigate, currentUser, onLogout, onOpenProfile 
       roles: ['admin'],
     },
     {
-      key: 'users',
-      label: 'المستخدمين والصلاحيات',
+      key: 'team',
+      label: 'فريق العمل',
+      children: [
+        { key: 'users', label: 'فريق العمل', available: true },
+        { key: 'attendance', label: 'الحضور', available: true },
+        { key: 'leaves', label: 'الإجازات', available: true },
+        { key: 'roles', label: 'الأدوار والصلاحيات', available: true },
+        { key: 'salaries', label: 'الرواتب والمستحقات', available: true },
+      ],
       icon: (
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="3" />
-          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+          <path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+          <circle cx="10" cy="7" r="4" />
+          <path d="M20 8v6M23 11h-6" />
         </svg>
       ),
       roles: ['admin'],
@@ -158,75 +260,76 @@ function Sidebar({ activePage, onNavigate, currentUser, onLogout, onOpenProfile 
       roles: ['admin'],
     },
     {
-      key: 'enterprise',
-      label: 'محرك البنية والديناميكية',
-      badge: 'Enterprise',
+      key: 'workflows',
+      label: 'سير العمل ولوحة Kanban',
+      badge: 'SLA',
       icon: (
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <polygon points="12 2 2 7 12 12 22 7 12 2" />
-          <polyline points="2 17 12 22 22 17" />
-          <polyline points="2 12 12 17 22 12" />
+          <rect x="3" y="3" width="5" height="18" rx="1" />
+          <rect x="11" y="3" width="5" height="12" rx="1" />
+          <rect x="19" y="3" width="2" height="18" rx="1" />
         </svg>
       ),
-      roles: ['admin'],
+      roles: ['admin', 'manager', 'cashier'],
     },
   ];
 
-  const pageModules = {
-    pos: 'pos',
-    orders: 'orders',
-    subscriptions: 'subscriptions',
-    commissions: 'commissions',
-    returns: 'returns',
-    products: 'inventory',
-    customers: 'customers',
-    suppliers: 'purchases',
-    shifts: 'shifts',
-    reports: 'reports',
-    users: 'users',
-    settings: 'settings',
-    enterprise: 'enterprise',
-  };
-  const visibleLinks = allLinks.filter((link) =>
-    link.roles.includes(currentUser.role) && isModuleEnabled(pageModules[link.key])
-  );
+  function canAccess(page) {
+    if (page === 'profile') return true;
+    if (!currentUser.systemRoleKey) {
+      return currentUser.role === 'admin'
+        || ['today', 'pos', 'orders', 'appointments', 'subscriptions', 'returns', 'customers', 'shifts', 'workflows'].includes(page);
+    }
+    const permission = PAGE_PERMISSIONS[page];
+    return permission ? hasPermission(currentUser, permission) : false;
+  }
 
-  const initial = currentUser.username ? currentUser.username.charAt(0).toUpperCase() : 'U';
+  const visibleLinks = allLinks.flatMap((link) => {
+    if (link.children) {
+      const children = link.children.filter((child) => child.available && canAccess(child.key));
+      return children.length && isBusinessProfilePageEnabled('users', profileKey, isModuleEnabled)
+        ? [{ ...link, children }]
+        : [];
+    }
+    return canAccess(link.key)
+      && isBusinessProfilePageEnabled(link.key, profileKey, isModuleEnabled)
+      ? [link]
+      : [];
+  });
+
+  const displayName = currentUser.fullName
+    || [currentUser.firstName, currentUser.lastName].filter(Boolean).join(' ')
+    || currentUser.username;
+  const initial = displayName ? displayName.charAt(0).toUpperCase() : 'U';
   const storeName = settings?.store_name || 'بوتيك الفخامة';
 
   return (
     <nav className="sidebar">
-      {/* Brand Header */}
-      <div className="sidebar-brand" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
-          <div className="sidebar-brand-icon-wrap" style={{ flexShrink: 0 }}>
+      <div className="sidebar-brand">
+        <div className="sidebar-brand-main">
+          <div className={`sidebar-brand-icon-wrap ${settings?.store_logo ? 'has-store-logo' : ''}`}>
             {settings?.store_logo ? (
               <img
                 src={settings.store_logo}
-                alt="Logo"
-                style={{ width: '34px', height: '34px', borderRadius: '8px', objectFit: 'contain' }}
+                alt={`شعار ${storeName}`}
               />
             ) : (
-              <svg width="22" height="22" viewBox="0 0 40 40" fill="none">
-                <rect width="40" height="40" rx="10" fill="var(--primary-color)" />
-                <path d="M20 9L29 15.5V24.5L20 31L11 24.5V15.5L20 9Z" fill="#15151A" />
-                <path d="M20 13L26 17.5V22.5L20 27L14 22.5V17.5L20 13Z" fill="var(--primary-color)" fillOpacity="0.85" />
-                <path d="M20 16L23.5 18.8V21.2L20 24L16.5 21.2V18.8L20 16Z" fill="#FFFFFF" />
-              </svg>
+              <img src={foxLogo} alt="شعار FOX.CLOUD" />
             )}
           </div>
-          <div className="sidebar-brand-text" style={{ minWidth: 0 }}>
-            <h2 className="sidebar-title" title={storeName} style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '170px', fontSize: '14px' }}>
-              {storeName}
-            </h2>
-            <span className="sidebar-subtitle" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <span style={{ color: 'var(--primary-color)', fontWeight: '800' }}>ONYX</span> POS
-            </span>
+          <div className="sidebar-brand-text">
+            <h2 className="sidebar-title" title="FOX.CLOUD">FOX<span>.</span>CLOUD</h2>
+            <div className="sidebar-brand-meta">
+              <span className="sidebar-product-label">POS</span>
+              <span className="sidebar-store-name" title={storeName}>{storeName}</span>
+            </div>
           </div>
         </div>
 
         {currentUser.role === 'admin' && (
-          <NotificationBell onNavigate={onNavigate} />
+          <div className="sidebar-notification-wrap">
+            <NotificationBell onNavigate={onNavigate} />
+          </div>
         )}
       </div>
 
@@ -235,6 +338,59 @@ function Sidebar({ activePage, onNavigate, currentUser, onLogout, onOpenProfile 
         <span className="sidebar-nav-heading">القائمة الرئيسية</span>
         <ul className="sidebar-links">
           {visibleLinks.map((link) => {
+            if (link.children) {
+              const isActive = link.children.some((child) => child.key === activePage);
+              const isExpanded = isTeamMenuOpen;
+              return (
+                <li className="sidebar-menu-item" key={link.key}>
+                  <button
+                    type="button"
+                    className={`sidebar-nav-btn ${isActive ? 'active' : ''}`}
+                    onClick={() => setIsTeamMenuOpen((open) => !open)}
+                    aria-expanded={isExpanded}
+                    aria-controls="team-work-submenu"
+                  >
+                    <span className="sidebar-link-icon">{link.icon}</span>
+                    <span className="sidebar-link-label">{link.label}</span>
+                    <svg
+                      className={`sidebar-submenu-chevron ${isExpanded ? 'is-open' : ''}`}
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                    {isActive && <span className="sidebar-active-indicator" />}
+                  </button>
+                  {isExpanded && (
+                    <ul className="sidebar-submenu" id="team-work-submenu">
+                      {link.children.map((child) => (
+                        <li key={child.key}>
+                          <button
+                            type="button"
+                            className={`sidebar-submenu-btn ${activePage === child.key ? 'active' : ''}`}
+                            onClick={() => child.available && onNavigate(child.key)}
+                            disabled={!child.available}
+                            title={child.available ? undefined : 'هذا القسم غير متاح بعد'}
+                            aria-current={activePage === child.key ? 'page' : undefined}
+                          >
+                            <span>{child.label}</span>
+                            {!child.available && <span className="sidebar-submenu-soon">قريباً</span>}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </li>
+              );
+            }
+
             const isActive = activePage === link.key;
             return (
               <li key={link.key}>
@@ -252,25 +408,33 @@ function Sidebar({ activePage, onNavigate, currentUser, onLogout, onOpenProfile 
               </li>
             );
           })}
+          <li className="sidebar-review-nav-item">
+            <button type="button" className="sidebar-nav-btn sidebar-review-nav-btn" onClick={onOpenReview}>
+              <span className="sidebar-link-icon" aria-hidden="true">★</span>
+              <span className="sidebar-link-label">قيّم تجربتك</span>
+            </button>
+          </li>
         </ul>
       </div>
 
       {/* Footer Profile & Logout */}
       <div className="sidebar-footer">
         <div className="sidebar-profile-card">
-          <div
+          <button
+            type="button"
             className="sidebar-profile-clickable"
             onClick={onOpenProfile}
-            title="انقر لتعديل البروفايل وكلمة المرور"
+            title="عرض الملف الشخصي"
+            aria-label={`عرض الملف الشخصي لـ ${displayName}`}
           >
             <div className="user-avatar-badge">{initial}</div>
             <div className="user-info">
-              <span className="user-name">{currentUser.username}</span>
+              <span className="user-name">{displayName}</span>
               <span className="user-role">
-                {currentUser.role === 'admin' ? '🛡️ مدير النظام' : '💳 كاشير المبيعات'}
+                {currentUser.role === 'admin' ? '🛡️ مدير النظام' : currentUser.systemRoleKey ? `👤 ${currentUser.role}` : '💳 كاشير المبيعات'}
               </span>
             </div>
-          </div>
+          </button>
           <button
             className="sidebar-logout-icon-btn"
             onClick={onLogout}

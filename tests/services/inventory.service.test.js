@@ -22,6 +22,7 @@ const variantsRepo = require('../../electron/repositories/productVariants.reposi
 const productsRepo = require('../../electron/repositories/products.repository');
 const categoriesRepo = require('../../electron/repositories/categories.repository');
 const usersRepo = require('../../electron/repositories/users.repository');
+const inventoryRepo = require('../../electron/repositories/inventory.repository');
 const bcrypt = require('bcryptjs');
 
 describe('Inventory & Products Management (اختبارات المخزون والمنتجات)', () => {
@@ -29,6 +30,7 @@ describe('Inventory & Products Management (اختبارات المخزون وا�
     const schemaPath = path.join(__dirname, '../../electron/database/schema.sql');
     const schema = fs.readFileSync(schemaPath, 'utf-8');
     mockDb.exec(schema);
+    inventoryRepo.createBranch({ name: 'الفرع الرئيسي' });
   });
 
   beforeEach(() => {
@@ -226,7 +228,7 @@ describe('Inventory & Products Management (اختبارات المخزون وا�
       }).toThrow('لا يمكن حذف آخر متغير');
     });
 
-    test('يسمح بحذف متغير إضافي إذا كان للمنتج متغيرات أخرى', () => {
+    test('يمنع حذف متغير له رصيد وحركة افتتاحية لحماية سجل المخزون', () => {
       const p = productsService.addProductWithVariant({
         name: 'جاكيت جينز',
         sellingPrice: 700,
@@ -240,12 +242,11 @@ describe('Inventory & Products Management (اختبارات المخزون وا�
         size: 'L',
       });
 
-      const delResult = productsService.deleteVariant(v2.variantId);
-      expect(delResult.success).toBe(true);
+      expect(() => productsService.deleteVariant(v2.variantId))
+        .toThrow('لا يمكن حذف صنف له رصيد أو حركات مخزون');
 
       const remaining = variantsRepo.getByProductId(p.productId);
-      expect(remaining.length).toBe(1);
-      expect(remaining[0].id).toBe(p.variantId);
+      expect(remaining).toHaveLength(2);
     });
 
     test('تعديل متغير يحدث السعر والمخزون والـ SKU عند تغيير المقاس', () => {
@@ -348,11 +349,21 @@ describe('Inventory & Products Management (اختبارات المخزون وا�
         stockQuantity: 10,
       });
 
-      variantsRepo.decreaseStock(p.variantId, 3);
+      inventoryRepo.adjustStock({
+        warehouseId: inventoryRepo.getDefaultWarehouseId(),
+        variantId: p.variantId,
+        delta: -3,
+        notes: 'اختبار خصم المخزون',
+      });
       const after = variantsRepo.getById(p.variantId);
       expect(after.stock_quantity).toBe(7);
 
-      variantsRepo.decreaseStock(p.variantId, 7);
+      inventoryRepo.adjustStock({
+        warehouseId: inventoryRepo.getDefaultWarehouseId(),
+        variantId: p.variantId,
+        delta: -7,
+        notes: 'اختبار استنفاد المخزون',
+      });
       const zero = variantsRepo.getById(p.variantId);
       expect(zero.stock_quantity).toBe(0);
     });
@@ -365,8 +376,13 @@ describe('Inventory & Products Management (اختبارات المخزون وا�
       });
 
       expect(() => {
-        variantsRepo.decreaseStock(p.variantId, 3);
-      }).toThrow('الكمية المتاحة غير كافية');
+        inventoryRepo.adjustStock({
+          warehouseId: inventoryRepo.getDefaultWarehouseId(),
+          variantId: p.variantId,
+          delta: -3,
+          notes: 'اختبار منع المخزون السالب',
+        });
+      }).toThrow('لا توجد كمية كافية في المخزن');
 
       // تأكد أن المخزون لم يتغير ولم يصبح سالباً
       const check = variantsRepo.getById(p.variantId);

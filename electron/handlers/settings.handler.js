@@ -21,11 +21,18 @@ function registerSettingsHandlers() {
     const win = BrowserWindow.fromWebContents(event.sender);
     const now = new Date();
     const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    const defaultFilename = `kashiear_backup_${dateStr}.db`;
+    const defaultFilename = `foxcloud_backup_${dateStr}.db`;
+
+    let defaultPath = defaultFilename;
+    try {
+      if (fs.existsSync('D:\\')) {
+        defaultPath = path.join('D:\\', defaultFilename);
+      }
+    } catch {}
 
     const result = await dialog.showSaveDialog(win, {
       title: 'حفظ نسخة احتياطية من قاعدة البيانات',
-      defaultPath: defaultFilename,
+      defaultPath,
       filters: [{ name: 'SQLite Database', extensions: ['db', 'sqlite'] }]
     });
 
@@ -33,18 +40,25 @@ function registerSettingsHandlers() {
       return { canceled: true };
     }
 
-    const res = SettingsService.backupDatabase(result.filePath);
+    const res = await SettingsService.backupDatabase(result.filePath);
     return res;
   });
 
   safeHandle('settings:restore', async (event) => {
     authService.requireAdmin();
     const win = BrowserWindow.fromWebContents(event.sender);
-    const result = await dialog.showOpenDialog(win, {
+    const openOptions = {
       title: 'اختر ملف النسخة الاحتياطية لاستعادتها',
       properties: ['openFile'],
       filters: [{ name: 'SQLite Database', extensions: ['db', 'sqlite', 'bak'] }]
-    });
+    };
+    try {
+      if (fs.existsSync('D:\\')) {
+        openOptions.defaultPath = 'D:\\';
+      }
+    } catch {}
+
+    const result = await dialog.showOpenDialog(win, openOptions);
 
     if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
       return { canceled: true };

@@ -1,12 +1,27 @@
-const customersRepo = require('../repositories/customers.repository');
+﻿const customersRepo = require('../repositories/customers.repository');
 const salesRepo = require('../repositories/sales.repository');
 const shiftsRepo = require('../repositories/shifts.repository');
 const { requireAdmin, requireAuth, getCurrentSession } = require('./auth.service');
 
-function addCustomer({ name, phone, email }) {
+function addCustomer({ name, phone, email, initialDebt, debtNotes, dueDate }) {
   requireAuth();
   if (!name || !name.trim()) throw new Error('اسم العميل مطلوب');
   const id = customersRepo.create({ name: name.trim(), phone, email });
+  
+  const debtAmount = Number(initialDebt);
+  if (debtAmount && debtAmount > 0) {
+    try {
+      addManualDebt({
+        customerId: id,
+        amount: debtAmount,
+        notes: debtNotes || 'رصيد افتتاحي / مديونية سابقة',
+        dueDate: dueDate || null,
+      });
+    } catch (err) {
+      console.error('Failed to add initial debt for customer:', err);
+    }
+  }
+
   return { id };
 }
 
@@ -15,7 +30,7 @@ function addManualDebt({ customerId, amount, notes, dueDate }) {
   if (!customerId) throw new Error('العميل مطلوب');
   if (!amount || amount <= 0) throw new Error('مبلغ المديونية غير صحيح');
 
-  const activeShift = shiftsRepo.getCurrentOpenShift();
+  const activeShift = shiftsRepo.getCurrentOpenShift(session?.id) || shiftsRepo.getCurrentOpenShift();
   const session = getCurrentSession();
 
   const saleId = salesRepo.createSale({
@@ -35,6 +50,12 @@ function addManualDebt({ customerId, amount, notes, dueDate }) {
 
 function recordCustomerPayment({ customerId, amount, paymentMethod = 'cash', notes }) {
   const session = requireAuth();
+
+  const activeShift = shiftsRepo.getCurrentOpenShift(session?.id) || shiftsRepo.getCurrentOpenShift();
+  if (paymentMethod === 'cash' && !activeShift) {
+    throw new Error('لا يمكن تسجيل سداد نقدي لعدم وجود وردية مفتوحة. يرجى فتح وردية أولاً');
+  }
+
   const customer = customersRepo.getById(customerId);
   if (!customer) throw new Error('العميل غير موجود');
 
@@ -53,6 +74,7 @@ function recordCustomerPayment({ customerId, amount, paymentMethod = 'cash', not
     paymentMethod,
     notes,
     userId: session.id,
+    shiftId: activeShift ? activeShift.id : null,
   });
   return { paymentId, remainingBalance: Math.round((balance - paymentAmount) * 100) / 100 };
 }

@@ -1,0 +1,153 @@
+/* ===== Three.js 3D Visual Loading & Splash Screen ===== */
+.three-splash-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  position: relative;
+  font-family: inherit;
+  z-index: 100;
+  user-select: none;
+}
+
+/* Fullscreen Mode (عند بداية التطبيق، تسجيل الدخول، أو تجهيز النظام) */
+.three-splash-fullscreen {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  background: radial-gradient(circle at 50% 40%, #161a29 0%, #0c0e14 75%);
+  color: #ffffff;
+  overflow: hidden;
+}
+
+/* خلفية توهج خافتة وجمالية */
+.three-splash-glow {
+  position: absolute;
+  width: 380px;
+  height: 380px;
+  background: radial-gradient(circle, rgba(46, 91, 255, 0.28) 0%, rgba(0, 210, 255, 0.08) 50%, transparent 70%);
+  filter: blur(40px);
+  pointer-events: none;
+  animation: threeGlowPulse 4s ease-in-out infinite alternate;
+}
+
+@keyframes threeGlowPulse {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.6;
+  }
+  100% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+}
+
+/* بطاقة التحميل الداخلي (Inline / Card Mode عند التنقل بين الصفحات والـ Fetching) */
+.three-splash-inline {
+  width: 100%;
+  min-height: 280px;
+  padding: 40px 20px;
+  background: transparent;
+  color: #1e293b;
+}
+
+.three-content-box {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  z-index: 2;
+}
+
+.three-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-top: 14px;
+  letter-spacing: -0.3px;
+  background: linear-gradient(135deg, #ffffff 30%, #93c5fd 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.three-splash-inline .three-title {
+  background: linear-gradient(135deg, #1e293b 30%, #2563eb 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-size: 1.1rem;
+}
+
+.three-subtext {
+  font-size: 0.9rem;
+  color: #94a3b8;
+  margin-top: 6px;
+  max-width: 320px;
+  line-height: 1.5;
+}
+
+/* شريط النبض التفاعلي تحت النص */
+.three-progress-track {
+  width: 160px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  margin-top: 18px;
+  overflow: hidden;
+  position: relative;
+}
+
+.three-splash-inline .three-progress-track {
+  background: rgba(30, 41, 59, 0.1);
+}
+
+.three-progress-bar {
+  width: 45%;
+  height: 100%;
+  background: linear-gradient(90deg, #F2600C, #00d2ff);
+  border-radius: 999px;
+  animation: threeProgressAnim 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  box-shadow: 0 0 10px rgba(0, 210, 255, 0.7);
+}
+
+@keyframes threeProgressAnim {
+  0% {
+    transform: translateX(180%);
+  }
+  100% {
+    transform: translateX(-180%);
+  }
+}
+
+/* وسم الحالة الذكي (Badge) */
+.three-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  background: rgba(46, 91, 255, 0.15);
+  border: 1px solid rgba(46, 91, 255, 0.3);
+  font-size: 0.78rem;
+  color: #60a5fa;
+  margin-top: 14px;
+  letter-spacing: 0.5px;
+}
+
+.three-badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #00d2ff;
+  box-shadow: 0 0 8px #00d2ff;
+  animation: dotPulse 1.2s infinite alternate;
+}
+
+@keyframes dotPulse {
+  0% {
+    opacity: 0.4;
+  }
+  100% {
+    opacity: 1;
+  }
+}

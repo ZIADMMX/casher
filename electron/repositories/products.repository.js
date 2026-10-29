@@ -1,28 +1,11 @@
 const { db } = require('../database/db');
 
-let stmts = null;
-
-function getStmts() {
-  if (!stmts) {
-    stmts = {
-      create: db.prepare(`
-        INSERT INTO products (name, description, category_id, image_path)
-        VALUES (?, ?, ?, ?)
-      `),
-      getAll: db.prepare('SELECT * FROM products'),
-      getById: db.prepare('SELECT * FROM products WHERE id = ?'),
-      update: db.prepare(`
-        UPDATE products SET name = ?, description = ?, category_id = ?, image_path = ?
-        WHERE id = ?
-      `),
-      delete: db.prepare('DELETE FROM products WHERE id = ?'),
-    };
-  }
-  return stmts;
-}
-
 function create(product) {
-  const result = getStmts().create.run(
+  const stmt = db.prepare(`
+    INSERT INTO products (name, description, category_id, image_path)
+    VALUES (?, ?, ?, ?)
+  `);
+  const result = stmt.run(
     product.name,
     product.description || null,
     product.categoryId || null,
@@ -32,15 +15,18 @@ function create(product) {
 }
 
 function getAll() {
-  return getStmts().getAll.all();
+  return db.prepare('SELECT * FROM products WHERE is_active = 1').all();
 }
 
 function getById(id) {
-  return getStmts().getById.get(id);
+  return db.prepare('SELECT * FROM products WHERE id = ?').get(id);
 }
 
 function update(id, product) {
-  return getStmts().update.run(
+  return db.prepare(`
+    UPDATE products SET name = ?, description = ?, category_id = ?, image_path = ?
+    WHERE id = ?
+  `).run(
     product.name,
     product.description || null,
     product.categoryId || null,
@@ -49,8 +35,8 @@ function update(id, product) {
   );
 }
 
-function remove(id) {
-  return getStmts().delete.run(id);
+function archive(id) {
+  return db.prepare('UPDATE products SET is_active = 0 WHERE id = ?').run(id);
 }
 
-module.exports = { create, getAll, getById, update, remove };
+module.exports = { create, getAll, getById, update, archive };

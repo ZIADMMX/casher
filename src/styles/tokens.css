@@ -1,0 +1,99 @@
+/*
+  tokens.css – Design tokens for the Foxcloud POS Electron app
+  -----------------------------------------------------------
+  Centralised CSS variables (custom properties) that define the visual
+  language of the application. All components should reference these
+  variables instead of hard‑coding values.
+*/
+
+:root {
+  /* ------------------------------------------------------- */
+  /* Colors – semantic naming (no raw palette numbers)      */
+  /* ------------------------------------------------------- */
+  /* Brand */
+  --color-brand:            #0066FF;   /* primary brand blue */
+
+  /* State colors */
+  --color-success:          #28A745;   /* success – green */
+  --color-danger:           #DC3545;   /* error / danger – red */
+  --color-warning:          #FFC107;   /* warning – amber */
+  --color-info:             #17A2B8;   /* informational – teal */
+
+  /* Surface & text */
+  --color-surface:          #FFFFFF;   /* main background */
+  --color-surface-variant:  #F8F9FA;   /* secondary panels, cards */
+  --color-surface-elevated: #F1F3F5;   /* elevated surfaces (modals) */
+
+  --color-text-primary:     #212529;   /* main text */
+  --color-text-secondary:   #6C757D;   /* secondary / placeholder */
+  --color-text-inverse:     #FFFFFF;   /* text on brand / surface‑variant */
+
+  /* ------------------------------------------------------- */
+  /* Spacing – fixed scale (px)                               */
+  /* ------------------------------------------------------- */
+  --spacing-4:   4px;
+  --spacing-8:   8px;
+  --spacing-12: 12px;
+  --spacing-16: 16px;
+  --spacing-24: 24px;
+  --spacing-32: 32px;
+
+  /* ------------------------------------------------------- */
+  /* Z‑Index layers – five levels                             */
+  /* ------------------------------------------------------- */
+  --z-base:      0;   /* normal flow */
+  --z-sticky:    10;  /* sticky headers / footers */
+  --z-dropdown:  20;  /* dropdown menus, tooltips */
+  --z-modal:     30;  /* modal dialogs */
+  --z-toast:     40;  /* toast notifications */
+
+  /* ------------------------------------------------------- */
+  /* Typography – local fonts (offline‑first)                  */
+  /* ------------------------------------------------------- */
+  --font-family-base: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-bold: 700;
+
+  --font-size-sm:   0.875rem; /* 14px */
+  --font-size-base: 1rem;     /* 16px */
+  --font-size-lg:   1.125rem; /* 18px */
+  --font-size-xl:   1.25rem;  /* 20px */
+
+  /* ------------------------------------------------------- */
+  /* Touch targets – minimum interactive height                */
+  /* ------------------------------------------------------- */
+  --touch-min-height: 44px; /* minimum button height for POS touch screens */
+}
+
+/* Utility classes (optional) */
+
+.mt-4   { margin-top: var(--spacing-4); }
+.mt-8   { margin-top: var(--spacing-8); }
+.mt-12  { margin-top: var(--spacing-12); }
+.mt-16  { margin-top: var(--spacing-16); }
+.mt-24  { margin-top: var(--spacing-24); }
+.mt-32  { margin-top: var(--spacing-32); }
+
+.z-base     { z-index: var(--z-base); }
+.z-sticky   { z-index: var(--z-sticky); }
+.z-dropdown { z-index: var(--z-dropdown); }
+.z-modal    { z-index: var(--z-modal); }
+.z-toast    { z-index: var(--z-toast); }
+
+.btn-touch {
+  min-height: var(--touch-min-height);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding-left: var(--spacing-12);
+  padding-right: var(--spacing-12);
+  font-family: var(--font-family-base);
+  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-base);
+  cursor: pointer;
+  border: none;
+  border-radius: var(--spacing-4);
+  background-color: var(--color-brand);
+  color: var(--color-text-inverse);
+}

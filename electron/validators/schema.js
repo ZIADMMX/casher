@@ -302,6 +302,7 @@ const createSaleSchema = v.object({
   customerName: v.string('اسم العميل غير صالح').optional().nullable(),
   customerPhone: v.string('رقم هاتف العميل غير صالح').optional().nullable(),
   dueDate: v.string('تاريخ الاستحقاق غير صالح').optional().nullable(),
+  orderId: v.number('معرف أمر الشغل غير صالح').int('معرف أمر الشغل غير صالح').positive('معرف أمر الشغل غير صالح').optional().nullable(),
 }).refine((data) => {
   if (data.paymentMethod === 'credit') {
     if (!data.customerName || !data.customerName.trim()) {
@@ -390,6 +391,9 @@ const addCustomerSchema = v.object({
   name: v.string('اسم العميل مطلوب').min(1, 'اسم العميل لا يمكن أن يكون فارغاً'),
   phone: v.string().optional().nullable(),
   email: v.string().optional().nullable(),
+  initialDebt: v.number('الرصيد الافتتاحي غير صحيح').nonnegative('الرصيد الافتتاحي لا يمكن أن يكون سالباً').optional().nullable(),
+  debtNotes: v.string().optional().nullable(),
+  dueDate: v.string().optional().nullable(),
 });
 
 const addManualDebtSchema = v.object({
@@ -494,6 +498,7 @@ const processReturnSchema = v.object({
   reason: v.string().optional().nullable(),
   mode: v.enum(['return', 'exchange']).optional().nullable(),
   exchangeVariantId: v.number().positive().optional().nullable(),
+  exchangePaymentMethod: v.enum(['cash', 'card', 'bank_transfer']).optional().nullable(),
 });
 
 const loginSchema = v.object({
@@ -504,10 +509,79 @@ const loginSchema = v.object({
 const createAdminSchema = v.object({
   username: v.string('اسم المستخدم مطلوب').min(2, 'اسم المستخدم يجب ألا يقل عن حرفين'),
   password: v.string('كلمة المرور مطلوبة').min(6, 'كلمة المرور يجب أن تكون 6 أحرف على الأقل'),
+  fullName: v.string('الاسم غير صالح').max(100).optional().nullable(),
+  phone: v.string('رقم الهاتف غير صالح').max(30).optional().nullable(),
 });
 
 const addUserSchema = v.object({
   username: v.string('اسم المستخدم مطلوب').min(2, 'اسم المستخدم يجب ألا يقل عن حرفين'),
+  password: v.string('كلمة المرور مطلوبة').min(6, 'كلمة المرور يجب أن تكون 6 أحرف على الأقل'),
+  role: v.enum(['admin', 'cashier'], 'الدور الوظيفي غير صالح').optional(),
+  systemRoleKey: v.string('مفتاح الدور الوظيفي غير صالح').max(32).optional().nullable()
+    .refine((value) => value == null || /^[a-z][a-z0-9_-]{1,31}$/.test(value), 'مفتاح الدور الوظيفي غير صالح'),
+  firstName: v.string('الاسم الأول غير صالح').max(60).optional().nullable(),
+  lastName: v.string('اسم العائلة غير صالح').max(60).optional().nullable(),
+  fullName: v.string('الاسم الكامل غير صالح').max(120).optional().nullable(),
+  phone: v.string('رقم الهاتف غير صالح').max(30).optional().nullable(),
+  email: v.string('البريد الإلكتروني غير صالح').max(254).optional().nullable()
+    .refine((value) => !value || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value), 'البريد الإلكتروني غير صالح'),
+  jobTitle: v.string('المسمى الوظيفي غير صالح').max(100).optional().nullable(),
+  specialty: v.string('التخصص غير صالح').max(100).optional().nullable(),
+  workingHours: v.string('ساعات العمل غير صالحة').max(100).optional().nullable(),
+  profileImage: v.string('مسار الصورة غير صالح').max(2048).optional().nullable(),
+  payType: v.enum(['monthly', 'hourly'], 'نوع الأجر غير صالح').optional().nullable(),
+  payAmount: v.number('قيمة الأجر غير صالحة').positive('قيمة الأجر يجب أن تكون أكبر من صفر').optional().nullable(),
+  commissionRate: v.number('نسبة العمولة غير صالحة').nonnegative('نسبة العمولة لا يمكن أن تكون سالبة').max(100).optional().nullable(),
+  isActive: v.boolean('حالة الحساب غير صالحة').optional(),
+  notes: v.string('الملاحظات غير صالحة').max(500).optional().nullable(),
+}).refine(
+  (data) => (data.payType == null && data.payAmount == null)
+    || (data.payType != null && Number(data.payAmount) > 0),
+  'يجب تحديد نوع الأجر ومبلغ صحيح معًا',
+);
+
+const userActivitySchema = v.object({
+  userId: positiveIdSchema,
+  type: v.enum(['sales', 'shifts']),
+  offset: v.number('بداية السجل غير صحيحة').int('بداية السجل يجب أن تكون عدداً صحيحاً').min(0).max(100000).optional(),
+});
+
+const attendanceDateSchema = v.string('تاريخ الحضور غير صالح')
+  .refine((value) => /^\d{4}-\d{2}-\d{2}$/.test(value), 'صيغة التاريخ يجب أن تكون YYYY-MM-DD');
+
+const attendanceScheduleSchema = v.object({
+  userId: positiveIdSchema,
+  scheduledStart: v.string('وقت بداية الوردية غير صالح').refine((value) => /^([01]\d|2[0-3]):[0-5]\d$/.test(value), 'وقت البداية يجب أن يكون بصيغة HH:MM').optional().nullable(),
+  scheduledEnd: v.string('وقت نهاية الوردية غير صالح').refine((value) => /^([01]\d|2[0-3]):[0-5]\d$/.test(value), 'وقت النهاية يجب أن يكون بصيغة HH:MM').optional().nullable(),
+}).refine(
+  (data) => (data.scheduledStart == null && data.scheduledEnd == null)
+    || (data.scheduledStart != null && data.scheduledEnd != null && data.scheduledStart !== data.scheduledEnd),
+  'يجب تحديد وقت البداية والنهاية معًا وأن يختلفا',
+);
+
+const attendanceActionSchema = v.object({
+  userId: positiveIdSchema.optional(),
+  date: attendanceDateSchema,
+});
+
+const createLeaveRequestSchema = v.object({
+  userId: positiveIdSchema,
+  startDate: attendanceDateSchema,
+  endDate: attendanceDateSchema,
+  reason: v.string('سبب الإجازة مطلوب').min(2, 'سبب الإجازة يجب ألا يقل عن حرفين').max(500),
+  autoApprove: v.boolean('خيار الموافقة التلقائية غير صالح'),
+}).refine(
+  (data) => data.endDate >= data.startDate,
+  'تاريخ نهاية الإجازة يجب أن يكون في نفس يوم البداية أو بعده',
+);
+
+const leaveRequestDecisionSchema = v.object({
+  requestId: positiveIdSchema,
+  decision: v.enum(['approved', 'rejected'], 'قرار الطلب غير صالح'),
+});
+
+const resetUserPasswordSchema = v.object({
+  userId: positiveIdSchema,
   password: v.string('كلمة المرور مطلوبة').min(6, 'كلمة المرور يجب أن تكون 6 أحرف على الأقل'),
 });
 
@@ -516,6 +590,37 @@ const updateProfileSchema = v.object({
   newUsername: v.string().optional().nullable(),
   newPassword: v.string().optional().nullable(),
 });
+
+const personalProfileSchema = v.object({
+  firstName: v.string('الاسم الأول غير صالح').max(60).optional().nullable(),
+  lastName: v.string('اسم العائلة غير صالح').max(60).optional().nullable(),
+  email: v.string('البريد الإلكتروني غير صالح').max(254).optional().nullable()
+    .refine((value) => !value || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value), 'البريد الإلكتروني غير صالح'),
+  phone: v.string('رقم الهاتف غير صالح').max(30).optional().nullable(),
+  gender: v.enum(['male', 'female', 'prefer_not_to_say'], 'النوع غير صالح').optional().nullable(),
+  dateOfBirth: v.string('تاريخ الميلاد غير صالح').optional().nullable()
+    .refine((value) => !value || (
+      /^\d{4}-\d{2}-\d{2}$/.test(value)
+      && !Number.isNaN(Date.parse(`${value}T00:00:00Z`))
+      && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value
+    ), 'تاريخ الميلاد يجب أن يكون تاريخاً صحيحاً بصيغة YYYY-MM-DD'),
+  country: v.string('الدولة غير صالحة').max(100).optional().nullable(),
+  city: v.string('المدينة غير صالحة').max(100).optional().nullable(),
+  address: v.string('العنوان غير صالح').max(240).optional().nullable(),
+}).refine((data) => (
+  ['firstName', 'lastName', 'email', 'phone', 'gender', 'dateOfBirth', 'country', 'city', 'address']
+    .some((field) => data[field] !== undefined)
+), 'أدخل بيانات واحدة على الأقل لتحديث الملف الشخصي');
+
+const reviewSchema = v.object({
+  rating: v.number('اختر تقييمًا من النجوم').int().min(1).max(5),
+  tags: v.array(v.string('اختيار التقييم غير صالح').max(60)).optional(),
+  comment: v.string('الملاحظة غير صالحة').max(1000).optional().nullable()
+    .refine((value) => !value || value.length >= 20, 'اكتب 20 حرفًا على الأقل أو اترك الملاحظة فارغة'),
+  consent: v.boolean('حدد موافقتك على نشر اسم النشاط وشعاره').optional(),
+})
+  .refine((data) => data.rating < 4 || typeof data.consent === 'boolean', 'حدد ما إذا كنت توافق على نشر اسم النشاط وشعاره')
+  .refine((data) => data.rating >= 4 || data.consent !== true, 'موافقة النشر متاحة للتقييمات الإيجابية فقط');
 
 const resetWithKeySchema = v.object({
   recoveryKey: v.string('مفتاح الطوارئ مطلوب').min(6, 'مفتاح الطوارئ غير صالح'),
@@ -527,6 +632,8 @@ const resetWithChallengeSchema = v.object({
   responseOtp: v.string('كود الاستجابة مطلوب').min(4, 'كود الاستجابة غير صالح'),
   newPassword: v.string('كلمة المرور الجديدة مطلوبة').min(6, 'كلمة المرور الجديدة يجب ألا تقل عن 6 أحرف'),
 });
+
+const changePasswordSchema = v.string('كلمة المرور الجديدة مطلوبة').min(6, 'كلمة المرور الجديدة يجب ألا تقل عن 6 أحرف');
 
 module.exports = {
   v,
@@ -556,7 +663,17 @@ module.exports = {
   loginSchema,
   createAdminSchema,
   addUserSchema,
+  userActivitySchema,
+  attendanceDateSchema,
+  attendanceScheduleSchema,
+  attendanceActionSchema,
+  createLeaveRequestSchema,
+  leaveRequestDecisionSchema,
+  resetUserPasswordSchema,
   updateProfileSchema,
+  personalProfileSchema,
+  reviewSchema,
   resetWithKeySchema,
   resetWithChallengeSchema,
+  changePasswordSchema,
 };

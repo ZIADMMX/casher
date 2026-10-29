@@ -1,3 +1,6 @@
+const crypto = require('node:crypto');
+const originalLicenseSecret = process.env.KASHIEAR_LICENSE_SECRET;
+process.env.KASHIEAR_LICENSE_SECRET = crypto.randomBytes(32).toString('hex');
 const licenseService = require('../../electron/services/license.service');
 require('../../electron/repositories/settings.repository');
 
@@ -24,6 +27,14 @@ describe('license.service', () => {
     dateSpy.mockRestore();
   });
 
+  afterAll(() => {
+    if (originalLicenseSecret === undefined) {
+      delete process.env.KASHIEAR_LICENSE_SECRET;
+    } else {
+      process.env.KASHIEAR_LICENSE_SECRET = originalLicenseSecret;
+    }
+  });
+
   test('1. getMachineHardwareId returns 8 uppercase hex chars consistently', () => {
     const hwid1 = licenseService.getMachineHardwareId();
     const hwid2 = licenseService.getMachineHardwareId();
@@ -38,6 +49,23 @@ describe('license.service', () => {
     const key = licenseService.generateLicenseKey({ hwid, expiryTimestamp });
     
     expect(key).toMatch(/^KASH-ABCDEF12-[0-9A-F]+-[0-9A-F]{8}$/);
+  });
+
+  test('does not embed a fallback signing secret when none is configured', () => {
+    const configuredSecret = process.env.KASHIEAR_LICENSE_SECRET;
+    delete process.env.KASHIEAR_LICENSE_SECRET;
+
+    try {
+      jest.isolateModules(() => {
+        const unconfiguredLicenseService = require('../../electron/services/license.service');
+        expect(() => unconfiguredLicenseService.generateLicenseKey({
+          hwid: 'ABCDEF12',
+          expiryTimestamp: 1700000000000,
+        })).toThrow('KASHIEAR_LICENSE_SECRET غير معرف');
+      });
+    } finally {
+      process.env.KASHIEAR_LICENSE_SECRET = configuredSecret;
+    }
   });
 
   test('3. verifyLicenseKey validates a correct key', () => {

@@ -104,16 +104,102 @@ function checkDueReminders() {
   const due = crmRepo.getDueReminders();
   if (due && due.length > 0) {
     for (const item of due) {
-      NotificationsService.notify({
+      const notification = NotificationsService.notify({
         userId: item.user_id || null,
         type: 'warning',
         title: 'تذكير متابعة مستحق الآن! ⏰',
         message: `مطلوب التواصل مع العميل ${item.customer_name} (${item.customer_phone || ''}) - موضوع: ${item.subject}`,
         linkPage: 'customers'
       });
+      if (notification) crmRepo.markReminderSent(item.id);
     }
   }
   return due;
+}
+
+function parseCampaign(campaign) {
+  if (!campaign) return null;
+  let targetCriteria;
+  try {
+    targetCriteria = JSON.parse(campaign.target_criteria);
+  } catch (error) {
+    throw new Error(`تعذر قراءة إعدادات الحملة رقم ${campaign.id}: ${error.message}`);
+  }
+  return { ...campaign, target_criteria: targetCriteria };
+}
+
+function validateCampaign(data) {
+  const name = String(data?.name || '').trim();
+  const productKeyword = String(data?.product_keyword || '').trim();
+  const offerTitle = String(data?.offer_title || '').trim();
+  const monthsSincePurchase = Number(data?.months_since_purchase);
+  const followUpDays = Number(data?.follow_up_days);
+  const discountPercentage = Number(data?.discount_percentage || 0);
+
+  if (!name || !productKeyword || !offerTitle) {
+    throw new Error('اسم الحملة والمنتج والعرض مطلوبة');
+  }
+  if (!Number.isInteger(monthsSincePurchase) || monthsSincePurchase < 1 || monthsSincePurchase > 120) {
+    throw new Error('مدة الشراء السابقة يجب أن تكون بين شهر و120 شهرًا');
+  }
+  if (!Number.isInteger(followUpDays) || followUpDays < 0 || followUpDays > 365) {
+    throw new Error('مدة المتابعة يجب أن تكون بين 0 و365 يومًا');
+  }
+  if (!Number.isFinite(discountPercentage) || discountPercentage < 0 || discountPercentage > 100) {
+    throw new Error('نسبة الخصم يجب أن تكون بين 0 و100');
+  }
+
+  return {
+    name,
+    discountPercentage,
+    targetCriteria: {
+      product_keyword: productKeyword,
+      months_since_purchase: monthsSincePurchase,
+      follow_up_days: followUpDays,
+      offer_title: offerTitle,
+      offer_details: String(data.offer_details || '').trim(),
+      discount_percentage: discountPercentage
+    }
+  };
+}
+
+function getAllCampaigns() {
+  return crmRepo.getAllCampaigns().map(parseCampaign);
+}
+
+function createCampaign(data) {
+  const campaign = validateCampaign(data);
+  const campaignId = crmRepo.createCampaign(campaign);
+  crmCache.invalidate();
+  return parseCampaign(crmRepo.getCampaignById(campaignId));
+}
+
+function getCampaignAudience(campaignId) {
+  if (!Number.isInteger(Number(campaignId)) || Number(campaignId) < 1) {
+    throw new Error('معرف الحملة غير صحيح');
+  }
+  const campaign = parseCampaign(crmRepo.getCampaignById(Number(campaignId)));
+  if (!campaign) throw new Error('الحملة غير موجودة');
+  return crmRepo.getCampaignAudience(campaign.target_criteria, campaign.id);
+}
+
+function createCampaignReminders(campaignId) {
+  if (!Number.isInteger(Number(campaignId)) || Number(campaignId) < 1) {
+    throw new Error('معرف الحملة غير صحيح');
+  }
+  const campaign = parseCampaign(crmRepo.getCampaignById(Number(campaignId)));
+  if (!campaign) throw new Error('الحملة غير موجودة');
+  const createdCount = crmRepo.createCampaignReminders(campaign, campaign.target_criteria);
+  if (createdCount > 0) {
+    crmCache.invalidate();
+    NotificationsService.notify({
+      type: 'info',
+      title: 'تم إعداد تذكيرات الحملة',
+      message: `تم إنشاء ${createdCount} تذكير عرض لحملة "${campaign.name}"`,
+      linkPage: 'customers'
+    });
+  }
+  return { createdCount };
 }
 
 module.exports = {
@@ -123,5 +209,9 @@ module.exports = {
   getAllOpportunities,
   updateOpportunityStage,
   updateCustomerRatingAndTier,
-  checkDueReminders
+  checkDueReminders,
+  getAllCampaigns,
+  createCampaign,
+  getCampaignAudience,
+  createCampaignReminders
 };

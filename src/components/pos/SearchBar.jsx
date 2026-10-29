@@ -17,43 +17,78 @@ export default function SearchBar({
   search,
   setSearch,
   searchInputRef,
-  filteredProducts,
-  selectedVariant,
+  filteredProducts = [],
+  selectedVariant = {},
   addScannedVariantToCart,
   playErrorBeep,
   setMessage,
   normalizeBarcodeText,
+  sectorConfig,
 }) {
   const handleKeyDown = async (e) => {
     if (e.key !== 'Enter') return;
-    const query = normalizeBarcodeText(search.trim());
+    const query = normalizeBarcodeText ? normalizeBarcodeText(search.trim()) : search.trim();
     if (!query) return;
     e.preventDefault();
+    const allowGroceryBarcode = Boolean(
+      sectorConfig?.features?.scaleBarcode ||
+      sectorConfig?.features?.batchExpiry ||
+      sectorConfig?.features?.speedKeys
+    );
     try {
-      const variant = await window.electronAPI.getProductByBarcode(query);
-      if (variant) {
-        setSearch('');
-        addScannedVariantToCart(variant);
-        return;
+      if (allowGroceryBarcode && window.electronAPI?.resolveGroceryBarcode) {
+        const res = await window.electronAPI.resolveGroceryBarcode(query);
+        if (res && res.resolved && res.variantId) {
+          setSearch('');
+          addScannedVariantToCart?.(
+            {
+              id: res.variantId,
+              productName: res.productName,
+              selling_price: res.unitPrice,
+              stock_quantity: res.variant?.stock_quantity ?? 9999,
+              sku: res.variant?.sku,
+              barcode: res.rawCode,
+            },
+            {
+              quantity: res.quantity,
+              unitPrice: res.unitPrice,
+              unitName: res.unitName,
+              isScale: res.type === 'scale_item',
+              unitId: res.unit?.id,
+            }
+          );
+          return;
+        }
+      }
+
+      if (window.electronAPI?.getProductByBarcode) {
+        const variant = await window.electronAPI.getProductByBarcode(query);
+        if (variant) {
+          setSearch('');
+          addScannedVariantToCart?.(variant);
+          return;
+        }
       }
     } catch (err) {
       console.error('Barcode lookup error:', err);
     }
-    if (filteredProducts.length === 1) {
+    if (filteredProducts?.length === 1) {
       const p = filteredProducts[0];
       const v = p.variants?.find((item) => item.id === selectedVariant[p.id]) || p.variants?.[0];
       if (v) {
         setSearch('');
-        addScannedVariantToCart({ ...v, productName: p.name });
+        addScannedVariantToCart?.({ ...v, productName: p.name });
         return;
       }
     }
-    playErrorBeep();
-    setMessage({
+    playErrorBeep?.();
+    setMessage?.({
       type: 'error',
       text: `لم يتم العثور على أي صنف بالباركود أو الاسم "${query}"`,
     });
   };
+
+  const placeholderText = sectorConfig?.searchPlaceholder || 'ابحث باسم المنتج، الكود، أو امسح الباركود مباشرة...';
 
   return (
     <div className="pos-search-box">
@@ -63,7 +98,7 @@ export default function SearchBar({
         type="text"
         id="barcode-search-input"
         className="pos-search-input"
-        placeholder="ابحث باسم المنتج، الكود، أو امسح الباركود مباشرة..."
+        placeholder={placeholderText}
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         onKeyDown={handleKeyDown}
@@ -78,7 +113,8 @@ export default function SearchBar({
           ✕
         </button>
       )}
-      <span className="search-shortcut-badge" title="اختصار التركيز على البحث">F2</span>
+      <span className="search-shortcut-badge" title="اختصار التركيز على البحث">F1</span>
     </div>
   );
 }
+

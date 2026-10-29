@@ -1,4 +1,4 @@
-const { db, initDatabase } = require('../../electron/database/db');
+const { db, initDatabase, migrateCRMTables } = require('../../electron/database/db');
 initDatabase();
 
 const {
@@ -13,12 +13,36 @@ const {
   saveVariantAttributeValues,
   getVariantAttributeValues,
   getWorkflows,
+  createWorkflow,
+  deleteWorkflow,
+  addWorkflowStatus,
+  saveWorkflowTransitions,
+  createWorkflowTicket,
+  updateTicketStatus,
   getAutomationRules,
   createAutomationRule,
+  seedEnterpriseDefaults,
   getRoles
 } = require('../../electron/services/enterprise.service');
 
+seedEnterpriseDefaults();
+
 describe('Enterprise Framework Service Unit Tests', () => {
+  test('seeds defaults after the database schema is initialized', () => {
+    expect(getModules().length).toBeGreaterThan(0);
+    expect(getActiveBusinessProfile()?.key).toBeDefined();
+  });
+
+  test('CRM migration restores last_interaction_at on older customer schemas', () => {
+    db.exec('ALTER TABLE customers DROP COLUMN last_interaction_at');
+
+    expect(() => migrateCRMTables()).not.toThrow();
+    expect(
+      db.prepare('PRAGMA table_info(customers)').all()
+        .some((column) => column.name === 'last_interaction_at')
+    ).toBe(true);
+  });
+
   test('getModules and setModuleEnabled toggle system modules', () => {
     const modules = getModules();
     expect(Array.isArray(modules)).toBe(true);
@@ -27,6 +51,139 @@ describe('Enterprise Framework Service Unit Tests', () => {
     const updated = setModuleEnabled('orders', false);
     expect(Array.isArray(updated)).toBe(true);
     setModuleEnabled('orders', true);
+  });
+
+  test('smoke: creates a workflow', () => {
+    const workflow = createWorkflow({
+      name: 'Smoke workflow creation',
+      entity_type: 'custom',
+      description: 'Workflow smoke test',
+    });
+
+    try {
+      expect(workflow.id).toBeDefined();
+      expect(getWorkflows().some((item) => item.id === workflow.id)).toBe(true);
+    } finally {
+      deleteWorkflow(workflow.id);
+    }
+  });
+
+  test('smoke: adds and reads three workflow statuses', () => {
+    const workflow = createWorkflow({ name: 'Smoke status setup', entity_type: 'custom' });
+    const statusKeys = ['received', 'processing', 'completed'];
+
+    try {
+      statusKeys.forEach((statusKey, index) => {
+        addWorkflowStatus(workflow.id, {
+          status_key: statusKey,
+          status_label: `Status ${index + 1}`,
+          step_order: index + 1,
+          is_initial: index === 0,
+          is_final: index === statusKeys.length - 1,
+        });
+      });
+
+      const savedWorkflow = getWorkflows().find((item) => item.id === workflow.id);
+      expect(savedWorkflow.statuses.map((status) => status.status_key)).toEqual(statusKeys);
+    } finally {
+      deleteWorkflow(workflow.id);
+    }
+  });
+
+  test('smoke: creates a ticket and moves it through workflow stages', () => {
+    const workflow = createWorkflow({ name: 'Smoke ticket lifecycle', entity_type: 'custom' });
+
+    try {
+      ['received', 'processing', 'completed'].forEach((statusKey, index) => {
+        addWorkflowStatus(workflow.id, {
+          status_key: statusKey,
+          status_label: statusKey,
+          step_order: index + 1,
+          is_initial: index === 0,
+          is_final: index === 2,
+        });
+      });
+      saveWorkflowTransitions(workflow.id, [
+        { from_status_key: 'received', to_status_key: 'processing', allowed_roles_json: ['manager'] },
+        { from_status_key: 'processing', to_status_key: 'completed', allowed_roles_json: ['manager'] },
+      ]);
+
+      const ticket = createWorkflowTicket({
+        workflow_id: workflow.id,
+        entity_type: 'custom',
+        title: 'Smoke ticket',
+        current_status_key: 'received',
+      });
+
+      expect(updateTicketStatus(ticket.id, workflow.id, 'processing', 'manager').current_status_key)
+        .toBe('processing');
+      expect(updateTicketStatus(ticket.id, workflow.id, 'completed', 'manager').current_status_key)
+        .toBe('completed');
+    } finally {
+      deleteWorkflow(workflow.id);
+    }
+  });
+
+  test('ticket moves require a valid configured transition and an allowed role', () => {
+    const workflow = createWorkflow({ name: 'Ticket move validation test', entity_type: 'custom' });
+    let ticket;
+
+    try {
+      addWorkflowStatus(workflow.id, { status_key: 'queued', status_label: 'Queued', is_initial: 1 });
+      addWorkflowStatus(workflow.id, { status_key: 'approved', status_label: 'Approved' });
+      addWorkflowStatus(workflow.id, { status_key: 'rejected', status_label: 'Rejected' });
+      saveWorkflowTransitions(workflow.id, [{
+        from_status_key: 'queued',
+        to_status_key: 'approved',
+        allowed_roles_json: ['manager'],
+      }]);
+      ticket = createWorkflowTicket({
+        workflow_id: workflow.id,
+        entity_type: 'custom',
+        title: 'Ticket move test',
+        current_status_key: 'queued',
+      });
+
+      expect(() => updateTicketStatus(ticket.id, workflow.id, 'approved', 'cashier'))
+        .toThrow('غير مصرح له');
+      expect(() => updateTicketStatus(ticket.id, workflow.id, 'missing', 'manager'))
+        .toThrow('غير موجودة');
+      expect(() => updateTicketStatus(ticket.id, workflow.id, 'rejected', 'manager'))
+        .toThrow('لا توجد صلاحية انتقال');
+
+      expect(updateTicketStatus(ticket.id, workflow.id, 'approved', 'manager').current_status_key)
+        .toBe('approved');
+    } finally {
+      deleteWorkflow(workflow.id);
+    }
+  });
+
+  test('workflow transitions reject unknown statuses, self moves, and duplicate edges', () => {
+    const workflow = createWorkflow({ name: 'Transition validation test', entity_type: 'custom' });
+
+    try {
+      addWorkflowStatus(workflow.id, { status_key: 'open', status_label: 'Open' });
+      addWorkflowStatus(workflow.id, { status_key: 'closed', status_label: 'Closed' });
+
+      expect(() => saveWorkflowTransitions(workflow.id, [{
+        from_status_key: 'missing',
+        to_status_key: 'closed',
+        allowed_roles_json: ['manager'],
+      }])).toThrow('غير موجودة');
+
+      expect(() => saveWorkflowTransitions(workflow.id, [{
+        from_status_key: 'open',
+        to_status_key: 'open',
+        allowed_roles_json: ['manager'],
+      }])).toThrow('نفسها');
+
+      expect(() => saveWorkflowTransitions(workflow.id, [
+        { from_status_key: 'open', to_status_key: 'closed', allowed_roles_json: ['manager'] },
+        { from_status_key: 'open', to_status_key: 'closed', allowed_roles_json: ['admin'] },
+      ])).toThrow('تكرار');
+    } finally {
+      deleteWorkflow(workflow.id);
+    }
   });
 
   test('getBusinessProfiles and getActiveBusinessProfile return profiles', () => {
@@ -47,7 +204,10 @@ describe('Enterprise Framework Service Unit Tests', () => {
     const attributeKeys = configuration.attributes.map((attribute) => attribute.attribute_key);
     expect(moduleStates.get('pos')).toBe(1);
     expect(moduleStates.get('subscriptions')).toBe(0);
-    expect(moduleStates.get('customers')).toBe(1);
+    expect(moduleStates.get('crm')).toBe(1);
+    expect(moduleStates.get('customers')).toBe(0);
+    expect(moduleStates.get('returns')).toBe(1);
+    expect(moduleStates.get('shifts')).toBe(1);
     expect(configuration.settings.terms.order).toBe('طلب توريد / صيانة');
     expect(attributeKeys).toContain('serial_number');
     expect(attributeKeys).not.toContain('size');
@@ -55,18 +215,80 @@ describe('Enterprise Framework Service Unit Tests', () => {
     setActiveBusinessProfile('retail');
   });
 
+  test('business profiles enable only their configured feature modules plus shared operations', () => {
+    const sharedModules = ['pos', 'settings', 'enterprise', 'returns', 'shifts', 'users'];
+    const readModuleStates = () => new Map(
+      getActiveBusinessConfiguration().modules.map((module) => [module.key, module.is_enabled])
+    );
+
+    try {
+      setActiveBusinessProfile('retail');
+      let states = readModuleStates();
+      expect(states.get('subscriptions')).toBe(0);
+
+      setActiveBusinessProfile('grocery');
+      states = readModuleStates();
+      expect(states.get('inventory')).toBe(1);
+      expect(states.get('purchases')).toBe(1);
+      expect(states.get('crm')).toBe(0);
+      expect(states.get('subscriptions')).toBe(0);
+      expect(states.get('commissions')).toBe(0);
+      sharedModules.forEach((moduleKey) => expect(states.get(moduleKey)).toBe(1));
+
+      setActiveBusinessProfile('subscriptions_gym');
+      states = readModuleStates();
+      expect(states.get('subscriptions')).toBe(1);
+      expect(states.get('crm')).toBe(1);
+      expect(states.get('inventory')).toBe(0);
+      expect(states.get('orders')).toBe(0);
+      sharedModules.forEach((moduleKey) => expect(states.get(moduleKey)).toBe(1));
+
+      setActiveBusinessProfile('maintenance');
+      states = readModuleStates();
+      expect(states.get('orders')).toBe(1);
+      expect(states.get('crm')).toBe(1);
+      expect(states.get('purchases')).toBe(0);
+      expect(states.get('subscriptions')).toBe(0);
+
+      setActiveBusinessProfile('auto_workshop');
+      const autoWorkshop = getActiveBusinessConfiguration();
+      states = new Map(autoWorkshop.modules.map((module) => [module.key, module.is_enabled]));
+      const autoAttributes = autoWorkshop.attributes.map((attribute) => attribute.attribute_key);
+      expect(states.get('orders')).toBe(1);
+      expect(states.get('inventory')).toBe(1);
+      expect(autoAttributes).toEqual(expect.arrayContaining([
+        'car_make',
+        'car_model',
+        'year',
+        'vehicle_plate',
+        'odometer',
+        'fault_description',
+      ]));
+    } finally {
+      setActiveBusinessProfile('retail');
+    }
+  });
+
   test('getAttributeDefinitions and createAttributeDefinition handle custom attributes', () => {
     const defs = getAttributeDefinitions();
     expect(Array.isArray(defs)).toBe(true);
 
-    const attrId = createAttributeDefinition({
-      attribute_name: 'سنة الصنع الاختبارية',
-      attribute_key: 'test_year_' + Date.now(),
-      data_type: 'number'
-    });
-    expect(attrId).toBeDefined();
+    const attrKey = 'test_year_' + Date.now();
+    let attrId;
+    try {
+      attrId = createAttributeDefinition({
+        attribute_name: 'سنة الصنع الاختبارية',
+        attribute_key: attrKey,
+        data_type: 'number'
+      });
+      expect(attrId).toBeDefined();
 
-    expect(() => createAttributeDefinition({ attribute_name: '' })).toThrow('مطلوبان');
+      expect(() => createAttributeDefinition({ attribute_name: '' })).toThrow('مطلوبان');
+    } finally {
+      if (attrId) {
+        db.prepare('DELETE FROM product_attribute_definitions WHERE id = ?').run(attrId);
+      }
+    }
   });
 
   test('switching profiles preserves values for attributes hidden by the active profile', () => {
@@ -96,7 +318,7 @@ describe('Enterprise Framework Service Unit Tests', () => {
       expect(values.find((value) => value.attribute_id === materialId)?.value).toBe('Cotton');
       expect(values.find((value) => value.attribute_id === serialId)?.value).toBe('SN-001');
     } finally {
-      if (productId) db.prepare('DELETE FROM products WHERE id = ?').run(productId);
+      if (productId) db.prepare('UPDATE products SET is_active = 0 WHERE id = ?').run(productId);
       setActiveBusinessProfile('retail');
     }
   });
@@ -110,13 +332,20 @@ describe('Enterprise Framework Service Unit Tests', () => {
     const rulesBefore = getAutomationRules();
     expect(Array.isArray(rulesBefore)).toBe(true);
 
-    const ruleId = createAutomationRule({
-      rule_name: 'تنبيه مخزون منخفض تلقائي',
-      trigger_event: 'stock_low',
-      action_type: 'notify_user',
-      action_payload_json: { title: 'تنبيه مخزون' }
-    });
-    expect(ruleId).toBeDefined();
+    let ruleId;
+    try {
+      ruleId = createAutomationRule({
+        rule_name: 'تنبيه مخزون منخفض تلقائي',
+        trigger_event: 'stock_low',
+        action_type: 'notify_user',
+        action_payload_json: { title: 'تنبيه مخزون' }
+      });
+      expect(ruleId).toBeDefined();
+    } finally {
+      if (ruleId) {
+        db.prepare('DELETE FROM automation_rules WHERE id = ?').run(ruleId);
+      }
+    }
   });
 
   test('getRoles returns default roles including admin and cashier', () => {
@@ -136,30 +365,42 @@ describe('Enterprise Framework Service Unit Tests', () => {
 
   test('evaluateEventAutomations triggers actions for matched conditions without throwing', () => {
     const { createAutomationRule, evaluateEventAutomations } = require('../../electron/services/enterprise.service');
-    createAutomationRule({
-      rule_name: 'قاعدة خصم مخزون عاجلة',
-      trigger_event: 'stock_low',
-      condition_json: { threshold: 5 },
-      action_type: 'notify_user',
-      action_payload_json: { title: 'مخزون حرج جداً' }
-    });
+    let ruleId;
+    try {
+      ruleId = createAutomationRule({
+        rule_name: 'قاعدة خصم مخزون عاجلة',
+        trigger_event: 'stock_low',
+        condition_json: { threshold: 5 },
+        action_type: 'notify_user',
+        action_payload_json: { title: 'مخزون حرج جداً' }
+      });
 
-    expect(() => {
-      evaluateEventAutomations('stock_low', { stock: 2, product_name: 'منتج تجريبي' });
-    }).not.toThrow();
+      expect(() => {
+        evaluateEventAutomations('stock_low', { stock: 2, product_name: 'منتج تجريبي' });
+      }).not.toThrow();
+    } finally {
+      if (ruleId) {
+        db.prepare('DELETE FROM automation_rules WHERE id = ?').run(ruleId);
+      }
+    }
   });
 
   test('createRole and setRolePermissions handle custom role creation and granular matrix', () => {
     const { createRole, setRolePermissions, getRoles } = require('../../electron/services/enterprise.service');
     const testRoleKey = 'supervisor_test_' + Date.now();
-    createRole(testRoleKey, 'مشرف اختبارات', 'دور مخصص للاختبارات');
+    try {
+      createRole(testRoleKey, 'مشرف اختبارات', 'دور مخصص للاختبارات');
 
-    const permissions = ['pos.view', 'pos.sell', 'orders.manage', 'reports.view'];
-    setRolePermissions(testRoleKey, permissions);
+      const permissions = ['pos.view', 'pos.sell', 'orders.manage', 'reports.view'];
+      setRolePermissions(testRoleKey, permissions);
 
-    const roles = getRoles();
-    const createdRole = roles.find(r => r.role_key === testRoleKey);
-    expect(createdRole).toBeDefined();
-    expect(createdRole.permissions).toEqual(expect.arrayContaining(permissions));
+      const roles = getRoles();
+      const createdRole = roles.find(r => r.role_key === testRoleKey);
+      expect(createdRole).toBeDefined();
+      expect(createdRole.permissions).toEqual(expect.arrayContaining(permissions));
+    } finally {
+      db.prepare('DELETE FROM system_roles WHERE role_key = ?').run(testRoleKey);
+      db.prepare('DELETE FROM role_permissions WHERE role_key = ?').run(testRoleKey);
+    }
   });
 });

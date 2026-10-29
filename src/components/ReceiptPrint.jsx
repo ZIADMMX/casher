@@ -66,6 +66,18 @@ function ReceiptPrint({ sale }) {
           <span>فاتورة #{sale.id}</span>
           <span>{formattedDate} {formattedTime}</span>
         </div>
+        {sale.workOrderNumber && (
+          <div className="receipt-meta-line">
+            <span>أمر الشغل</span>
+            <span>{sale.workOrderNumber}</span>
+          </div>
+        )}
+        {sale.vehiclePlate && (
+          <div className="receipt-meta-line">
+            <span>السيارة</span>
+            <span>{sale.vehiclePlate}{sale.vehicleDescription ? ` — ${sale.vehicleDescription}` : ''}</span>
+          </div>
+        )}
         {showCashier && sale.cashier_name && (
           <div className="receipt-meta-line">
             <span>الكاشير</span>
@@ -101,7 +113,7 @@ function ReceiptPrint({ sale }) {
                     <div className="item-variant-text">{size}{color}</div>
                   )}
                 </td>
-                <td className="td-qty">{item.quantity}</td>
+                <td className="td-qty">{item.unitName || item.unit_name ? `${item.quantity} ${item.unitName || item.unit_name}` : item.quantity}</td>
                 <td className="td-price">{Number(item.unit_price).toFixed(2)}</td>
                 <td className="td-total">{lineTotal.toFixed(2)}</td>
               </tr>

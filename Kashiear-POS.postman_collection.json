@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "kashiear-pos-collection-v1",
     "name": "Kashiear POS System API",
-    "description": "مجموعة طلبات Postman لاختبار كافة واجهات وبرمجيات نظام كاشير OONYX POS",
+    "description": "مجموعة طلبات Postman لاختبار كافة واجهات وبرمجيات نظام كاشير FOX.CLOUD POS",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [

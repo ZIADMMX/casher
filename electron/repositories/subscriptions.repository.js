@@ -7,35 +7,173 @@ const { db } = require('../database/db');
 
 // --- PACKAGES ---
 
+function formatPackage(pkg) {
+  if (!pkg) return null;
+  let eligibleServices = [];
+  let branchIds = [];
+  try {
+    eligibleServices = pkg.eligible_services ? (typeof pkg.eligible_services === 'string' ? JSON.parse(pkg.eligible_services) : pkg.eligible_services) : [];
+  } catch {
+    eligibleServices = [];
+  }
+  try {
+    branchIds = pkg.branch_ids ? (typeof pkg.branch_ids === 'string' ? JSON.parse(pkg.branch_ids) : pkg.branch_ids) : [];
+  } catch {
+    branchIds = [];
+  }
+
+  return {
+    ...pkg,
+    original_price: pkg.original_price ?? 0,
+    billing_cycle: pkg.billing_cycle || 'monthly',
+    is_unlimited_sessions: Number(pkg.is_unlimited_sessions || 0),
+    advance_booking_days: pkg.advance_booking_days ?? 0,
+    grace_period_days: pkg.grace_period_days ?? 3,
+    trial_days: pkg.trial_days ?? 1,
+    is_active: pkg.is_active !== undefined ? Number(pkg.is_active) : 1,
+    is_featured: Number(pkg.is_featured || 0),
+    badge_text: pkg.badge_text || '',
+    badge_color: pkg.badge_color || '#3b82f6',
+    eligible_services: eligibleServices,
+    branch_ids: branchIds
+  };
+}
+
 function createPackage(data) {
-  const { name, type, price = 0, duration_days = 30, total_credits = 0, discount_percentage = 0, max_freeze_days = 0, description } = data;
+  const {
+    name,
+    type = 'session_based',
+    price = 0,
+    original_price = 0,
+    billing_cycle = 'monthly',
+    duration_days = 30,
+    total_credits = 0,
+    is_unlimited_sessions = 0,
+    advance_booking_days = 0,
+    discount_percentage = 0,
+    max_freeze_days = 0,
+    grace_period_days = 3,
+    trial_days = 1,
+    is_active = 1,
+    is_featured = 0,
+    badge_text = '',
+    badge_color = '#3b82f6',
+    eligible_services = [],
+    branch_ids = [],
+    description
+  } = data;
+
+  const eligibleServicesStr = typeof eligible_services === 'string' ? eligible_services : JSON.stringify(eligible_services || []);
+  const branchIdsStr = typeof branch_ids === 'string' ? branch_ids : JSON.stringify(branch_ids || []);
+
   const result = db.prepare(`
-    INSERT INTO packages (name, type, price, duration_days, total_credits, discount_percentage, max_freeze_days, description)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(name, type, price, duration_days, total_credits, discount_percentage, max_freeze_days, description || null);
+    INSERT INTO packages (
+      name, type, price, original_price, billing_cycle, duration_days,
+      total_credits, is_unlimited_sessions, advance_booking_days,
+      discount_percentage, max_freeze_days, grace_period_days, trial_days,
+      is_active, is_featured, badge_text, badge_color,
+      eligible_services, branch_ids, description
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    name,
+    type,
+    Number(price) || 0,
+    Number(original_price) || 0,
+    billing_cycle || 'monthly',
+    Number(duration_days) || 30,
+    Number(total_credits) || 0,
+    is_unlimited_sessions ? 1 : 0,
+    Number(advance_booking_days) || 0,
+    Number(discount_percentage) || 0,
+    Number(max_freeze_days) || 0,
+    Number(grace_period_days) || 3,
+    Number(trial_days) || 1,
+    is_active ? 1 : 0,
+    is_featured ? 1 : 0,
+    badge_text || null,
+    badge_color || '#3b82f6',
+    eligibleServicesStr,
+    branchIdsStr,
+    description || null
+  );
 
   return result.lastInsertRowid;
 }
 
 function getAllPackages() {
-  return db.prepare(`
+  const rows = db.prepare(`
     SELECT p.*, (SELECT COUNT(*) FROM customer_subscriptions WHERE package_id = p.id AND status = 'active') as active_subscribers_count
     FROM packages p
     ORDER BY p.created_at DESC
   `).all();
+
+  return rows.map(formatPackage);
 }
 
 function getPackageById(id) {
-  return db.prepare("SELECT * FROM packages WHERE id = ?").get(id);
+  const pkg = db.prepare("SELECT * FROM packages WHERE id = ?").get(id);
+  return formatPackage(pkg);
 }
 
 function updatePackage(id, data) {
-  const { name, type, price, duration_days, total_credits, discount_percentage, max_freeze_days, description } = data;
+  const {
+    name,
+    type = 'session_based',
+    price = 0,
+    original_price = 0,
+    billing_cycle = 'monthly',
+    duration_days = 30,
+    total_credits = 0,
+    is_unlimited_sessions = 0,
+    advance_booking_days = 0,
+    discount_percentage = 0,
+    max_freeze_days = 0,
+    grace_period_days = 3,
+    trial_days = 1,
+    is_active = 1,
+    is_featured = 0,
+    badge_text = '',
+    badge_color = '#3b82f6',
+    eligible_services = [],
+    branch_ids = [],
+    description
+  } = data;
+
+  const eligibleServicesStr = typeof eligible_services === 'string' ? eligible_services : JSON.stringify(eligible_services || []);
+  const branchIdsStr = typeof branch_ids === 'string' ? branch_ids : JSON.stringify(branch_ids || []);
+
   db.prepare(`
     UPDATE packages 
-    SET name = ?, type = ?, price = ?, duration_days = ?, total_credits = ?, discount_percentage = ?, max_freeze_days = ?, description = ?
+    SET name = ?, type = ?, price = ?, original_price = ?, billing_cycle = ?, duration_days = ?,
+        total_credits = ?, is_unlimited_sessions = ?, advance_booking_days = ?,
+        discount_percentage = ?, max_freeze_days = ?, grace_period_days = ?, trial_days = ?,
+        is_active = ?, is_featured = ?, badge_text = ?, badge_color = ?,
+        eligible_services = ?, branch_ids = ?, description = ?
     WHERE id = ?
-  `).run(name, type, price, duration_days, total_credits, discount_percentage, max_freeze_days, description || null, id);
+  `).run(
+    name,
+    type,
+    Number(price) || 0,
+    Number(original_price) || 0,
+    billing_cycle || 'monthly',
+    Number(duration_days) || 30,
+    Number(total_credits) || 0,
+    is_unlimited_sessions ? 1 : 0,
+    Number(advance_booking_days) || 0,
+    Number(discount_percentage) || 0,
+    Number(max_freeze_days) || 0,
+    Number(grace_period_days) || 3,
+    Number(trial_days) || 1,
+    is_active ? 1 : 0,
+    is_featured ? 1 : 0,
+    badge_text || null,
+    badge_color || '#3b82f6',
+    eligibleServicesStr,
+    branchIdsStr,
+    description || null,
+    id
+  );
 
   return getPackageById(id);
 }

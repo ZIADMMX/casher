@@ -1,4 +1,4 @@
-function Modal({ title, children, onClose, actions }) {
+function Modal({ title, children, onClose, actions, width }) {
   return (
     <div
       role="presentation"
@@ -20,7 +20,7 @@ function Modal({ title, children, onClose, actions }) {
         aria-labelledby="modal-title"
         onClick={(event) => event.stopPropagation()}
         style={{
-          width: 'min(460px, 100%)',
+          width: width || 'min(460px, 100%)',
           borderRadius: '16px',
           background: '#FFFFFF',
           padding: '24px',

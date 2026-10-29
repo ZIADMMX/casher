@@ -5,16 +5,30 @@
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 
-// Secret key – read from environment or generate a random one at runtime.
-const SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
-// Token expiry in seconds (default 30 minutes)
-const DEFAULT_EXPIRE = Number(process.env.SESSION_EXPIRE_SECONDS) || 1800;
+// Secret key – read from environment or persist in settings database
+const _fallbackSecret = crypto.randomBytes(32).toString('hex');
+
+function getSecret() {
+  if (process.env.SESSION_SECRET) return process.env.SESSION_SECRET;
+  try {
+    const settingsRepo = require('../repositories/settings.repository');
+    let saved = settingsRepo.get('system_session_secret');
+    if (!saved) {
+      saved = crypto.randomBytes(32).toString('hex');
+      settingsRepo.set('system_session_secret', saved);
+    }
+    return saved;
+  } catch {
+    return _fallbackSecret;
+  }
+}
+
+// Token expiry in seconds (default 8 hours for POS cashier shifts instead of 24h)
+const DEFAULT_EXPIRE = Number(process.env.SESSION_EXPIRE_SECONDS) || (8 * 3600);
 
 // ---------- Token Blacklist ----------
 // In-memory set of invalidated JTI (JWT ID) values.
 // Tokens added here are treated as revoked even if they haven't expired yet.
-// NOTE: This resets on app restart, which is acceptable for a desktop Electron
-// app where restart == fresh session anyway.
 const _blacklist = new Set();
 
 /**
@@ -26,7 +40,7 @@ function generateToken(payload, expiresIn = DEFAULT_EXPIRE) {
     ...payload,
     jti: crypto.randomUUID(), // unique token ID used for blacklisting
   };
-  return jwt.sign(data, SECRET, { expiresIn });
+  return jwt.sign(data, getSecret(), { expiresIn });
 }
 
 /**
@@ -35,7 +49,7 @@ function generateToken(payload, expiresIn = DEFAULT_EXPIRE) {
  */
 function verifyToken(token) {
   if (!token) throw new Error('TokenMissing');
-  const decoded = jwt.verify(token, SECRET);
+  const decoded = jwt.verify(token, getSecret());
   if (decoded.jti && _blacklist.has(decoded.jti)) {
     throw new Error('TokenRevoked');
   }

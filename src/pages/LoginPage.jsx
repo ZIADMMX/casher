@@ -1,16 +1,278 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useUser } from '../contexts/UserContext.jsx';
 import { normalizeErrorMessage } from '../utils/normalizeError.js';
 import AdminRecoveryModal from '../components/AdminRecoveryModal.jsx';
+import foxLogo from '../assets/fox-logo.png';
+import './LoginPage.css';
 
 function LoginPage() {
-  const { login } = useUser();
+  const { login, setSetupRequired } = useUser();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showRecoveryModal, setShowRecoveryModal] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [setupAvailable, setSetupAvailable] = useState(false);
+
+  // Network & Central Server State
+  const [serverAddress, setServerAddress] = useState('');
+  const [showServerModal, setShowServerModal] = useState(false);
+  const [serverMessage, setServerMessage] = useState('');
+  const [serverMessageStatus, setServerMessageStatus] = useState('info'); // 'success' | 'error' | 'info'
+  const [lanServerStatus, setLanServerStatus] = useState({ isRunning: false, port: 5000 });
+  const [lanServerIps, setLanServerIps] = useState([]);
+  const [testingConnection, setTestingConnection] = useState(false);
+  const [scanningLan, setScanningLan] = useState(false);
+  const [connectionMode, setConnectionMode] = useState('standalone'); // 'master' | 'remote' | 'standalone'
+  const [copiedIp, setCopiedIp] = useState(null);
+  const [firewallConfiguring, setFirewallConfiguring] = useState(false);
+  const [firewallMessage, setFirewallMessage] = useState('');
+
+  useEffect(() => {
+    refreshNetworkInfo();
+    if (window.electronAPI?.isSetupRequired) {
+      window.electronAPI.isSetupRequired()
+        .then((req) => setSetupAvailable(Boolean(req)))
+        .catch(() => {});
+    }
+  }, []);
+
+  async function refreshNetworkInfo() {
+    try {
+      const [config, status, ips] = await Promise.all([
+        window.electronAPI.getCentralServerConfig(),
+        window.electronAPI.getLanStatus(),
+        window.electronAPI.getLanLocalIps(),
+      ]);
+
+      setServerAddress(config.baseUrl || '');
+      setLanServerStatus(status);
+      setLanServerIps(ips || []);
+
+      if (status.isRunning) {
+        setConnectionMode('master');
+      } else if (config.baseUrl) {
+        setConnectionMode('remote');
+      } else {
+        setConnectionMode('standalone');
+      }
+    } catch (err) {
+      console.error('Failed to load network config:', err);
+    }
+  }
+
+  // Handle Mode Selection: Master Server Mode
+  async function selectMasterMode() {
+    setServerMessage('');
+    try {
+      if (!lanServerStatus.isRunning) {
+        if (serverAddress) {
+          await window.electronAPI.configureCentralServer('');
+          setServerAddress('');
+        }
+        const status = await window.electronAPI.startLanServer(5000);
+        if (status && status.success === false) {
+          throw new Error(status.message || 'تعذر تشغيل الخادم على المنفذ 5000');
+        }
+        setLanServerStatus({ isRunning: true, port: 5000 });
+      }
+      setConnectionMode('master');
+      setServerMessageStatus('success');
+      setServerMessage('تم تفعيل وضع الخادم الرئيسي بنجاح! يمكن لباقي الكاشيرات الاتصال بهذا الجهاز الآن.');
+    } catch (serverError) {
+      setServerMessageStatus('error');
+      setServerMessage(normalizeErrorMessage(serverError));
+    }
+  }
+
+  // Handle Mode Selection: Remote Branch Mode
+  async function selectRemoteMode() {
+    setServerMessage('');
+    try {
+      if (lanServerStatus.isRunning) {
+        await window.electronAPI.stopLanServer();
+        setLanServerStatus({ isRunning: false, port: 5000 });
+      }
+      setConnectionMode('remote');
+      setServerMessageStatus('info');
+      setServerMessage('أدخل عنوان الـ IP الخاص بالخادم الرئيسي أدناه ثم اضغط "حفظ وربط".');
+    } catch (err) {
+      setServerMessageStatus('error');
+      setServerMessage(normalizeErrorMessage(err));
+    }
+  }
+
+  // Handle Mode Selection: Standalone Mode
+  async function selectStandaloneMode() {
+    setServerMessage('');
+    try {
+      if (lanServerStatus.isRunning) {
+        await window.electronAPI.stopLanServer();
+        setLanServerStatus({ isRunning: false, port: 5000 });
+      }
+      if (serverAddress) {
+        await window.electronAPI.configureCentralServer('');
+        setServerAddress('');
+      }
+      setConnectionMode('standalone');
+      setServerMessageStatus('info');
+      setServerMessage('يعمل الجهاز الآن بشكل محلي مستقل دون ربط شبكي.');
+    } catch (err) {
+      setServerMessageStatus('error');
+      setServerMessage(normalizeErrorMessage(err));
+    }
+  }
+
+  function formatServerUrl(input) {
+    let raw = input.trim();
+    if (!raw) return '';
+    if (!raw.startsWith('http://') && !raw.startsWith('https://')) {
+      raw = `http://${raw}`;
+    }
+    try {
+      const urlObj = new URL(raw);
+      if (!urlObj.port) {
+        urlObj.port = '5000';
+      }
+      return urlObj.toString().replace(/\/$/, '');
+    } catch {
+      return raw;
+    }
+  }
+
+  async function saveServerAddress() {
+    setServerMessage('');
+    const formatted = formatServerUrl(serverAddress);
+    if (!formatted) {
+      return selectStandaloneMode();
+    }
+
+    try {
+      const result = await window.electronAPI.configureCentralServer(formatted);
+      setServerAddress(result.baseUrl || formatted);
+      setConnectionMode('remote');
+      setServerMessageStatus('success');
+      setServerMessage('تم حفظ إعدادات الاتصال بالخادم الرئيسي بنجاح!');
+    } catch (configError) {
+      setServerMessageStatus('error');
+      setServerMessage(normalizeErrorMessage(configError));
+    }
+  }
+
+  async function testServerConnection() {
+    setServerMessage('');
+    const formatted = formatServerUrl(serverAddress);
+    if (!formatted) {
+      setServerMessageStatus('error');
+      setServerMessage('الرجاء إدخال عنوان الخادم أو الـ IP أولاً (مثال: 192.168.1.10:5000)');
+      return;
+    }
+
+    setTestingConnection(true);
+    const start = Date.now();
+    try {
+      let res = await window.electronAPI.testLanConnection(formatted);
+      
+      if (!res || !res.success) {
+        try {
+          const centralRes = await window.electronAPI.testCentralServerConnection(formatted);
+          if (centralRes && centralRes.name) {
+            res = { success: true, message: `متصل بـ ${centralRes.name}` };
+          }
+        } catch (fallbackError) {
+          console.warn('Central server fallback test failed:', fallbackError);
+        }
+      }
+
+      const elapsed = Date.now() - start;
+
+      if (res && res.success) {
+        setServerAddress(formatted);
+        setServerMessageStatus('success');
+        setServerMessage(`الاتصال ناجح ومستقر مع الخادم (${res.message || 'خادم FOX.CLOUD'}) · السرعة: ${elapsed}ms`);
+      } else {
+        setServerMessageStatus('error');
+        setServerMessage(res?.message || 'تعذر الاتصال بهذا العنوان. تأكد من تشغيل السيرفر ووجود الجهازين على نفس الشبكة.');
+      }
+    } catch (configError) {
+      setServerMessageStatus('error');
+      setServerMessage(normalizeErrorMessage(configError));
+    } finally {
+      setTestingConnection(false);
+    }
+  }
+
+  async function scanLanNetwork() {
+    setScanningLan(true);
+    setServerMessageStatus('info');
+    setServerMessage('جاري فحص الأجهزة المتاحة على الشبكة المحلية (LAN)...');
+
+    try {
+      const localIps = lanServerIps.map(i => i.address);
+      const primaryIp = localIps[0] || '192.168.1.1';
+      const subnetParts = primaryIp.split('.').slice(0, 3).join('.');
+
+      const candidateIps = [];
+      for (let host = 1; host <= 20; host++) {
+        const testIp = `${subnetParts}.${host}`;
+        if (!localIps.includes(testIp)) {
+          candidateIps.push(`http://${testIp}:5000`);
+        }
+      }
+
+      const results = await Promise.all(
+        candidateIps.map(async (url) => {
+          try {
+            const testRes = await window.electronAPI.testLanConnection(url);
+            if (testRes && testRes.success) return url;
+          } catch {
+            return null;
+          }
+          return null;
+        })
+      );
+
+      const foundServer = results.find(url => url !== null);
+
+      if (foundServer) {
+        setServerAddress(foundServer);
+        setServerMessageStatus('success');
+        setServerMessage(`تم العثور على خادم FOX.CLOUD نشط على الشبكة: ${foundServer}`);
+      } else {
+        setServerMessageStatus('info');
+        setServerMessage(`لم يتم العثور تلقائياً على سيرفر نشط في نطاق ${subnetParts}.X. يمكنك إدخال الـ IP يدوياً.`);
+      }
+    } catch (err) {
+      setServerMessageStatus('error');
+      setServerMessage(`حدث خطأ أثناء فحص الشبكة: ${normalizeErrorMessage(err)}`);
+    } finally {
+      setScanningLan(false);
+    }
+  }
+
+  function copyToClipboard(text) {
+    navigator.clipboard.writeText(text);
+    setCopiedIp(text);
+    setTimeout(() => setCopiedIp(null), 2000);
+  }
+
+  async function handleConfigureFirewall() {
+    setFirewallConfiguring(true);
+    setFirewallMessage('');
+    try {
+      if (window.electronAPI?.openLanFirewall) {
+        const res = await window.electronAPI.openLanFirewall(lanServerStatus.port || 5000);
+        setFirewallMessage(res.message || 'تم ضبط جدار الحماية بنجاح.');
+      } else {
+        setFirewallMessage('الميزة غير متاحة في هذا الإصدار.');
+      }
+    } catch (err) {
+      setFirewallMessage(normalizeErrorMessage(err));
+    } finally {
+      setFirewallConfiguring(false);
+    }
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -18,7 +280,7 @@ function LoginPage() {
     setLoading(true);
 
     try {
-      await login(username, password);
+      await login(username.trim(), password);
     } catch (err) {
       setError(normalizeErrorMessage(err));
     } finally {
@@ -26,133 +288,407 @@ function LoginPage() {
     }
   }
 
+  function getNetworkBadge() {
+    if (connectionMode === 'master') {
+      return {
+        label: 'خادم رئيسي نشط (Master)',
+        color: '#10B981',
+        bg: 'rgba(16, 185, 129, 0.12)',
+        border: 'rgba(16, 185, 129, 0.3)',
+        icon: '🏢',
+      };
+    }
+    if (connectionMode === 'remote') {
+      return {
+        label: `كاشير فرعي (${serverAddress ? serverAddress.replace(/^https?:\/\//, '') : 'مُهيأ'})`,
+        color: '#F2600C',
+        bg: 'rgba(242, 96, 12, 0.12)',
+        border: 'rgba(242, 96, 12, 0.35)',
+        icon: '🔗',
+      };
+    }
+    return {
+      label: 'جهاز محلي مستقل',
+      color: '#94A3B8',
+      bg: 'rgba(148, 163, 184, 0.08)',
+      border: 'rgba(148, 163, 184, 0.2)',
+      icon: '💻',
+    };
+  }
+
+  const badgeInfo = getNetworkBadge();
+
   return (
-    <div className="onyx-screen">
-      {/* بانل الهوية - التيكيت البطل */}
-      <div className="onyx-hero">
-        <div className="onyx-glow" />
+    <div className="login-container">
+      {/* Background ambient light */}
+      <div className="login-bg-glow" />
 
-        <svg className="onyx-hero-gem" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <linearGradient id="tagBody" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stopColor="#FFFFFF" />
-              <stop offset="100%" stopColor="#C7CBE0" />
-            </linearGradient>
-          </defs>
-          <path d="M6 4H22L36 18C37.1 19.1 37.1 20.9 36 22L22 36C20.9 37.1 19.1 37.1 18 36L4 22V6C4 4.9 4.9 4 6 4Z"
-                fill="url(#tagBody)" />
-          <circle cx="11" cy="11" r="2.4" fill="#2E5BFF" />
-          <rect x="15" y="14" width="2.6" height="12" fill="#2E5BFF" />
-          <rect x="19.2" y="10" width="2.6" height="16" fill="#2E5BFF" />
-          <rect x="23.4" y="17" width="2.6" height="9" fill="#2E5BFF" />
-        </svg>
-
-        <div className="onyx-hero-text">
-          <span className="onyx-hero-wordmark">onyx</span>
-          <p className="onyx-hero-tagline">نظام إدارة ذكي لأعمالك</p>
+      {/* Main Glass Card */}
+      <div className="login-card">
+        
+        {/* Top Network Pill Button */}
+        <div className="login-top-bar">
+          <button
+            type="button"
+            className="login-network-pill"
+            onClick={() => {
+              refreshNetworkInfo();
+              setShowServerModal(true);
+            }}
+            style={{
+              backgroundColor: badgeInfo.bg,
+              borderColor: badgeInfo.border,
+              color: badgeInfo.color,
+            }}
+            title="انقر لتعديل إعدادات الربط والشبكة المحلية"
+          >
+            <span className="login-pill-dot" style={{ backgroundColor: badgeInfo.color }} />
+            <span className="login-pill-icon">{badgeInfo.icon}</span>
+            <span className="login-pill-text">{badgeInfo.label}</span>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.7, marginRight: 2 }}>
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+          </button>
         </div>
-      </div>
 
-      {/* بانل الفورم */}
-      <div className="onyx-form-panel">
-        <div className="onyx-form-box">
-          <h1>تسجيل الدخول</h1>
-          <p className="onyx-form-subtitle">ادخل بيانات حسابك للوصول إلى لوحة التحكم</p>
+        {/* Brand Header */}
+        <div className="login-header">
+          <div className="login-logo-wrap">
+            <img src={foxLogo} alt="FOX .CLOUD" className="login-logo-img" />
+          </div>
+          <h1 className="login-title">
+            FOX <span className="login-title-dot">.</span><span className="login-title-cloud">CLOUD</span>
+          </h1>
+          <p className="login-subtitle">
+            سجل دخولك للوصول إلى لوحة تحكم ونقاط بيع متجرك
+          </p>
+        </div>
 
-          <form onSubmit={handleSubmit}>
-            <div className="onyx-field">
-              <label htmlFor="username">اسم المستخدم أو البريد</label>
-              <div className="onyx-input-wrapper">
-                <span className="onyx-input-icon">
-                  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                    <circle cx="12" cy="7" r="4" />
-                  </svg>
-                </span>
-                <input
-                  id="username"
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="أدخل اسم المستخدم أو البريد"
-                  autoFocus
-                  required
-                />
-              </div>
+        {/* Divider */}
+        <div className="login-divider">
+          <span>تسجيل الدخول للنظام</span>
+        </div>
+
+        {/* Login Form */}
+        <form className="login-form" onSubmit={handleSubmit}>
+          {/* Username / Email */}
+          <div className="login-field">
+            <label className="login-label" htmlFor="login-username">
+              اسم المستخدم أو البريد <span className="field-sub">(Username / Email)</span>
+            </label>
+            <div className="login-input-box">
+              <span className="login-field-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                  <circle cx="12" cy="7" r="4" />
+                </svg>
+              </span>
+              <input
+                id="login-username"
+                type="text"
+                className="login-input login-input-with-icon"
+                placeholder="أدخل اسم المستخدم أو البريد"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                autoFocus
+                required
+              />
             </div>
+          </div>
 
-            <div className="onyx-field">
-              <label htmlFor="password">كلمة المرور</label>
-              <div className="onyx-input-wrapper onyx-password-wrapper">
-                <span className="onyx-input-icon">
-                  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                  </svg>
-                </span>
-                <input
-                  id="password"
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="أدخل كلمة المرور"
-                  required
-                />
-                <button
-                  type="button"
-                  className="onyx-toggle-password"
-                  onClick={() => setShowPassword((v) => !v)}
-                  aria-label={showPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}
-                >
-                  {showPassword ? (
-                    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 3l18 18M10.6 10.6a3 3 0 004.2 4.2M9.9 4.24A9.6 9.6 0 0112 4c5 0 9 4 10 8-.36 1.4-1.02 2.7-1.9 3.8M6.1 6.1C3.9 7.5 2.3 9.6 2 12c1 4 5 8 10 8 1.5 0 2.9-.3 4.2-.9" strokeLinecap="round"/></svg>
-                  ) : (
-                    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M2 12c1-4 5-8 10-8s9 4 10 8c-1 4-5 8-10 8s-9-4-10-8z" strokeLinecap="round" strokeLinejoin="round"/><circle cx="12" cy="12" r="3"/></svg>
-                  )}
-                </button>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-start', margin: '4px 0 16px 0' }}>
+          {/* Password */}
+          <div className="login-field">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <label className="login-label" htmlFor="login-password">
+                كلمة المرور <span className="field-sub">(Password)</span>
+              </label>
               <button
                 type="button"
+                className="login-forgot-link"
                 onClick={() => setShowRecoveryModal(true)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#2E5BFF',
-                  fontSize: '12.5px',
-                  fontWeight: '700',
-                  cursor: 'pointer',
-                  padding: 0,
-                  fontFamily: 'inherit',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                }}
               >
-                🔑 نسيت كلمة مرور المدير؟
+                نسيت كلمة المرور؟
               </button>
             </div>
-
-            {error && <p className="onyx-error">{error}</p>}
-
-            <button type="submit" className="onyx-submit" disabled={loading}>
-              {loading ? (
-                <span className="onyx-loading-content">
-                  <svg className="onyx-spin-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-                    <path d="M21 12a9 9 0 1 1-6.219-8.56" strokeLinecap="round" />
+            <div className="login-input-box">
+              <span className="login-field-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                </svg>
+              </span>
+              <input
+                id="login-password"
+                type={showPassword ? 'text' : 'password'}
+                className="login-input login-input-with-icon login-input-password"
+                placeholder="أدخل كلمة المرور"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+              <button
+                type="button"
+                className="login-eye-btn"
+                onClick={() => setShowPassword(!showPassword)}
+                title={showPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}
+              >
+                {showPassword ? (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                    <line x1="1" y1="1" x2="23" y2="23"></line>
                   </svg>
-                  جاري التحقق...
-                </span>
-              ) : 'تسجيل الدخول'}
-            </button>
-          </form>
-        </div>
+                ) : (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                    <circle cx="12" cy="12" r="3"></circle>
+                  </svg>
+                )}
+              </button>
+            </div>
+          </div>
 
-        <span className="onyx-footer">onyx · v1.0</span>
+          {/* Error Message */}
+          {error && <div className="login-error-banner">{error}</div>}
+
+          {/* Sign In Button */}
+          <button type="submit" className="login-btn" disabled={loading}>
+            {loading ? (
+              <span className="login-btn-loading">
+                <span className="login-spinner" /> جاري التحقق وتسجيل الدخول...
+              </span>
+            ) : (
+              'تسجيل الدخول • Sign In'
+            )}
+          </button>
+        </form>
+
+        {/* Footer info */}
+        <div className="login-footer" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+          {setupAvailable && (
+            <button
+              type="button"
+              className="login-forgot-link"
+              style={{ color: '#F2600C', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px' }}
+              onClick={() => setSetupRequired && setSetupRequired(true)}
+            >
+              🚀 العودة لإعداد النظام لأول مرة (إنشاء النشاط والمدير)
+            </button>
+          )}
+          <span>FOX .CLOUD • Enterprise Smart POS</span>
+        </div>
       </div>
 
+      {/* Network Configuration Modal */}
+      {showServerModal && (
+        <div className="network-modal-overlay" onClick={() => setShowServerModal(false)}>
+          <div className="network-modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="network-modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div className="network-icon-circle">🌐</div>
+                <div>
+                  <h3 className="network-modal-title">إعدادات الربط والشبكة المحلية</h3>
+                  <p className="network-modal-subtitle">ربط الكاشيرات والفروع بقاعدة بيانات موحدة</p>
+                </div>
+              </div>
+              <button type="button" className="network-modal-close" onClick={() => setShowServerModal(false)}>×</button>
+            </div>
+
+            <div className="network-modal-body">
+              <label className="network-section-title">اختر وضع التشغيل لهذا الجهاز:</label>
+              
+              <div className="network-modes-grid">
+                {/* Master Node */}
+                <div
+                  className={`network-mode-card ${connectionMode === 'master' ? 'active' : ''}`}
+                  onClick={selectMasterMode}
+                >
+                  <div className="mode-card-header">
+                    <span className="mode-icon">🏢</span>
+                    <div className="mode-toggle-switch">
+                      <input
+                        type="checkbox"
+                        checked={lanServerStatus.isRunning}
+                        onChange={selectMasterMode}
+                      />
+                      <span className="switch-slider" />
+                    </div>
+                  </div>
+                  <h4>الخادم الرئيسي (Master Node)</h4>
+                  <p>اجعل هذا الجهاز هو السيرفر الذي تستند إليه بقية الكاشيرات والفروع.</p>
+                  
+                  {lanServerStatus.isRunning && (
+                    <div className="mode-ips-box" onClick={(e) => e.stopPropagation()}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                        <span style={{ fontWeight: '600', color: '#94A3B8' }}>عناوين الاتصال لباقي الأجهزة:</span>
+                      </div>
+
+                      {/* Computer Hostname URL (Recommended) */}
+                      {lanServerStatus.hostname && (
+                        <div
+                          className="mode-ip-item"
+                          style={{ borderColor: 'rgba(59, 130, 246, 0.4)', background: 'rgba(59, 130, 246, 0.08)' }}
+                          onClick={() => copyToClipboard(`http://${lanServerStatus.hostname}:${lanServerStatus.port}`)}
+                          title="انقر لنسخ عنوان اسم الجهاز (موصى به - لا يتغير إذا تغير الـ IP)"
+                        >
+                          <code>{`http://${lanServerStatus.hostname}:${lanServerStatus.port}`}</code>
+                          <span style={{ color: '#60A5FA', fontSize: '11px' }}>
+                            {copiedIp === `http://${lanServerStatus.hostname}:${lanServerStatus.port}` ? '✓ تم النسخ' : '⭐ اسم الجهاز 📋'}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Local IPv4 items */}
+                      {lanServerIps.map((ip, idx) => {
+                        const fullUrl = `http://${ip.address}:${lanServerStatus.port}`;
+                        return (
+                          <div
+                            key={idx}
+                            className="mode-ip-item"
+                            onClick={() => copyToClipboard(fullUrl)}
+                            title="انقر لنسخ عنوان الـ IP"
+                          >
+                            <code>{fullUrl}</code>
+                            <span>{copiedIp === fullUrl ? '✓ تم النسخ' : '📋'}</span>
+                          </div>
+                        );
+                      })}
+
+                      {/* Windows Firewall Permission Button */}
+                      <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px dashed rgba(255, 255, 255, 0.1)' }}>
+                        <button
+                          type="button"
+                          onClick={handleConfigureFirewall}
+                          disabled={firewallConfiguring}
+                          style={{
+                            width: '100%',
+                            padding: '6px 10px',
+                            fontSize: '11px',
+                            fontWeight: '600',
+                            background: 'rgba(16, 185, 129, 0.12)',
+                            color: '#34D399',
+                            border: '1px solid rgba(16, 185, 129, 0.25)',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '6px',
+                          }}
+                        >
+                          <span>🛡️</span>
+                          <span>{firewallConfiguring ? 'جاري ضبط جدار الحماية...' : 'السماح بالمنفذ 5000 في جدار حماية Windows'}</span>
+                        </button>
+                        {firewallMessage && (
+                          <div style={{
+                            fontSize: '11px',
+                            marginTop: '6px',
+                            textAlign: 'center',
+                            color: firewallMessage.includes('تعذر') || firewallMessage.includes('خطأ') ? '#F87171' : '#34D399'
+                          }}>
+                            {firewallMessage}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Branch Node */}
+                <div
+                  className={`network-mode-card ${connectionMode === 'remote' ? 'active' : ''}`}
+                  onClick={selectRemoteMode}
+                >
+                  <div className="mode-card-header">
+                    <span className="mode-icon">🔗</span>
+                    {connectionMode === 'remote' && <span className="active-dot-badge">مُفعّل</span>}
+                  </div>
+                  <h4>كاشير فرعي (Branch Node)</h4>
+                  <p>اتصل بسيرفر رئيسي آخر موجود على نفس الشبكة المحلية (LAN).</p>
+                </div>
+              </div>
+
+              {/* Standalone Button */}
+              <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  className={`network-standalone-btn ${connectionMode === 'standalone' ? 'active' : ''}`}
+                  onClick={selectStandaloneMode}
+                >
+                  💻 العمل كـ جهاز محلي مستقل (بدون ربط شبكي)
+                </button>
+              </div>
+
+              {/* Remote Server Section */}
+              {connectionMode === 'remote' && (
+                <div className="network-input-section">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <label htmlFor="central-server-address" style={{ margin: 0, fontSize: '13px', color: '#E2E8F0', fontWeight: '600' }}>
+                      عنوان الخادم الرئيسي (IP أو URL)
+                    </label>
+                    <button
+                      type="button"
+                      className="network-scan-link"
+                      onClick={scanLanNetwork}
+                      disabled={scanningLan}
+                    >
+                      {scanningLan ? '🔍 جاري الفحص...' : '🔍 فحص أجهزة الشبكة تلقائياً'}
+                    </button>
+                  </div>
+
+                  <div className="network-input-group">
+                    <input
+                      id="central-server-address"
+                      type="text"
+                      className="network-text-input"
+                      value={serverAddress}
+                      onChange={(event) => setServerAddress(event.target.value)}
+                      placeholder="192.168.1.10:5000"
+                      dir="ltr"
+                    />
+                    <button
+                      type="button"
+                      className="network-action-btn secondary"
+                      onClick={testServerConnection}
+                      disabled={testingConnection || !serverAddress.trim()}
+                    >
+                      {testingConnection ? 'جاري الفحص...' : '⚡ فحص الاتصال'}
+                    </button>
+                    <button
+                      type="button"
+                      className="network-action-btn primary"
+                      onClick={saveServerAddress}
+                    >
+                      حفظ وربط
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Feedback Message */}
+              {serverMessage && (
+                <div className={`network-feedback-box ${serverMessageStatus}`}>
+                  <span>{serverMessageStatus === 'success' ? '✅' : serverMessageStatus === 'error' ? '❌' : 'ℹ️'}</span>
+                  <p>{serverMessage}</p>
+                </div>
+              )}
+            </div>
+
+            <div className="network-modal-footer">
+              <button
+                type="button"
+                className="login-btn"
+                style={{ height: '42px', fontSize: '13.5px' }}
+                onClick={() => setShowServerModal(false)}
+              >
+                تأكيد وإغلاق النافذة
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Admin Recovery Golden Key Modal */}
       <AdminRecoveryModal
         isOpen={showRecoveryModal}
         onClose={() => setShowRecoveryModal(false)}

@@ -1,4 +1,6 @@
 const { ipcMain } = require('electron');
+const authService = require('../services/auth.service');
+const { getPermissionForChannel } = require('../security/permissions');
 
 /**
  * Register an IPC handler with predictable error shape and optional declarative schema validation.
@@ -9,10 +11,13 @@ const { ipcMain } = require('electron');
  * OR
  * safeHandle('channel:name', schema, handler);
  */
-function safeHandle(channel, schemaOrHandler, maybeHandler) {
+function safeHandle(channel, schemaOrHandler, maybeHandler, options = {}) {
   const hasSchema = typeof maybeHandler === 'function';
   const schema = hasSchema ? schemaOrHandler : null;
   const handler = hasSchema ? maybeHandler : schemaOrHandler;
+  if (!hasSchema && maybeHandler && typeof maybeHandler === 'object') {
+    options = maybeHandler;
+  }
 
   ipcMain.handle(channel, async (event, ...args) => {
     try {
@@ -20,7 +25,23 @@ function safeHandle(channel, schemaOrHandler, maybeHandler) {
         const payload = args[0];
         schema.validate(payload);
       }
-      return await handler(event, ...args);
+      if (channel.startsWith('auth:') || channel.startsWith('central:')) {
+        return await handler(event, ...args);
+      }
+
+      const session = authService.getCurrentSession(event?.sender?.id);
+      return await authService.runWithSession(session, async () => {
+        if (typeof options.authorize === 'function') {
+          await options.authorize(event, ...args);
+          return handler(event, ...args);
+        }
+
+        const permission = getPermissionForChannel(channel, args);
+        return await authService.runWithPermission(permission, async () => {
+          authService.requirePermission(permission);
+          return handler(event, ...args);
+        });
+      });
     } catch (error) {
       const message = error instanceof Error && error.message
         ? error.message

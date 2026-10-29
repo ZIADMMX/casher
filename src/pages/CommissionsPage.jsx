@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import Modal from '../components/Modal.jsx';
+import '../styles/commissions.css';
 
 const TARGET_TYPES = [
   { key: 'all_sales', label: 'جميع المبيعات' },
@@ -150,30 +151,33 @@ export default function CommissionsPage() {
   }
 
   return (
-    <div className="commissions-page" style={{ padding: '24px', color: '#0F172A' }}>
+    <div className="commissions-page">
       {/* Header & Main Actions */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+      <div className="commissions-header">
         <div>
-          <h1 style={{ fontSize: '24px', fontWeight: '800', margin: 0, color: '#0F172A' }}>نظام العمولات والحوافز</h1>
-          <p style={{ color: '#475569', margin: '4px 0 0 0', fontSize: '14px', fontWeight: '500' }}>
-            محرك العمولات المرن: حساب أوتوماتيكي حسب المبيعات، التصنيف، الموظف، وتحصيل الديون
-          </p>
+          <h1>نظام العمولات والحوافز</h1>
+          <p>تابع مستحقات الفريق، راجع تفاصيل كل عمولة، وأنشئ قواعد حساب تناسب طريقة البيع لديك.</p>
         </div>
         <button
+          type="button"
+          className="commissions-primary-action"
           onClick={() => setShowRuleModal(true)}
-          style={{
-            backgroundColor: '#3B82F6',
-            color: '#FFF',
-            border: 'none',
-            padding: '10px 18px',
-            borderRadius: '8px',
-            fontWeight: 'bold',
-            cursor: 'pointer'
-          }}
         >
           ➕ إضافة قاعدة عمولة جديدة
         </button>
       </div>
+
+      <section className="commission-workflow" aria-label="طريقة عمل العمولات">
+        <div className="commission-workflow-heading">
+          <span className="commission-workflow-mark">كيف تعمل العمولات؟</span>
+          <span>ثلاث خطوات واضحة من إعداد القاعدة حتى التسوية</span>
+        </div>
+        <ol>
+          <li><b>١</b><span><strong>أنشئ قاعدة</strong><small>حدد الهدف وطريقة الحساب</small></span></li>
+          <li><b>٢</b><span><strong>راجع المستحقات</strong><small>تظهر الحركات المسجلة لكل موظف</small></span></li>
+          <li><b>٣</b><span><strong>سوِّ العمولة</strong><small>اصرف المستحق وحدّث سجل التسوية</small></span></li>
+        </ol>
+      </section>
 
       {/* Summary KPI Cards */}
       {summary && (
@@ -202,9 +206,9 @@ export default function CommissionsPage() {
         <button
           onClick={() => setActiveTab('earnings')}
           style={{
-            background: activeTab === 'earnings' ? '#3B82F6' : 'transparent',
-            color: '#FFF',
-            border: 'none',
+            background: activeTab === 'earnings' ? '#3B82F6' : '#CBD5E1',
+            color: activeTab === 'earnings' ? '#FFF' : '#334155',
+            border: activeTab === 'earnings' ? '1px solid #3B82F6' : '1px solid #94A3B8',
             padding: '8px 16px',
             borderRadius: '6px',
             fontWeight: 'bold',
@@ -216,9 +220,9 @@ export default function CommissionsPage() {
         <button
           onClick={() => setActiveTab('rules')}
           style={{
-            background: activeTab === 'rules' ? '#3B82F6' : 'transparent',
-            color: '#FFF',
-            border: 'none',
+            background: activeTab === 'rules' ? '#3B82F6' : '#CBD5E1',
+            color: activeTab === 'rules' ? '#FFF' : '#334155',
+            border: activeTab === 'rules' ? '1px solid #3B82F6' : '1px solid #94A3B8',
             padding: '8px 16px',
             borderRadius: '6px',
             fontWeight: 'bold',
@@ -559,7 +563,7 @@ export default function CommissionsPage() {
                 style={{ width: '100%', background: '#0F172A', border: '1px solid #334155', color: '#FFF', padding: '8px', borderRadius: '6px' }}
               >
                 <option value="cash">نقداً من الدرج / الخزينة</option>
-                <option value="bank_transfer">تحويل بانكي / فودافون كاش</option>
+                <option value="bank_transfer">تحويل بنكي / فودافون كاش</option>
                 <option value="with_salary">إضافة لمرتب الشهر</option>
               </select>
             </div>

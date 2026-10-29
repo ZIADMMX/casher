@@ -9,6 +9,9 @@
  *   - IPC handler delegation
  */
 
+const crypto = require('node:crypto');
+const originalLicenseSecret = process.env.KASHIEAR_LICENSE_SECRET;
+process.env.KASHIEAR_LICENSE_SECRET = crypto.randomBytes(32).toString('hex');
 const licenseService = require('../../electron/services/license.service');
 
 // ── Mock DB repo ─────────────────────────────────────────────────────────────
@@ -49,6 +52,14 @@ describe('License Flow – Full End-to-End', () => {
 
   afterEach(() => {
     dateSpy.mockRestore();
+  });
+
+  afterAll(() => {
+    if (originalLicenseSecret === undefined) {
+      delete process.env.KASHIEAR_LICENSE_SECRET;
+    } else {
+      process.env.KASHIEAR_LICENSE_SECRET = originalLicenseSecret;
+    }
   });
 
   // ── 1. Fresh install ─────────────────────────────────────────────────────

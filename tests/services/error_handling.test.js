@@ -43,8 +43,18 @@ jest.mock('electron', () => ({
 jest.mock('../../electron/database/db', () => ({
   db: {
     transaction: (fn) => () => fn(),
-    prepare: jest.fn(),
+    prepare: jest.fn(() => ({
+      get: jest.fn(() => null),
+      all: jest.fn(() => []),
+      run: jest.fn(() => ({ changes: 1 })),
+    })),
   },
+}));
+
+jest.mock('../../electron/repositories/settings.repository', () => ({
+  get: jest.fn(() => null),
+  getAll: jest.fn(() => ({})),
+  set: jest.fn(),
 }));
 
 jest.mock('../../electron/repositories/sales.repository', () => ({
@@ -60,6 +70,13 @@ jest.mock('../../electron/repositories/productVariants.repository', () => ({
 
 jest.mock('../../electron/repositories/shifts.repository', () => ({
   getCurrentOpenShift: jest.fn(() => ({ id: 1 })),
+}));
+
+jest.mock('../../electron/repositories/inventory.repository', () => ({
+  getDefaultWarehouseId: jest.fn(() => 2),
+  getWarehouseBranchId: jest.fn(() => 1),
+  getStockQuantity: jest.fn(() => 10),
+  applyStockChange: jest.fn(),
 }));
 
 jest.mock('../../electron/services/notifications.service', () => ({

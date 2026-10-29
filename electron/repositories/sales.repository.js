@@ -1,12 +1,29 @@
 const { db } = require('../database/db');
 
-function createSale({ shiftId, customerId, customerName, customerPhone, userId, totalAmount, discount, paymentMethod, dueDate }) {
+function createSale({
+  shiftId,
+  customerId,
+  customerName,
+  customerPhone,
+  userId,
+  totalAmount,
+  discount,
+  paymentMethod,
+  dueDate,
+  branchId,
+  warehouseId,
+}) {
   const stmt = db.prepare(`
-    INSERT INTO sales (shift_id, customer_id, customer_name, customer_phone, user_id, total_amount, discount, payment_method, due_date)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO sales (
+      shift_id, branch_id, warehouse_id, customer_id, customer_name, customer_phone, user_id,
+      total_amount, discount, payment_method, due_date
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   const result = stmt.run(
     shiftId || null,
+    branchId || null,
+    warehouseId || null,
     customerId || null,
     customerName || null,
     customerPhone || null,

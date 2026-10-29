@@ -15,9 +15,11 @@ function createPackage(packageData) {
   if (!packageData.name || !packageData.name.trim()) {
     throw new Error('اسم الباقة مطلوب');
   }
-  if (!ALLOWED_PACKAGE_TYPES.includes(packageData.type)) {
+  const type = packageData.type || 'session_based';
+  if (!ALLOWED_PACKAGE_TYPES.includes(type)) {
     throw new Error('نوع الباقة غير صحيح');
   }
+  packageData.type = type;
   if (packageData.price < 0) {
     throw new Error('سعر الباقة يجب أن يكون رصيداً موجباً');
   }

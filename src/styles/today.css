@@ -1,0 +1,1837 @@
+/* ==========================================================================
+   TODAY PAGE - FOX CLOUD MODERN DARK THEME & REPORT STYLES
+   مظهر ليلي مريح للعين ومتناسق بالكامل مع هوية فوكس كلاود والأقسام المختلفة
+   ========================================================================== */
+
+.today-page {
+  padding: 24px;
+  background-color: #0B0E17;
+  min-height: 100vh;
+  direction: rtl;
+  font-family: inherit;
+  color: #F8FAFC;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Loading Screen */
+.today-page.loading-screen {
+  align-items: center;
+  justify-content: center;
+  min-height: 70vh;
+}
+
+.today-spinner-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.today-spinner-ring {
+  width: 44px;
+  height: 44px;
+  border: 3px solid rgba(240, 90, 36, 0.2);
+  border-top-color: #F05A24;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.today-loading-text {
+  color: #94A3B8;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* 1. TOP BANNER & SHIFT ROW */
+.today-top-banner {
+  background: #131826;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 20px 26px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 20px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+}
+
+.today-banner-greeting {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.today-greeting-title {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #F8FAFC;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  letter-spacing: -0.01em;
+}
+
+.door-status-icon {
+  font-size: 1.4rem;
+}
+
+.today-greeting-subtitle {
+  font-size: 0.85rem;
+  color: #94A3B8;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.bullet-sep {
+  color: rgba(255, 255, 255, 0.2);
+}
+
+.shift-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.shift-pill.shift-open {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: #34D399;
+}
+
+.shift-pill.shift-closed {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #F87171;
+}
+
+.today-profile-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  background: rgba(240, 90, 36, 0.12);
+  border: 1px solid rgba(240, 90, 36, 0.3);
+  color: #FFA27A;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.shift-cashier-tag {
+  color: #CBD5E1;
+  font-size: 0.8rem;
+}
+
+.today-top-metrics {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+}
+
+.today-metric-box {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  padding-left: 24px;
+}
+
+.today-metric-box:last-child {
+  border-left: none;
+  padding-left: 0;
+}
+
+.today-metric-value {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #F8FAFC;
+}
+
+.today-metric-label {
+  font-size: 0.75rem;
+  color: #94A3B8;
+  margin-top: 3px;
+}
+
+/* Colors helpers */
+.text-emerald {
+  color: #10B981 !important;
+}
+
+.text-rose {
+  color: #F43F5E !important;
+}
+
+.text-sky {
+  color: #38BDF8 !important;
+}
+
+.text-orange {
+  color: #FFA27A !important;
+}
+
+.text-muted {
+  color: #64748B !important;
+}
+
+/* 2. COMPREHENSIVE CASHFLOW BANNER */
+.today-cashflow-banner {
+  background: #131826;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 22px 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.cashflow-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding-bottom: 14px;
+}
+
+.cashflow-header-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.cashflow-icon {
+  font-size: 1.6rem;
+}
+
+.cashflow-header-title h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #F8FAFC;
+}
+
+.cashflow-header-title p {
+  margin: 3px 0 0;
+  font-size: 0.8rem;
+  color: #94A3B8;
+}
+
+.cashflow-date-badge {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 6px 14px;
+  font-size: 0.82rem;
+  color: #CBD5E1;
+  font-weight: 600;
+}
+
+.cashflow-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.cashflow-card {
+  background: #182032;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.cashflow-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.card-pill {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 6px;
+}
+
+.pill-inflow {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: #34D399;
+}
+
+.pill-outflow {
+  background: rgba(244, 63, 94, 0.15);
+  border: 1px solid rgba(244, 63, 94, 0.35);
+  color: #FB7185;
+}
+
+.pill-net {
+  background: rgba(56, 189, 248, 0.15);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  color: #38BDF8;
+}
+
+.pill-drawer {
+  background: rgba(240, 90, 36, 0.15);
+  border: 1px solid rgba(240, 90, 36, 0.35);
+  color: #FFA27A;
+}
+
+.card-amount {
+  font-size: 1.45rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.card-desc {
+  font-size: 0.78rem;
+  color: #94A3B8;
+}
+
+.card-sub-breakdown {
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 0.72rem;
+  color: #CBD5E1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* 3. MAIN GRID (SIDE CARDS + CENTER SCHEDULE) */
+.today-main-grid {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+/* SIDEBAR COLUMN */
+.today-sidebar-col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.today-card {
+  background: #131826;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 18px 20px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+}
+
+.today-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.today-card-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #F8FAFC;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.icon-wrap {
+  font-size: 1.1rem;
+}
+
+.badge-count {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #94A3B8;
+}
+
+.today-card-empty-note {
+  font-size: 0.8rem;
+  color: #64748B;
+  text-align: center;
+  padding: 16px 8px;
+}
+
+/* Salon Chairs List */
+.salon-chairs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chair-item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  transition: all 0.15s ease;
+}
+
+.chair-item-row:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.chair-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.chair-name {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #F8FAFC;
+}
+
+.chair-stylist {
+  font-size: 0.72rem;
+  color: #94A3B8;
+}
+
+.chair-status-pill {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+.chair-status-pill.status-available {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: #34D399;
+}
+
+.chair-status-pill.status-busy,
+.chair-status-pill.status-in_service {
+  background: rgba(56, 189, 248, 0.15);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  color: #38BDF8;
+}
+
+/* Customer Health Card */
+.health-total-badge {
+  font-size: 0.75rem;
+  color: #94A3B8;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+.today-health-progress-bar {
+  height: 5px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #F05A24, #F59E0B, #10B981);
+  margin-bottom: 12px;
+}
+
+.today-health-statuses {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.today-health-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  color: #CBD5E1;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+}
+
+.today-health-row:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.today-health-row.active {
+  background: rgba(240, 90, 36, 0.08);
+  border-color: rgba(240, 90, 36, 0.25);
+  font-weight: 700;
+}
+
+.today-health-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.today-health-count {
+  font-weight: 800;
+}
+
+/* CENTER AREA - TODAY'S SCHEDULE */
+.today-schedule-card {
+  background: #131826;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 22px 26px;
+  min-height: 420px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.today-schedule-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding-bottom: 14px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.today-schedule-title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #F8FAFC;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.today-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 18px;
+  background: linear-gradient(135deg, #F05A24, #FF7D4F);
+  border: none;
+  border-radius: 9px;
+  color: #FFFFFF;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 14px rgba(240, 90, 36, 0.3);
+}
+
+.today-btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(240, 90, 36, 0.45);
+}
+
+.today-btn-outline {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 18px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 9px;
+  color: #F8FAFC;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.today-btn-outline:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.24);
+}
+
+/* Schedule Items List */
+.today-schedule-items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.today-schedule-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  transition: all 0.15s ease;
+}
+
+.today-schedule-row:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.12);
+  transform: translateX(-2px);
+}
+
+.today-schedule-row-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.today-schedule-time {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #FFA27A;
+  background: rgba(240, 90, 36, 0.12);
+  border: 1px solid rgba(240, 90, 36, 0.3);
+  padding: 5px 10px;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+
+.today-schedule-details h4 {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #F8FAFC;
+}
+
+.today-schedule-details p {
+  margin: 3px 0 0 0;
+  font-size: 0.78rem;
+  color: #94A3B8;
+}
+
+.schedule-row-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.schedule-price-tag {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #10B981;
+}
+
+.today-list-item-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #CBD5E1;
+}
+
+.today-list-item-badge.status-confirmed,
+.today-list-item-badge.status-completed {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.35);
+  color: #34D399;
+}
+
+.today-list-item-badge.status-in_service {
+  background: rgba(56, 189, 248, 0.15);
+  border-color: rgba(56, 189, 248, 0.35);
+  color: #38BDF8;
+}
+
+/* Empty Schedule State */
+.today-schedule-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.today-empty-icon-box {
+  width: 68px;
+  height: 68px;
+  border-radius: 18px;
+  background: rgba(240, 90, 36, 0.12);
+  border: 1px solid rgba(240, 90, 36, 0.25);
+  color: #F05A24;
+  font-size: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.today-empty-title {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #F8FAFC;
+  margin: 0 0 6px 0;
+}
+
+.today-empty-subtext {
+  font-size: 0.85rem;
+  color: #94A3B8;
+  margin: 0 0 24px 0;
+  max-width: 400px;
+  line-height: 1.5;
+}
+
+.today-schedule-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* 4. BOTTOM SECTION: COMPREHENSIVE DAILY TRANSACTIONS TIMELINE (الدواخل والخوارج) */
+.today-bottom-card {
+  background: #131826;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 24px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.today-bottom-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.bottom-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.today-bottom-title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #F8FAFC;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.total-tx-pill {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #CBD5E1;
+}
+
+.tx-filter-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.35);
+  padding: 4px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.tx-tab {
+  background: none;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 7px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #94A3B8;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.tx-tab:hover {
+  color: #F8FAFC;
+}
+
+.tx-tab.active {
+  background: #1E293B;
+  color: #F8FAFC;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.tx-tab.tab-inflow.active {
+  background: rgba(16, 185, 129, 0.2);
+  color: #34D399;
+}
+
+.tx-tab.tab-outflow.active {
+  background: rgba(244, 63, 94, 0.2);
+  color: #FB7185;
+}
+
+.today-transactions-empty {
+  padding: 44px 20px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  color: #64748B;
+  font-size: 0.9rem;
+}
+
+.empty-tx-icon {
+  font-size: 2rem;
+}
+
+.today-transactions-table-wrap {
+  overflow-x: auto;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(10, 13, 22, 0.6);
+}
+
+.today-transactions-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  text-align: right;
+}
+
+.today-transactions-table th {
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #94A3B8;
+  font-weight: 700;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  white-space: nowrap;
+}
+
+.today-transactions-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  vertical-align: middle;
+}
+
+.tx-row:hover td {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.tx-time-cell {
+  font-weight: 600;
+  color: #CBD5E1;
+  white-space: nowrap;
+}
+
+.tx-type-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.tx-type-tag.badge-inflow {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: #34D399;
+}
+
+.tx-type-tag.badge-outflow {
+  background: rgba(244, 63, 94, 0.15);
+  border: 1px solid rgba(244, 63, 94, 0.35);
+  color: #FB7185;
+}
+
+.tx-details-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.tx-title {
+  color: #F8FAFC;
+  font-size: 0.88rem;
+}
+
+.tx-sub {
+  color: #94A3B8;
+  font-size: 0.75rem;
+}
+
+.tx-method-cell {
+  color: #CBD5E1;
+  font-size: 0.8rem;
+}
+
+.tx-amount-val {
+  font-size: 0.95rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.tx-amount-val.val-inflow {
+  color: #10B981;
+}
+
+.tx-amount-val.val-outflow {
+  color: #F43F5E;
+}
+
+.tx-impact-pill {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.tx-impact-pill.impact-in {
+  background: rgba(16, 185, 129, 0.12);
+  color: #34D399;
+}
+
+.tx-impact-pill.impact-out {
+  background: rgba(244, 63, 94, 0.12);
+  color: #FB7185;
+}
+
+/* RESPONSIVE DESIGN */
+@media (max-width: 1100px) {
+  .cashflow-cards-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 960px) {
+  .today-main-grid {
+    grid-template-columns: 1fr;
+  }
+  .today-top-banner {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .today-top-metrics {
+    justify-content: space-between;
+    width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .cashflow-cards-grid {
+    grid-template-columns: 1fr;
+  }
+  .today-top-metrics {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .today-metric-box {
+    border-left: none;
+    padding-left: 0;
+    align-items: flex-start;
+  }
+}
+
+/* Match the dark application shell while keeping the dashboard subdued. */
+.today-page {
+  background: #10141c;
+  color: #e5e9ef;
+}
+
+.today-top-banner,
+.today-cashflow-banner,
+.today-card,
+.today-schedule-card,
+.today-bottom-card {
+  background: #171d27;
+  border-color: #29313e;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.14);
+}
+
+.today-greeting-title,
+.today-metric-value,
+.cashflow-header-title h3,
+.today-card-title,
+.today-schedule-title,
+.today-empty-title,
+.today-schedule-details h4,
+.today-bottom-title,
+.tx-title,
+.chair-name {
+  color: #e8ecf2;
+}
+
+.today-greeting-subtitle,
+.cashflow-header-title p,
+.today-metric-label,
+.card-desc,
+.chair-stylist,
+.today-schedule-details p,
+.today-empty-subtext,
+.tx-sub {
+  color: #9aa5b5;
+}
+
+.shift-cashier-tag,
+.card-sub-breakdown,
+.today-health-row {
+  color: #c1c8d3;
+}
+
+.cashflow-header-row,
+.today-schedule-header,
+.today-bottom-header,
+.today-metric-box {
+  border-color: #29313e;
+}
+
+.today-profile-badge,
+.pill-drawer,
+.today-schedule-time,
+.today-empty-icon-box {
+  color: #e3a184;
+  background: rgba(195, 83, 50, 0.12);
+  border-color: rgba(195, 83, 50, 0.26);
+}
+
+.shift-pill.shift-open,
+.pill-inflow,
+.chair-status-pill.status-available,
+.today-list-item-badge.status-confirmed,
+.today-list-item-badge.status-completed,
+.tx-type-tag.badge-inflow {
+  color: #74c49a;
+  background: rgba(54, 145, 99, 0.13);
+  border-color: rgba(93, 174, 130, 0.25);
+}
+
+.shift-pill.shift-closed,
+.pill-outflow,
+.tx-type-tag.badge-outflow {
+  color: #d98b91;
+  background: rgba(177, 74, 83, 0.13);
+  border-color: rgba(198, 104, 112, 0.25);
+}
+
+.pill-net,
+.chair-status-pill.status-busy,
+.chair-status-pill.status-in_service,
+.today-list-item-badge.status-in_service {
+  color: #82b6d6;
+  background: rgba(68, 132, 170, 0.13);
+  border-color: rgba(104, 164, 198, 0.25);
+}
+
+.text-emerald,
+.tx-amount-val.val-inflow {
+  color: #74c49a !important;
+}
+
+.text-rose,
+.tx-amount-val.val-outflow {
+  color: #d98b91 !important;
+}
+
+.text-sky,
+.schedule-price-tag {
+  color: #82b6d6 !important;
+}
+
+.text-orange {
+  color: #e3a184 !important;
+}
+
+.text-muted,
+.today-card-empty-note,
+.today-transactions-empty {
+  color: #8d98a8 !important;
+}
+
+.cashflow-date-badge,
+.badge-count,
+.health-total-badge,
+.today-list-item-badge,
+.tx-filter-tabs,
+.today-transactions-table-wrap {
+  color: #c1c8d3;
+  background: #1c2430;
+  border-color: #303a49;
+}
+
+.cashflow-card {
+  background: #1b2330;
+  border-color: #2b3544;
+}
+
+.cashflow-card:hover {
+  border-color: #3a4657;
+}
+
+.card-sub-breakdown,
+.tx-row td,
+.today-transactions-table td {
+  border-color: #29313e;
+}
+
+.chair-item-row,
+.today-health-row,
+.today-schedule-row {
+  color: #c1c8d3;
+  background: #1b2330;
+  border-color: #2b3544;
+}
+
+.chair-item-row:hover,
+.today-health-row:hover,
+.today-schedule-row:hover {
+  background: #202a38;
+  border-color: #394658;
+}
+
+.today-health-row.active {
+  background: rgba(195, 83, 50, 0.1);
+  border-color: rgba(195, 83, 50, 0.24);
+}
+
+.today-btn-outline {
+  color: #dce1e8;
+  background: #1d2531;
+  border-color: #343e4c;
+}
+
+.today-btn-outline:hover {
+  background: #252f3d;
+  border-color: #465264;
+}
+
+.tx-tab {
+  color: #a4adba;
+}
+
+.tx-tab:hover,
+.tx-tab.active {
+  color: #e8ecf2;
+  background: #2a3442;
+}
+
+.tx-tab.tab-inflow.active {
+  color: #74c49a;
+  background: rgba(54, 145, 99, 0.17);
+}
+
+.tx-tab.tab-outflow.active {
+  color: #d98b91;
+  background: rgba(177, 74, 83, 0.17);
+}
+
+.today-transactions-table th {
+  color: #a4adba;
+  background: #1c2430;
+  border-color: #303a49;
+}
+
+.tx-time-cell,
+.tx-method-cell {
+  color: #c1c8d3;
+}
+
+.tx-row:hover td {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.today-list-item-badge,
+.badge-count,
+.health-total-badge {
+  color: #aab3c0;
+}
+
+/* Today dashboard: align with the app's light workspace and reduce visual noise. */
+.today-page {
+  min-height: 100%;
+  padding: 18px 22px 24px;
+  gap: 14px;
+  background: var(--bg-main, #f5f6fa);
+  color: var(--text-main, #15151a);
+}
+
+.today-top-banner,
+.today-cashflow-banner,
+.today-card,
+.today-schedule-card,
+.today-bottom-card {
+  background: var(--bg-card, #fff);
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(21, 21, 26, 0.045);
+}
+
+.today-top-banner {
+  padding: 16px 20px;
+  gap: 16px;
+}
+
+.today-greeting-title,
+.cashflow-header-title h3,
+.today-card-title,
+.today-schedule-title,
+.today-empty-title,
+.today-bottom-title {
+  color: var(--text-main, #15151a);
+}
+
+.today-greeting-title {
+  font-size: 1.12rem;
+  line-height: 1.55;
+  letter-spacing: 0;
+}
+
+.today-greeting-subtitle,
+.cashflow-header-title p,
+.today-metric-label,
+.card-desc,
+.chair-stylist,
+.today-schedule-details p,
+.today-empty-subtext,
+.tx-sub {
+  color: #697386;
+}
+
+.shift-pill.shift-open {
+  color: #147a50;
+  background: #eaf7f0;
+  border-color: #c4e8d3;
+}
+
+.shift-pill.shift-closed {
+  color: #9b3d32;
+  background: #fff1ef;
+  border-color: #f3d2cd;
+}
+
+.today-profile-badge {
+  color: #9b482f;
+  background: #fff3ed;
+  border-color: #f1d4c7;
+}
+
+.shift-cashier-tag,
+.today-metric-value,
+.cashflow-header-title h3,
+.today-card-title,
+.today-schedule-title,
+.today-schedule-details h4,
+.today-bottom-title,
+.tx-title,
+.chair-name {
+  color: #222833;
+}
+
+.today-top-metrics {
+  gap: 18px;
+}
+
+.today-metric-box {
+  border-color: #e7e9ee;
+  padding-left: 18px;
+}
+
+.today-cashflow-banner {
+  padding: 17px 20px;
+  gap: 14px;
+}
+
+.cashflow-header-row,
+.today-schedule-header,
+.today-bottom-header {
+  border-color: #eceef2;
+}
+
+.cashflow-header-title h3 {
+  font-size: 1rem;
+}
+
+.cashflow-header-title p {
+  font-size: 0.76rem;
+}
+
+.cashflow-date-badge {
+  color: #596273;
+  background: #f7f8fa;
+  border-color: #e6e8ed;
+}
+
+.cashflow-cards-grid {
+  gap: 10px;
+}
+
+.cashflow-card {
+  min-width: 0;
+  padding: 13px 15px;
+  gap: 6px;
+  background: #fbfcfd;
+  border: 1px solid #e8ebef;
+  border-radius: 10px;
+}
+
+.cashflow-card:hover {
+  transform: translateY(-1px);
+  border-color: #d7dce3;
+}
+
+.pill-inflow {
+  color: #18734c;
+  background: #eaf7f0;
+  border-color: #c8e9d7;
+}
+
+.pill-outflow {
+  color: #a23e45;
+  background: #fff0f1;
+  border-color: #f1d0d3;
+}
+
+.pill-net {
+  color: #28678a;
+  background: #edf6fb;
+  border-color: #d1e7f2;
+}
+
+.pill-drawer {
+  color: #9b482f;
+  background: #fff3ed;
+  border-color: #f1d4c7;
+}
+
+.card-sub-breakdown {
+  color: #626d7d;
+  border-color: #eceef2;
+}
+
+.today-main-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(245px, 285px);
+  gap: 14px;
+}
+
+.today-sidebar-col {
+  gap: 10px;
+}
+
+.today-card {
+  padding: 14px 16px;
+}
+
+.today-card-header {
+  margin-bottom: 9px;
+}
+
+.today-card-title {
+  font-size: 0.9rem;
+}
+
+.badge-count,
+.health-total-badge {
+  color: #687386;
+  background: #f5f6f8;
+  border: 1px solid #e7e9ee;
+}
+
+.today-card-empty-note {
+  padding: 10px 6px;
+  color: #727d8d;
+}
+
+.chair-item-row,
+.today-health-row {
+  padding: 8px 10px;
+  color: #475162;
+  background: #f8f9fb;
+  border-color: #e9ebef;
+}
+
+.chair-status-pill.status-available {
+  color: #18734c;
+  background: #eaf7f0;
+  border-color: #c8e9d7;
+}
+
+.chair-status-pill.status-busy,
+.chair-status-pill.status-in_service {
+  color: #28678a;
+  background: #edf6fb;
+  border-color: #d1e7f2;
+}
+
+.today-health-progress-bar {
+  background: linear-gradient(90deg, #d77650, #e9b46a, #58a77e);
+}
+
+.today-health-row.active {
+  background: #fff6f1;
+  border-color: #f1d9cd;
+}
+
+.today-schedule-card {
+  min-height: 360px;
+  padding: 18px 20px;
+}
+
+.today-schedule-title {
+  font-size: 1rem;
+}
+
+.today-btn-primary {
+  background: var(--primary-gradient, linear-gradient(135deg, #c35332, #ba472b));
+  box-shadow: 0 2px 8px rgba(var(--primary-rgb, 195, 83, 50), 0.18);
+}
+
+.today-btn-primary:hover {
+  box-shadow: 0 4px 12px rgba(var(--primary-rgb, 195, 83, 50), 0.24);
+}
+
+.today-btn-outline {
+  color: #3d4655;
+  background: #fff;
+  border-color: #dfe3e9;
+}
+
+.today-btn-outline:hover {
+  background: #f7f8fa;
+  border-color: #cbd1da;
+}
+
+.today-schedule-items-list {
+  gap: 7px;
+}
+
+.today-schedule-row {
+  padding: 10px 12px;
+  background: #fbfcfd;
+  border-color: #e8ebef;
+  border-radius: 9px;
+}
+
+.today-schedule-row:hover {
+  background: #f7f9fb;
+  border-color: #d9dfe6;
+  transform: none;
+}
+
+.today-schedule-time {
+  color: #9b482f;
+  background: #fff3ed;
+  border-color: #f1d4c7;
+}
+
+.today-list-item-badge {
+  color: #586273;
+  background: #f4f6f8;
+  border-color: #e3e6eb;
+}
+
+.today-list-item-badge.status-confirmed,
+.today-list-item-badge.status-completed {
+  color: #18734c;
+  background: #eaf7f0;
+  border-color: #c8e9d7;
+}
+
+.today-list-item-badge.status-in_service {
+  color: #28678a;
+  background: #edf6fb;
+  border-color: #d1e7f2;
+}
+
+.today-empty-icon-box {
+  color: #b45b3c;
+  background: #fff3ed;
+  border-color: #f1d4c7;
+}
+
+.today-bottom-card {
+  padding: 18px 20px;
+  gap: 12px;
+}
+
+.tx-filter-tabs {
+  background: #f5f6f8;
+  border-color: #e7e9ee;
+}
+
+.tx-tab {
+  color: #687386;
+}
+
+.tx-tab:hover {
+  color: #222833;
+}
+
+.tx-tab.active {
+  color: #222833;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(21, 21, 26, 0.1);
+}
+
+.tx-tab.tab-inflow.active {
+  color: #18734c;
+  background: #eaf7f0;
+}
+
+.tx-tab.tab-outflow.active {
+  color: #a23e45;
+  background: #fff0f1;
+}
+
+.today-transactions-table-wrap {
+  border-color: #e8ebef;
+  background: #fff;
+}
+
+.today-transactions-table th {
+  color: #697386;
+  background: #f6f7f9;
+  border-color: #e8ebef;
+}
+
+.today-transactions-table td {
+  border-color: #eef0f3;
+}
+
+.tx-row:hover td {
+  background: #fafbfc;
+}
+
+.tx-time-cell,
+.tx-method-cell {
+  color: #566172;
+}
+
+.tx-type-tag.badge-inflow {
+  color: #18734c;
+  background: #eaf7f0;
+  border-color: #c8e9d7;
+}
+
+.tx-type-tag.badge-outflow {
+  color: #a23e45;
+  background: #fff0f1;
+  border-color: #f1d0d3;
+}
+
+@media (max-width: 960px) {
+  .today-main-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .today-sidebar-col {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+}
+
+@media (max-width: 640px) {
+  .today-page {
+    padding: 12px;
+    gap: 10px;
+  }
+
+  .today-top-banner,
+  .today-cashflow-banner,
+  .today-schedule-card,
+  .today-bottom-card {
+    padding: 14px;
+  }
+
+  .today-sidebar-col {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .cashflow-cards-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .today-top-metrics {
+    flex-direction: row;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .today-metric-box {
+    min-width: 0;
+    flex: 1;
+    align-items: flex-start;
+    padding: 0 8px 0 0;
+  }
+
+  .today-metric-value {
+    font-size: 1rem;
+  }
+
+  .today-schedule-row,
+  .today-schedule-row-left,
+  .schedule-row-right {
+    align-items: flex-start;
+  }
+
+  .today-schedule-row {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .today-schedule-row-left {
+    width: 100%;
+  }
+
+  .schedule-row-right {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
+
+/* Final palette: white surfaces with restrained gold accents. */
+.today-page {
+  background: #f7f7f5;
+  color: #292821;
+}
+
+.today-top-banner,
+.today-cashflow-banner,
+.today-card,
+.today-schedule-card,
+.today-bottom-card {
+  background: #fff;
+  border-color: #e8e4d9;
+  box-shadow: 0 2px 8px rgba(47, 41, 25, 0.045);
+}
+
+.today-greeting-title,
+.today-metric-value,
+.cashflow-header-title h3,
+.today-card-title,
+.today-schedule-title,
+.today-empty-title,
+.today-schedule-details h4,
+.today-bottom-title,
+.tx-title,
+.chair-name {
+  color: #292821;
+}
+
+.today-greeting-subtitle,
+.cashflow-header-title p,
+.today-metric-label,
+.card-desc,
+.chair-stylist,
+.today-schedule-details p,
+.today-empty-subtext,
+.tx-sub,
+.shift-cashier-tag,
+.card-sub-breakdown,
+.today-health-row {
+  color: #777368;
+}
+
+.cashflow-header-row,
+.today-schedule-header,
+.today-bottom-header,
+.today-metric-box,
+.card-sub-breakdown,
+.tx-row td,
+.today-transactions-table td {
+  border-color: #eeeae0;
+}
+
+.today-profile-badge,
+.pill-drawer,
+.today-schedule-time,
+.today-empty-icon-box {
+  color: #8a6a20;
+  background: #faf4e5;
+  border-color: #eadbb5;
+}
+
+.today-profile-badge {
+  color: #8a6a20;
+}
+
+.shift-pill.shift-open,
+.pill-inflow,
+.chair-status-pill.status-available,
+.today-list-item-badge.status-confirmed,
+.today-list-item-badge.status-completed,
+.tx-type-tag.badge-inflow {
+  color: #397354;
+  background: #edf5ef;
+  border-color: #d3e5d7;
+}
+
+.shift-pill.shift-closed,
+.pill-outflow,
+.tx-type-tag.badge-outflow {
+  color: #9b4e4d;
+  background: #fbefed;
+  border-color: #edd6d1;
+}
+
+.pill-net,
+.chair-status-pill.status-busy,
+.chair-status-pill.status-in_service,
+.today-list-item-badge.status-in_service {
+  color: #806522;
+  background: #faf4e5;
+  border-color: #eadbb5;
+}
+
+.text-emerald,
+.tx-amount-val.val-inflow {
+  color: #397354 !important;
+}
+
+.text-rose,
+.tx-amount-val.val-outflow {
+  color: #9b4e4d !important;
+}
+
+.text-sky,
+.schedule-price-tag,
+.text-orange {
+  color: #9a7629 !important;
+}
+
+.text-muted,
+.today-card-empty-note,
+.today-transactions-empty {
+  color: #898477 !important;
+}
+
+.cashflow-date-badge,
+.badge-count,
+.health-total-badge,
+.today-list-item-badge,
+.tx-filter-tabs {
+  color: #706b5e;
+  background: #f8f7f3;
+  border-color: #e9e5da;
+}
+
+.cashflow-card,
+.chair-item-row,
+.today-health-row,
+.today-schedule-row {
+  color: #514d43;
+  background: #fcfbf8;
+  border-color: #eeeae0;
+}
+
+.cashflow-card:hover,
+.chair-item-row:hover,
+.today-health-row:hover,
+.today-schedule-row:hover {
+  background: #faf8f1;
+  border-color: #e4d7b7;
+}
+
+.today-health-row.active {
+  background: #fbf6e9;
+  border-color: #eadbb5;
+}
+
+.today-btn-primary {
+  color: #fff;
+  background: linear-gradient(135deg, #b79443, #9f7b2e);
+  box-shadow: 0 2px 8px rgba(159, 123, 46, 0.2);
+}
+
+.today-btn-primary:hover {
+  background: linear-gradient(135deg, #a98738, #8e6c25);
+  box-shadow: 0 4px 12px rgba(159, 123, 46, 0.24);
+}
+
+.today-btn-outline {
+  color: #514d43;
+  background: #fff;
+  border-color: #e5dfd1;
+}
+
+.today-btn-outline:hover {
+  background: #faf8f1;
+  border-color: #d8c89f;
+}
+
+.tx-tab {
+  color: #777368;
+}
+
+.tx-tab:hover,
+.tx-tab.active {
+  color: #51421e;
+  background: #f1e8d1;
+}
+
+.tx-tab.tab-inflow.active {
+  color: #397354;
+  background: #edf5ef;
+}
+
+.tx-tab.tab-outflow.active {
+  color: #9b4e4d;
+  background: #fbefed;
+}
+
+.today-transactions-table-wrap {
+  border-color: #e8e4d9;
+  background: #fff;
+}
+
+.today-transactions-table th {
+  color: #716c60;
+  background: #f8f7f3;
+  border-color: #e8e4d9;
+}
+
+.tx-time-cell,
+.tx-method-cell {
+  color: #625e54;
+}
+
+.tx-row:hover td {
+  background: #fcfaf5;
+}

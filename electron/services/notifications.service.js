@@ -19,7 +19,7 @@ const NotificationsService = {
       });
 
       // إرسال فوري للنافذة الرئيسية المفتوحة (Real-Time IPC Push)
-      const windows = BrowserWindow.getAllWindows();
+      const windows = BrowserWindow?.getAllWindows ? BrowserWindow.getAllWindows() : [];
       for (const win of windows) {
         if (win && !win.isDestroyed()) {
           win.webContents.send('notification:received', notification);

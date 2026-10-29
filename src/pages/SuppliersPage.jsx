@@ -379,34 +379,34 @@ function SuppliersPage() {
       </div>
 
       {/* KPI Stats Cards */}
-      <div className="onyx-stats-row">
-        <div className="onyx-stat-card onyx-stat-blue onyx-hover-lift">
-          <div className="onyx-stat-icon">🏭</div>
-          <span className="onyx-stat-label">إجمالي الموردين والمصانع</span>
-          <span className="onyx-stat-value">{kpis.suppliersCount} مورد</span>
+      <div className="fox-stats-row">
+        <div className="fox-stat-card fox-stat-blue fox-hover-lift">
+          <div className="fox-stat-icon">🏭</div>
+          <span className="fox-stat-label">إجمالي الموردين والمصانع</span>
+          <span className="fox-stat-value">{kpis.suppliersCount} مورد</span>
         </div>
 
-        <div className="onyx-stat-card onyx-stat-purple onyx-hover-lift">
-          <div className="onyx-stat-icon">📦</div>
-          <span className="onyx-stat-label">إجمالي فواتير الشراء</span>
-          <span className="onyx-stat-value">{kpis.totalPurchased?.toLocaleString('ar-EG')} ج.م</span>
-          <span className="onyx-stat-growth growth-neutral">{kpis.totalInvoices} فاتورة مسجلة</span>
+        <div className="fox-stat-card fox-stat-purple fox-hover-lift">
+          <div className="fox-stat-icon">📦</div>
+          <span className="fox-stat-label">إجمالي فواتير الشراء</span>
+          <span className="fox-stat-value">{kpis.totalPurchased?.toLocaleString('ar-EG')} ج.م</span>
+          <span className="fox-stat-growth growth-neutral">{kpis.totalInvoices} فاتورة مسجلة</span>
         </div>
 
-        <div className="onyx-stat-card onyx-stat-green onyx-hover-lift">
-          <div className="onyx-stat-icon">💵</div>
-          <span className="onyx-stat-label">إجمالي المبالغ المسددة</span>
-          <span className="onyx-stat-value">{kpis.totalPaid?.toLocaleString('ar-EG')} ج.م</span>
+        <div className="fox-stat-card fox-stat-green fox-hover-lift">
+          <div className="fox-stat-icon">💵</div>
+          <span className="fox-stat-label">إجمالي المبالغ المسددة</span>
+          <span className="fox-stat-value">{kpis.totalPaid?.toLocaleString('ar-EG')} ج.م</span>
         </div>
 
-        <div className="onyx-stat-card onyx-stat-amber onyx-hover-lift">
-          <div className="onyx-stat-icon">⚠️</div>
-          <span className="onyx-stat-label">المستحقات والديون المتبقية للموردين</span>
-          <span className="onyx-stat-value" style={{ color: '#DC2626' }}>
+        <div className="fox-stat-card fox-stat-amber fox-hover-lift">
+          <div className="fox-stat-icon">⚠️</div>
+          <span className="fox-stat-label">المستحقات والديون المتبقية للموردين</span>
+          <span className="fox-stat-value" style={{ color: '#DC2626' }}>
             {kpis.totalRemaining?.toLocaleString('ar-EG')} ج.م
           </span>
           {kpis.unpaidCount > 0 && (
-            <span className="onyx-stat-growth growth-down">{kpis.unpaidCount} فاتورة غير مكتملة</span>
+            <span className="fox-stat-growth growth-down">{kpis.unpaidCount} فاتورة غير مكتملة</span>
           )}
         </div>
       </div>
@@ -503,7 +503,7 @@ function SuppliersPage() {
             filteredSuppliers.map((sup) => {
               const hasRemaining = sup.total_remaining > 0;
               return (
-                <div key={sup.id} className="supplier-card onyx-hover-lift">
+                <div key={sup.id} className="supplier-card fox-hover-lift">
                   <div className="supplier-card-header">
                     <div className="supplier-avatar-badge">
                       {sup.company ? '🏭' : '👤'}
@@ -1063,7 +1063,7 @@ function SuppliersPage() {
               <div className="product-modal-quick-stats" style={{ marginTop: '16px' }}>
                 <div className="quick-stat-box">
                   <span>إجمالي قيمة الفاتورة:</span>
-                  <span style={{ color: '#2E5BFF', fontSize: '18px' }}>
+                  <span style={{ color: '#F2600C', fontSize: '18px' }}>
                     {purchaseCalculatedTotal.toFixed(2)} ج.م
                   </span>
                 </div>
@@ -1103,21 +1103,20 @@ function SuppliersPage() {
           ========================================= */}
       {showPaymentModal && (
         <div className="modal-overlay" onClick={() => setShowPaymentModal(false)}>
-          <div className="modal-card" style={{ width: '480px' }} onClick={(e) => e.stopPropagation()}>
+          <div className="modal-card supplier-payment-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>💵 سداد دفعة للمورد</h3>
+              <h3>💵 سداد دفع المورد</h3>
               <button className="modal-close" onClick={() => setShowPaymentModal(false)}>
                 ×
               </button>
             </div>
 
-            <form onSubmit={handleSavePayment} className="profile-edit-form">
+            <form onSubmit={handleSavePayment} className="profile-edit-form supplier-payment-form">
               <div className="profile-field-group">
                 <label className="profile-label">المورد / المصنع *</label>
                 <select
                   required
-                  className="custom-date-input"
-                  style={{ width: '100%', height: '38px', background: '#fff' }}
+                  className="custom-date-input supplier-payment-select"
                   value={paymentForm.supplierId}
                   onChange={(e) => setPaymentForm({ ...paymentForm, supplierId: e.target.value })}
                 >
@@ -1139,7 +1138,7 @@ function SuppliersPage() {
                     step="any"
                     required
                     className="profile-input"
-                    style={{ fontSize: '18px', fontWeight: 800, color: '#16A34A' }}
+                    style={{ fontSize: '20px', fontWeight: 800, color: '#15803D' }}
                     placeholder="0.00"
                     value={paymentForm.amount}
                     onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })}
@@ -1150,8 +1149,7 @@ function SuppliersPage() {
               <div className="profile-field-group">
                 <label className="profile-label">طريقة السداد</label>
                 <select
-                  className="custom-date-input"
-                  style={{ width: '100%', height: '38px', background: '#fff' }}
+                  className="custom-date-input supplier-payment-select"
                   value={paymentForm.paymentMethod}
                   onChange={(e) => setPaymentForm({ ...paymentForm, paymentMethod: e.target.value })}
                 >
@@ -1323,7 +1321,7 @@ function SuppliersPage() {
           ========================================= */}
       {selectedInvoicePreview && (
         <div className="modal-overlay" onClick={() => setSelectedInvoicePreview(null)}>
-          <div className="modal-card" style={{ width: '560px' }} onClick={(e) => e.stopPropagation()}>
+          <div className="modal-card invoice-preview-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>
                 تفاصيل فاتورة شراء {selectedInvoicePreview.invoice_number ? `#${selectedInvoicePreview.invoice_number}` : `INV-${selectedInvoicePreview.id}`}
@@ -1333,44 +1331,64 @@ function SuppliersPage() {
               </button>
             </div>
 
-            <div className="modal-meta">
-              <span><strong>المورد:</strong> {selectedInvoicePreview.supplier_name}</span>
-              <span><strong>التاريخ:</strong> {new Date(selectedInvoicePreview.created_at).toLocaleDateString('ar-EG')}</span>
+            <div className="invoice-preview-meta">
+              <div>
+                <span>المورد</span>
+                <strong>{selectedInvoicePreview.supplier_name}</strong>
+              </div>
+              <div>
+                <span>تاريخ الفاتورة</span>
+                <strong>{new Date(selectedInvoicePreview.created_at).toLocaleDateString('ar-EG')}</strong>
+              </div>
             </div>
 
-            <table className="modal-items-table">
-              <thead>
-                <tr>
-                  <th>الصنف</th>
-                  <th>المقاس/اللون</th>
-                  <th>الكمية</th>
-                  <th>سعر الشراء</th>
-                  <th>الإجمالي</th>
-                </tr>
-              </thead>
-              <tbody>
-                {selectedInvoicePreview.items?.map((it, idx) => (
-                  <tr key={idx}>
-                    <td>{it.product_name}</td>
-                    <td>{it.size || ''} {it.color ? `· ${it.color}` : ''}</td>
-                    <td>{it.quantity}</td>
-                    <td>{it.purchase_price.toFixed(2)} ج.م</td>
-                    <td><strong>{(it.quantity * it.purchase_price).toFixed(2)} ج.م</strong></td>
+            <div className="invoice-preview-table-wrap">
+              <table className="modal-items-table invoice-preview-table">
+                <thead>
+                  <tr>
+                    <th>الصنف</th>
+                    <th>المقاس / اللون</th>
+                    <th>الكمية</th>
+                    <th>سعر الشراء</th>
+                    <th>الإجمالي</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-
-            <div className="modal-total-row">
-              <span>إجمالي الفاتورة:</span>
-              <span>{selectedInvoicePreview.total_amount.toFixed(2)} ج.م</span>
+                </thead>
+                <tbody>
+                  {selectedInvoicePreview.items?.length ? selectedInvoicePreview.items.map((it) => (
+                    <tr key={it.id}>
+                      <td className="invoice-preview-product">{it.product_name}</td>
+                      <td>{[it.size, it.color].filter(Boolean).join(' · ') || '—'}</td>
+                      <td>{it.quantity}</td>
+                      <td>{it.purchase_price.toFixed(2)} ج.م</td>
+                      <td><strong>{(it.quantity * it.purchase_price).toFixed(2)} ج.م</strong></td>
+                    </tr>
+                  )) : (
+                    <tr>
+                      <td colSpan="5" className="invoice-preview-empty">لا توجد أصناف مسجلة في هذه الفاتورة</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
-            <div className="modal-meta" style={{ marginTop: '6px' }}>
-              <span style={{ color: '#16A34A' }}><strong>المدفوع:</strong> {selectedInvoicePreview.paid_amount.toFixed(2)} ج.م</span>
-              <span style={{ color: '#DC2626' }}><strong>المتبقي (الآجل):</strong> {selectedInvoicePreview.remaining_amount.toFixed(2)} ج.م</span>
+
+            <div className="invoice-preview-summary">
+              <div className="invoice-preview-total">
+                <span>إجمالي الفاتورة</span>
+                <strong>{selectedInvoicePreview.total_amount.toFixed(2)} <small>ج.م</small></strong>
+              </div>
+              <div className="invoice-preview-balance">
+                <div className="invoice-preview-paid">
+                  <span>المبلغ المدفوع</span>
+                  <strong>{selectedInvoicePreview.paid_amount.toFixed(2)} <small>ج.م</small></strong>
+                </div>
+                <div className="invoice-preview-remaining">
+                  <span>المتبقي (الآجل)</span>
+                  <strong>{selectedInvoicePreview.remaining_amount.toFixed(2)} <small>ج.م</small></strong>
+                </div>
+              </div>
             </div>
 
-            <div className="profile-modal-actions">
+            <div className="profile-modal-actions invoice-preview-actions">
               <button className="profile-cancel-btn" onClick={() => setSelectedInvoicePreview(null)}>
                 إغلاق
               </button>
@@ -1391,4 +1409,3 @@ function SuppliersPage() {
 }
 
 export default SuppliersPage;
-

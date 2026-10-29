@@ -1,8 +1,9 @@
 import CouponInput from './CouponInput.jsx';
 import PaymentSection from './PaymentSection.jsx';
+import { CartBagIcon } from './icons/SectorIcons.jsx';
 
 function CartPanel({
-  cart,
+  cart = [],
   changeQuantity,
   removeFromCart,
   clearCart,
@@ -38,22 +39,29 @@ function CartPanel({
   activeSubscription = null,
   useSubscriptionCredit = false,
   setUseSubscriptionCredit,
+  sectorConfig,
+  onOpenScaleEdit,
 }) {
-  const totalItemsCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+  const totalItemsCount = cart.reduce((sum, item) => sum + (item.isScaleItem ? 1 : (item.quantity || 1)), 0);
+  const orderTitle = sectorConfig?.orderTerm || 'سلة المبيعات';
+  const unitTerm = sectorConfig?.unitTerm || 'قطع';
 
   return (
     <div className="pos-cart-panel">
       {/* Cart Header */}
       <div className="pos-cart-header">
         <div className="pos-cart-title-wrap">
-          <div className="pos-cart-icon">🛒</div>
+          <div className="pos-cart-icon" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <CartBagIcon size={20} />
+          </div>
           <div>
-            <h3 className="pos-cart-title">سلة المبيعات</h3>
+            <h3 className="pos-cart-title">{orderTitle}</h3>
             <span className="pos-cart-subtitle">
-              {totalItemsCount > 0 ? `${totalItemsCount} قطع مختارة` : 'فاتورة جديدة'}
+              {totalItemsCount > 0 ? `${totalItemsCount} ${unitTerm} مختارة` : 'طلب جديد'}
             </span>
           </div>
         </div>
+
 
         <div className="pos-cart-header-actions">
           {heldOrdersCount > 0 && (
@@ -154,13 +162,35 @@ function CartPanel({
         ) : (
           <div className="pos-cart-items-list">
             {cart.map((item) => (
-              <div key={item.variantId} className="pos-cart-item-card">
+              <div key={`${item.variantId}_${item.unitId || 'base'}`} className="pos-cart-item-card">
                 <div className="pos-cart-item-header">
-                  <span className="pos-item-title">{item.productName}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1, overflow: 'hidden' }}>
+                    {item.isScaleItem && (
+                      <span
+                        style={{
+                          background: '#DCFCE7',
+                          color: '#15803D',
+                          fontSize: '11px',
+                          padding: '2px 6px',
+                          borderRadius: '4px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                        }}
+                        onClick={() => onOpenScaleEdit?.(item)}
+                        title="تعديل الوزن يدوياً"
+                      >
+                        ⚖️ ميزان
+                      </span>
+                    )}
+                    <span className="pos-item-title" style={{ whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                      {item.productName}
+                    </span>
+                  </div>
                   <button
                     type="button"
                     className="pos-item-remove-btn"
-                    onClick={() => removeFromCart(item.variantId)}
+                    onClick={() => removeFromCart(item.variantId, item.unitId)}
                     title="حذف الصنف"
                   >
                     ×
@@ -172,8 +202,11 @@ function CartPanel({
                     {item.size ? `مقاس ${item.size}` : ''}
                     {item.size && item.color ? ' · ' : ''}
                     {item.color || ''}
+                    {item.unitName && !item.isScaleItem ? ` · ${item.unitName}` : ''}
                   </span>
-                  <span className="pos-item-unit-price">{item.unitPrice.toFixed(2)} ج.م / قطعة</span>
+                  <span className="pos-item-unit-price">
+                    {item.unitPrice.toFixed(2)} ج.م / {item.unitName || 'قطعة'}
+                  </span>
                 </div>
 
                 <div className="pos-cart-item-footer">
@@ -181,17 +214,30 @@ function CartPanel({
                     <button
                       type="button"
                       className="stepper-btn"
-                      onClick={() => changeQuantity(item.variantId, -1)}
+                      onClick={() => changeQuantity(item.variantId, -1, item.unitId)}
                       title="تقليل"
                     >
                       -
                     </button>
-                    <span className="stepper-qty">{item.quantity}</span>
+                    <span
+                      className="stepper-qty"
+                      style={{
+                        cursor: item.isScaleItem ? 'pointer' : 'default',
+                        minWidth: '54px',
+                        fontSize: item.isScaleItem ? '12px' : '14px',
+                        fontWeight: 700,
+                        color: item.isScaleItem ? '#047857' : 'inherit',
+                      }}
+                      onClick={() => item.isScaleItem && onOpenScaleEdit?.(item)}
+                      title={item.isScaleItem ? 'اضغط لتعديل الوزن يدوياً' : `الكمية: ${item.quantity}`}
+                    >
+                      {item.isScaleItem ? `${item.quantity} كجم` : item.quantity}
+                    </span>
                     <button
                       type="button"
                       className="stepper-btn"
-                      disabled={item.quantity >= item.maxStock}
-                      onClick={() => changeQuantity(item.variantId, 1)}
+                      disabled={item.maxStock && item.quantity >= item.maxStock}
+                      onClick={() => changeQuantity(item.variantId, 1, item.unitId)}
                       title="زيادة"
                     >
                       +

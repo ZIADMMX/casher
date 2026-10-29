@@ -23,6 +23,7 @@ function ReturnsPage() {
   const [products, setProducts] = useState([]);
   const [exchangeProductId, setExchangeProductId] = useState('');
   const [exchangeVariantId, setExchangeVariantId] = useState('');
+  const [exchangePaymentMethod, setExchangePaymentMethod] = useState('cash');
   const [message, setMessage] = useState(null);
 
   const [recentReturns, setRecentReturns] = useState([]);
@@ -110,6 +111,7 @@ function ReturnsPage() {
     setMode('return');
     setExchangeProductId('');
     setExchangeVariantId('');
+    setExchangePaymentMethod('cash');
     setMessage(null);
   }
 
@@ -133,6 +135,7 @@ function ReturnsPage() {
         reason,
         mode,
         exchangeVariantId: mode === 'exchange' && exchangeVariantId ? Number(exchangeVariantId) : null,
+        exchangePaymentMethod,
       });
 
       let text = `تم تنفيذ ${mode === 'exchange' ? 'الاستبدال' : 'الإرجاع'} بنجاح — مبلغ الاسترداد: ${Number(result.refundAmount || 0).toFixed(2)} ج.م`;
@@ -278,7 +281,7 @@ function ReturnsPage() {
                         {item.size || '-'} {item.color ? ` / ${item.color}` : ''}
                       </span>
                     </td>
-                    <td style={{ fontWeight: '700', color: '#2E5BFF' }}>
+                    <td style={{ fontWeight: '700', color: '#F2600C' }}>
                       {Number(item.unit_price || 0).toFixed(2)} ج.م
                     </td>
                     <td>{item.quantity}</td>
@@ -437,6 +440,23 @@ function ReturnsPage() {
                     </select>
                   </div>
                 </div>
+                {exchangeVariantId && (
+                  <div style={{ marginTop: '14px' }}>
+                    <label className="form-label">وسيلة تسوية فرق السعر (إن وجد)</label>
+                    <select
+                      className="form-input"
+                      value={exchangePaymentMethod}
+                      onChange={(e) => setExchangePaymentMethod(e.target.value)}
+                    >
+                      <option value="cash">نقدي من/إلى الدرج</option>
+                      <option value="card">بطاقة / فيزا</option>
+                      <option value="bank_transfer">تحويل بنكي</option>
+                    </select>
+                    <small style={{ color: '#64748B' }}>
+                      إذا كان هناك فرق سعر، ستُستخدم هذه الوسيلة لتسجيل تحصيله أو رده.
+                    </small>
+                  </div>
+                )}
               </div>
             )}
 
@@ -481,7 +501,7 @@ function ReturnsPage() {
               {recentReturns.map((r) => (
                 <tr key={r.id}>
                   <td>
-                    <strong style={{ color: '#2E5BFF' }}>#INV-{String(r.sale_id).padStart(4, '0')}</strong>
+                    <strong style={{ color: '#F2600C' }}>#INV-{String(r.sale_id).padStart(4, '0')}</strong>
                   </td>
                   <td>
                     <strong style={{ color: '#0F172A' }}>{r.productName}</strong>

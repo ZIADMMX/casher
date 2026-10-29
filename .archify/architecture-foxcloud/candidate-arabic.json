@@ -1,0 +1,224 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "معمارية نظام FoxCloud POS الذكي للكاشير",
+    "subtitle": "نظام هجين يدعم العمل دون إنترنت مع مزامنة سحابية وشبكة محلية",
+    "locale": "ar",
+    "output": "fox-preview.html",
+    "quality_profile": "showcase",
+    "multilang": {
+      "ar": {
+        "title": "معمارية نظام FoxCloud POS الذكي للكاشير",
+        "subtitle": "نظام هجين يدعم العمل دون إنترنت مع مزامنة سحابية وشبكة محلية",
+        "components": {
+          "cashier": { "label": "موظف الكاشير", "sublabel": "تشغيل نقطة البيع" },
+          "printer": { "label": "طابعة الفواتير", "sublabel": "طباعة حرارية باركود" },
+          "renderer": { "label": "واجهة المستخدم", "sublabel": "React + Vite UI" },
+          "preload": { "label": "جسر الأمان", "sublabel": "عزل Node.js و IPC" },
+          "mainproc": { "label": "إلكترون الأساسي", "sublabel": "دورة حياة النوافذ" },
+          "handlers": { "label": "معالجات IPC", "sublabel": "التحقق من الصلاحيات" },
+          "services": { "label": "خدمات النظام", "sublabel": "المبيعات والمخزن والوردية" },
+          "lanserver": { "label": "خادم الشبكة المحلية", "sublabel": "منفذ 5000 للأجهزة الفرعية" },
+          "repos": { "label": "مستودعات البيانات", "sublabel": "استعلامات وسجلات" },
+          "sqlite": { "label": "قاعدة SQLite", "sublabel": "تخزين محلي مع وضع WAL" },
+          "centralclient": { "label": "عميل المزامنة", "sublabel": "تزامن الفروع والسحابة" },
+          "loadbalancer": { "label": "موازن الأحمال", "sublabel": "خادم سحابي مركزي" },
+          "pgcluster": { "label": "قاعدة بوستجرس", "sublabel": "قاعدة السحابة المركزية" }
+        },
+        "edges": {
+          "cashier-to-ui": "عمليات البيع",
+          "ui-to-preload": "استدعاءات الواجهة",
+          "preload-to-handlers": "رسائل IPC آمنة",
+          "main-to-handlers": "تسجيل القنوات",
+          "handlers-to-services": "تنفيذ العمليات",
+          "lanserver-to-services": "طلبات الشبكة",
+          "services-to-repos": "إدارة السجلات",
+          "repos-to-sqlite": "معاملات SQL",
+          "services-to-sync": "مزامنة دورية",
+          "sync-to-lb": "اتصال سحابي",
+          "lb-to-pg": "تجميع الفروع"
+        },
+        "cards": [
+          {
+            "title": "واجهة نقطة البيع الحديثة",
+            "items": [
+              "واجهة مبنية بـ Vite و React سريعة الاستجابة",
+              "عزل تام لكود الواجهة عن صلاحيات نظام التشغيل",
+              "استدعاءات موثوقة ومحمية عبر جسر Preload"
+            ]
+          },
+          {
+            "title": "محرك المعالجة وقاعدة البيانات",
+            "items": [
+              "استخدام better-sqlite3 مع تقنية WAL للسرعة وحماية البيانات من الانقطاع",
+              "معالجات IPC مغلفة بحماية كاملة من الأخطاء safeHandle",
+              "خدمات شاملة للمبيعات وإغلاق الورديات والمخزون"
+            ]
+          },
+          {
+            "title": "الربط الشبكي والمزامنة السحابية",
+            "items": [
+              "خادم شبكة داخلية LAN مدمج لربط أجهزة كاشير إضافية في نفس المتجر",
+              "عميل مزامنة متطور يدعم العمل دون إنترنت مع رفع البيانات فور توفر الاتصال",
+              "معمارية هجينة تجمع بين سرعة التخزين المحلي وأمان السحابة المركزية"
+            ]
+          }
+        ]
+      },
+      "en": {
+        "title": "FoxCloud POS Smart Cashier Architecture",
+        "subtitle": "Hybrid system supporting offline-first with cloud sync and local LAN",
+        "components": {
+          "cashier": { "label": "Cashier & Staff", "sublabel": "POS Operator" },
+          "printer": { "label": "Thermal Printer", "sublabel": "ESC/POS Receipt & Barcode" },
+          "renderer": { "label": "React Frontend", "sublabel": "Vite + React UI" },
+          "preload": { "label": "Preload Bridge", "sublabel": "contextIsolation + IPC" },
+          "mainproc": { "label": "Electron Main", "sublabel": "Lifecycle & Window" },
+          "handlers": { "label": "IPC Handlers", "sublabel": "safeHandle & Auth" },
+          "services": { "label": "Core Services", "sublabel": "Sales, Stock, Cashier" },
+          "lanserver": { "label": "LAN REST Server", "sublabel": "Express :5000" },
+          "repos": { "label": "Repositories", "sublabel": "Data Access Layer" },
+          "sqlite": { "label": "SQLite Database", "sublabel": "better-sqlite3 + WAL" },
+          "centralclient": { "label": "Central Client Sync", "sublabel": "Cloud & Branch Sync" },
+          "loadbalancer": { "label": "Load Balancer", "sublabel": "Cluster Proxy :8080" },
+          "pgcluster": { "label": "Central Postgres", "sublabel": "Central HQ Database" }
+        },
+        "edges": {
+          "cashier-to-ui": "Sales Actions",
+          "ui-to-preload": "window.electronAPI",
+          "preload-to-handlers": "IPC Invoke",
+          "main-to-handlers": "Registers Handlers",
+          "handlers-to-services": "Business Logic",
+          "lanserver-to-services": "LAN Terminals",
+          "services-to-repos": "Data Operations",
+          "repos-to-sqlite": "SQL Transactions",
+          "services-to-sync": "Periodic Sync",
+          "sync-to-lb": "REST API Sync",
+          "lb-to-pg": "Pooled SQL"
+        },
+        "cards": [
+          {
+            "title": "Workstation Frontend",
+            "items": [
+              "Vite + React modern cashier interface",
+              "contextIsolation prevents direct Node.js access from UI",
+              "Preload exposed APIs typed under window.electronAPI"
+            ]
+          },
+          {
+            "title": "Electron Backend & Data Layer",
+            "items": [
+              "Better-sqlite3 with Write-Ahead Logging (WAL) for crash resiliency",
+              "Robust IPC handlers with safeHandle error wrapping",
+              "Modular services covering Sales, Inventory, and Cashier shifts"
+            ]
+          },
+          {
+            "title": "Networking & Multi-Terminal Sync",
+            "items": [
+              "Embedded Express LAN server on port 5000 for secondary registers",
+              "Central client sync with conflict resolution for multi-branch clustering",
+              "Dual database model: local SQLite for offline speed, PostgreSQL for centralized reporting"
+            ]
+          }
+        ]
+      },
+      "es": {
+        "title": "Arquitectura del Sistema FoxCloud POS",
+        "subtitle": "Sistema híbrido con soporte offline, sincronización en la nube y LAN local",
+        "components": {
+          "cashier": { "label": "Cajero y Personal", "sublabel": "Operador de POS" },
+          "printer": { "label": "Impresora Térmica", "sublabel": "Recibos ESC/POS y Código de Barras" },
+          "renderer": { "label": "Interfaz React", "sublabel": "Vite + React UI" },
+          "preload": { "label": "Puente Preload", "sublabel": "contextIsolation e IPC seguro" },
+          "mainproc": { "label": "Proceso Electron Main", "sublabel": "Ciclo de vida y ventanas" },
+          "handlers": { "label": "Controladores IPC", "sublabel": "Manejo seguro y autenticación" },
+          "services": { "label": "Servicios Centrales", "sublabel": "Ventas, inventario y turnos" },
+          "lanserver": { "label": "Servidor REST LAN", "sublabel": "Express en puerto 5000" },
+          "repos": { "label": "Capa Repositorios", "sublabel": "Capa de acceso a datos" },
+          "sqlite": { "label": "Base de Datos SQLite", "sublabel": "better-sqlite3 con modo WAL" },
+          "centralclient": { "label": "Cliente de Sincronización", "sublabel": "Sincronización con la nube" },
+          "loadbalancer": { "label": "Balanceador de Carga", "sublabel": "Proxy de clúster :8080" },
+          "pgcluster": { "label": "PostgreSQL Central", "sublabel": "Base de datos central HQ" }
+        },
+        "edges": {
+          "cashier-to-ui": "Operaciones de venta",
+          "ui-to-preload": "Llamadas de interfaz",
+          "preload-to-handlers": "Invocación IPC segura",
+          "main-to-handlers": "Registra controladores",
+          "handlers-to-services": "Lógica de negocio",
+          "lanserver-to-services": "Terminales LAN",
+          "services-to-repos": "Operaciones de datos",
+          "repos-to-sqlite": "Transacciones SQL",
+          "services-to-sync": "Sincronización periódica",
+          "sync-to-lb": "Sincronización API REST",
+          "lb-to-pg": "Conexión SQL en clúster"
+        },
+        "cards": [
+          {
+            "title": "Interfaz Moderna de POS",
+            "items": [
+              "Interfaz moderna de cajero basada en Vite y React",
+              "Aislamiento contextIsolation para proteger el sistema",
+              "APIs protegidas y expuestas mediante el puente Preload"
+            ]
+          },
+          {
+            "title": "Motor de Procesamiento y Base de Datos",
+            "items": [
+              "Better-sqlite3 con Write-Ahead Logging (WAL) para máxima resiliencia",
+              "Controladores IPC con gestión segura de errores safeHandle",
+              "Servicios modulares para ventas, inventario y turnos de caja"
+            ]
+          },
+          {
+            "title": "Red Local y Sincronización en la Nube",
+            "items": [
+              "Servidor LAN Express integrado en puerto 5000 para cajas secundarias",
+              "Sincronización central con resolución de conflictos entre sucursales",
+              "Modelo híbrido: SQLite local sin conexión y PostgreSQL centralizado"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "components": [
+    { "id": "cashier", "type": "external", "label": "موظف الكاشير", "sublabel": "تشغيل نقطة البيع", "pos": [40, 260], "size": [130, 60] },
+    { "id": "printer", "type": "external", "label": "طابعة الفواتير", "sublabel": "طباعة حرارية باركود", "pos": [40, 400], "size": [130, 60] },
+    { "id": "renderer", "type": "frontend", "label": "واجهة المستخدم", "sublabel": "React + Vite UI", "tag": "src/", "pos": [220, 260], "size": [140, 60] },
+    { "id": "preload", "type": "security", "label": "جسر الأمان", "sublabel": "عزل Node.js و IPC", "tag": "preload.js", "pos": [220, 400], "size": [140, 60] },
+    { "id": "mainproc", "type": "backend", "label": "إلكترون الأساسي", "sublabel": "دورة حياة النوافذ", "tag": "main.js", "pos": [420, 120], "size": [140, 60] },
+    { "id": "handlers", "type": "backend", "label": "معالجات IPC", "sublabel": "التحقق من الصلاحيات", "tag": "handlers/*", "pos": [420, 260], "size": [140, 60] },
+    { "id": "services", "type": "backend", "label": "خدمات النظام", "sublabel": "المبيعات والمخزن والوردية", "tag": "services/*", "pos": [620, 260], "size": [140, 60] },
+    { "id": "lanserver", "type": "backend", "label": "خادم الشبكة المحلية", "sublabel": "منفذ 5000 للأجهزة الفرعية", "tag": "Express", "pos": [620, 120], "size": [140, 60] },
+    { "id": "repos", "type": "backend", "label": "مستودعات البيانات", "sublabel": "استعلامات وسجلات", "tag": "repositories/*", "pos": [620, 400], "size": [140, 60] },
+    { "id": "sqlite", "type": "database", "label": "قاعدة SQLite", "sublabel": "تخزين محلي مع وضع WAL", "tag": "shop.db", "pos": [820, 400], "size": [140, 60] },
+    { "id": "centralclient", "type": "backend", "label": "عميل المزامنة", "sublabel": "تزامن الفروع والسحابة", "tag": "Sync", "pos": [820, 260], "size": [140, 60] },
+    { "id": "loadbalancer", "type": "cloud", "label": "موازن الأحمال", "sublabel": "خادم سحابي مركزي", "tag": "Port 8080", "pos": [1040, 180], "size": [140, 60] },
+    { "id": "pgcluster", "type": "database", "label": "قاعدة بوستجرس", "sublabel": "قاعدة السحابة المركزية", "tag": "PostgreSQL", "pos": [1040, 320], "size": [140, 60] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "جهاز الكاشير المحلي (بيئة إلكترون المكتبية)", "wraps": ["renderer", "preload", "mainproc", "handlers", "services", "lanserver", "repos", "sqlite", "centralclient"] },
+    { "kind": "region", "label": "الخادم المركزي والسحابة", "wraps": ["loadbalancer", "pgcluster"] }
+  ],
+  "connections": [
+    { "id": "cashier-to-ui", "from": "cashier", "to": "renderer", "label": "عمليات البيع", "variant": "emphasis" },
+    { "id": "ui-to-preload", "from": "renderer", "to": "preload", "label": "استدعاءات الواجهة" },
+    { "id": "preload-to-handlers", "from": "preload", "to": "handlers", "label": "رسائل IPC آمنة" },
+    { "id": "main-to-handlers", "from": "mainproc", "to": "handlers", "label": "تسجيل القنوات", "variant": "dashed" },
+    { "id": "handlers-to-services", "from": "handlers", "to": "services", "label": "تنفيذ العمليات" },
+    { "id": "lanserver-to-services", "from": "lanserver", "to": "services", "label": "طلبات الشبكة", "variant": "dashed" },
+    { "id": "services-to-repos", "from": "services", "to": "repos", "label": "إدارة السجلات" },
+    { "id": "repos-to-sqlite", "from": "repos", "to": "sqlite", "label": "معاملات SQL", "variant": "emphasis" },
+    { "id": "services-to-sync", "from": "services", "to": "centralclient", "label": "مزامنة دورية" },
+    { "id": "sync-to-lb", "from": "centralclient", "to": "loadbalancer", "label": "اتصال سحابي" },
+    { "id": "lb-to-pg", "from": "loadbalancer", "to": "pgcluster", "label": "تجميع الفروع" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "واجهة نقطة البيع الحديثة", "items": ["واجهة مبنية بـ Vite و React سريعة الاستجابة", "عزل تام لكود الواجهة عن صلاحيات نظام التشغيل", "استدعاءات موثوقة ومحمية عبر جسر Preload"] },
+    { "dot": "emerald", "title": "محرك المعالجة وقاعدة البيانات", "items": ["استخدام better-sqlite3 مع تقنية WAL للسرعة وحماية البيانات من الانقطاع", "معالجات IPC مغلفة بحماية كاملة من الأخطاء safeHandle", "خدمات شاملة للمبيعات وإغلاق الورديات والمخزون"] },
+    { "dot": "violet", "title": "الربط الشبكي والمزامنة السحابية", "items": ["خادم شبكة داخلية LAN مدمج لربط أجهزة كاشير إضافية في نفس المتجر", "عميل مزامنة متطور يدعم العمل دون إنترنت مع رفع البيانات فور توفر الاتصال", "معمارية هجينة تجمع بين سرعة التخزين المحلي وأمان السحابة المركزية"] }
+  ]
+}

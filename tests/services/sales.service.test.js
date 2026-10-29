@@ -10,6 +10,10 @@ jest.mock('../../electron/repositories/sales.repository', () => ({
   createSaleItem: jest.fn(),
   getById: jest.fn(),
 }));
+jest.mock('../../electron/repositories/orders.repository', () => ({
+  getOrderForCheckout: jest.fn(),
+  completeOrderWithSale: jest.fn(),
+}));
 jest.mock('../../electron/repositories/productVariants.repository', () => ({
   getById: jest.fn(),
   decreaseStock: jest.fn(),
@@ -17,18 +21,35 @@ jest.mock('../../electron/repositories/productVariants.repository', () => ({
 jest.mock('../../electron/repositories/shifts.repository', () => ({
   getCurrentOpenShift: jest.fn(() => null),
 }));
+jest.mock('../../electron/repositories/inventory.repository', () => ({
+  getDefaultWarehouseId: jest.fn(() => 2),
+  getWarehouseBranchId: jest.fn(() => 1),
+  getStockQuantity: jest.fn((warehouseId, variantId) => (variantId === 1 ? 10 : 1)),
+  applyStockChange: jest.fn(),
+}));
 jest.mock('../../electron/services/notifications.service', () => ({ notify: jest.fn() }));
+jest.mock('../../electron/services/bundlePromotions.service', () => ({
+  getBestBundlePromotion: jest.fn(() => null),
+}));
 jest.mock('../../electron/services/auth.service', () => ({
   getCurrentSession: jest.fn(() => ({ id: 7, username: 'cashier' })),
 }));
 
 const salesRepo = require('../../electron/repositories/sales.repository');
+const ordersRepo = require('../../electron/repositories/orders.repository');
 const variantsRepo = require('../../electron/repositories/productVariants.repository');
+const shiftsRepo = require('../../electron/repositories/shifts.repository');
+const inventoryRepo = require('../../electron/repositories/inventory.repository');
+const authService = require('../../electron/services/auth.service');
+const bundlePromotionsService = require('../../electron/services/bundlePromotions.service');
 const { createSale } = require('../../electron/services/sales.service');
 
 describe('sales.service.createSale', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    bundlePromotionsService.getBestBundlePromotion.mockReturnValue(null);
+    authService.getCurrentSession.mockReturnValue({ id: 7, username: 'cashier', role: 'cashier' });
+    shiftsRepo.getCurrentOpenShift.mockReturnValue({ id: 1, status: 'open' });
     variantsRepo.getById.mockImplementation((id) => ({
       id,
       selling_price: id === 1 ? 19.99 : 10,
@@ -37,6 +58,14 @@ describe('sales.service.createSale', () => {
       color: 'black',
       low_stock_threshold: 0,
     }));
+  });
+
+  test('rejects sale when there is no active open shift', () => {
+    shiftsRepo.getCurrentOpenShift.mockReturnValue(null);
+    expect(() => createSale({
+      items: [{ variantId: 1, quantity: 1 }],
+      paymentMethod: 'cash',
+    })).toThrow('لا يمكن إتمام عملية البيع لعدم وجود وردية مفتوحة');
   });
 
   test('calculates decimal totals and applies the discount exactly to cents', () => {
@@ -51,7 +80,115 @@ describe('sales.service.createSale', () => {
       totalAmount: 59.87,
       discount: 0.1,
     }));
-    expect(variantsRepo.decreaseStock).toHaveBeenCalledWith(1, 3);
+    expect(inventoryRepo.applyStockChange).toHaveBeenCalledWith(expect.objectContaining({
+      warehouseId: 2,
+      variantId: 1,
+      delta: -3,
+      movementType: 'sale',
+    }));
+  });
+
+  test('sells services without checking or deducting inventory', () => {
+    variantsRepo.getById.mockReturnValue({
+      id: 2,
+      selling_price: 10,
+      stock_quantity: 0,
+      is_service: 1,
+      size: null,
+      color: null,
+      low_stock_threshold: 0,
+    });
+
+    const result = createSale({
+      items: [{ variantId: 2, quantity: 1 }],
+      paymentMethod: 'cash',
+    });
+
+    expect(result).toEqual({ saleId: 42, totalAmount: 10 });
+    expect(inventoryRepo.getStockQuantity).not.toHaveBeenCalled();
+    expect(inventoryRepo.applyStockChange).not.toHaveBeenCalled();
+  });
+
+  test('links a ready repair order to its sale in the checkout transaction', () => {
+    ordersRepo.getOrderForCheckout.mockReturnValue({
+      id: 23,
+      order_type: 'maintenance',
+      status: 'ready',
+      sale_id: null,
+      customer_id: 4,
+      customer_name: 'عميل الورشة',
+      customer_phone: '01000000000',
+    });
+
+    const result = createSale({
+      items: [{ variantId: 1, quantity: 1 }],
+      paymentMethod: 'cash',
+      orderId: 23,
+    });
+
+    expect(result.saleId).toBe(42);
+    expect(ordersRepo.completeOrderWithSale).toHaveBeenCalledWith(23, 42, 19.99, 7);
+    expect(salesRepo.createSale).toHaveBeenCalledWith(expect.objectContaining({
+      customerId: 4,
+      customerName: 'عميل الورشة',
+      customerPhone: '01000000000',
+    }));
+  });
+
+  test('refuses to invoice a repair order that is not ready', () => {
+    ordersRepo.getOrderForCheckout.mockReturnValue({
+      id: 23,
+      order_type: 'maintenance',
+      status: 'in_progress',
+      sale_id: null,
+    });
+
+    expect(() => createSale({
+      items: [{ variantId: 1, quantity: 1 }],
+      paymentMethod: 'cash',
+      orderId: 23,
+    })).toThrow('يجب أن يكون أمر الشغل جاهزًا وغير مفوتر');
+    expect(salesRepo.createSale).not.toHaveBeenCalled();
+  });
+
+  test('applies an eligible configured bundle offer without treating it as a cashier-entered discount', () => {
+    bundlePromotionsService.getBestBundlePromotion.mockReturnValue({
+      id: 'free-item',
+      name: 'اشتر قطعتين والثالثة مجانًا',
+      discount: 19.99,
+    });
+
+    const result = createSale({
+      items: [{ variantId: 1, quantity: 3 }],
+      discount: 0,
+      paymentMethod: 'cash',
+    });
+
+    expect(result.totalAmount).toBe(39.98);
+    expect(salesRepo.createSale).toHaveBeenCalledWith(expect.objectContaining({
+      totalAmount: 39.98,
+      discount: 19.99,
+    }));
+  });
+
+  test('does not stack a bundle offer on top of a larger manual discount', () => {
+    bundlePromotionsService.getBestBundlePromotion.mockReturnValue({
+      id: 'free-item',
+      name: 'اشتر قطعتين والثالثة مجانًا',
+      discount: 10,
+    });
+
+    const result = createSale({
+      items: [{ variantId: 1, quantity: 3 }],
+      discount: 15,
+      paymentMethod: 'cash',
+    });
+
+    expect(result.totalAmount).toBe(44.97);
+    expect(salesRepo.createSale).toHaveBeenCalledWith(expect.objectContaining({
+      totalAmount: 44.97,
+      discount: 15,
+    }));
   });
 
   test('rejects a sale that exceeds available stock before writing anything', () => {
@@ -61,7 +198,22 @@ describe('sales.service.createSale', () => {
     })).toThrow('الكمية المتاحة غير كافية');
 
     expect(salesRepo.createSale).not.toHaveBeenCalled();
-    expect(variantsRepo.decreaseStock).not.toHaveBeenCalled();
+    expect(inventoryRepo.applyStockChange).not.toHaveBeenCalled();
+  });
+
+  test('requires an assigned central warehouse before accepting a remote sale', () => {
+    authService.getCurrentSession.mockReturnValue({
+      id: 7,
+      username: 'cashier',
+      role: 'cashier',
+      centralRequest: true,
+      warehouseId: null,
+    });
+    expect(() => createSale({
+      items: [{ variantId: 1, quantity: 1 }],
+      paymentMethod: 'cash',
+    })).toThrow('يجب تخصيص مخزن هذا الفرع');
+    expect(salesRepo.createSale).not.toHaveBeenCalled();
   });
 
   test('never allows a discount to exceed subtotal and enforces cashier discount cap', () => {
@@ -81,16 +233,29 @@ describe('sales.service.createSale', () => {
     expect(result.totalAmount).toBe(14.99);
   });
 
-  test('rejects fractional or negative quantities and negative discounts', () => {
+  test('rejects negative or zero quantities and negative discounts', () => {
     expect(() => createSale({
-      items: [{ variantId: 1, quantity: 0.5 }],
+      items: [{ variantId: 1, quantity: 0 }],
       paymentMethod: 'cash',
-    })).toThrow('رقمًا صحيحًا أكبر من الصفر');
+    })).toThrow('أكبر من الصفر');
+
+    expect(() => createSale({
+      items: [{ variantId: 1, quantity: -1 }],
+      paymentMethod: 'cash',
+    })).toThrow('أكبر من الصفر');
 
     expect(() => createSale({
       items: [{ variantId: 1, quantity: 1 }],
       discount: -1,
       paymentMethod: 'cash',
     })).toThrow('أكبر من أو يساوي الصفر');
+  });
+
+  test('supports fractional scale quantities for grocery sales', () => {
+    const result = createSale({
+      items: [{ variantId: 1, quantity: 0.5 }],
+      paymentMethod: 'cash',
+    });
+    expect(result.totalAmount).toBe(9.99);
   });
 });

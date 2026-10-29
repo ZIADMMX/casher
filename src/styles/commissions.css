@@ -1,0 +1,553 @@
+.commissions-page {
+  min-height: 100%;
+  padding: 22px 24px 28px;
+  color: #292821;
+  background: #f7f7f5;
+  direction: rtl;
+}
+
+.commissions-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 16px;
+}
+
+.commissions-header h1 {
+  margin: 0;
+  color: #292821;
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.commissions-header p {
+  margin: 5px 0 0;
+  color: #777368;
+  font-size: 13px;
+}
+
+.commissions-primary-action,
+.commission-payout-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 8px 15px;
+  border: 1px solid #a98738;
+  border-radius: 8px;
+  color: #fff;
+  background: linear-gradient(135deg, #b99a50, #9f7b2e);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color .15s ease, box-shadow .15s ease, transform .15s ease;
+}
+
+.commissions-primary-action:hover,
+.commission-payout-button:hover {
+  background: #8e6c25;
+  box-shadow: 0 3px 10px rgba(159, 123, 46, .2);
+  transform: translateY(-1px);
+}
+
+.commission-workflow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 16px;
+  padding: 13px 16px;
+  border: 1px solid #e8e1d0;
+  border-radius: 10px;
+  background: #fffdf8;
+}
+
+.commission-workflow-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 0 0 auto;
+  color: #827b6c;
+  font-size: 11px;
+}
+
+.commission-workflow-mark {
+  color: #74591e;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.commission-workflow ol {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 20px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.commission-workflow li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 145px;
+}
+
+.commission-workflow li > b {
+  display: grid;
+  width: 27px;
+  height: 27px;
+  flex: 0 0 27px;
+  place-items: center;
+  border-radius: 50%;
+  color: #806522;
+  background: #f4ecd8;
+  font-size: 12px;
+}
+
+.commission-workflow li > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.commission-workflow li strong {
+  color: #3a382f;
+  font-size: 12px;
+}
+
+.commission-workflow li small {
+  color: #817b6e;
+  font-size: 10px;
+}
+
+.commissions-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.commission-kpi-card {
+  min-height: 78px;
+  padding: 13px 16px;
+  border: 1px solid #e8e4d9;
+  border-right: 3px solid #c1a15a;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 2px 7px rgba(47, 41, 25, .035);
+}
+
+.commission-kpi-card.pending { border-right-color: #b79443; }
+.commission-kpi-card.paid { border-right-color: #6b9b79; }
+.commission-kpi-card.rules { border-right-color: #b79443; }
+
+.commission-kpi-label {
+  color: #777368;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.commission-kpi-value {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-top: 5px;
+  color: #292821;
+  font-size: 21px;
+  font-weight: 800;
+}
+
+.commission-kpi-value small {
+  color: #8b8371;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.commissions-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid #e8e4d9;
+}
+
+.commissions-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 15px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: #777368;
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.commissions-tab:hover { color: #74591e; background: #fbf9f3; }
+.commissions-tab.active { color: #806522; border-bottom-color: #b79443; }
+
+.commissions-tab-count {
+  min-width: 20px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  color: #806522;
+  background: #f4ecd8;
+  font-size: 10px;
+  text-align: center;
+}
+
+.commissions-loading {
+  padding: 42px 16px;
+  color: #777368;
+  text-align: center;
+}
+
+.commissions-content-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.commissions-section-card,
+.commission-rule-card {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid #e8e4d9;
+  border-radius: 11px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(47, 41, 25, .035);
+}
+
+.commissions-section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.commissions-section-heading h3 {
+  margin: 0;
+  color: #292821;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.commissions-section-heading p {
+  margin: 4px 0 0;
+  color: #827d70;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.commissions-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: right;
+  font-size: 12px;
+}
+
+.commissions-table th {
+  padding: 10px 12px;
+  border-bottom: 1px solid #e8e4d9;
+  color: #6e685b;
+  background: #f8f7f3;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.commissions-table td {
+  padding: 11px 12px;
+  border-bottom: 1px solid #f0ede5;
+  color: #4e4a40;
+  vertical-align: middle;
+}
+
+.commissions-table tbody tr:last-child td { border-bottom: 0; }
+.commissions-table tbody tr:hover td { background: #fdfbf6; }
+.commission-employee-name { color: #302e27 !important; font-weight: 700; }
+.commission-pending-value { color: #88691f !important; font-weight: 800; }
+.commission-paid-value { color: #397354 !important; font-weight: 700; }
+.commissions-empty-cell { padding: 28px 12px !important; color: #827d70 !important; text-align: center; }
+
+.commission-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border: 1px solid transparent;
+  border-radius: 20px;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.commission-status.paid { color: #397354; background: #edf5ef; border-color: #d3e5d7; }
+.commission-status.pending { color: #806522; background: #faf4e5; border-color: #eadbb5; }
+.commission-status.cancelled { color: #9b4e4d; background: #fbefed; border-color: #edd6d1; }
+
+.commission-payout-button { min-height: 31px; padding: 5px 10px; font-size: 11px; }
+
+.commissions-rules-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.commission-rule-card { display: flex; flex-direction: column; gap: 12px; }
+.commission-rule-card.inactive { background: #faf9f6; opacity: .8; }
+
+.commission-rule-heading,
+.commission-rule-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.commission-rule-title { color: #302e27; font-size: 14px; font-weight: 800; }
+
+.commission-rule-rate {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  color: #8a6a20;
+  font-size: 24px;
+  font-weight: 800;
+}
+
+.commission-rule-rate small { color: #817b6e; font-size: 11px; font-weight: 500; }
+
+.commission-rule-details {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: #5e594d;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.commission-rule-details > div { display: flex; flex-direction: column; gap: 2px; }
+.commission-rule-details > div > span,
+.commission-rule-details p { color: #827d70; font-size: 10px; }
+.commission-rule-details p { margin: 0; }
+
+.commission-rule-actions {
+  justify-content: flex-start;
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid #eeeae0;
+}
+
+.commission-secondary-button,
+.commission-delete-button {
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 1px solid #e5dfd1;
+  border-radius: 7px;
+  color: #625e54;
+  background: #fff;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.commission-secondary-button:hover { color: #74591e; background: #faf8f1; border-color: #d8c89f; }
+.commission-delete-button { margin-right: auto; color: #9b4e4d; border-color: #edd6d1; background: #fbf5f3; }
+
+.commissions-empty-state {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  padding: 38px 20px;
+  border: 1px dashed #d8c89f;
+  border-radius: 11px;
+  background: #fffdf8;
+  text-align: center;
+}
+
+.commissions-empty-icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 12px;
+  color: #806522;
+  background: #f4ecd8;
+  font-size: 23px;
+}
+
+.commissions-empty-state h3 { margin: 0; color: #302e27; font-size: 14px; }
+.commissions-empty-state p { max-width: 420px; margin: 0 0 5px; color: #777368; font-size: 12px; line-height: 1.7; }
+
+.commission-modal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+  min-width: min(480px, 78vw);
+  color: #37342b;
+}
+
+.commission-modal-form > div { min-width: 0; }
+.commission-modal-form label { display: block; margin-bottom: 5px; color: #625e54; font-size: 12px; font-weight: 700; }
+.commission-modal-form input,
+.commission-modal-form select,
+.commission-modal-form textarea {
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid #e3dfd3;
+  border-radius: 7px;
+  color: #302e27;
+  background: #fff;
+  font: inherit;
+  font-size: 12px;
+  outline: none;
+}
+
+.commission-modal-form input:focus,
+.commission-modal-form select:focus,
+.commission-modal-form textarea:focus {
+  border-color: #b79443;
+  box-shadow: 0 0 0 3px rgba(183, 148, 67, .13);
+}
+
+.commission-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.commission-payout-summary { padding: 12px; border: 1px solid #eadbb5; border-radius: 8px; color: #625e54; background: #fffaf0; font-size: 12px; }
+.commission-payout-summary strong { color: #806522; }
+
+@media (max-width: 900px) {
+  .commissions-page { padding: 16px; }
+  .commission-workflow { align-items: flex-start; flex-direction: column; }
+  .commission-workflow ol { width: 100%; justify-content: space-between; gap: 10px; }
+  .commission-workflow li { min-width: 0; }
+  .commissions-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 620px) {
+  .commissions-page { padding: 12px; }
+  .commissions-header { align-items: stretch; flex-direction: column; }
+  .commissions-header h1 { font-size: 19px; }
+  .commissions-primary-action { width: 100%; }
+  .commission-workflow ol { align-items: flex-start; flex-direction: column; }
+  .commission-workflow li { min-width: 0; }
+  .commissions-kpis { gap: 8px; }
+  .commission-kpi-card { min-height: 70px; padding: 10px; }
+  .commission-kpi-value { font-size: 18px; }
+  .commissions-tabs { overflow-x: auto; }
+  .commissions-tab { flex: 0 0 auto; padding: 9px 10px; font-size: 11px; }
+  .commissions-section-card { padding: 12px; }
+  .commissions-table { min-width: 690px; }
+  .commissions-section-card { overflow-x: auto; }
+  .commission-form-grid { grid-template-columns: minmax(0, 1fr); }
+  .commission-modal-form { min-width: 0; }
+}
+
+/* Override legacy inline styles still present in the commissions view. */
+.commissions-page div[style*="background"] {
+  background: #fff !important;
+  border-color: #e8e4d9 !important;
+  color: #4e4a40 !important;
+  box-shadow: 0 2px 8px rgba(47, 41, 25, .035);
+}
+
+.commissions-page div[style*="background"] > div,
+.commissions-page div[style*="background"] h3 {
+  color: #302e27 !important;
+}
+
+.commissions-page [style*="color"]:not(button) {
+  color: #514d43 !important;
+}
+
+.commissions-page div[style*="background"] div[style*="color"] {
+  color: #777368 !important;
+}
+
+.commissions-page button[style*="background"] {
+  color: #fff !important;
+  background: #a98738 !important;
+  border: 1px solid #a98738 !important;
+}
+
+.commissions-page button[style*="background"]:hover {
+  background: #8e6c25 !important;
+}
+
+.commissions-page button[style*="#EF4444"] {
+  color: #9b4e4d !important;
+  background: #fbefed !important;
+  border-color: #edd6d1 !important;
+}
+
+.commissions-page tr[style*="background"] {
+  color: #6e685b !important;
+  background: #f8f7f3 !important;
+  border-color: #e8e4d9 !important;
+}
+
+.commissions-page tr[style*="border-bottom"] {
+  border-color: #f0ede5 !important;
+}
+
+.commissions-page td[style],
+.commissions-page th[style] {
+  border-color: #f0ede5 !important;
+}
+
+.commissions-page td[style] {
+  color: #514d43 !important;
+}
+
+.commissions-page td[style*="#F8FAFC"],
+.commissions-page td[style*="#94A3B8"],
+.commissions-page td[style*="#64748B"] {
+  color: #777368 !important;
+}
+
+.commissions-page td[style*="#F59E0B"] {
+  color: #806522 !important;
+}
+
+.commissions-page td[style*="#10B981"] {
+  color: #397354 !important;
+}
+
+.commissions-page span[style*="background"] {
+  color: #806522 !important;
+  background: #faf4e5 !important;
+  border-color: #eadbb5 !important;
+}
+
+.commissions-page span[style*="#064E3B"] {
+  color: #397354 !important;
+  background: #edf5ef !important;
+  border-color: #d3e5d7 !important;
+}
+
+.commissions-page span[style*="#451A1A"] {
+  color: #9b4e4d !important;
+  background: #fbefed !important;
+  border-color: #edd6d1 !important;
+}
+
+.commissions-page input[style],
+.commissions-page select[style],
+.commissions-page textarea[style] {
+  color: #302e27 !important;
+  background: #fff !important;
+  border-color: #e3dfd3 !important;
+}
+
+.commissions-page label[style] {
+  color: #625e54 !important;
+}

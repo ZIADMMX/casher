@@ -17,13 +17,7 @@ function update(id, { name, phone, company, address, notes }) {
 }
 
 function deleteSupplier(id) {
-  return db.transaction(() => {
-    // Delete payments and purchases linked to supplier
-    db.prepare('DELETE FROM supplier_payments WHERE supplier_id = ?').run(id);
-    db.prepare('DELETE FROM purchases WHERE supplier_id = ?').run(id);
-    db.prepare('DELETE FROM suppliers WHERE id = ?').run(id);
-    return true;
-  })();
+  return db.prepare('UPDATE suppliers SET is_active = 0 WHERE id = ?').run(id);
 }
 
 function getById(id) {
@@ -31,7 +25,7 @@ function getById(id) {
 }
 
 function getAll() {
-  return db.prepare('SELECT * FROM suppliers ORDER BY name ASC').all();
+  return db.prepare('SELECT * FROM suppliers WHERE is_active = 1 ORDER BY name ASC').all();
 }
 
 function getAllWithStats() {
@@ -43,6 +37,7 @@ function getAllWithStats() {
       s.company,
       s.address,
       s.notes,
+      s.is_active,
       s.created_at,
       COUNT(DISTINCT p.id) as total_invoices,
       COALESCE(SUM(p.total_amount), 0) as total_purchased,
@@ -74,14 +69,14 @@ function getSupplierLedger(supplierId) {
     SELECT * FROM purchases
     WHERE supplier_id = ?
     ORDER BY created_at DESC
-  `).all();
+  `).all(supplierId);
 
   // For each purchase, get items
   const purchasesWithItems = purchases.map((p) => {
     const items = db.prepare(`
       SELECT * FROM purchase_items
       WHERE purchase_id = ?
-    `).all();
+    `).all(p.id);
     return {
       ...p,
       items,
@@ -97,7 +92,7 @@ function getSupplierLedger(supplierId) {
     LEFT JOIN purchases p ON sp.purchase_id = p.id
     WHERE sp.supplier_id = ?
     ORDER BY sp.payment_date DESC
-  `).all().map((pay) => ({
+  `).all(supplierId).map((pay) => ({
     ...pay,
     amount: Number(pay.amount || 0),
   }));

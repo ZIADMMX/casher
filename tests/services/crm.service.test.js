@@ -7,12 +7,31 @@ jest.mock('../../electron/repositories/crm.repository', () => ({
   createOpportunity: jest.fn(() => 10),
   getAllOpportunities: jest.fn(() => [{ id: 10, title: 'توريد أجهزة', stage: 'lead' }]),
   updateOpportunityStage: jest.fn(() => ({ id: 10, stage: 'won' })),
-  updateCustomerRatingAndTier: jest.fn(() => true)
+  updateCustomerRatingAndTier: jest.fn(() => true),
+  getAllCampaigns: jest.fn(() => []),
+  createCampaign: jest.fn(() => 3),
+  getCampaignById: jest.fn((id) => ({
+    id,
+    name: 'إعادة شراء الهواتف',
+    target_criteria: JSON.stringify({
+      product_keyword: 'هاتف',
+      months_since_purchase: 10,
+      follow_up_days: 1,
+      offer_title: 'عرض إكسسوارات',
+      offer_details: '',
+      discount_percentage: 0
+    })
+  })),
+  getCampaignAudience: jest.fn(() => [{ id: 2, name: 'عميل' }]),
+  createCampaignReminders: jest.fn(() => 1),
+  getDueReminders: jest.fn(() => [{ id: 5, customer_name: 'عميل', subject: 'متابعة عرض' }]),
+  markReminderSent: jest.fn(() => ({ changes: 1 }))
 }));
 
-jest.mock('../../electron/services/notifications.service', () => ({ notify: jest.fn() }));
+jest.mock('../../electron/services/notifications.service', () => ({ notify: jest.fn(() => ({ id: 1 })) }));
 
 const crmRepo = require('../../electron/repositories/crm.repository');
+const notificationsService = require('../../electron/services/notifications.service');
 const crmService = require('../../electron/services/crm.service');
 
 describe('CRM Service Unit Tests', () => {
@@ -49,5 +68,53 @@ describe('CRM Service Unit Tests', () => {
     expect(updated.stage).toBe('won');
 
     expect(() => crmService.updateOpportunityStage(10, 'invalid_stage')).toThrow('مرحلة الصفقة غير صحيحة');
+  });
+
+  test('creates validated behavior campaigns and loads their eligible audience', () => {
+    const campaign = crmService.createCampaign({
+      name: 'إعادة شراء الهواتف',
+      product_keyword: 'هاتف',
+      months_since_purchase: 10,
+      follow_up_days: 1,
+      offer_title: 'عرض إكسسوارات'
+    });
+
+    expect(crmRepo.createCampaign).toHaveBeenCalledWith(expect.objectContaining({
+      name: 'إعادة شراء الهواتف',
+      targetCriteria: expect.objectContaining({ product_keyword: 'هاتف', months_since_purchase: 10 })
+    }));
+    expect(campaign.id).toBe(3);
+    expect(crmService.getCampaignAudience(3)).toEqual([{ id: 2, name: 'عميل' }]);
+    expect(crmRepo.getCampaignAudience).toHaveBeenCalledWith(campaign.target_criteria, 3);
+    expect(() => crmService.createCampaign({
+      name: 'حملة غير صالحة',
+      product_keyword: 'هاتف',
+      months_since_purchase: 0,
+      follow_up_days: 1,
+      offer_title: 'عرض'
+    })).toThrow('مدة الشراء السابقة');
+  });
+
+  test('creates campaign reminders once for campaign audience', () => {
+    expect(crmService.createCampaignReminders(3)).toEqual({ createdCount: 1 });
+    expect(crmRepo.createCampaignReminders).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 3 }),
+      expect.objectContaining({ product_keyword: 'هاتف' })
+    );
+  });
+
+  test('marks a due reminder after its notification is saved', () => {
+    crmService.checkDueReminders();
+    expect(notificationsService.notify).toHaveBeenCalledWith(expect.objectContaining({
+      title: expect.stringContaining('تذكير متابعة'),
+      linkPage: 'customers'
+    }));
+    expect(crmRepo.markReminderSent).toHaveBeenCalledWith(5);
+  });
+
+  test('keeps a due reminder retryable if notification delivery fails', () => {
+    notificationsService.notify.mockReturnValueOnce(null);
+    crmService.checkDueReminders();
+    expect(crmRepo.markReminderSent).not.toHaveBeenCalled();
   });
 });

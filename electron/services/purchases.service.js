@@ -1,10 +1,12 @@
-const purchasesRepo = require('../repositories/purchases.repository');
+﻿const purchasesRepo = require('../repositories/purchases.repository');
 const suppliersRepo = require('../repositories/suppliers.repository');
+const shiftsRepo = require('../repositories/shifts.repository');
 const NotificationsService = require('./notifications.service');
 const { requireAdmin } = require('./auth.service');
+const inventoryRepo = require('../repositories/inventory.repository');
 
 function createPurchase(data) {
-  requireAdmin();
+  const session = requireAdmin();
   if (!data.supplierId) {
     throw new Error('يجب اختيار المورد أو المصنع');
   }
@@ -38,9 +40,15 @@ function createPurchase(data) {
 
   const totalAmount = data.totalAmount != null ? Number(data.totalAmount) : calculatedTotal;
   const paidAmount = Number(data.paidAmount || 0);
+  const paymentMethod = data.paymentMethod || 'cash';
 
   if (paidAmount < 0 || paidAmount > totalAmount) {
     throw new Error('المبلغ المدفوع يجب أن يكون بين 0 وإجمالي الفاتورة');
+  }
+
+  const activeShift = shiftsRepo.getCurrentOpenShift(session?.id) || shiftsRepo.getCurrentOpenShift();
+  if (paidAmount > 0 && paymentMethod === 'cash' && !activeShift) {
+    throw new Error('لا يمكن دفع مبلغ نقدي للمورد لعدم وجود وردية مفتوحة. يرجى فتح وردية أولاً أو استخدام وسيلة دفع غير نقدية');
   }
 
   const result = purchasesRepo.createPurchase({
@@ -49,9 +57,28 @@ function createPurchase(data) {
     items: data.items,
     totalAmount,
     paidAmount,
+    paymentMethod,
     dueDate: data.dueDate || null,
     notes: data.notes ? data.notes.trim() : null,
+    userId: session ? session.id : null,
+    shiftId: activeShift ? activeShift.id : null,
+    warehouseId: session?.centralRequest && session.warehouseId
+      ? session.warehouseId
+      : inventoryRepo.getDefaultWarehouseId(),
   });
+
+  // خصم الدفعة النقدية المقدمة من نقدية الوردية ودرج الكاشير
+  if (paidAmount > 0 && paymentMethod === 'cash' && activeShift) {
+    shiftsRepo.addShiftExpense({
+      shiftId: activeShift.id,
+      userId: session ? session.id : null,
+      amount: paidAmount,
+      category: 'سداد مورد',
+      notes: data.invoiceNumber
+        ? `دفعة مقدمة مع فاتورة توريد #${data.invoiceNumber} (المورد: ${supplier.name})`
+        : `دفعة مقدمة لمورد: ${supplier.name}`,
+    });
+  }
 
   try {
     const remaining = totalAmount - paidAmount;
@@ -78,7 +105,7 @@ function getPurchaseById(id) {
 }
 
 function recordSupplierPayment(data) {
-  requireAdmin();
+  const session = requireAdmin();
   if (!data.supplierId) {
     throw new Error('يجب تحديد المورد لسداد الدفعة');
   }
@@ -87,17 +114,41 @@ function recordSupplierPayment(data) {
     throw new Error('مبلغ السداد يجب أن يكون أكبر من الصفر');
   }
 
+  const paymentMethod = data.paymentMethod || 'cash';
+  const activeShift = shiftsRepo.getCurrentOpenShift(session?.id) || shiftsRepo.getCurrentOpenShift();
+
+  if (paymentMethod === 'cash' && !activeShift) {
+    throw new Error('لا يمكن تسجيل سداد نقدي للمورد لعدم وجود وردية مفتوحة. يرجى فتح وردية أولاً');
+  }
+
+  const supplier = suppliersRepo.getById(data.supplierId);
+  if (!supplier) {
+    throw new Error('المورد المحدد غير مسجل في النظام');
+  }
+
   const result = purchasesRepo.addPayment({
     supplierId: data.supplierId,
     purchaseId: data.purchaseId || null,
     amount,
-    paymentMethod: data.paymentMethod || 'cash',
+    paymentMethod,
     notes: data.notes ? data.notes.trim() : null,
+    userId: session ? session.id : null,
+    shiftId: activeShift ? activeShift.id : null,
   });
 
+  // خصم السداد النقدي من نقدية الوردية ودرج الكاشير
+  if (paymentMethod === 'cash' && activeShift) {
+    shiftsRepo.addShiftExpense({
+      shiftId: activeShift.id,
+      userId: session ? session.id : null,
+      amount,
+      category: 'سداد مورد',
+      notes: data.notes ? data.notes.trim() : `سداد دفعة نقدية للمورد: ${supplier.name}`,
+    });
+  }
+
   try {
-    const supplier = suppliersRepo.getById(data.supplierId);
-    const methodStr = data.paymentMethod === 'cash' ? 'نقداً (كاش)' : data.paymentMethod === 'bank_transfer' ? 'تحويل بنكي' : 'شيك';
+    const methodStr = paymentMethod === 'cash' ? 'نقداً (كاش)' : paymentMethod === 'bank_transfer' ? 'تحويل بنكي' : 'شيك';
     NotificationsService.notify({
       type: 'supplier_payment',
       title: '💵 سداد دفعة لمورد',

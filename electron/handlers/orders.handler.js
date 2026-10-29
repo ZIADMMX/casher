@@ -10,6 +10,11 @@ function registerOrdersHandlers() {
     return ordersService.getOrderById(orderId);
   });
 
+  safeHandle('orders:addItem', (event, payload) => {
+    const { orderId, item } = payload || {};
+    return ordersService.addOrderItem(orderId, item);
+  });
+
   safeHandle('orders:create', (event, payload) => {
     const { orderData, items } = payload || {};
     return ordersService.createOrder(orderData, items);

@@ -6,7 +6,7 @@ function ShiftReportPrint({ shift, reportType = 'Z' }) {
   const [renderedAt] = useState(() => Date.now());
   if (!shift) return null;
 
-  const storeName = settings?.store_name || 'ONYX POS';
+  const storeName = settings?.store_name || 'FOX.CLOUD POS';
   const isZReport = reportType === 'Z' || shift.status === 'closed';
   const isClosed = shift.status === 'closed';
 
@@ -103,7 +103,7 @@ function ShiftReportPrint({ shift, reportType = 'Z' }) {
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12.5px' }}>
           <span style={{ color: '#64748B' }}>رقم الوردية:</span>
-          <strong style={{ color: '#2E5BFF', fontSize: '14px', fontFamily: 'Space Grotesk' }}>#{shift.id}</strong>
+          <strong style={{ color: '#F2600C', fontSize: '14px', fontFamily: 'Space Grotesk' }}>#{shift.id}</strong>
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12.5px' }}>
@@ -286,7 +286,7 @@ function ShiftReportPrint({ shift, reportType = 'Z' }) {
             fontSize: '14px'
           }}>
             <span style={{ fontWeight: '800', color: '#0F172A' }}>إجمالي كل المبيعات (كاش + فيزا + آجل):</span>
-            <strong style={{ color: '#2E5BFF', fontSize: '16px', fontFamily: 'Space Grotesk' }}>
+            <strong style={{ color: '#F2600C', fontSize: '16px', fontFamily: 'Space Grotesk' }}>
               {totalSales.toFixed(2)} ج.م
             </strong>
           </div>
@@ -404,7 +404,7 @@ function ShiftReportPrint({ shift, reportType = 'Z' }) {
 
       <div style={{ textAlign: 'center', marginTop: '12px', fontSize: '11px', color: '#94A3B8' }}>
         <span>نظام إدارة الورديات والمبيعات • </span>
-        <strong style={{ color: '#2E5BFF' }}>ONYX POS Engine</strong>
+        <strong style={{ color: '#F2600C' }}>FOX.CLOUD POS Engine</strong>
       </div>
     </div>
   );

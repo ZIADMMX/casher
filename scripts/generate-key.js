@@ -1,4 +1,3 @@
-/* global require, process, console */
 /**
  * Kashiear POS - Developer License Key Generator CLI
  * Usage:

@@ -1,11 +1,36 @@
 const { db } = require('../database/db');
 
-function create({ saleId, variantId, quantity, reason, refundAmount, exchangeVariantId, userId }) {
+function create({
+  saleId,
+  variantId,
+  quantity,
+  reason,
+  refundAmount,
+  exchangeVariantId,
+  exchangePriceDifference = 0,
+  exchangePaymentMethod = null,
+  userId,
+  shiftId,
+}) {
   const stmt = db.prepare(`
-    INSERT INTO returns (sale_id, variant_id, quantity, reason, refund_amount, exchange_variant_id, user_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO returns (
+      sale_id, variant_id, quantity, reason, refund_amount, exchange_variant_id,
+      exchange_price_difference, exchange_payment_method, user_id, shift_id
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
-  const result = stmt.run(saleId, variantId, quantity, reason || null, refundAmount, exchangeVariantId || null, userId);
+  const result = stmt.run(
+    saleId,
+    variantId,
+    quantity,
+    reason || null,
+    refundAmount,
+    exchangeVariantId || null,
+    Number(exchangePriceDifference || 0),
+    exchangePaymentMethod || null,
+    userId,
+    shiftId || null
+  );
   return result.lastInsertRowid;
 }
 
@@ -17,6 +42,15 @@ function getReturnedQuantity(saleId, variantId) {
     WHERE sale_id = ? AND variant_id = ?
   `).get(saleId, variantId);
   return row.total;
+}
+
+function getReturnedRefundAmount(saleId, variantId) {
+  const row = db.prepare(`
+    SELECT COALESCE(SUM(refund_amount), 0) as total
+    FROM returns
+    WHERE sale_id = ? AND variant_id = ?
+  `).get(saleId, variantId);
+  return Number(row.total || 0);
 }
 
 function getBySaleId(saleId) {
@@ -41,4 +75,4 @@ function getRecent(limit) {
   `).all(limit);
 }
 
-module.exports = { create, getReturnedQuantity, getBySaleId, getRecent };
+module.exports = { create, getReturnedQuantity, getReturnedRefundAmount, getBySaleId, getRecent };

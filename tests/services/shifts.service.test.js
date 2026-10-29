@@ -11,11 +11,15 @@ jest.mock('../../electron/repositories/shifts.repository', () => ({
   getShiftDetails: jest.fn(() => ({ id: 4, user_id: 7, status: 'open' })),
 }));
 jest.mock('../../electron/services/notifications.service', () => ({ notify: jest.fn() }));
+jest.mock('../../electron/services/attendance.service', () => ({
+  isCheckedInToday: jest.fn(() => true),
+}));
 jest.mock('../../electron/services/auth.service', () => ({
   getCurrentSession: jest.fn(() => ({ id: 7, username: 'cashier' })),
 }));
 
 const shiftsRepo = require('../../electron/repositories/shifts.repository');
+const attendanceService = require('../../electron/services/attendance.service');
 const { openShift, closeShift, addShiftExpense } = require('../../electron/services/shifts.service');
 
 describe('shifts.service financial operations', () => {
@@ -27,6 +31,14 @@ describe('shifts.service financial operations', () => {
       openingCash: 100.25,
       userId: 7,
     }));
+  });
+
+  test('blocks cashier shift opening until today attendance is active', () => {
+    attendanceService.isCheckedInToday.mockReturnValue(false);
+
+    expect(() => openShift({ openingCash: 100 }))
+      .toThrow('سجّل حضورك أولاً قبل فتح الوردية');
+    expect(shiftsRepo.openShift).not.toHaveBeenCalled();
   });
 
   test('returns the exact shortage/overage calculated when closing', () => {

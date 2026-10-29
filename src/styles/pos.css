@@ -1,4 +1,4 @@
-/* ===== Onyx POS System — High-Speed Cashier UI ===== */
+/* ===== Fox POS System — High-Speed Cashier UI ===== */
 
 .pos-page-wrapper {
   display: grid;
@@ -23,12 +23,159 @@
 }
 
 /* ---- Top Control Bar ---- */
+.pos-sector-header-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #ffffff;
+  border: 1px solid #E2E8F0;
+  border-right: 4px solid #F2600C;
+  border-radius: 12px;
+  padding: 8px 14px;
+  margin-bottom: 10px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02);
+  gap: 12px;
+}
+
+.pos-work-order-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  margin-bottom: 10px;
+  border: 1px solid #99F6E4;
+  border-radius: 10px;
+  background: #F0FDFA;
+  color: #115E59;
+  font-size: 13px;
+}
+
+.pos-work-order-banner button {
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 6px;
+  padding: 6px 10px;
+  background: #CCFBF1;
+  color: #115E59;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.pos-sector-badge-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pos-sector-icon {
+  font-size: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  background: #F8FAFC;
+  border-radius: 10px;
+  border: 1px solid #E2E8F0;
+}
+
+.pos-sector-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pos-sector-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pos-sector-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: #0F172A;
+}
+
+.pos-sector-badge-tag {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+.pos-sector-term-hint {
+  font-size: 11.5px;
+  color: #64748B;
+}
+
+.pos-sector-term-hint strong {
+  color: #F2600C;
+}
+
+.pos-order-modes-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #F1F5F9;
+  padding: 4px;
+  border-radius: 8px;
+}
+
+.order-mode-btn {
+  background: transparent;
+  border: none;
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  color: #64748B;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.order-mode-btn:hover {
+  color: #0F172A;
+}
+
+.order-mode-btn.active {
+  background: #ffffff;
+  color: #0F172A;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+.pos-gym-quick-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #0891B2;
+  background: #ECFEFF;
+  border: 1px solid #CFFAFE;
+  padding: 6px 12px;
+  border-radius: 8px;
+}
+
+.gym-pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #06B6D4;
+  box-shadow: 0 0 6px rgba(6, 182, 212, 0.6);
+  animation: posPulse 2s infinite ease-in-out;
+}
+
 .pos-top-control-bar {
   display: flex;
   align-items: center;
   gap: 12px;
   margin-bottom: 12px;
 }
+
 
 .pos-search-box {
   flex: 1;
@@ -44,7 +191,7 @@
 }
 
 .pos-search-box:focus-within {
-  border-color: #2E5BFF;
+  border-color: #F2600C;
   box-shadow: 0 0 0 3px rgba(46, 91, 255, 0.12);
   background: #ffffff;
 }
@@ -108,6 +255,48 @@
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.attendance-clock-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 7px 4px 10px;
+  border: 1px solid #fed7aa;
+  border-radius: 9px;
+  background: #fff7ed;
+  color: #9a3412;
+  font-size: 10px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.attendance-clock-pill.is-present {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.attendance-clock-pill button {
+  min-height: 28px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 6px;
+  background: #ea580c;
+  color: #fff;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.attendance-clock-pill.is-present button {
+  background: #15803d;
+}
+
+.attendance-clock-pill button:disabled {
+  background: #94a3b8;
+  cursor: not-allowed;
 }
 
 .scanner-status-chip {
@@ -178,9 +367,9 @@
 }
 
 .pos-category-chip.active {
-  background: linear-gradient(135deg, #2E5BFF 0%, #1D4ED8 100%);
+  background: linear-gradient(135deg, #F2600C 0%, #D35400 100%);
   color: #ffffff;
-  border-color: #2E5BFF;
+  border-color: #F2600C;
   box-shadow: 0 4px 14px rgba(46, 91, 255, 0.28);
 }
 
@@ -229,7 +418,7 @@
 }
 
 .pos-product-card:hover {
-  border-color: #2E5BFF;
+  border-color: #F2600C;
   box-shadow: 0 8px 22px rgba(46, 91, 255, 0.12);
   transform: translateY(-3px);
 }
@@ -282,11 +471,11 @@
   font-size: 10.5px;
   font-weight: 800;
   background: #EEF2FF;
-  color: #2E5BFF;
+  color: #F2600C;
   border: 1px solid #DBEAFE;
   padding: 2px 6px;
   border-radius: 6px;
-  animation: onyxFadeIn 0.2s ease;
+  animation: foxFadeIn 0.2s ease;
 }
 
 /* ---- Card Visual / Hero Area ---- */
@@ -404,14 +593,14 @@
 
 .variant-chip:hover:not(:disabled) {
   background: #EEF2FF;
-  border-color: #2E5BFF;
-  color: #2E5BFF;
+  border-color: #F2600C;
+  color: #F2600C;
 }
 
 .variant-chip.active {
-  background: #2E5BFF;
+  background: #F2600C;
   color: #ffffff;
-  border-color: #2E5BFF;
+  border-color: #F2600C;
   box-shadow: 0 2px 6px rgba(46, 91, 255, 0.3);
 }
 
@@ -460,7 +649,7 @@
 
 .pos-card-add-btn {
   background: #EEF2FF;
-  color: #2E5BFF;
+  color: #F2600C;
   border: 1px solid #DBEAFE;
   border-radius: 8px;
   padding: 5px 12px;
@@ -472,9 +661,9 @@
 }
 
 .pos-card-add-btn:hover:not(:disabled) {
-  background: #2E5BFF;
+  background: #F2600C;
   color: #ffffff;
-  border-color: #2E5BFF;
+  border-color: #F2600C;
   box-shadow: 0 3px 10px rgba(46, 91, 255, 0.25);
   transform: scale(1.03);
 }
@@ -534,9 +723,9 @@
   width: 32px;
   height: 32px;
   border: 3px solid #E2E8F0;
-  border-top-color: #2E5BFF;
+  border-top-color: #F2600C;
   border-radius: 50%;
-  animation: onyxSpin 0.8s linear infinite;
+  animation: foxSpin 0.8s linear infinite;
 }
 
 .pos-products-error-card {
@@ -594,7 +783,7 @@
   width: 36px;
   height: 36px;
   border-radius: 10px;
-  background: linear-gradient(135deg, #2E5BFF 0%, #1D4ED8 100%);
+  background: linear-gradient(135deg, #F2600C 0%, #D35400 100%);
   color: #ffffff;
   display: flex;
   align-items: center;
@@ -699,21 +888,152 @@
 
 .pos-cart-alert {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 18px;
-  font-size: 12px;
-  font-weight: 600;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 10px 14px 4px 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.05);
+  position: relative;
+  direction: rtl;
+  animation: posAlertFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.2s ease;
+}
+
+@keyframes posAlertFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .pos-cart-alert.alert-error {
-  background: #FEF2F2;
-  color: #DC2626;
+  background: #FFF5F5;
+  border: 1px solid #FECACA;
+  border-right: 4px solid #EF4444;
 }
 
 .pos-cart-alert.alert-success {
   background: #F0FDF4;
+  border: 1px solid #A7F3D0;
+  border-right: 4px solid #10B981;
+}
+
+.pos-cart-alert-icon-box {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.alert-error .pos-cart-alert-icon-box {
+  background: #FEE2E2;
+  color: #DC2626;
+}
+
+.alert-success .pos-cart-alert-icon-box {
+  background: #DCFCE7;
   color: #16A34A;
+}
+
+.pos-cart-alert-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.pos-cart-alert-title {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.alert-error .pos-cart-alert-title {
+  color: #991B1B;
+}
+
+.alert-success .pos-cart-alert-title {
+  color: #065F46;
+}
+
+.pos-cart-alert-text {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.alert-error .pos-cart-alert-text {
+  color: #B91C1C;
+}
+
+.alert-success .pos-cart-alert-text {
+  color: #047857;
+}
+
+.pos-cart-alert-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  margin-top: 6px;
+  padding: 6px 12px;
+  background: #DC2626;
+  color: #FFFFFF;
+  border: none;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 2px 4px rgba(220, 38, 38, 0.2);
+}
+
+.pos-cart-alert-action-btn:hover {
+  background: #B91C1C;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(220, 38, 38, 0.25);
+}
+
+.pos-cart-alert-dismiss {
+  background: transparent;
+  border: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+
+.alert-error .pos-cart-alert-dismiss {
+  color: #F87171;
+}
+
+.alert-error .pos-cart-alert-dismiss:hover {
+  background: #FEE2E2;
+  color: #991B1B;
+}
+
+.alert-success .pos-cart-alert-dismiss {
+  color: #34D399;
+}
+
+.alert-success .pos-cart-alert-dismiss:hover {
+  background: #DCFCE7;
+  color: #065F46;
 }
 
 /* ---- Cart Items Scrollable List ---- */
@@ -819,7 +1139,7 @@
 
 .pos-item-variant-badge {
   background: #EEF2FF;
-  color: #2E5BFF;
+  color: #F2600C;
   padding: 1px 6px;
   border-radius: 4px;
   font-weight: 600;
@@ -863,7 +1183,7 @@
 }
 
 .stepper-btn:hover:not(:disabled) {
-  background: #2E5BFF;
+  background: #F2600C;
   color: #ffffff;
 }
 
@@ -884,7 +1204,7 @@
 .pos-item-total-price {
   font-size: 14px;
   font-weight: 800;
-  color: #2E5BFF;
+  color: #F2600C;
 }
 
 .pos-item-total-price small {
@@ -921,7 +1241,7 @@
 }
 
 .pos-coupon-input-group:focus-within {
-  border-color: #2E5BFF;
+  border-color: #F2600C;
   box-shadow: 0 0 0 2px rgba(46, 91, 255, 0.1);
 }
 
@@ -955,7 +1275,7 @@
 }
 
 .pos-coupon-btn:hover {
-  background: #2E5BFF;
+  background: #F2600C;
 }
 
 .pos-coupon-message {
@@ -970,7 +1290,7 @@
 }
 
 .pos-coupon-message.info {
-  color: #2E5BFF;
+  color: #F2600C;
 }
 
 /* ---- Summary Card ---- */
@@ -1025,7 +1345,7 @@
 .total-amount {
   font-size: 20px;
   font-weight: 900;
-  color: #2E5BFF;
+  color: #F2600C;
   font-family: 'Space Grotesk', sans-serif;
 }
 
@@ -1123,8 +1443,8 @@
 
 .quick-cash-chip:hover {
   background: #EEF2FF;
-  border-color: #2E5BFF;
-  color: #2E5BFF;
+  border-color: #F2600C;
+  color: #F2600C;
 }
 
 .cash-input-row {
@@ -1151,7 +1471,7 @@
 }
 
 .cash-input-wrap:focus-within {
-  border-color: #2E5BFF;
+  border-color: #F2600C;
   background: #ffffff;
 }
 
@@ -1268,7 +1588,7 @@
 
 /* ---- Big Complete Sale Button ---- */
 .pos-complete-sale-btn {
-  background: linear-gradient(135deg, #2E5BFF 0%, #1D4ED8 100%);
+  background: linear-gradient(135deg, #F2600C 0%, #D35400 100%);
   color: #ffffff;
   border: none;
   border-radius: 12px;
@@ -1329,7 +1649,7 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
-  animation: onyxFadeIn 0.2s ease;
+  animation: foxFadeIn 0.2s ease;
 }
 
 .held-modal-header {
@@ -1422,7 +1742,7 @@
 .held-total {
   font-size: 13.5px;
   font-weight: 800;
-  color: #2E5BFF;
+  color: #F2600C;
 }
 
 .held-cust-name {
@@ -1438,7 +1758,7 @@
 }
 
 .held-resume-btn {
-  background: #2E5BFF;
+  background: #F2600C;
   color: #ffffff;
   border: none;
   border-radius: 6px;
@@ -1451,7 +1771,7 @@
 }
 
 .held-resume-btn:hover {
-  background: #1D4ED8;
+  background: #D35400;
 }
 
 .held-delete-btn {
@@ -1506,4 +1826,160 @@
     padding: 0;
     border: 0;
   }
+}
+
+/* =========================================
+   Speed Keys Bar (Supermarket PLU Buttons)
+   ========================================= */
+.pos-speed-keys-container {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 10px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+}
+
+.pos-speed-keys-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.speed-keys-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #334155;
+}
+
+.speed-keys-icon {
+  font-size: 14px;
+}
+
+.speed-keys-add-btn {
+  background: #10B981;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.speed-keys-add-btn:hover {
+  background: #059669;
+}
+
+.pos-speed-keys-scroll {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.pos-speed-keys-scroll::-webkit-scrollbar {
+  height: 4px;
+}
+
+.pos-speed-keys-scroll::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 4px;
+}
+
+.speed-keys-empty-hint {
+  font-size: 12px;
+  color: #94A3B8;
+  padding: 4px 0;
+}
+
+.pos-speed-key-btn {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  min-width: 110px;
+  max-width: 130px;
+  height: 58px;
+  background: #ffffff;
+  border: 1.5px solid var(--btn-accent, #10B981);
+  border-right: 4px solid var(--btn-accent, #10B981);
+  border-radius: 8px;
+  padding: 4px 8px;
+  cursor: pointer;
+  text-align: right;
+  flex-shrink: 0;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+  user-select: none;
+}
+
+.pos-speed-key-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.06);
+}
+
+.pos-speed-key-btn:active {
+  transform: translateY(0);
+}
+
+.speed-key-top {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+.speed-key-emoji {
+  font-size: 14px;
+}
+
+.speed-key-shortcut {
+  background: #1E293B;
+  color: #F8FAFC;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 1px 4px;
+  border-radius: 3px;
+  letter-spacing: 0.5px;
+}
+
+.speed-key-del {
+  font-size: 14px;
+  color: #94A3B8;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+
+.pos-speed-key-btn:hover .speed-key-del {
+  opacity: 1;
+}
+
+.speed-key-del:hover {
+  color: #EF4444;
+}
+
+.speed-key-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #1E293B;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+}
+
+.speed-key-price {
+  font-size: 11px;
+  font-weight: 800;
+  color: #10B981;
 }

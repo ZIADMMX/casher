@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { useUser } from './UserContext.jsx';
 
 const NotificationsContext = createContext({
@@ -62,7 +62,7 @@ export function NotificationsProvider({ children }) {
     }
   }, [currentUser, loadingSession, refreshNotifications]);
 
-  const markAsRead = async (id) => {
+  const markAsRead = useCallback(async (id) => {
     try {
       if (window.electronAPI?.markNotificationAsRead) {
         await window.electronAPI.markNotificationAsRead(id);
@@ -74,9 +74,9 @@ export function NotificationsProvider({ children }) {
     } catch (err) {
       console.error('خطأ في تحديث حالة الإشعار:', err);
     }
-  };
+  }, []);
 
-  const markAllAsRead = async () => {
+  const markAllAsRead = useCallback(async () => {
     try {
       if (window.electronAPI?.markAllNotificationsAsRead) {
         await window.electronAPI.markAllNotificationsAsRead();
@@ -86,9 +86,9 @@ export function NotificationsProvider({ children }) {
     } catch (err) {
       console.error('خطأ في تحديد كافة الإشعارات كمقروءة:', err);
     }
-  };
+  }, []);
 
-  const clearAll = async () => {
+  const clearAll = useCallback(async () => {
     try {
       if (window.electronAPI?.clearAllNotifications) {
         await window.electronAPI.clearAllNotifications();
@@ -98,26 +98,36 @@ export function NotificationsProvider({ children }) {
     } catch (err) {
       console.error('خطأ في مسح الإشعارات:', err);
     }
-  };
+  }, []);
 
-  const dismissToast = () => {
+  const dismissToast = useCallback(() => {
     setToastNotification(null);
-  };
+  }, []);
+
+  const value = useMemo(() => ({
+    notifications,
+    unreadCount,
+    toastNotification,
+    loading,
+    refreshNotifications,
+    markAsRead,
+    markAllAsRead,
+    clearAll,
+    dismissToast,
+  }), [
+    notifications,
+    unreadCount,
+    toastNotification,
+    loading,
+    refreshNotifications,
+    markAsRead,
+    markAllAsRead,
+    clearAll,
+    dismissToast,
+  ]);
 
   return (
-    <NotificationsContext.Provider
-      value={{
-        notifications,
-        unreadCount,
-        toastNotification,
-        loading,
-        refreshNotifications,
-        markAsRead,
-        markAllAsRead,
-        clearAll,
-        dismissToast,
-      }}
-    >
+    <NotificationsContext.Provider value={value}>
       {children}
     </NotificationsContext.Provider>
   );

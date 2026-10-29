@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { normalizeErrorMessage } from '../utils/normalizeError.js';
 
 function useUsers() {
   const [users, setUsers] = useState([]);
@@ -7,57 +8,79 @@ function useUsers() {
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
+    setError('');
     try {
       const data = await window.electronAPI.getAllUsers();
       setUsers(data);
     } catch (err) {
-      setError(err.message);
+      setError(normalizeErrorMessage(err, 'تعذر تحميل المستخدمين'));
     } finally {
       setLoading(false);
     }
   }, []);
 
-  async function addCashier(data) {
+  const addCashier = useCallback(async (data) => {
     setError('');
     try {
       await window.electronAPI.addCashier(data);
       await fetchUsers();
       return true;
     } catch (err) {
-      setError(err.message);
+      setError(normalizeErrorMessage(err, 'تعذر إضافة المستخدم'));
       return false;
     }
-  }
+  }, [fetchUsers]);
 
-  async function removeUser(userId) {
+  const removeUser = useCallback(async (userId) => {
     setError('');
     try {
       await window.electronAPI.removeUser(userId);
       await fetchUsers();
       return true;
     } catch (err) {
-      setError(err.message);
+      setError(normalizeErrorMessage(err, 'تعذر حذف المستخدم'));
       return false;
     }
-  }
+  }, [fetchUsers]);
 
-  async function toggleActive(userId) {
+  const toggleActive = useCallback(async (userId) => {
     setError('');
     try {
       await window.electronAPI.toggleUserActive(userId);
       await fetchUsers();
       return true;
     } catch (err) {
-      setError(err.message);
+      setError(normalizeErrorMessage(err, 'تعذر تحديث حالة المستخدم'));
       return false;
     }
-  }
+  }, [fetchUsers]);
+
+  const resetPassword = useCallback(async (data) => {
+    setError('');
+    try {
+      await window.electronAPI.resetUserPassword(data);
+      await fetchUsers();
+      return true;
+    } catch (err) {
+      setError(normalizeErrorMessage(err, 'تعذر إعادة تعيين كلمة المرور'));
+      return false;
+    }
+  }, [fetchUsers]);
 
   useEffect(() => {
     fetchUsers();
   }, [fetchUsers]);
 
-  return { users, addCashier, removeUser, toggleActive, loading, error };
+  return useMemo(() => ({
+    users,
+    addCashier,
+    removeUser,
+    toggleActive,
+    resetPassword,
+    fetchUsers,
+    loading,
+    error,
+  }), [users, addCashier, removeUser, toggleActive, resetPassword, fetchUsers, loading, error]);
 }
 
 export default useUsers;

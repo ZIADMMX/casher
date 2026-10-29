@@ -1,113 +1,174 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+// src/hooks/useProducts.js
+import { useMemo } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
-function useProducts() {
-  const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+// ---- Query Keys ----
+const PRODUCTS_QUERY_KEY = ['products'];
 
-  const fetchProducts = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await window.electronAPI.getAllProductsWithVariants();
-      setProducts(data);
-    } catch (err) {
-      setError(err.message || 'حدث خطأ أثناء تحميل المنتجات');
-    } finally {
-      setLoading(false);
+// ---- API Helpers (electron API) ----
+const fetchProducts = async () => {
+  // Returns array of products with variants
+  return await window.electronAPI.getAllProductsWithVariants();
+};
+
+export function useProducts() {
+  const queryClient = useQueryClient();
+
+  // Query: fetch products (stale after 15s, refetch on window focus disabled for UI stability)
+  const {
+    data: products = [],
+    isLoading: loading,
+    isError,
+    error,
+    refetch,
+  } = useQuery(PRODUCTS_QUERY_KEY, fetchProducts, {
+    staleTime: 15 * 1000, // 15 seconds
+    refetchOnWindowFocus: false,
+  });
+
+  // ----- Mutations -----
+  const addProductMutation = useMutation(
+    async (newProduct) => {
+      await window.electronAPI.addProductWithVariant(newProduct);
+    },
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries(PRODUCTS_QUERY_KEY);
+      },
     }
-  }, []);
+  );
 
-  async function addProduct(data) {
-    setError('');
-    try {
-      await window.electronAPI.addProductWithVariant(data);
-      await fetchProducts();
-      return true;
-    } catch (err) {
-      setError(err.message || 'حدث خطأ أثناء إضافة المنتج');
-      return false;
-    }
-  }
-
-  async function addVariant(productId, variant) {
-    setError('');
-    try {
+  const addVariantMutation = useMutation(
+    async ({ productId, variant }) => {
       await window.electronAPI.addVariantToProduct(productId, variant);
-      await fetchProducts();
-      return true;
-    } catch (err) {
-      setError(err.message || 'حدث خطأ أثناء إضافة المتغير');
-      return false;
+    },
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries(PRODUCTS_QUERY_KEY);
+      },
     }
-  }
+  );
 
-  async function editProduct(productId, data) {
-    setError('');
-    try {
+  const editProductMutation = useMutation(
+    async ({ productId, data }) => {
       await window.electronAPI.updateProduct(productId, data);
-      await fetchProducts();
-      return true;
-    } catch (err) {
-      setError(err.message || 'حدث خطأ أثناء تعديل المنتج');
-      return false;
+    },
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries(PRODUCTS_QUERY_KEY);
+      },
     }
-  }
+  );
 
-  async function removeProduct(productId) {
-    setError('');
-    try {
+  const removeProductMutation = useMutation(
+    async (productId) => {
       await window.electronAPI.deleteProduct(productId);
-      await fetchProducts();
-      return true;
-    } catch (err) {
-      setError(err.message || 'حدث خطأ أثناء حذف المنتج');
-      return false;
+    },
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries(PRODUCTS_QUERY_KEY);
+      },
     }
-  }
+  );
 
-  async function editVariant(variantId, data) {
-    setError('');
-    try {
+  const editVariantMutation = useMutation(
+    async ({ variantId, data }) => {
       await window.electronAPI.updateVariant(variantId, data);
-      await fetchProducts();
-      return true;
-    } catch (err) {
-      setError(err.message || 'حدث خطأ أثناء تعديل المتغير');
-      return false;
+    },
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries(PRODUCTS_QUERY_KEY);
+      },
     }
-  }
+  );
 
-  async function removeVariant(variantId) {
-    setError('');
-    try {
+  const removeVariantMutation = useMutation(
+    async (variantId) => {
       await window.electronAPI.deleteVariant(variantId);
-      await fetchProducts();
+    },
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries(PRODUCTS_QUERY_KEY);
+      },
+    }
+  );
+
+  // ----- Helper wrappers preserving original API -----
+  const addProduct = async (data) => {
+    try {
+      await addProductMutation.mutateAsync(data);
       return true;
     } catch (err) {
-      setError(err.message || 'حدث خطأ أثناء حذف المتغير');
+      console.error(err);
       return false;
     }
-  }
+  };
 
-  useEffect(() => {
-    fetchProducts();
-  }, [fetchProducts]);
+  const addVariant = async (productId, variant) => {
+    try {
+      await addVariantMutation.mutateAsync({ productId, variant });
+      return true;
+    } catch (err) {
+      console.error(err);
+      return false;
+    }
+  };
 
+  const editProduct = async (productId, data) => {
+    try {
+      await editProductMutation.mutateAsync({ productId, data });
+      return true;
+    } catch (err) {
+      console.error(err);
+      return false;
+    }
+  };
+
+  const removeProduct = async (productId) => {
+    try {
+      await removeProductMutation.mutateAsync(productId);
+      return true;
+    } catch (err) {
+      console.error(err);
+      return false;
+    }
+  };
+
+  const editVariant = async (variantId, data) => {
+    try {
+      await editVariantMutation.mutateAsync({ variantId, data });
+      return true;
+    } catch (err) {
+      console.error(err);
+      return false;
+    }
+  };
+
+  const removeVariant = async (variantId) => {
+    try {
+      await removeVariantMutation.mutateAsync(variantId);
+      return true;
+    } catch (err) {
+      console.error(err);
+      return false;
+    }
+  };
+
+  // ----- Stats (derived from products) -----
   const stats = useMemo(() => {
     let totalPieces = 0;
     let inventoryValue = 0;
     let estimatedSaleValue = 0;
     let lowStockCount = 0;
-
-    products.forEach((product) => {
-      product.variants.forEach((v) => {
-        totalPieces += v.stock_quantity;
-        inventoryValue += v.stock_quantity * v.purchase_price;
-        estimatedSaleValue += v.stock_quantity * v.selling_price;
-        if (v.stock_quantity <= v.low_stock_threshold) lowStockCount += 1;
+    products.forEach((p) => {
+      p.variants?.forEach((v) => {
+        const qty = v.stock_quantity || 0;
+        totalPieces += qty;
+        inventoryValue += qty * (v.purchase_price || 0);
+        estimatedSaleValue += qty * (v.selling_price || 0);
+        if (qty <= (v.low_stock_threshold || 0)) lowStockCount += 1;
       });
     });
-
     return {
       totalProducts: products.length,
       totalPieces,
@@ -118,12 +179,20 @@ function useProducts() {
   }, [products]);
 
   return {
-    products, loading, error, stats,
-    addProduct, addVariant,
-    editProduct, removeProduct,
-    editVariant, removeVariant,
-    refresh: fetchProducts,
+    products,
+    loading,
+    error: isError ? error?.message || 'خطأ في تحميل المنتجات' : '',
+    stats,
+    addProduct,
+    addVariant,
+    editProduct,
+    removeProduct,
+    editVariant,
+    removeVariant,
+    refresh: refetch,
   };
 }
 
 export default useProducts;
+
+

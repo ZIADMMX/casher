@@ -16,10 +16,8 @@ function SalesPipelineBoard() {
   const fetchOpportunities = async () => {
     setLoading(true);
     try {
-      if (window.api?.crm?.getAllCRMOpportunities) {
-        const list = await window.api.crm.getAllCRMOpportunities();
-        setOpportunities(list || []);
-      }
+      const list = await window.electronAPI.getAllCRMOpportunities();
+      setOpportunities(list || []);
     } catch (err) {
       console.error('Failed to fetch opportunities:', err);
       setError('فشل تحميل قائمة صفقات المبيعات');
@@ -34,10 +32,8 @@ function SalesPipelineBoard() {
 
   const handleStageChange = async (oppId, newStage) => {
     try {
-      if (window.api?.crm?.updateCRMOpportunityStage) {
-        await window.api.crm.updateCRMOpportunityStage(oppId, newStage);
-        await fetchOpportunities();
-      }
+      await window.electronAPI.updateCRMOpportunityStage(oppId, newStage);
+      await fetchOpportunities();
     } catch (err) {
       console.error('Failed to update stage:', err);
       alert('فشل تغيير مرحلة الصفقة: ' + err.message);

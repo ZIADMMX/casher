@@ -23,6 +23,8 @@ const productsRepo = require('../../electron/repositories/products.repository');
 const customersRepo = require('../../electron/repositories/customers.repository');
 const salesRepo = require('../../electron/repositories/sales.repository');
 const usersRepo = require('../../electron/repositories/users.repository');
+const shiftsRepo = require('../../electron/repositories/shifts.repository');
+const inventoryRepo = require('../../electron/repositories/inventory.repository');
 
 describe('Week 2: Core Sales Logic Tests (اختبار منطق البيع الأساسي)', () => {
   let testVariantId;
@@ -33,6 +35,7 @@ describe('Week 2: Core Sales Logic Tests (اختبار منطق البيع ال�
     const schemaPath = path.join(__dirname, '../../electron/database/schema.sql');
     const schema = fs.readFileSync(schemaPath, 'utf-8');
     mockDb.exec(schema);
+    inventoryRepo.createBranch({ name: 'الفرع الرئيسي' });
   });
 
   beforeEach(() => {
@@ -42,6 +45,7 @@ describe('Week 2: Core Sales Logic Tests (اختبار منطق البيع ال�
       DELETE FROM returns;
       DELETE FROM sale_items;
       DELETE FROM sales;
+      DELETE FROM shifts;
       DELETE FROM product_variants;
       DELETE FROM products;
       DELETE FROM customer_payments;
@@ -61,6 +65,10 @@ describe('Week 2: Core Sales Logic Tests (اختبار منطق البيع ال�
 
     authService.login('admin', 'admin123');
 
+    // Open active shift for testing sales
+    const adminUser = usersRepo.getByUsername('admin');
+    shiftsRepo.openShift({ openingCash: 1000, userId: adminUser.id, openedByName: 'admin' });
+
     // Seed product and variant
     testProductId = productsRepo.create({
       name: 'قميص كاجوال رجالي',
@@ -79,6 +87,11 @@ describe('Week 2: Core Sales Logic Tests (اختبار منطق البيع ال�
       barcode: '622000111222',
       sku: 'SHIRT-L-BLUE',
     });
+    inventoryRepo.initializeVariantStock(
+      inventoryRepo.getDefaultWarehouseId(),
+      testVariantId,
+      10
+    );
   });
 
   afterAll(() => {

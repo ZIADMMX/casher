@@ -54,10 +54,8 @@ function CustomerTimelineDrawer({ customer, onClose, onCustomerUpdated }) {
     if (!customer?.id) return;
     setLoading(true);
     try {
-      if (window.api?.crm?.getUnifiedTimeline) {
-        const data = await window.api.crm.getUnifiedTimeline(customer.id);
-        setTimeline(data || []);
-      }
+      const data = await window.electronAPI.getUnifiedTimeline(customer.id);
+      setTimeline(data || []);
     } catch (err) {
       console.error('Failed to fetch timeline:', err);
       setError('فشل تحميل السجل الموحد للعميل');
@@ -69,7 +67,7 @@ function CustomerTimelineDrawer({ customer, onClose, onCustomerUpdated }) {
   useEffect(() => {
     if (!customer?.id) return;
     setLoading(true);
-    window.api?.crm?.getUnifiedTimeline?.(customer.id)
+    window.electronAPI.getUnifiedTimeline(customer.id)
       .then(data => setTimeline(data || []))
       .catch(err => {
         console.error('Failed to fetch timeline:', err);
@@ -85,18 +83,16 @@ function CustomerTimelineDrawer({ customer, onClose, onCustomerUpdated }) {
     e.preventDefault();
     if (!interactionForm.subject.trim()) return;
     try {
-      if (window.api?.crm?.addCRMInteraction) {
-        await window.api.crm.addCRMInteraction({
-          customer_id: customer.id,
-          type: interactionForm.type,
-          subject: interactionForm.subject,
-          description: interactionForm.description,
-          follow_up_date: interactionForm.follow_up_date || null
-        });
-        setInteractionForm({ type: 'call', subject: '', description: '', follow_up_date: '' });
-        setActiveTab('timeline');
-        await fetchTimeline();
-      }
+      await window.electronAPI.addCRMInteraction({
+        customer_id: customer.id,
+        type: interactionForm.type,
+        subject: interactionForm.subject,
+        details: interactionForm.description,
+        follow_up_date: interactionForm.follow_up_date || null
+      });
+      setInteractionForm({ type: 'call', subject: '', description: '', follow_up_date: '' });
+      setActiveTab('timeline');
+      await fetchTimeline();
     } catch (err) {
       console.error('Failed to add interaction:', err);
       setError(err.message || 'خطأ أثناء تسجيل التواصل');
@@ -107,19 +103,17 @@ function CustomerTimelineDrawer({ customer, onClose, onCustomerUpdated }) {
     e.preventDefault();
     if (!oppForm.title.trim()) return;
     try {
-      if (window.api?.crm?.createCRMOpportunity) {
-        await window.api.crm.createCRMOpportunity({
-          customer_id: customer.id,
-          title: oppForm.title,
-          stage: oppForm.stage,
-          expected_value: Number(oppForm.expected_value) || 0,
-          expected_close_date: oppForm.expected_close_date || null,
-          notes: oppForm.notes
-        });
-        setOppForm({ title: '', stage: 'lead', expected_value: '', expected_close_date: '', notes: '' });
-        setActiveTab('timeline');
-        await fetchTimeline();
-      }
+      await window.electronAPI.createCRMOpportunity({
+        customer_id: customer.id,
+        title: oppForm.title,
+        stage: oppForm.stage,
+        expected_value: Number(oppForm.expected_value) || 0,
+        expected_close_date: oppForm.expected_close_date || null,
+        notes: oppForm.notes
+      });
+      setOppForm({ title: '', stage: 'lead', expected_value: '', expected_close_date: '', notes: '' });
+      setActiveTab('timeline');
+      await fetchTimeline();
     } catch (err) {
       console.error('Failed to create opportunity:', err);
       setError(err.message || 'خطأ أثناء تسجيل فرصة البيع');
@@ -129,11 +123,9 @@ function CustomerTimelineDrawer({ customer, onClose, onCustomerUpdated }) {
   const handleUpdateRatingAndTier = async (e) => {
     e.preventDefault();
     try {
-      if (window.api?.crm?.updateCustomerRatingAndTier) {
-        await window.api.crm.updateCustomerRatingAndTier(customer.id, rating, tier);
-        if (onCustomerUpdated) onCustomerUpdated();
-        setActiveTab('timeline');
-      }
+      await window.electronAPI.updateCustomerRatingAndTier(customer.id, rating, tier);
+      if (onCustomerUpdated) onCustomerUpdated();
+      setActiveTab('timeline');
     } catch (err) {
       console.error('Failed to update rating:', err);
       setError(err.message || 'خطأ أثناء تحديث التقييم');

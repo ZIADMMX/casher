@@ -1,0 +1,316 @@
+.tutorial-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  backdrop-filter: blur(3px);
+  animation: tutorialFadeIn 0.3s ease-out;
+}
+
+.tutorial-modal {
+  background-color: var(--bg-card, #ffffff);
+  border: 1px solid rgba(var(--primary-rgb, 46, 91, 255), 0.18);
+  border-radius: 16px;
+  width: 92%;
+  max-width: 640px;
+  max-height: 92vh;
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.22);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: tutorialSlideUp 0.4s ease-out;
+  color: var(--text-main, #15151a);
+}
+
+/* ---------- Header ---------- */
+.tutorial-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  background: var(--primary-light, #eef2ff);
+  border-bottom: 1px solid rgba(var(--primary-rgb, 46, 91, 255), 0.15);
+}
+
+.tutorial-header-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tutorial-header-compass {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--bg-card, #fff);
+  color: var(--primary-color, #F2600C);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tutorial-header-compass svg {
+  width: 16px;
+  height: 16px;
+}
+
+.tutorial-header-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+}
+
+.tutorial-eyebrow {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--primary-color, #F2600C);
+}
+
+.tutorial-header h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.tutorial-close-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--primary-color, #F2600C);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s;
+}
+
+.tutorial-close-btn:hover {
+  background: rgba(var(--primary-rgb, 46, 91, 255), 0.1);
+}
+
+.tutorial-close-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ---------- Body ---------- */
+.tutorial-body {
+  padding: 24px 32px 12px;
+  overflow-y: auto;
+}
+
+.tutorial-progress {
+  height: 10px;
+  background: #e2e8f0;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.tutorial-progress-fill {
+  height: 100%;
+  background: var(--primary-color, #F2600C);
+  border-radius: 999px;
+  transition: width 0.35s ease;
+}
+
+.tutorial-progress-meta {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  font-size: 0.8rem;
+  color: var(--text-muted, #94a3b8);
+}
+
+.tutorial-progress-meta span:first-child {
+  color: var(--text-main, #15151a);
+  font-size: 0.9rem;
+}
+
+.tutorial-dots {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.tutorial-dot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid #cbd5e1;
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+}
+
+.tutorial-dot svg {
+  width: 14px;
+  height: 14px;
+}
+
+.tutorial-dot.active {
+  background: var(--primary-color, #F2600C);
+  border-color: var(--primary-color, #F2600C);
+  color: #fff;
+}
+
+.tutorial-dot.done {
+  background: var(--success-color, #10b981);
+  border-color: var(--success-color, #10b981);
+  color: #fff;
+}
+
+/* ---------- Step ---------- */
+.tutorial-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 24px 0 16px;
+  animation: tutorialFadeIn 0.25s ease-out;
+}
+
+.tutorial-icon-wrapper {
+  margin-bottom: 20px;
+}
+
+.tutorial-icon {
+  display: inline-flex;
+  color: var(--primary-color, #F2600C);
+}
+
+.tutorial-icon svg {
+  width: 64px;
+  height: 64px;
+}
+
+.tutorial-title {
+  margin: 0 0 10px;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.tutorial-desc {
+  margin: 0;
+  max-width: 460px;
+  font-size: 0.9rem;
+  line-height: 1.8;
+  color: #475569;
+}
+
+.tutorial-action-btn {
+  margin-top: 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 18px;
+  border-radius: 8px;
+  border: 1px solid var(--primary-color, #F2600C);
+  background: transparent;
+  color: var(--primary-color, #F2600C);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.tutorial-action-btn:hover {
+  background: var(--primary-light, #eef2ff);
+}
+
+.tutorial-action-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* ---------- Footer ---------- */
+.tutorial-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 32px;
+  padding: 14px 0 18px;
+  border-top: 1px solid rgba(var(--primary-rgb, 46, 91, 255), 0.15);
+}
+
+.tutorial-footer-end {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.tutorial-link-btn,
+.tutorial-skip-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--primary-color, #F2600C);
+  font-size: 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tutorial-link-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.tutorial-link-btn:hover,
+.tutorial-skip-btn:hover {
+  text-decoration: underline;
+}
+
+.tutorial-primary-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 20px;
+  border-radius: 8px;
+  border: none;
+  background: var(--primary-color, #F2600C);
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 10px var(--primary-shadow, rgba(46, 91, 255, 0.3));
+  transition: filter 0.2s, transform 0.1s;
+}
+
+.tutorial-primary-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.tutorial-primary-btn:hover {
+  filter: brightness(1.08);
+}
+
+.tutorial-primary-btn:active {
+  transform: scale(0.98);
+}
+
+.tutorial-primary-btn:focus-visible {
+  outline: 2px solid var(--primary-color, #F2600C);
+  outline-offset: 2px;
+}
+
+@keyframes tutorialFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes tutorialSlideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
