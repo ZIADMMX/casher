@@ -18,10 +18,13 @@ jest.mock('electron', () => ({
 const keyFile = path.join(mockDir, 'backup.key');
 const { keyIdOf, formatRecoveryKey, parseRecoveryKey } = require('../../electron/security/backupCrypto');
 
+const corruptFiles = () => fs.readdirSync(mockDir).filter((f) => f.startsWith('backup.key.corrupt-'));
+
 let svc;
 beforeEach(() => {
   mockState.available = true;
   fs.rmSync(keyFile, { force: true });
+  for (const f of corruptFiles()) fs.rmSync(path.join(mockDir, f), { force: true });
   jest.resetModules();
   svc = require('../../electron/services/backupKey.service');
 });
@@ -82,4 +85,36 @@ test('a recovery key for another backup is rejected and changes nothing', () => 
 test('getRecoveryKey parses back to the primary key', () => {
   svc.ensureBackupKey();
   expect(parseRecoveryKey(svc.getRecoveryKey()).equals(svc.getPrimaryKey())).toBe(true);
+});
+
+test('adopting a valid recovery key repairs a corrupted keyring', () => {
+  fs.writeFileSync(keyFile, '{not json');
+  const b = crypto.randomBytes(32);
+  svc.adoptRecoveryKey(formatRecoveryKey(b), keyIdOf(b));
+  expect(svc.getPrimaryKey().equals(b)).toBe(true);
+  const aside = corruptFiles();
+  expect(aside).toHaveLength(1);
+  expect(fs.readFileSync(path.join(mockDir, aside[0]), 'utf8')).toBe('{not json');
+});
+
+test('a wrong recovery key does not touch a corrupted keyring', () => {
+  fs.writeFileSync(keyFile, '{not json');
+  const b = crypto.randomBytes(32);
+  const c = crypto.randomBytes(32);
+  expect(() => svc.adoptRecoveryKey(formatRecoveryKey(b), keyIdOf(c))).toThrow("المفتاح ده مش بتاع النسخة دي");
+  expect(fs.readFileSync(keyFile, 'utf8')).toBe('{not json');
+  expect(corruptFiles()).toHaveLength(0);
+});
+
+test('adopting an invalid recovery string leaves the keyring unchanged', () => {
+  svc.ensureBackupKey();
+  const before = fs.readFileSync(keyFile);
+  expect(() => svc.adoptRecoveryKey('FXR-garbage', keyIdOf(crypto.randomBytes(32)))).toThrow();
+  expect(fs.readFileSync(keyFile).equals(before)).toBe(true);
+});
+
+test('adopting when no keyring exists creates one with that key', () => {
+  const b = crypto.randomBytes(32);
+  svc.adoptRecoveryKey(formatRecoveryKey(b), keyIdOf(b));
+  expect(svc.getPrimaryKey().equals(b)).toBe(true);
 });

@@ -96,7 +96,16 @@ function adoptRecoveryKey(text, expectedKeyId) {
   const key = parseRecoveryKey(text);
   const keyId = keyIdOf(key);
   if (!keyId.equals(expectedKeyId)) throw new Error(WRONG_KEY_MESSAGE);
-  const ring = readKeyring() || { version: 1, primary: '', keys: {} };
+  let ring;
+  try {
+    ring = readKeyring();
+  } catch (err) {
+    if (err.message !== CORRUPT_MESSAGE) throw err;
+    // The verified recovery key replaces an unusable keyring; keep the bad file aside, never delete it.
+    fs.renameSync(keyringPath(), `${keyringPath()}.corrupt-${Date.now()}`);
+    ring = null;
+  }
+  if (!ring) ring = { version: 1, primary: '', keys: {} };
   const hex = keyId.toString('hex');
   ring.keys[hex] = sealKey(key);
   ring.primary = hex;
