@@ -7,14 +7,18 @@ const { requireActiveLicense } = require('../services/licenseGuard.service');
 function registerGuardedHandle(channel, handler) {
   ipcMain.handle(channel, async (event, ...args) => {
     await requireActiveLicense(event);
-    return handler(event, ...args);
+    // Sessions are keyed by window: run under the calling window's session so the
+    // guard and requireAdmin() see who is actually asking (as safeHandle does).
+    const session = authService.getCurrentSession(event?.sender?.id);
+    return authService.runWithSession(session, () => handler(event, ...args));
   });
 }
 
 /**
  * حارس القنوات المعدِّلة لمعالج الإعداد:
  * - مع جلسة مسجلة: يشترط صلاحية المدير
- * - بدون جلسة (أول تشغيل قبل تسجيل الدخول): مسموح فقط ما دام الإعداد لم يكتمل بعد
+ * - بدون جلسة: مسموح فقط قبل إنشاء أي مستخدم (أول تشغيل)، وليس لمجرد أن
+ *   المعالج لم يكتمل؛ فقد يعمل متجر لم يُكمل المعالج قط
  */
 function requireOnboardingMutationAllowed() {
   const session = authService.getCurrentSession();
@@ -23,9 +27,8 @@ function requireOnboardingMutationAllowed() {
     return;
   }
 
-  const state = onboardingService.getOnboardingState();
-  if (state && state.is_completed) {
-    throw new Error('اكتمل إعداد المتجر بالفعل. سجّل الدخول كمدير لتعديل الإعداد');
+  if (!authService.isSetupRequired()) {
+    throw new Error('سجّل الدخول كمدير لتعديل إعداد المتجر');
   }
 }
 
