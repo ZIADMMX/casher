@@ -51,7 +51,7 @@ function generateLicenseKey({ hwid, expiryTimestamp }) {
 /**
  * Parse and Validate a License Key string
  */
-function verifyLicenseKey(keyString, targetHwid = getMachineHardwareId()) {
+function verifyLicenseKey(keyString, targetHwid = getMachineHardwareId(), now = Date.now()) {
   if (!keyString || typeof keyString !== 'string') {
     return { valid: false, reason: 'مفتاح التفعيل فارغ' };
   }
@@ -101,7 +101,6 @@ function verifyLicenseKey(keyString, targetHwid = getMachineHardwareId()) {
 
   // Check Expiry Date (9999999999000 is Lifetime)
   const isLifetime = expiryTimestamp >= 9000000000000;
-  const now = Date.now();
   if (!isLifetime && now > expiryTimestamp) {
     return { valid: false, reason: 'انتهت صلاحية مفتاح التفعيل هذا' };
   }
@@ -117,33 +116,32 @@ function verifyLicenseKey(keyString, targetHwid = getMachineHardwareId()) {
 /**
  * Check current system license status
  */
-function getLicenseStatus() {
+function getLicenseStatus(now = Date.now(), { updateClock = true } = {}) {
   const hwid = getMachineHardwareId();
   const settings = dbRepo.getAll();
 
   const savedKey = settings.license_key || '';
   const trialStartStr = settings.trial_start_date;
-  const lastKnownClockStr = settings.last_known_clock;
+  const lastKnownClockStr = settings.last_known_server_clock;
   const clockRollbackDetected = settings.clock_rollback_detected === '1';
 
-  const now = Date.now();
-
   // Anti-Clock Rollback Check
-  let lastKnownClock = Number(lastKnownClockStr) || now;
+  const parsedLastKnownClock = Number(lastKnownClockStr);
+  const hasLastKnownClock = Number.isFinite(parsedLastKnownClock) && parsedLastKnownClock > 0;
+  const lastKnownClock = hasLastKnownClock ? parsedLastKnownClock : now;
   if (now < lastKnownClock - 60000) {
     // Clock was set back by more than 1 minute
     console.warn('تنبيه: تم اكتشاف تلاعب في ساعة النظام!');
     if (!clockRollbackDetected) {
       dbRepo.setMany({ clock_rollback_detected: '1' });
     }
-  } else {
-    lastKnownClock = now;
-    dbRepo.setMany({ last_known_clock: String(now) });
+  } else if (updateClock && (!hasLastKnownClock || now - lastKnownClock >= 60_000)) {
+    dbRepo.setMany({ last_known_server_clock: String(now) });
   }
 
   // 1. If Activated with a valid license key
   if (savedKey) {
-    const verification = verifyLicenseKey(savedKey, hwid);
+    const verification = verifyLicenseKey(savedKey, hwid, now);
     if (verification.valid) {
       return {
         isActivated: true,
@@ -166,8 +164,9 @@ function getLicenseStatus() {
   const trialEnd = trialStart + TRIAL_DURATION_DAYS * 24 * 60 * 60 * 1000;
   const remainingMs = trialEnd - now;
   const remainingDays = Math.max(0, Math.ceil(remainingMs / (1000 * 60 * 60 * 24)));
+  const trialDeadlineReached = remainingMs <= 0;
 
-  const isExpired = clockRollbackDetected || now < lastKnownClock - 60000 || remainingMs <= 0 || now < (trialStart - 60000);
+  const isExpired = clockRollbackDetected || now < lastKnownClock - 60000 || trialDeadlineReached || now < (trialStart - 60000);
 
   return {
     isActivated: false,
@@ -175,6 +174,8 @@ function getLicenseStatus() {
     isExpired,
     hwid,
     remainingDays,
+    warning: remainingDays > 0 && remainingDays <= 2,
+    trialDeadlineReached,
     trialEndDate: new Date(trialEnd).toLocaleDateString('ar-EG'),
   };
 }
@@ -182,9 +183,9 @@ function getLicenseStatus() {
 /**
  * Activate the software using a License Key
  */
-function activateSoftware(keyInput) {
+function activateSoftware(keyInput, now = Date.now()) {
   const hwid = getMachineHardwareId();
-  const verification = verifyLicenseKey(keyInput, hwid);
+  const verification = verifyLicenseKey(keyInput, hwid, now);
 
   if (!verification.valid) {
     throw new Error(verification.reason || 'مفتاح التفعيل غير صحيح');
@@ -192,13 +193,14 @@ function activateSoftware(keyInput) {
 
   dbRepo.setMany({
     license_key: keyInput.trim().toUpperCase(),
-    license_activated_at: String(Date.now()),
+    license_activated_at: String(now),
+    license_trial_purged: '0',
   });
 
   return {
     success: true,
     message: 'تم تفعيل البرنامج بنجاح! شكراً لاستخدامك Kashiear POS 🎉',
-    status: getLicenseStatus(),
+    status: getLicenseStatus(now),
   };
 }
 

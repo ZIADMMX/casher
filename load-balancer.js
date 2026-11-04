@@ -6,6 +6,8 @@
 
 const http = require('node:http');
 const url = require('node:url');
+require('dotenv').config();
+const { applyCorsPolicy } = require('./electron/security/corsPolicy');
 
 const LB_PORT = Number(process.env.LB_PORT) || 8080;
 
@@ -119,7 +121,7 @@ function proxyRequest(req, res, targetNode, retryCount = 0) {
     }
 
     if (!res.headersSent) {
-      res.writeHead(502, { 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': '*' });
+      res.writeHead(502, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify({
         error: isIdempotent
           ? 'تعذر الاتصال بأي من خوادم الـ API المركزية'
@@ -134,18 +136,43 @@ function proxyRequest(req, res, targetNode, retryCount = 0) {
 }
 
 // Load Balancer Server
-const { checkRateLimit } = require('./electron/services/rateLimiter');
+const {
+  checkRateLimit,
+  getClientIp,
+  tryAcquireRequestSlot,
+} = require('./electron/services/rateLimiter');
 
-const lbServer = http.createServer((req, res) => {
-  const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
-  if (!checkRateLimit(clientIp)) {
+const lbServer = http.createServer(async (req, res) => {
+  if (!applyCorsPolicy(req, res)) {
+    res.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' });
+    return res.end(JSON.stringify({ error: 'هذا المصدر غير مسموح له بالاتصال بالخادم' }));
+  }
+  if (req.method === 'OPTIONS') {
+    return;
+  }
+
+  const clientIp = getClientIp(req);
+  if (!await checkRateLimit(`load-balancer:${clientIp}`)) {
     res.writeHead(429, {
       'Content-Type': 'application/json; charset=utf-8',
-      'Access-Control-Allow-Origin': '*',
       'Retry-After': '60'
     });
-    return res.end(JSON.stringify({ error: 'تم تجاوز الحد الأقصى للطلبات (Rate Limit Exceeded). يرجى المحاولة بعد قليل.' }));
+    return res.end(JSON.stringify({
+      error: 'تم تجاوز الحد الأقصى للطلبات (Rate Limit Exceeded). يرجى المحاولة بعد قليل.',
+      retryAfterMs: 60000,
+    }));
   }
+
+  const releaseSlot = tryAcquireRequestSlot();
+  if (!releaseSlot) {
+    res.writeHead(503, {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Retry-After': '1',
+    });
+    return res.end(JSON.stringify({ error: 'الخادم مشغول حاليًا، يرجى المحاولة بعد لحظات' }));
+  }
+  res.once('finish', releaseSlot);
+  res.once('close', releaseSlot);
 
   const parsed = url.parse(req.url, true);
 
@@ -153,7 +180,6 @@ const lbServer = http.createServer((req, res) => {
   if (parsed.pathname === '/lb/status' || parsed.pathname === '/lb') {
     res.writeHead(200, {
       'Content-Type': 'application/json; charset=utf-8',
-      'Access-Control-Allow-Origin': '*',
     });
     return res.end(JSON.stringify({
       status: 'ONLINE',
@@ -176,7 +202,6 @@ const lbServer = http.createServer((req, res) => {
   if (!targetNode) {
     res.writeHead(503, {
       'Content-Type': 'application/json; charset=utf-8',
-      'Access-Control-Allow-Origin': '*',
     });
     return res.end(JSON.stringify({
       error: 'جميع خوادم الـ API المركزية غير متاحة حالياً',

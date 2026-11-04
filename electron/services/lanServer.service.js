@@ -4,7 +4,7 @@
  * Allows Kashiear to act as a Master Server for multiple Cashier Terminals on the local network.
  */
 
-const http = require('node:http');
+const https = require('node:https');
 const os = require('node:os');
 const { exec } = require('node:child_process');
 
@@ -22,11 +22,19 @@ const { logError } = require('./logger.service');
 const inventoryService = require('./inventory.service');
 const inventoryRepo = require('../repositories/inventory.repository');
 const appointmentsService = require('./appointments.service');
+const { applyCorsPolicy } = require('../security/corsPolicy');
+const {
+  checkRequestActionRateLimit,
+  tryAcquireRequestSlot,
+} = require('./rateLimiter');
 
-let httpServer = null;
+let httpsServer = null;
 let serverStartTime = null;
 let requestCount = 0;
 let serverPort = 5000;
+let httpsPort  = 5443;
+let certificatePath = null;
+let certificateFingerprint = null;
 
 /**
  * Retrieve all local IPv4 addresses for LAN connection
@@ -59,9 +67,6 @@ function getLocalIpAddresses() {
 function sendJSON(res, statusCode, data) {
   res.writeHead(statusCode, {
     'Content-Type': 'application/json; charset=utf-8',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
   });
   res.end(JSON.stringify(data));
 }
@@ -113,22 +118,36 @@ function authenticateRequest(req) {
  */
 async function handleApiRequest(req, res) {
   requestCount++;
+  const releaseSlot = tryAcquireRequestSlot();
+  if (!releaseSlot) {
+    res.setHeader('Retry-After', '1');
+    return sendJSON(res, 503, { error: 'الخادم مشغول حاليًا، يرجى المحاولة بعد لحظات' });
+  }
+  res.once('finish', releaseSlot);
+  res.once('close', releaseSlot);
+
   const parsedUrl = new URL(req.url, 'http://localhost');
   const pathname = parsedUrl.pathname || '';
   const method = req.method.toUpperCase();
   const query = Object.fromEntries(parsedUrl.searchParams.entries());
 
-  // CORS Preflight
+  if (!applyCorsPolicy(req, res)) {
+    return sendJSON(res, 403, { error: 'هذا المصدر غير مسموح له بالاتصال بالخادم' });
+  }
   if (method === 'OPTIONS') {
-    res.writeHead(204, {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
-    });
-    return res.end();
+    return;
   }
 
   try {
+    const actionLimit = await checkRequestActionRateLimit(req, authenticateRequest(req)?.id);
+    if (actionLimit && !actionLimit.allowed) {
+      res.setHeader('Retry-After', String(Math.ceil(actionLimit.retryAfterMs / 1000)));
+      return sendJSON(res, 429, {
+        error: 'تم إيقاف هذه العملية مؤقتًا بسبب تكرار المحاولة. يرجى الانتظار قبل إعادة المحاولة.',
+        retryAfterMs: actionLimit.retryAfterMs,
+      });
+    }
+
     // -------------------------------------------------------------
     // Health & System Information
     // -------------------------------------------------------------
@@ -580,59 +599,109 @@ async function handleApiRequest(req, res) {
 }
 
 /**
- * Start the LAN Server
+ * Start the LAN API on HTTPS only. HTTP is intentionally not exposed.
  */
 function startServer(port = 5000) {
   const numericPort = Number(port);
-  if (!Number.isInteger(numericPort) || numericPort < 1 || numericPort > 65535) {
+  const securePort = numericPort + 443;
+  if (!Number.isInteger(numericPort) || numericPort < 1 || securePort > 65535) {
     return Promise.resolve({
       success: false,
       message: 'رقم المنفذ غير صالح (يجب أن يكون رقماً صحيحاً بين 1 و 65535)',
     });
   }
 
-  return new Promise((resolve, reject) => {
-    if (httpServer) {
-      return resolve({
-        success: true,
-        alreadyRunning: true,
-        port: serverPort,
-        ips: getLocalIpAddresses(),
-      });
+  if (httpsServer) {
+    return Promise.resolve({
+      success: true,
+      alreadyRunning: true,
+      port: serverPort,
+      httpsPort,
+      hostname: os.hostname(),
+      ips: getLocalIpAddresses(),
+      certificatePath,
+      certificateFingerprint,
+    });
+  }
+
+  serverPort = numericPort;
+  httpsPort = securePort;
+
+  return (async () => {
+    let sslCreds;
+    try {
+      const { getOrCreateCert } = require('../security/sslCert');
+      sslCreds = getOrCreateCert();
+    } catch (err) {
+      logError('LANServerSSL', err);
+      throw new Error('فشل تحميل شهادة SSL: ' + err.message);
     }
 
-    serverPort = numericPort;
-    httpServer = http.createServer(handleApiRequest);
+    httpsServer = https.createServer(
+      { key: sslCreds.key, cert: sslCreds.cert },
+      handleApiRequest,
+    );
+    const server = httpsServer;
 
-    httpServer.on('error', (err) => {
-      logError('LANServerStart', err);
-      httpServer = null;
-      reject(err);
-    });
-
-    httpServer.listen(numericPort, '0.0.0.0', () => {
-      serverStartTime = Date.now();
-      resolve({
-        success: true,
-        port: numericPort,
-        ips: getLocalIpAddresses(),
+    try {
+      await new Promise((resolve, reject) => {
+        const onError = (err) => {
+          server.removeListener('listening', onListening);
+          reject(err);
+        };
+        const onListening = () => {
+          server.removeListener('error', onError);
+          server.on('error', onRuntimeError);
+          resolve();
+        };
+        const onRuntimeError = (err) => {
+          logError('LANServerRuntime', err);
+          if (httpsServer === server) httpsServer = null;
+          serverStartTime = null;
+        };
+        server.once('error', onError);
+        server.once('error', onError);
+        server.once('listening', onListening);
+        server.listen(httpsPort, '0.0.0.0');
       });
-    });
-  });
+    } catch (err) {
+      logError('LANServerStart_HTTPS', err);
+      httpsServer = null;
+      throw err;
+    }
+
+    serverStartTime = Date.now();
+    certificatePath = sslCreds.certPath;
+    certificateFingerprint = sslCreds.fingerprint256;
+    console.log(`[LAN HTTPS] ✅ :${httpsPort} — ready (TLS)`);
+    return {
+      success: true,
+      port: numericPort,
+      httpsPort,
+      hostname: os.hostname(),
+      ips: getLocalIpAddresses(),
+      certificatePath,
+      certificateFingerprint,
+    };
+  })();
 }
 
 /**
- * Stop the LAN Server
+ * Stop the LAN HTTPS server.
  */
 function stopServer() {
-  return new Promise((resolve) => {
-    if (!httpServer) {
-      return resolve({ success: true, notRunning: true });
-    }
+  const server = httpsServer;
+  httpsServer = null;
+  serverStartTime = null;
+  if (!server) return Promise.resolve({ success: true, notRunning: true });
 
-    httpServer.close(() => {
-      httpServer = null;
-      serverStartTime = null;
+  return new Promise((resolve, reject) => {
+    server.close((err) => {
+      if (err) {
+        logError('LANServerStop', err);
+        reject(err);
+        return;
+      }
       resolve({ success: true });
     });
   });
@@ -651,6 +720,14 @@ function openWindowsFirewallPort(port = 5000) {
     });
   }
 
+  const securePort = numericPort + 443;
+  if (securePort > 65535) {
+    return Promise.resolve({
+      success: false,
+      message: 'منفذ HTTPS الناتج غير صالح',
+    });
+  }
+
   return new Promise((resolve) => {
     if (process.platform !== 'win32') {
       return resolve({
@@ -659,7 +736,7 @@ function openWindowsFirewallPort(port = 5000) {
       });
     }
 
-    const ruleName = 'Kashiear POS Local Server';
+    const ruleName = 'Kashiear POS Local Server HTTPS';
     const checkCmd = `netsh advfirewall firewall show rule name="${ruleName}"`;
 
     exec(checkCmd, (_checkErr, checkStdout) => {
@@ -673,17 +750,17 @@ function openWindowsFirewallPort(port = 5000) {
       }
 
       // Try adding rule directly
-      const addCmd = `netsh advfirewall firewall add rule name="${ruleName}" dir=in action=allow protocol=TCP localport=${numericPort} profile=any`;
+      const addCmd = `netsh advfirewall firewall add rule name="${ruleName}" dir=in action=allow protocol=TCP localport=${securePort} profile=private,domain`;
       exec(addCmd, (err, _stdout, stderr) => {
         if (!err && (!stderr || !stderr.includes('elevation'))) {
           return resolve({
             success: true,
-            message: `تم فتح المنفذ ${numericPort} بنجاح في جدار حماية Windows.`,
+            message: `تم فتح منفذ HTTPS ${securePort} للشبكات الخاصة بنجاح.`,
           });
         }
 
         // If requires elevation, invoke PowerShell with RunAs (shows UAC prompt)
-        const elevatedCmd = `powershell -Command "Start-Process netsh -ArgumentList 'advfirewall firewall add rule name=\\"${ruleName}\\" dir=in action=allow protocol=TCP localport=${numericPort} profile=any' -Verb RunAs -Wait"`;
+        const elevatedCmd = `powershell -Command "Start-Process netsh -ArgumentList 'advfirewall firewall add rule name=\\"${ruleName}\\" dir=in action=allow protocol=TCP localport=${securePort} profile=private,domain' -Verb RunAs -Wait"`;
         exec(elevatedCmd, (elevatedErr) => {
           if (elevatedErr) {
             resolve({
@@ -693,7 +770,7 @@ function openWindowsFirewallPort(port = 5000) {
           } else {
             resolve({
               success: true,
-              message: `تم فتح المنفذ ${numericPort} في جدار حماية Windows بنجاح!`,
+              message: `تم فتح منفذ HTTPS ${securePort} للشبكات الخاصة بنجاح!`,
             });
           }
         });
@@ -707,11 +784,14 @@ function openWindowsFirewallPort(port = 5000) {
  */
 function getStatus() {
   return {
-    isRunning: httpServer !== null,
-    port: serverPort,
-    hostname: os.hostname(),
-    localIps: getLocalIpAddresses(),
-    uptime: serverStartTime ? Math.floor((Date.now() - serverStartTime) / 1000) : 0,
+    isRunning: httpsServer !== null,
+    port:      serverPort,
+    httpsPort,
+    certificatePath,
+    certificateFingerprint,
+    hostname:  os.hostname(),
+    localIps:  getLocalIpAddresses(),
+    uptime:    serverStartTime ? Math.floor((Date.now() - serverStartTime) / 1000) : 0,
     totalRequests: requestCount,
   };
 }

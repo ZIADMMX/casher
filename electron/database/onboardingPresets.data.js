@@ -1,6 +1,6 @@
 /**
  * Onboarding Sector Presets Data
- * قوالب البداية الجاهزة لمعالج التهيئة الأولى (6 كروت رئيسية + أخرى)
+ * قوالب البداية الجاهزة لمعالج التهيئة الأولى
  * تتضمن:
  * 1. مواعيد العمل الافتراضية
  * 2. الأقسام ومحطات التحضير المرتبطة
@@ -834,6 +834,27 @@ const RAW_SECTOR_PRESETS = [
         low_stock_threshold: 0,
       },
     ],
+  },
+  {
+    sector_key: 'crm',
+    sector_name: 'إدارة علاقات العملاء (Customer Relationship Management)',
+    sector_tagline: 'قطاع مستقل لإدارة العملاء والشركات والفرص البيعية والتواصل',
+    icon: 'users',
+    primary_action_title: 'ابدأ بإضافة أول عميل',
+    primary_action_route: 'crm',
+    terminology: {
+      order: 'صفقة / فرصة بيع',
+      customer: 'عميل / جهة اتصال',
+      product: 'خدمة / عرض سعر',
+      unit: 'جهة اتصال',
+    },
+    enabled_modules: ['crm', 'reports', 'settings', 'users'],
+    default_units: ['جهة اتصال', 'شركة', 'صفقة'],
+    starter_working_hours: null,
+    starter_categories: [],
+    starter_addons: [],
+    starter_products: [],
+    starter_stations: [],
   },
   {
     sector_key: 'custom',

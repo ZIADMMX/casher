@@ -78,6 +78,18 @@ describe('license.service', () => {
     expect(result.expiryTimestamp).toBe(expiryTimestamp);
   });
 
+  test('activation resets the trial purge marker for future license expiry', () => {
+    const hwid = licenseService.getMachineHardwareId();
+    const key = licenseService.generateLicenseKey({
+      hwid,
+      expiryTimestamp: Date.now() + 100000,
+    });
+
+    licenseService.activateSoftware(key, Date.now());
+
+    expect(mockStore.license_trial_purged).toBe('0');
+  });
+
   test('4. verifyLicenseKey rejects key for wrong HWID', () => {
     const hwid = 'WRONG123';
     const expiryTimestamp = Date.now() + 100000;
@@ -145,6 +157,18 @@ describe('license.service', () => {
     expect(status.isTrial).toBe(true);
     expect(status.isExpired).toBe(true);
     expect(status.remainingDays).toBe(0);
+  });
+
+  test('warns during the final two days of the trial', () => {
+    licenseService.getLicenseStatus();
+    const twelveDaysMs = 12 * 24 * 60 * 60 * 1000;
+    dateSpy.mockImplementation(() => 1700000000000 + twelveDaysMs);
+
+    const status = licenseService.getLicenseStatus();
+
+    expect(status.remainingDays).toBe(2);
+    expect(status.warning).toBe(true);
+    expect(status.isExpired).toBe(false);
   });
 
   test('10. activateSoftware succeeds with valid key', () => {

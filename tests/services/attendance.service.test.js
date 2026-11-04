@@ -93,6 +93,22 @@ describe('attendance.service', () => {
     expect(() => attendanceService.checkOut({ userId: 4, date })).toThrow('يجب تسجيل الحضور قبل الانصراف');
   });
 
+  test('returns only an active attendance record for shift association', () => {
+    attendanceRepo.getRecord.mockReturnValue({
+      id: 15,
+      check_in: '2026-10-31 08:00:00',
+      check_out: null,
+    });
+    expect(attendanceService.getActiveAttendanceToday(4)).toMatchObject({ id: 15 });
+
+    attendanceRepo.getRecord.mockReturnValue({
+      id: 15,
+      check_in: '2026-10-31 08:00:00',
+      check_out: '2026-10-31 16:00:00',
+    });
+    expect(attendanceService.getActiveAttendanceToday(4)).toBeNull();
+  });
+
   test('requires a cashier to close their shift before checking out', () => {
     authService.requireAuth.mockReturnValue({ id: 4, role: 'cashier' });
     attendanceRepo.getRecord.mockReturnValue({ id: 7, check_out: null });
@@ -100,6 +116,18 @@ describe('attendance.service', () => {
 
     expect(() => attendanceService.checkOut({ date: attendanceService.getTodayDate() }))
       .toThrow('أغلق ورديتك أولاً قبل تسجيل الانصراف');
+    expect(attendanceRepo.setCheckOut).not.toHaveBeenCalled();
+  });
+
+  test('prevents an administrator from checking out an employee with an open shift', () => {
+    authService.requireAuth.mockReturnValue({ id: 1, role: 'admin' });
+    attendanceRepo.getRecord.mockReturnValue({ id: 7, check_out: null });
+    shiftsRepo.getCurrentOpenShift.mockReturnValue({ id: 12, user_id: 4 });
+
+    expect(() => attendanceService.checkOut({
+      userId: 4,
+      date: attendanceService.getTodayDate(),
+    })).toThrow('أغلق ورديتك أولاً قبل تسجيل الانصراف');
     expect(attendanceRepo.setCheckOut).not.toHaveBeenCalled();
   });
 

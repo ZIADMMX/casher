@@ -2,13 +2,15 @@
   "name": "foxcloud",
   "version": "1.0.1",
   "description": "نظام الكاشير الذكي لمحلات الملابس",
-  "main": "electron/main.js",
+  "main": "electron-entry.js",
   "scripts": {
     "dev": "vite",
     "lint": "eslint src electron routes scripts *.js",
     "lint:fix": "eslint src electron routes scripts *.js --fix",
     "format": "prettier --write \"src/**/*.{js,jsx}\" \"electron/**/*.js\"",
-    "prebuild": "npm run lint",
+    "prebuild": "npm run lint && npm run build:main",
+    "build:main": "node scripts/obfuscate-electron.js",
+    "verify:license-time": "node scripts/verify-license-time.js",
     "build": "vite build",
     "test": "jest --runInBand --cacheDirectory=\"./.jest-cache\" --testPathIgnorePatterns=\"/e2e/|/tests/frontend/\"",
     "test:unit": "vitest run --node",
@@ -17,11 +19,11 @@
     "start": "npm run build && electron .",
     "api": "tsx api-server.js",
     "rebuild": "electron-rebuild -f -w better-sqlite3",
-    "package": "npm run build && npm run rebuild && electron-builder --win --x64",
-    "package:win": "npm run build && npm run rebuild && electron-builder --win --x64 --publish never",
-    "package:dir": "npm run build && npm run rebuild && electron-builder --win --x64 --dir",
-    "package:linux": "npm run build && npm run rebuild && electron-builder --linux --x64 --publish never",
-    "package:mac": "npm run build && npm run rebuild && electron-builder --mac --publish never"
+    "package": "npm run verify:license-time && npm run build && npm run rebuild && electron-builder --win --x64",
+    "package:win": "npm run verify:license-time && npm run build && npm run rebuild && electron-builder --win --x64 --publish never",
+    "package:dir": "npm run verify:license-time && npm run build && npm run rebuild && electron-builder --win --x64 --dir",
+    "package:linux": "npm run verify:license-time && npm run build && npm run rebuild && electron-builder --linux --x64 --publish never",
+    "package:mac": "npm run verify:license-time && npm run build && npm run rebuild && electron-builder --mac --publish never"
   },
   "keywords": [],
   "author": "",
@@ -35,7 +37,11 @@
     },
     "files": [
       "dist/**/*",
-      "electron/**/*",
+      "electron-entry.js",
+      "electron-obfuscated/**/*",
+      "license-time.config.json",
+      "shared/**/*",
+      "public/**/*",
       "build/**/*",
       "package.json"
     ],
@@ -72,6 +78,7 @@
     "nodeGypRebuild": false
   },
   "devDependencies": {
+    "javascript-obfuscator": "^4.1.1",
     "tsx": "^4.19.3",
     "@electron/rebuild": "^4.1.0",
     "@eslint/js": "^9.39.5",

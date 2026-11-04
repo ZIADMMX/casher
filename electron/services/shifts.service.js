@@ -43,7 +43,8 @@ function openShift({ openingCash = 0, shiftType = 'morning', posStation = 'ال�
     throw new Error(`لديك وردية مفتوحة بالفعل حالياً برقم #${existing.id}`);
   }
 
-  if (session.role !== 'admin' && !attendanceService.isCheckedInToday(session.id)) {
+  const attendance = attendanceService.getActiveAttendanceToday(session.id);
+  if (!attendance) {
     throw new Error('سجّل حضورك أولاً قبل فتح الوردية');
   }
 
@@ -54,6 +55,7 @@ function openShift({ openingCash = 0, shiftType = 'morning', posStation = 'ال�
 
   const newShift = shiftsRepo.openShift({
     userId: session.id,
+    attendanceRecordId: attendance.id,
     openedByName: session.username,
     openingCash: initialAmount,
     shiftType,

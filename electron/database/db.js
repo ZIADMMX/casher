@@ -23,7 +23,8 @@ if (userDataDir !== ':memory:' && !fs.existsSync(userDataDir)) {
   try { fs.mkdirSync(userDataDir, { recursive: true }); } catch {}
 }
 const dbPath = userDataDir === ':memory:' ? ':memory:' : path.join(userDataDir, 'shop.db');
-const DATABASE_SCHEMA_VERSION = 3;
+const DATABASE_SCHEMA_VERSION = 11;
+const SALES_SCHEMA_VERSION = 6;
 
 const DATABASE_LOCK_TIMEOUT_MS = 30000;
 
@@ -91,6 +92,98 @@ function checkpointWalIfNeeded(database = db) {
     database.pragma('wal_checkpoint(PASSIVE)');
   } catch (e) {
     // Do not fail shutdown or backup because WAL checkpoint is advisory only.
+  }
+}
+
+const LICENSE_SETTINGS_TO_PRESERVE = [
+  'trial_start_date',
+  'last_known_server_clock',
+  'clock_rollback_detected',
+  'license_key',
+  'license_activated_at',
+  'license_trial_purged',
+];
+
+function clearExpiredTrialData(database = db) {
+  const settingsTable = database.prepare(
+    "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'settings'"
+  ).get();
+  if (!settingsTable) {
+    throw new Error('تعذر تصفير بيانات المتجر: جدول إعدادات الترخيص غير موجود');
+  }
+
+  const purgeAlreadyCompleted = database.prepare(
+    "SELECT 1 FROM settings WHERE key = 'license_trial_purged' AND value = '1'"
+  ).get();
+
+  const existingLicenseSettings = database.prepare(
+    `SELECT key, value FROM settings WHERE key IN (${LICENSE_SETTINGS_TO_PRESERVE.map(() => '?').join(', ')})`
+  ).all(...LICENSE_SETTINGS_TO_PRESERVE);
+  const tableRows = database.prepare(`
+    SELECT name, sql
+    FROM sqlite_master
+    WHERE type = 'table'
+      AND name NOT LIKE 'sqlite_%'
+      AND name != 'settings'
+    ORDER BY name
+  `).all();
+  const virtualTableNames = tableRows
+    .filter(({ sql }) => /^create virtual table/i.test(sql || ''))
+    .map(({ name }) => name);
+  const virtualShadowTables = new Set(tableRows
+    .filter(({ name, sql }) => !sql && virtualTableNames.some((virtualName) => name.startsWith(`${virtualName}_`)))
+    .map(({ name }) => name));
+  const tables = tableRows
+    .filter(({ name }) => !virtualShadowTables.has(name))
+    .map(({ name }) => name);
+  const wasForeignKeysEnabled = Boolean(database.pragma('foreign_keys', { simple: true }));
+
+  database.pragma('secure_delete = ON');
+  database.pragma('foreign_keys = OFF');
+
+  try {
+    const clearData = database.transaction(() => {
+      for (const tableName of tables) {
+        const quotedName = `"${tableName.replace(/"/g, '""')}"`;
+        database.exec(`DELETE FROM ${quotedName}`);
+      }
+
+      database.prepare('DELETE FROM settings').run();
+      const restoreLicenseSetting = database.prepare(
+        'INSERT INTO settings (key, value) VALUES (?, ?)'
+      );
+      for (const setting of existingLicenseSettings) {
+        restoreLicenseSetting.run(setting.key, setting.value);
+      }
+
+      const hasSequenceTable = database.prepare(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'sqlite_sequence'"
+      ).get();
+      if (hasSequenceTable) {
+        database.prepare('DELETE FROM sqlite_sequence').run();
+      }
+      if (database.pragma('foreign_key_check').length > 0) {
+        throw new Error('تعذر تصفير بيانات المتجر بسبب تعارض في المفاتيح الأجنبية');
+      }
+    });
+
+    clearData();
+    if (purgeAlreadyCompleted) return false;
+
+    database.exec('VACUUM');
+    database.pragma('wal_checkpoint(TRUNCATE)');
+
+    const markTrialPurged = database.transaction(() => {
+      database.prepare(`
+        INSERT INTO settings (key, value)
+        VALUES ('license_trial_purged', '1')
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value
+      `).run();
+    });
+    markTrialPurged();
+    return true;
+  } finally {
+    database.pragma(`foreign_keys = ${wasForeignKeysEnabled ? 'ON' : 'OFF'}`);
   }
 }
 
@@ -355,7 +448,7 @@ function initDatabase() {
 
 function migrateSalesTable() {
   const currentVersion = db.pragma('user_version', { simple: true });
-  if (currentVersion >= DATABASE_SCHEMA_VERSION) return;
+  if (currentVersion >= SALES_SCHEMA_VERSION) return;
 
   const salesTable = db.prepare(
     "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'sales'"
@@ -490,7 +583,7 @@ function migrateSalesTable() {
         }
       }
 
-      db.pragma(`user_version = ${DATABASE_SCHEMA_VERSION}`);
+      db.pragma(`user_version = ${SALES_SCHEMA_VERSION}`);
     });
 
     migrate();
@@ -814,6 +907,7 @@ function migrateShiftsTable() {
   addShiftCol('opening_cash_breakdown', 'TEXT');
   addShiftCol('branch_id', 'INTEGER REFERENCES branches(id)');
   addShiftCol('warehouse_id', 'INTEGER REFERENCES warehouses(id)');
+  addShiftCol('attendance_record_id', 'INTEGER REFERENCES attendance_records(id)');
   try {
     db.exec(`
       CREATE INDEX IF NOT EXISTS idx_shifts_branch ON shifts(branch_id);
@@ -1390,6 +1484,221 @@ function migrateCRMTables() {
       AND EXISTS (SELECT 1 FROM crm_interactions ci WHERE ci.customer_id = customers.id);
   `);
   console.log('تم التحقق من جداول مركز اتصالات العملاء والـ CRM (crm)');
+}
+
+function migrateAdvancedCRMTables(database = db) {
+  const addColumn = (table, name, definition) => {
+    const columns = database.prepare(`PRAGMA table_info(${table})`).all();
+    if (!columns.some((column) => column.name === name)) {
+      database.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${definition}`);
+    }
+  };
+
+  addColumn('customers', 'company_id', 'INTEGER REFERENCES crm_companies(id) ON DELETE SET NULL');
+  addColumn('customers', 'lead_source', 'TEXT');
+  addColumn('customers', 'email_consent', 'INTEGER NOT NULL DEFAULT 0');
+  addColumn('customers', 'sms_consent', 'INTEGER NOT NULL DEFAULT 0');
+  addColumn('customers', 'consent_updated_at', 'DATETIME');
+  addColumn('customers', 'gdpr_deleted_at', 'DATETIME');
+  addColumn('crm_opportunities', 'company_id', 'INTEGER REFERENCES crm_companies(id) ON DELETE SET NULL');
+  addColumn('crm_opportunities', 'lead_id', 'INTEGER REFERENCES crm_leads(id) ON DELETE SET NULL');
+  addColumn('crm_opportunities', 'probability', 'INTEGER NOT NULL DEFAULT 10');
+  addColumn('crm_opportunities', 'pipeline_stage_id', 'INTEGER REFERENCES crm_pipeline_stages(id) ON DELETE SET NULL');
+  addColumn('crm_opportunities', 'last_stage_changed_at', 'DATETIME');
+  addColumn('crm_opportunities', 'updated_by', 'INTEGER REFERENCES users(id) ON DELETE SET NULL');
+  addColumn('crm_opportunities', 'closed_at', 'DATETIME');
+  addColumn('crm_opportunities', 'stage_stale_reminded_at', 'DATETIME');
+
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS crm_companies (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      parent_company_id INTEGER REFERENCES crm_companies(id) ON DELETE SET NULL,
+      name TEXT NOT NULL,
+      industry TEXT,
+      website TEXT,
+      phone TEXT,
+      email TEXT,
+      address TEXT,
+      notes TEXT,
+      owner_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS crm_leads (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      phone TEXT,
+      email TEXT,
+      company_id INTEGER REFERENCES crm_companies(id) ON DELETE SET NULL,
+      customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+      source TEXT,
+      status TEXT NOT NULL DEFAULT 'new' CHECK(status IN ('new', 'contacted', 'qualified', 'converted', 'lost')),
+      owner_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      notes TEXT,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS crm_pipeline_stages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      stage_key TEXT NOT NULL UNIQUE,
+      label TEXT NOT NULL,
+      outcome TEXT NOT NULL DEFAULT 'open' CHECK(outcome IN ('open', 'won', 'lost')),
+      probability INTEGER NOT NULL DEFAULT 10 CHECK(probability BETWEEN 0 AND 100),
+      display_order INTEGER NOT NULL DEFAULT 0,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS crm_tags (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+      color TEXT NOT NULL DEFAULT '#64748b',
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS crm_record_tags (
+      tag_id INTEGER NOT NULL REFERENCES crm_tags(id) ON DELETE CASCADE,
+      record_type TEXT NOT NULL CHECK(record_type IN ('customer', 'company', 'lead', 'opportunity')),
+      record_id INTEGER NOT NULL,
+      PRIMARY KEY(tag_id, record_type, record_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS crm_activities (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      record_type TEXT NOT NULL CHECK(record_type IN ('customer', 'company', 'lead', 'opportunity')),
+      record_id INTEGER NOT NULL,
+      activity_type TEXT NOT NULL CHECK(activity_type IN ('call', 'meeting', 'task', 'email', 'note')),
+      title TEXT NOT NULL,
+      details TEXT,
+      status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open', 'completed', 'cancelled')),
+      due_at DATETIME,
+      owner_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      reminder_sent_at DATETIME,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS crm_notes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      record_type TEXT NOT NULL CHECK(record_type IN ('customer', 'company', 'lead', 'opportunity')),
+      record_id INTEGER NOT NULL,
+      body TEXT NOT NULL,
+      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS crm_attachments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      record_type TEXT NOT NULL CHECK(record_type IN ('customer', 'company', 'lead', 'opportunity')),
+      record_id INTEGER NOT NULL,
+      file_name TEXT NOT NULL,
+      file_path TEXT NOT NULL,
+      mime_type TEXT,
+      size_bytes INTEGER NOT NULL DEFAULT 0,
+      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS crm_custom_fields (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      entity_type TEXT NOT NULL CHECK(entity_type IN ('customer', 'company', 'lead', 'opportunity')),
+      field_key TEXT NOT NULL,
+      label TEXT NOT NULL,
+      field_type TEXT NOT NULL DEFAULT 'text' CHECK(field_type IN ('text', 'number', 'date', 'boolean')),
+      is_required INTEGER NOT NULL DEFAULT 0,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(entity_type, field_key)
+    );
+
+    CREATE TABLE IF NOT EXISTS crm_custom_field_values (
+      field_id INTEGER NOT NULL REFERENCES crm_custom_fields(id) ON DELETE CASCADE,
+      record_id INTEGER NOT NULL,
+      value TEXT,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY(field_id, record_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS crm_saved_filters (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      entity_type TEXT NOT NULL CHECK(entity_type IN ('customer', 'company', 'lead', 'opportunity', 'activity')),
+      filters_json TEXT NOT NULL DEFAULT '{}',
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user_id, entity_type, name)
+    );
+
+    CREATE TABLE IF NOT EXISTS crm_relationships (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      from_customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+      to_customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+      relationship_type TEXT NOT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CHECK(from_customer_id != to_customer_id),
+      UNIQUE(from_customer_id, to_customer_id, relationship_type)
+    );
+
+    CREATE TABLE IF NOT EXISTS crm_audit_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      entity_type TEXT NOT NULL,
+      entity_id INTEGER NOT NULL,
+      action TEXT NOT NULL,
+      changes_json TEXT NOT NULL DEFAULT '{}',
+      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS crm_automation_rules (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      is_enabled INTEGER NOT NULL DEFAULT 1,
+      trigger_type TEXT NOT NULL,
+      config_json TEXT NOT NULL DEFAULT '{}',
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_crm_companies_parent ON crm_companies(parent_company_id);
+    CREATE INDEX IF NOT EXISTS idx_crm_leads_status ON crm_leads(status);
+    CREATE INDEX IF NOT EXISTS idx_crm_leads_owner ON crm_leads(owner_user_id);
+    CREATE INDEX IF NOT EXISTS idx_crm_activities_due ON crm_activities(status, due_at);
+    CREATE INDEX IF NOT EXISTS idx_crm_activities_record ON crm_activities(record_type, record_id);
+    CREATE INDEX IF NOT EXISTS idx_crm_opportunities_stage_id ON crm_opportunities(pipeline_stage_id);
+    CREATE INDEX IF NOT EXISTS idx_crm_audit_entity ON crm_audit_log(entity_type, entity_id, created_at);
+  `);
+
+  const insertStage = database.prepare(`
+    INSERT OR IGNORE INTO crm_pipeline_stages (stage_key, label, outcome, probability, display_order)
+    VALUES (?, ?, ?, ?, ?)
+  `);
+  [
+    ['lead', 'عميل محتمل', 'open', 10, 0],
+    ['qualified', 'مؤهل', 'open', 25, 1],
+    ['proposal', 'عرض سعر', 'open', 60, 2],
+    ['won', 'ناجحة', 'won', 100, 3],
+    ['lost', 'خاسرة', 'lost', 0, 4],
+  ].forEach((stage) => insertStage.run(...stage));
+  database.prepare(`
+    INSERT OR IGNORE INTO crm_automation_rules (name, trigger_type, config_json)
+    VALUES ('تنبيه الصفقات المتوقفة', 'opportunity_stale', '{"days":7}')
+  `).run();
+
+  database.exec(`
+    UPDATE crm_opportunities
+    SET pipeline_stage_id = (
+      SELECT id FROM crm_pipeline_stages WHERE stage_key = crm_opportunities.stage
+    ),
+    last_stage_changed_at = COALESCE(last_stage_changed_at, updated_at)
+    WHERE pipeline_stage_id IS NULL;
+  `);
+  database.exec(`
+    UPDATE crm_opportunities
+    SET closed_at = COALESCE(closed_at, updated_at)
+    WHERE stage IN ('won', 'lost') AND closed_at IS NULL;
+  `);
 }
 
 function migrateCashierAuditLogsTable() {
@@ -2012,6 +2321,21 @@ function migrateCloudSyncV3(dbInstance = db) {
   } catch {}
 }
 
+function migrateKitchenOrdersV5(database = db) {
+  const salesTable = database.prepare(
+    "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'sales'"
+  ).get();
+  if (!salesTable) return;
+
+  const columns = new Set(database.prepare('PRAGMA table_info(sales)').all().map((column) => column.name));
+  if (!columns.has('order_mode')) {
+    database.exec("ALTER TABLE sales ADD COLUMN order_mode TEXT CHECK(order_mode IS NULL OR order_mode IN ('dine_in', 'takeaway', 'delivery'))");
+  }
+  if (!columns.has('kitchen_status')) {
+    database.exec("ALTER TABLE sales ADD COLUMN kitchen_status TEXT CHECK(kitchen_status IS NULL OR kitchen_status IN ('new', 'preparing', 'ready', 'served'))");
+  }
+}
+
 function runAllMigrations(dbInstance = db) {
   const currentVersion = dbInstance.pragma('user_version', { simple: true }) || 0;
 
@@ -2069,12 +2393,236 @@ function runAllMigrations(dbInstance = db) {
     dbInstance.pragma('user_version = 3');
     console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 3 (دعم المزامنة ومعرفات UUID).');
   }
+
+  if (currentVersion < 4) {
+    migrateShiftsTable();
+    dbInstance.pragma('user_version = 4');
+    console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 4 (ربط الوردية بسجل الحضور).');
+  }
+
+  if (currentVersion < 5) {
+    migrateKitchenOrdersV5(dbInstance);
+    dbInstance.pragma('user_version = 5');
+    console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 5 (أوضاع طلبات المطاعم وحالة المطبخ).');
+  }
+
+  if (currentVersion < 6) {
+    migrateAdvancedCRMTables(dbInstance);
+    dbInstance.pragma('user_version = 6');
+    console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 6 (وحدات CRM المتقدمة).');
+  }
+
+  if (currentVersion < 7) {
+    migrateCourtsTables(dbInstance);
+    dbInstance.pragma('user_version = 7');
+    console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 7 (دليل المحاكم).');
+  }
+
+  if (currentVersion < 8) {
+    migrateLegalCaseArchiveFinance(dbInstance);
+    dbInstance.pragma('user_version = 8');
+    console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 8 (أرشيف وماليات القضايا).');
+  }
+
+  if (currentVersion < 9) {
+    migrateCustomerPowerOfAttorneyTables(dbInstance);
+    dbInstance.pragma('user_version = 9');
+    console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 9 (توكيلات الموكلين).');
+  }
+
+  if (currentVersion < 10) {
+    migrateLegalClientInteractions(dbInstance);
+    dbInstance.pragma('user_version = 10');
+    console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 10 (سجل تواصل قانوني مستقل).');
+  }
+
+  if (currentVersion < 11) {
+    migrateLegalCaseTasks(dbInstance);
+    dbInstance.pragma('user_version = 11');
+    console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 11 (مهام ومتابعات القضايا).');
+  }
+}
+
+function migrateLegalCaseTasks(dbInstance = db) {
+  dbInstance.exec(`
+    CREATE TABLE IF NOT EXISTS legal_case_tasks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      case_id INTEGER NOT NULL,
+      session_id INTEGER,
+      title TEXT NOT NULL,
+      description TEXT,
+      due_at TEXT NOT NULL,
+      reminder_at TEXT,
+      assigned_lawyer_id INTEGER,
+      priority TEXT NOT NULL DEFAULT 'normal' CHECK(priority IN ('low', 'normal', 'high')),
+      status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'in_progress', 'completed', 'cancelled')),
+      reminder_sent INTEGER NOT NULL DEFAULT 0 CHECK(reminder_sent IN (0, 1)),
+      created_by INTEGER,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (case_id) REFERENCES legal_cases(id) ON DELETE CASCADE,
+      FOREIGN KEY (session_id) REFERENCES court_sessions(id) ON DELETE SET NULL,
+      FOREIGN KEY (assigned_lawyer_id) REFERENCES users(id) ON DELETE SET NULL,
+      FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_legal_case_tasks_case_due
+      ON legal_case_tasks(case_id, status, due_at);
+    CREATE INDEX IF NOT EXISTS idx_legal_case_tasks_reminders
+      ON legal_case_tasks(status, reminder_sent, reminder_at);
+    CREATE INDEX IF NOT EXISTS idx_legal_case_tasks_assignee
+      ON legal_case_tasks(assigned_lawyer_id, status, due_at);
+  `);
+}
+
+function migrateLegalClientInteractions(dbInstance = db) {
+  dbInstance.exec(`
+    CREATE TABLE IF NOT EXISTS legal_client_interactions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      customer_id INTEGER NOT NULL,
+      created_by INTEGER,
+      type TEXT NOT NULL CHECK(type IN ('call', 'message', 'note', 'complaint')),
+      subject TEXT NOT NULL,
+      details TEXT,
+      follow_up_date TEXT,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE,
+      FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_legal_client_interactions_customer
+      ON legal_client_interactions(customer_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_legal_client_interactions_followup
+      ON legal_client_interactions(follow_up_date);
+  `);
+}
+
+function migrateCustomerPowerOfAttorneyTables(dbInstance = db) {
+  dbInstance.exec(`
+    CREATE TABLE IF NOT EXISTS customer_power_of_attorneys (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      customer_id INTEGER NOT NULL,
+      number TEXT NOT NULL,
+      issued_at TEXT NOT NULL,
+      scope TEXT NOT NULL,
+      expires_at TEXT,
+      notes TEXT,
+      created_by INTEGER,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE,
+      FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_customer_power_of_attorneys_customer
+      ON customer_power_of_attorneys(customer_id, issued_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_customer_power_of_attorneys_expiry
+      ON customer_power_of_attorneys(expires_at);
+  `);
+}
+
+function migrateCourtsTables(dbInstance = db) {
+  dbInstance.exec(`
+    CREATE TABLE IF NOT EXISTS courts (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      court_type TEXT NOT NULL CHECK(court_type IN (
+        'first_instance', 'cassation', 'appeals', 'family',
+        'criminal', 'commercial', 'labor', 'administrative'
+      )),
+      specialization TEXT,
+      notes TEXT,
+      phone TEXT,
+      city TEXT,
+      address TEXT,
+      is_active INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN (0, 1)),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_courts_name_active
+      ON courts(name COLLATE NOCASE) WHERE is_active = 1;
+    CREATE INDEX IF NOT EXISTS idx_courts_type_active ON courts(court_type, is_active);
+  `);
+
+  const caseColumns = dbInstance.prepare('PRAGMA table_info(legal_cases)').all();
+  if (caseColumns.length && !caseColumns.some((column) => column.name === 'court_id')) {
+    dbInstance.exec('ALTER TABLE legal_cases ADD COLUMN court_id TEXT');
+  }
+}
+
+function migrateLegalCaseArchiveFinance(dbInstance = db) {
+  dbInstance.exec(`
+    CREATE TABLE IF NOT EXISTS case_document_versions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      document_id INTEGER NOT NULL,
+      version INTEGER NOT NULL,
+      file_path TEXT NOT NULL,
+      file_size INTEGER,
+      uploaded_by INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(document_id, version),
+      FOREIGN KEY (document_id) REFERENCES case_documents(id) ON DELETE CASCADE,
+      FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE SET NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_case_document_versions_document
+      ON case_document_versions(document_id, version DESC);
+  `);
+
+  const hasDocuments = dbInstance.prepare(
+    "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'case_documents'"
+  ).get();
+  if (hasDocuments) {
+    dbInstance.exec(`
+      INSERT OR IGNORE INTO case_document_versions
+        (document_id, version, file_path, file_size, uploaded_by, created_at)
+      SELECT id, COALESCE(version, 1), file_path, file_size, uploaded_by, created_at
+      FROM case_documents
+    `);
+  }
+
+  const hasCases = dbInstance.prepare(
+    "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'legal_cases'"
+  ).get();
+  const hasFinancials = dbInstance.prepare(
+    "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'case_financials'"
+  ).get();
+  if (hasCases && hasFinancials) {
+    const reconcile = dbInstance.transaction(() => {
+      dbInstance.exec(`
+        INSERT INTO case_financials
+          (case_id, type, amount, date, description, paid_by_client)
+        SELECT c.id, 'fee_payment',
+               c.paid_amount - COALESCE((
+                 SELECT SUM(f.amount) FROM case_financials f
+                 WHERE f.case_id = c.id AND f.type = 'fee_payment'
+               ), 0),
+               c.created_at,
+               'دفعة أتعاب افتتاحية لمزامنة الرصيد السابق مع سجل الحركات',
+               1
+        FROM legal_cases c
+        WHERE c.paid_amount > COALESCE((
+          SELECT SUM(f.amount) FROM case_financials f
+          WHERE f.case_id = c.id AND f.type = 'fee_payment'
+        ), 0)
+      `);
+      dbInstance.exec(`
+        UPDATE legal_cases
+        SET paid_amount = COALESCE((
+          SELECT SUM(f.amount) FROM case_financials f
+          WHERE f.case_id = legal_cases.id AND f.type = 'fee_payment'
+        ), 0)
+        WHERE paid_amount != COALESCE((
+          SELECT SUM(f.amount) FROM case_financials f
+          WHERE f.case_id = legal_cases.id AND f.type = 'fee_payment'
+        ), 0)
+      `);
+    });
+    reconcile();
+  }
 }
 
 module.exports = {
   db,
   configureDatabaseConnection,
   checkpointWalIfNeeded,
+  clearExpiredTrialData,
   initDatabase,
   runAllMigrations,
   migrateCloudSyncV3,
@@ -2084,15 +2632,22 @@ module.exports = {
   migrateLeaveRequestsTable,
   migrateSuppliersTable,
   migrateShiftsTable,
+  migrateKitchenOrdersV5,
   migrateReturnsTable,
   migrateSettingsTable,
   migrateNotificationsTable,
   migrateCustomersTable,
   migrateOrdersTables,
   migrateAppointmentsTables,
+  migrateLegalCaseTasks,
   migrateSubscriptionsTables,
   migrateCommissionsTables,
   migrateCRMTables,
+  migrateAdvancedCRMTables,
+  migrateCourtsTables,
+  migrateLegalCaseArchiveFinance,
+  migrateCustomerPowerOfAttorneyTables,
+  migrateLegalClientInteractions,
   migrateCashierAuditLogsTable,
   migrateInventoryWarehouses,
   migrateChannelsTables,

@@ -299,6 +299,7 @@ const createSaleSchema = v.object({
   items: v.array(saleItemSchema, 'يجب تمرير قائمة أصناف السلة').min(1, 'سلة المشتريات فارغة! أضف صنفاً واحداً على الأقل'),
   discount: v.number('الخصم يجب أن يكون رقماً').nonnegative('قيمة الخصم لا يمكن أن تكون سالبة').optional(),
   paymentMethod: v.enum(['cash', 'card', 'credit'], 'طريقة الدفع غير صالحة (كاش أو بطاقة أو آجل)'),
+  orderMode: v.enum(['dine_in', 'takeaway', 'delivery'], 'طريقة استلام الطلب غير صالحة').optional().nullable(),
   customerName: v.string('اسم العميل غير صالح').optional().nullable(),
   customerPhone: v.string('رقم هاتف العميل غير صالح').optional().nullable(),
   dueDate: v.string('تاريخ الاستحقاق غير صالح').optional().nullable(),
@@ -394,6 +395,10 @@ const addCustomerSchema = v.object({
   initialDebt: v.number('الرصيد الافتتاحي غير صحيح').nonnegative('الرصيد الافتتاحي لا يمكن أن يكون سالباً').optional().nullable(),
   debtNotes: v.string().optional().nullable(),
   dueDate: v.string().optional().nullable(),
+  company_id: v.number('معرف الشركة غير صحيح').positive('معرف الشركة غير صالح').optional().nullable(),
+  lead_source: v.string().max(100).optional().nullable(),
+  email_consent: v.boolean().optional(),
+  sms_consent: v.boolean().optional(),
 });
 
 const addManualDebtSchema = v.object({
@@ -408,6 +413,28 @@ const customerPaymentSchema = v.object({
   amount: v.number('مبلغ السداد غير صحيح').positive('مبلغ السداد يجب أن يكون أكبر من الصفر'),
   paymentMethod: v.enum(['cash', 'card', 'bank_transfer'], 'طريقة السداد غير صالحة').optional(),
   notes: v.string().optional().nullable(),
+});
+
+const createCustomerPowerOfAttorneySchema = v.object({
+  customerId: v.number('معرف الموكل مطلوب').int().positive(),
+  data: v.object({
+    number: v.string('رقم التوكيل مطلوب').min(1).max(100),
+    issued_at: v.string('تاريخ إصدار التوكيل مطلوب').refine((value) => /^\d{4}-\d{2}-\d{2}$/.test(value), 'صيغة التاريخ غير صالحة'),
+    scope: v.string('نطاق التوكيل مطلوب').min(1).max(2000),
+    expires_at: v.string().optional().nullable(),
+    notes: v.string().max(1000).optional().nullable(),
+  }),
+});
+
+const updateCustomerPowerOfAttorneySchema = v.object({
+  id: v.number('معرف التوكيل مطلوب').int().positive(),
+  data: v.object({
+    number: v.string().min(1).max(100).optional(),
+    issued_at: v.string().refine((value) => /^\d{4}-\d{2}-\d{2}$/.test(value), 'صيغة التاريخ غير صالحة').optional(),
+    scope: v.string().min(1).max(2000).optional(),
+    expires_at: v.string().optional().nullable(),
+    notes: v.string().max(1000).optional().nullable(),
+  }),
 });
 
 const addSupplierSchema = v.object({
@@ -649,6 +676,8 @@ module.exports = {
   addCustomerSchema,
   addManualDebtSchema,
   customerPaymentSchema,
+  createCustomerPowerOfAttorneySchema,
+  updateCustomerPowerOfAttorneySchema,
   addSupplierSchema,
   updateSupplierSchema,
   createPurchaseSchema,

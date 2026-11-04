@@ -1,4 +1,5 @@
 const reportsRepo = require('../repositories/reports.repository');
+const casesRepo = require('../repositories/cases.repository');
 const { requireAdmin } = require('./auth.service');
 
 function formatDate(date) {
@@ -6,6 +7,12 @@ function formatDate(date) {
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const d = String(date.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
+}
+
+function isValidReportDate(value) {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsedDate = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(parsedDate.getTime()) && parsedDate.toISOString().slice(0, 10) === value;
 }
 
 function resolveDateRange(param) {
@@ -105,9 +112,8 @@ function getFullReport(periodParam = 'today') {
   const profitGrowth = calculateGrowth(profit, prevProfit);
   const invoiceGrowth = calculateGrowth(summary.invoiceCount, prevSummary.invoiceCount);
 
-  const avgInvoice = summary.invoiceCount > 0
-    ? Math.round(summary.totalSales / summary.invoiceCount)
-    : 0;
+  const avgInvoice =
+    summary.invoiceCount > 0 ? Math.round(summary.totalSales / summary.invoiceCount) : 0;
 
   return {
     startDate,
@@ -129,5 +135,15 @@ function getFullReport(periodParam = 'today') {
   };
 }
 
-module.exports = { getFullReport, resolveDateRange };
-
+function getLegalCaseReport(periodParam = 'today') {
+  const { startDate, endDate } = resolveDateRange(periodParam);
+  if (!isValidReportDate(startDate) || !isValidReportDate(endDate)) {
+    throw new Error('تاريخ فترة التقرير غير صالح');
+  }
+  if (startDate > endDate) {
+    throw new Error('بداية فترة التقرير يجب أن تسبق نهايتها');
+  }
+  return casesRepo.getLawFirmReport(startDate, endDate);
+}
+
+module.exports = { getFullReport, getLegalCaseReport, resolveDateRange };

@@ -2,6 +2,14 @@ const { ipcMain } = require('electron');
 const onboardingService = require('../services/onboarding.service');
 const { logError } = require('../services/logger.service');
 const authService = require('../services/auth.service');
+const { requireActiveLicense } = require('../services/licenseGuard.service');
+
+function registerGuardedHandle(channel, handler) {
+  ipcMain.handle(channel, async (event, ...args) => {
+    await requireActiveLicense(event);
+    return handler(event, ...args);
+  });
+}
 
 /**
  * حارس القنوات المعدِّلة لمعالج الإعداد:
@@ -22,7 +30,7 @@ function requireOnboardingMutationAllowed() {
 }
 
 function registerOnboardingHandlers() {
-  ipcMain.handle('onboarding:getState', async () => {
+  registerGuardedHandle('onboarding:getState', async () => {
     try {
       return { success: true, data: onboardingService.getOnboardingState() };
     } catch (err) {
@@ -31,7 +39,7 @@ function registerOnboardingHandlers() {
     }
   });
 
-  ipcMain.handle('onboarding:getPresets', async () => {
+  registerGuardedHandle('onboarding:getPresets', async () => {
     try {
       return { success: true, data: onboardingService.getPresets() };
     } catch (err) {
@@ -40,7 +48,7 @@ function registerOnboardingHandlers() {
     }
   });
 
-  ipcMain.handle('onboarding:getPreset', async (_event, sectorKey) => {
+  registerGuardedHandle('onboarding:getPreset', async (_event, sectorKey) => {
     try {
       return { success: true, data: onboardingService.getPresetByKey(sectorKey) };
     } catch (err) {
@@ -49,7 +57,7 @@ function registerOnboardingHandlers() {
     }
   });
 
-  ipcMain.handle('onboarding:activatePreset', async (_event, payload) => {
+  registerGuardedHandle('onboarding:activatePreset', async (_event, payload) => {
     try {
       requireOnboardingMutationAllowed();
       authService.requireAdmin();
@@ -60,7 +68,7 @@ function registerOnboardingHandlers() {
     }
   });
 
-  ipcMain.handle('onboarding:updateState', async (_event, stateData) => {
+  registerGuardedHandle('onboarding:updateState', async (_event, stateData) => {
     try {
       requireOnboardingMutationAllowed();
       return { success: true, data: onboardingService.updateOnboardingState(stateData) };
@@ -70,7 +78,7 @@ function registerOnboardingHandlers() {
     }
   });
 
-  ipcMain.handle('onboarding:preview', async (_event, previewData) => {
+  registerGuardedHandle('onboarding:preview', async (_event, previewData) => {
     try {
       return { success: true, data: onboardingService.previewCustomizedCatalog(previewData) };
     } catch (err) {
@@ -79,7 +87,7 @@ function registerOnboardingHandlers() {
     }
   });
 
-  ipcMain.handle('onboarding:provision', async (_event, payload) => {
+  registerGuardedHandle('onboarding:provision', async (_event, payload) => {
     try {
       requireOnboardingMutationAllowed();
       const summary = onboardingService.provisionSectorData(payload);
@@ -90,7 +98,7 @@ function registerOnboardingHandlers() {
     }
   });
 
-  ipcMain.handle('onboarding:reset', async () => {
+  registerGuardedHandle('onboarding:reset', async () => {
     try {
       requireOnboardingMutationAllowed();
       return { success: true, data: onboardingService.resetOnboarding() };

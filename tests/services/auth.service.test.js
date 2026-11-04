@@ -371,6 +371,7 @@ describe('auth.service', () => {
       force_password_change: 1,
     };
     usersRepo.getByUsername.mockReturnValue(firstLoginAdmin);
+    usersRepo.getById.mockReturnValue(firstLoginAdmin);
     authService.login('admin', 'admin123');
 
     expect(() => authService.changePassword('123'))

@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useSettings } from '../contexts/SettingsContext.jsx';
+import { useBusinessProfile } from '../contexts/BusinessProfileContext.jsx';
 import Modal from '../components/Modal.jsx';
 
 function SettingsPage() {
   const { settings, saveSettings, uploadLogo, backupDatabase, restoreDatabase } = useSettings();
+  const { configuration } = useBusinessProfile();
+  const isLawFirm = configuration?.profile?.key === 'law_firm';
 
   const [formData, setFormData] = useState({
     store_name: '',
@@ -24,7 +27,7 @@ function SettingsPage() {
   useEffect(() => {
     if (settings) {
       setFormData({
-        store_name: settings.store_name || 'بوتيك الفخامة',
+        store_name: settings.store_name || (isLawFirm ? 'مكتب المحاماة' : 'بوتيك الفخامة'),
         store_tagline: settings.store_tagline || '',
         store_phone: settings.store_phone || '',
         store_address: settings.store_address || '',
@@ -32,7 +35,7 @@ function SettingsPage() {
         receipt_footer: settings.receipt_footer || 'الاستبدال والاسترجاع خلال 14 يوماً من تاريخ الشراء بالفاتورة الأصلية. شكراً لزيارتكم!',
       });
     }
-  }, [settings]);
+  }, [isLawFirm, settings]);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -51,7 +54,10 @@ function SettingsPage() {
     setSaving(false);
 
     if (res?.success) {
-      setFeedbackMsg({ type: 'success', text: 'تم حفظ وتحديث إعدادات المحل بنجاح! ✨' });
+      setFeedbackMsg({
+        type: 'success',
+        text: isLawFirm ? 'تم حفظ بيانات مكتب المحاماة بنجاح! ✨' : 'تم حفظ وتحديث إعدادات المحل بنجاح! ✨',
+      });
     } else {
       setFeedbackMsg({ type: 'error', text: res?.error || 'حدث خطأ أثناء حفظ الإعدادات' });
     }
@@ -66,7 +72,10 @@ function SettingsPage() {
       const res = await uploadLogo();
       if (res?.success && res?.dataUrl) {
         setFormData((prev) => ({ ...prev, store_logo: res.dataUrl }));
-        setFeedbackMsg({ type: 'success', text: 'تم تحديث شعار المحل بنجاح 🖼️' });
+        setFeedbackMsg({
+          type: 'success',
+          text: isLawFirm ? 'تم تحديث شعار المكتب بنجاح 🖼️' : 'تم تحديث شعار المحل بنجاح 🖼️',
+        });
       }
     } catch (err) {
       setFeedbackMsg({ type: 'error', text: err.message || 'فشل تحميل الشعار' });
@@ -128,10 +137,12 @@ function SettingsPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
         <div>
           <h1 style={{ fontSize: '26px', fontWeight: '800', color: '#0F172A', display: 'flex', alignItems: 'center', gap: '10px', margin: 0 }}>
-            <span>⚙️</span> إعدادات المحل وتخصيص الفاتورة
+            <span>⚙️</span> {isLawFirm ? 'إعدادات مكتب المحاماة' : 'إعدادات المحل وتخصيص الفاتورة'}
           </h1>
           <p style={{ color: '#64748B', fontSize: '14px', margin: '4px 0 0 0' }}>
-            تخصيص اسم وهوية المتجر، تصميم الإيصالات الحرارية، والنسخ الاحتياطي مع الحفاظ على هوية <strong>FOX.CLOUD</strong>
+            {isLawFirm
+              ? <>تحديث بيانات المكتب وشعاره وإدارة النسخ الاحتياطي مع الحفاظ على هوية <strong>FOX.CLOUD</strong></>
+              : <>تخصيص اسم وهوية المتجر، تصميم الإيصالات الحرارية، والنسخ الاحتياطي مع الحفاظ على هوية <strong>FOX.CLOUD</strong></>}
           </p>
         </div>
 
@@ -180,36 +191,45 @@ function SettingsPage() {
       )}
 
       {/* Main Grid Layout */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.35fr) minmax(360px, 0.95fr)', gap: '24px', alignItems: 'start' }}>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: isLawFirm ? 'minmax(0, 1fr)' : 'minmax(0, 1.35fr) minmax(360px, 0.95fr)',
+        gap: '24px',
+        alignItems: 'start',
+      }}>
         
         {/* Left Column: Settings Cards */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', gridColumn: isLawFirm ? '1 / -1' : undefined }}>
           
           {/* Card 1: الهوية ومسمى المحل */}
           <div style={{ background: '#FFFFFF', borderRadius: '16px', border: '1px solid #E2E8F0', padding: '24px', boxShadow: '0 2px 10px rgba(0,0,0,0.03)' }}>
             <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#1E293B', marginBottom: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span>🏢</span> هوية ومسمى المحل
+              <span>🏢</span> {isLawFirm ? 'هوية مكتب المحاماة' : 'هوية ومسمى المحل'}
             </h3>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px' }}>
               <div className="form-group">
                 <label className="form-label" style={{ fontWeight: '700' }}>
-                  اسم المحل التجاري <span style={{ color: '#EF4444' }}>*</span>
+                  {isLawFirm ? 'اسم مكتب المحاماة' : 'اسم المحل التجاري'} <span style={{ color: '#EF4444' }}>*</span>
                 </label>
                 <input
                   type="text"
                   name="store_name"
                   className="form-input form-input-lg"
-                  placeholder="مثال: بوتيك الفخامة، محل براند ستور..."
+                  placeholder={isLawFirm ? 'مثال: مكتب الأستاذ / شركة المحاماة' : 'مثال: بوتيك الفخامة، محل براند ستور...'}
                   value={formData.store_name}
                   onChange={handleChange}
                   required
                 />
-                <span className="form-helper">يظهر اسم المحل في الترويسة العليا، القائمة الجانبية، وأعلى الفواتير المطبوعة.</span>
+                <span className="form-helper">
+                  {isLawFirm
+                    ? 'يظهر اسم المكتب في واجهة النظام والمستندات القانونية.'
+                    : 'يظهر اسم المحل في الترويسة العليا، القائمة الجانبية، وأعلى الفواتير المطبوعة.'}
+                </span>
               </div>
 
               <div className="form-group">
-                <label className="form-label">الشعار اللفظي أو الوصف القصير (Tagline)</label>
+                <label className="form-label">{isLawFirm ? 'وصف المكتب' : 'الشعار اللفظي أو الوصف القصير (Tagline)'}</label>
                 <input
                   type="text"
                   name="store_tagline"
@@ -222,7 +242,7 @@ function SettingsPage() {
 
               {/* Logo Upload Section */}
               <div className="form-group">
-                <label className="form-label">شعار المحل (Logo)</label>
+                <label className="form-label">{isLawFirm ? 'شعار مكتب المحاماة' : 'شعار المحل (Logo)'}</label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '18px', marginTop: '6px', background: '#F8FAFC', padding: '16px', borderRadius: '12px', border: '1px dashed #CBD5E1' }}>
                   <div style={{
                     width: '80px',
@@ -292,10 +312,11 @@ function SettingsPage() {
             </div>
           </div>
 
-          {/* Card 2: بيانات الاتصال وتذييل الفاتورة */}
+          {/* Card 2: Contact and receipt policy */}
           <div style={{ background: '#FFFFFF', borderRadius: '16px', border: '1px solid #E2E8F0', padding: '24px', boxShadow: '0 2px 10px rgba(0,0,0,0.03)' }}>
             <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#1E293B', marginBottom: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span>🧾</span> بيانات الاتصال وسياسة الفاتورة
+              <span>{isLawFirm ? '📇' : '🧾'}</span>
+              {isLawFirm ? 'بيانات التواصل والعنوان' : 'بيانات الاتصال وسياسة الفاتورة'}
             </h3>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
@@ -324,18 +345,20 @@ function SettingsPage() {
               </div>
             </div>
 
-            <div className="form-group" style={{ marginTop: '12px' }}>
-              <label className="form-label">تذييل الفاتورة وسياسة الاسترجاع والاستبدال</label>
-              <textarea
-                name="receipt_footer"
-                className="form-input"
-                rows="3"
-                placeholder="الاستبدال والاسترجاع خلال 14 يوماً مع إحضار أصل الفاتورة..."
-                value={formData.receipt_footer}
-                onChange={handleChange}
-              ></textarea>
-              <span className="form-helper">تظهر هذه الرسالة أسفل كل إيصال مطبوع للزبون.</span>
-            </div>
+            {!isLawFirm && (
+              <div className="form-group" style={{ marginTop: '12px' }}>
+                <label className="form-label">تذييل الفاتورة وسياسة الاسترجاع والاستبدال</label>
+                <textarea
+                  name="receipt_footer"
+                  className="form-input"
+                  rows="3"
+                  placeholder="الاستبدال والاسترجاع خلال 14 يوماً مع إحضار أصل الفاتورة..."
+                  value={formData.receipt_footer}
+                  onChange={handleChange}
+                />
+                <span className="form-helper">تظهر هذه الرسالة أسفل كل إيصال مطبوع للزبون.</span>
+              </div>
+            )}
           </div>
 
           {/* Card 3: النسخ الاحتياطي والأمان */}
@@ -344,7 +367,9 @@ function SettingsPage() {
               <span>🛡️</span> النسخ الاحتياطي وأمان البيانات
             </h3>
             <p style={{ color: '#64748B', fontSize: '13px', margin: '0 0 16px 0' }}>
-              احمِ بيانات المبيعات والمخزون وحسابات الموردين والعملاء بأخذ نسخ احتياطية دورية وحفظها على فلاشة ميموري.
+              {isLawFirm
+                ? 'احمِ بيانات القضايا والموكلين والمستندات بأخذ نسخ احتياطية دورية.'
+                : 'احمِ بيانات المبيعات والمخزون وحسابات الموردين والعملاء بأخذ نسخ احتياطية دورية وحفظها على فلاشة ميموري.'}
             </p>
 
             <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
@@ -394,8 +419,8 @@ function SettingsPage() {
 
         </div>
 
-        {/* Right Column: Live Receipt Simulator Preview */}
-        <div style={{ position: 'sticky', top: '24px' }}>
+        {/* Receipt preview is only relevant to sectors that use POS receipts. */}
+        {!isLawFirm && <div style={{ position: 'sticky', top: '24px' }}>
           <div style={{
             background: '#1E293B',
             borderRadius: '20px',
@@ -523,7 +548,7 @@ function SettingsPage() {
               <strong style={{ color: '#60A5FA' }}>FOX.CLOUD POS Engine</strong>
             </div>
           </div>
-        </div>
+        </div>}
 
       </div>
     </div>

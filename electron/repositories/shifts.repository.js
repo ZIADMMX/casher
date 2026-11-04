@@ -33,10 +33,10 @@ function getLastClosedShift() {
   `).get() || null;
 }
 
-function openShift({ userId, openedByName, openingCash, shiftType = 'morning', posStation = 'الدرج الرئيسي - POS 1', notes, openingCashBreakdown }) {
+function openShift({ userId, openedByName, openingCash, attendanceRecordId, shiftType = 'morning', posStation = 'الدرج الرئيسي - POS 1', notes, openingCashBreakdown }) {
   const stmt = db.prepare(`
-    INSERT INTO shifts (user_id, opened_by_name, opening_cash, shift_type, pos_station, status, opening_notes, opening_cash_breakdown)
-    VALUES (?, ?, ?, ?, ?, 'open', ?, ?)
+    INSERT INTO shifts (user_id, opened_by_name, opening_cash, shift_type, pos_station, status, opening_notes, opening_cash_breakdown, attendance_record_id)
+    VALUES (?, ?, ?, ?, ?, 'open', ?, ?, ?)
   `);
   const result = stmt.run(
     userId,
@@ -45,7 +45,8 @@ function openShift({ userId, openedByName, openingCash, shiftType = 'morning', p
     shiftType || 'morning',
     posStation || 'الدرج الرئيسي - POS 1',
     notes || null,
-    openingCashBreakdown ? JSON.stringify(openingCashBreakdown) : null
+    openingCashBreakdown ? JSON.stringify(openingCashBreakdown) : null,
+    attendanceRecordId
   );
   return getShiftDetails(result.lastInsertRowid);
 }

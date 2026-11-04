@@ -21,77 +21,67 @@ export function useProducts() {
     isError,
     error,
     refetch,
-  } = useQuery(PRODUCTS_QUERY_KEY, fetchProducts, {
+  } = useQuery({
+    queryKey: PRODUCTS_QUERY_KEY,
+    queryFn: fetchProducts,
     staleTime: 15 * 1000, // 15 seconds
     refetchOnWindowFocus: false,
   });
 
   // ----- Mutations -----
-  const addProductMutation = useMutation(
-    async (newProduct) => {
+  const addProductMutation = useMutation({
+    mutationFn: async (newProduct) => {
       await window.electronAPI.addProductWithVariant(newProduct);
     },
-    {
-      onSuccess: () => {
-        queryClient.invalidateQueries(PRODUCTS_QUERY_KEY);
-      },
-    }
-  );
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: PRODUCTS_QUERY_KEY });
+    },
+  });
 
-  const addVariantMutation = useMutation(
-    async ({ productId, variant }) => {
+  const addVariantMutation = useMutation({
+    mutationFn: async ({ productId, variant }) => {
       await window.electronAPI.addVariantToProduct(productId, variant);
     },
-    {
-      onSuccess: () => {
-        queryClient.invalidateQueries(PRODUCTS_QUERY_KEY);
-      },
-    }
-  );
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: PRODUCTS_QUERY_KEY });
+    },
+  });
 
-  const editProductMutation = useMutation(
-    async ({ productId, data }) => {
+  const editProductMutation = useMutation({
+    mutationFn: async ({ productId, data }) => {
       await window.electronAPI.updateProduct(productId, data);
     },
-    {
-      onSuccess: () => {
-        queryClient.invalidateQueries(PRODUCTS_QUERY_KEY);
-      },
-    }
-  );
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: PRODUCTS_QUERY_KEY });
+    },
+  });
 
-  const removeProductMutation = useMutation(
-    async (productId) => {
+  const removeProductMutation = useMutation({
+    mutationFn: async (productId) => {
       await window.electronAPI.deleteProduct(productId);
     },
-    {
-      onSuccess: () => {
-        queryClient.invalidateQueries(PRODUCTS_QUERY_KEY);
-      },
-    }
-  );
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: PRODUCTS_QUERY_KEY });
+    },
+  });
 
-  const editVariantMutation = useMutation(
-    async ({ variantId, data }) => {
+  const editVariantMutation = useMutation({
+    mutationFn: async ({ variantId, data }) => {
       await window.electronAPI.updateVariant(variantId, data);
     },
-    {
-      onSuccess: () => {
-        queryClient.invalidateQueries(PRODUCTS_QUERY_KEY);
-      },
-    }
-  );
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: PRODUCTS_QUERY_KEY });
+    },
+  });
 
-  const removeVariantMutation = useMutation(
-    async (variantId) => {
+  const removeVariantMutation = useMutation({
+    mutationFn: async (variantId) => {
       await window.electronAPI.deleteVariant(variantId);
     },
-    {
-      onSuccess: () => {
-        queryClient.invalidateQueries(PRODUCTS_QUERY_KEY);
-      },
-    }
-  );
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: PRODUCTS_QUERY_KEY });
+    },
+  });
 
   // ----- Helper wrappers preserving original API -----
   const addProduct = async (data) => {

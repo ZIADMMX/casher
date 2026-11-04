@@ -136,6 +136,21 @@ export const SECTOR_CARDS = [
     ),
   },
   {
+    key: 'crm',
+    title: 'إدارة علاقات العملاء (CRM)',
+    subtitle: 'Customer Relationship Management',
+    desc: 'إدارة مستقلة للعملاء والشركات والعملاء المحتملين والصفقات وسجل التواصل',
+    badge: 'عملاء + Pipeline + متابعة',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="9" cy="8" r="4" />
+        <path d="M3 21v-2a6 6 0 0 1 12 0v2" />
+        <path d="M16 11a4 4 0 1 0 0-8" />
+        <path d="M18 14a5 5 0 0 1 3 5v2" />
+      </svg>
+    ),
+  },
+  {
     key: 'custom',
     title: 'نشاط تجاري عام (أخرى)',
     subtitle: 'Custom & Other',
@@ -283,9 +298,15 @@ export default function SectorCardsStep({
             </span>
             {activePresetDetails && (
               <span className="summary-details-text">
-                • {activePresetDetails.starter_categories?.length || 0} أقسام جاهزة •{' '}
-                {activePresetDetails.starter_products?.length || 0} منتجات نموذجية بأسعار محلية • مصطلح الطلب: &ldquo;
-                {activePresetDetails.terminology?.order || 'فاتورة'}&rdquo;
+                {selectedSector === 'crm'
+                  ? '• قطاع مستقل للعملاء والشركات والفرص البيعية والمتابعة'
+                  : (
+                    <>
+                      • {activePresetDetails.starter_categories?.length || 0} أقسام جاهزة •{' '}
+                      {activePresetDetails.starter_products?.length || 0} منتجات نموذجية بأسعار محلية • مصطلح الطلب: &ldquo;
+                      {activePresetDetails.terminology?.order || 'فاتورة'}&rdquo;
+                    </>
+                  )}
               </span>
             )}
           </div>
@@ -297,7 +318,7 @@ export default function SectorCardsStep({
           disabled={loadingDetails}
           onClick={onNext}
         >
-          <span>المتابعة إلى الإعداد الجاهز</span>
+          <span>{selectedSector === 'crm' ? 'المتابعة لإعداد CRM' : 'المتابعة إلى الإعداد الجاهز'}</span>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="btn-arrow-icon">
             <line x1="19" y1="12" x2="5" y2="12" />
             <polyline points="12 19 5 12 12 5" />

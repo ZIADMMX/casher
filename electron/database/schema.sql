@@ -58,6 +58,7 @@ CREATE TABLE IF NOT EXISTS shifts (
     opening_cash REAL NOT NULL DEFAULT 0,
     opening_notes TEXT,
     opening_cash_breakdown TEXT,
+    attendance_record_id INTEGER REFERENCES attendance_records(id),
     status TEXT CHECK(status IN ('open', 'closed')) DEFAULT 'open',
     total_cash_sales REAL DEFAULT 0,
     total_card_sales REAL DEFAULT 0,
@@ -216,6 +217,42 @@ CREATE TABLE IF NOT EXISTS customers (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS customer_power_of_attorneys (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id INTEGER NOT NULL,
+    number TEXT NOT NULL,
+    issued_at TEXT NOT NULL,
+    scope TEXT NOT NULL,
+    expires_at TEXT,
+    notes TEXT,
+    created_by INTEGER,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+);
+CREATE INDEX IF NOT EXISTS idx_customer_power_of_attorneys_customer
+    ON customer_power_of_attorneys(customer_id, issued_at DESC);
+CREATE INDEX IF NOT EXISTS idx_customer_power_of_attorneys_expiry
+    ON customer_power_of_attorneys(expires_at);
+
+CREATE TABLE IF NOT EXISTS legal_client_interactions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id INTEGER NOT NULL,
+    created_by INTEGER,
+    type TEXT NOT NULL CHECK(type IN ('call', 'message', 'note', 'complaint')),
+    subject TEXT NOT NULL,
+    details TEXT,
+    follow_up_date TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+);
+CREATE INDEX IF NOT EXISTS idx_legal_client_interactions_customer
+    ON legal_client_interactions(customer_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_legal_client_interactions_followup
+    ON legal_client_interactions(follow_up_date);
+
 CREATE TABLE IF NOT EXISTS customer_payments (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     customer_id INTEGER NOT NULL,
@@ -324,6 +361,8 @@ CREATE TABLE IF NOT EXISTS sales (
     discount REAL DEFAULT 0 CHECK(discount >= 0),
     payment_method TEXT NOT NULL CHECK(payment_method IN ('cash', 'card', 'credit')),
     due_date DATETIME,                   -- تاريخ الاستحقاق (للبيع الآجل)
+    order_mode TEXT CHECK(order_mode IS NULL OR order_mode IN ('dine_in', 'takeaway', 'delivery')),
+    kitchen_status TEXT CHECK(kitchen_status IS NULL OR kitchen_status IN ('new', 'preparing', 'ready', 'served')),
     invoice_number TEXT,
     notes TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -1360,11 +1399,33 @@ CREATE INDEX IF NOT EXISTS idx_salon_service_sales_stylist ON salon_service_sale
 -- جداول قطاع مكاتب المحاماة والاستشارات القانونية (Law Firm Module)
 -- ==========================================
 
+-- دليل المحاكم المرتبط بملفات القضايا
+CREATE TABLE IF NOT EXISTS courts (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    court_type TEXT NOT NULL CHECK(court_type IN (
+        'first_instance', 'cassation', 'appeals', 'family',
+        'criminal', 'commercial', 'labor', 'administrative'
+    )),
+    specialization TEXT,
+    notes TEXT,
+    phone TEXT,
+    city TEXT,
+    address TEXT,
+    is_active INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN (0, 1)),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_courts_name_active
+    ON courts(name COLLATE NOCASE) WHERE is_active = 1;
+CREATE INDEX IF NOT EXISTS idx_courts_type_active ON courts(court_type, is_active);
+
 -- 1. جدول ملفات القضايا (Legal Cases)
 CREATE TABLE IF NOT EXISTS legal_cases (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     case_number TEXT NOT NULL,                -- رقم القضية بالمحكمة (مثال: 1245 لسنة 2026 مدني)
     court_name TEXT NOT NULL,                 -- اسم المحكمة (مثال: محكمة شمال القاهرة الابتدائية)
+    court_id TEXT,                            -- معرّف المحكمة في دليل المحاكم المحلي أو المركزي
     circuit_name TEXT,                        -- الدائرة (مثال: دائرة 4 تعويضات)
     client_id INTEGER NOT NULL,               -- الموكّل (مرتبط بالعملاء)
     client_role TEXT NOT NULL DEFAULT 'plaintiff' CHECK(client_role IN ('plaintiff', 'defendant', 'appellant', 'appellee')), -- صفة الموكل (مدعي / مدعى عليه / مستأنف / مستأنف ضده)
@@ -1462,6 +1523,46 @@ CREATE INDEX IF NOT EXISTS idx_court_sessions_case ON court_sessions(case_id);
 CREATE INDEX IF NOT EXISTS idx_court_sessions_date ON court_sessions(session_date);
 CREATE INDEX IF NOT EXISTS idx_court_sessions_lawyer ON court_sessions(assigned_lawyer_id);
 CREATE INDEX IF NOT EXISTS idx_case_documents_case ON case_documents(case_id);
+CREATE TABLE IF NOT EXISTS legal_case_tasks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    case_id INTEGER NOT NULL,
+    session_id INTEGER,
+    title TEXT NOT NULL,
+    description TEXT,
+    due_at TEXT NOT NULL,
+    reminder_at TEXT,
+    assigned_lawyer_id INTEGER,
+    priority TEXT NOT NULL DEFAULT 'normal' CHECK(priority IN ('low', 'normal', 'high')),
+    status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'in_progress', 'completed', 'cancelled')),
+    reminder_sent INTEGER NOT NULL DEFAULT 0 CHECK(reminder_sent IN (0, 1)),
+    created_by INTEGER,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (case_id) REFERENCES legal_cases(id) ON DELETE CASCADE,
+    FOREIGN KEY (session_id) REFERENCES court_sessions(id) ON DELETE SET NULL,
+    FOREIGN KEY (assigned_lawyer_id) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+);
+CREATE INDEX IF NOT EXISTS idx_legal_case_tasks_case_due
+    ON legal_case_tasks(case_id, status, due_at);
+CREATE INDEX IF NOT EXISTS idx_legal_case_tasks_reminders
+    ON legal_case_tasks(status, reminder_sent, reminder_at);
+CREATE INDEX IF NOT EXISTS idx_legal_case_tasks_assignee
+    ON legal_case_tasks(assigned_lawyer_id, status, due_at);
+CREATE TABLE IF NOT EXISTS case_document_versions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    document_id INTEGER NOT NULL,
+    version INTEGER NOT NULL,
+    file_path TEXT NOT NULL,
+    file_size INTEGER,
+    uploaded_by INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(document_id, version),
+    FOREIGN KEY (document_id) REFERENCES case_documents(id) ON DELETE CASCADE,
+    FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE SET NULL
+);
+CREATE INDEX IF NOT EXISTS idx_case_document_versions_document
+    ON case_document_versions(document_id, version DESC);
 CREATE INDEX IF NOT EXISTS idx_case_financials_case ON case_financials(case_id);
 CREATE INDEX IF NOT EXISTS idx_lawyer_time_logs_case ON lawyer_time_logs(case_id);
 
@@ -1692,4 +1793,3 @@ WHEN (SELECT foreign_keys FROM pragma_foreign_keys) = 1
 BEGIN
     SELECT RAISE(ABORT, 'Cannot delete a shift with expense history');
 END;
-

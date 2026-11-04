@@ -1,7 +1,13 @@
 ﻿const { initDatabase } = require('../../electron/database/db');
 initDatabase();
 
-const { getAISettings, saveAISettings, askClaude } = require('../../electron/services/ai.service');
+const {
+  getAISettings,
+  saveAISettings,
+  askClaude,
+  predictStockouts,
+  detectSalesAnomalies,
+} = require('../../electron/services/ai.service');
 
 describe('AI Service Unit Tests', () => {
   test('getAISettings returns empty defaults when no provider is configured', () => {
@@ -29,5 +35,17 @@ describe('AI Service Unit Tests', () => {
 
   test('askClaude function is exported and defined', () => {
     expect(typeof askClaude).toBe('function');
+  });
+
+  test('stockout and anomaly date filters safely handle untrusted values', () => {
+    expect(() => predictStockouts({
+      daysWindow: "30') OR 1=1 --",
+      warehouseId: '1 OR 1=1',
+      includeAll: true,
+    })).not.toThrow();
+
+    const anomalies = detectSalesAnomalies({ days: "30') OR 1=1 --" });
+    expect(anomalies.evaluatedDays).toBe(30);
+    expect(Array.isArray(anomalies.anomalies)).toBe(true);
   });
 });

@@ -1,5 +1,28 @@
 import { useState, useEffect } from 'react';
 
+function DocketIcon({ name, size = 20 }) {
+  const paths = {
+    scale: <><path d="M12 3v18M5 7h14M5 7l-3 6h6L5 7Zm14 0-3 6h6l-3-6ZM8 21h8" /></>,
+    print: <><path d="M7 8V3h10v5M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2" /><path d="M7 14h10v7H7zM17 11h.01" /></>,
+  };
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      {paths[name]}
+    </svg>
+  );
+}
+
 export default function DailyDocketModal({ onClose }) {
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [docket, setDocket] = useState([]);
@@ -31,7 +54,7 @@ export default function DailyDocketModal({ onClose }) {
     <div className="legal-modal-overlay" onClick={onClose}>
       <div className="legal-modal-container" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '1000px' }}>
         <div className="legal-modal-header no-print">
-          <h2>⚖️ رول جلسات المحاكم اليومي (Court Docket)</h2>
+          <h2><DocketIcon name="scale" /> رول جلسات المحاكم اليومي</h2>
           <button type="button" className="modal-close-btn" onClick={onClose}>✕</button>
         </div>
 
@@ -52,7 +75,7 @@ export default function DailyDocketModal({ onClose }) {
                   className="filter-select"
                 />
                 <button type="button" className="btn-primary-legal" onClick={handlePrint}>
-                  🖨️ طباعة الرول
+                  <DocketIcon name="print" size={17} /> طباعة الرول
                 </button>
               </div>
             </div>
@@ -62,7 +85,9 @@ export default function DailyDocketModal({ onClose }) {
             <div style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>جاري تحميل جدول الجلسات...</div>
           ) : docket.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '50px 20px', color: '#64748b' }}>
-              <div style={{ fontSize: '2.5rem', marginBottom: '10px' }}>⚖️</div>
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '10px', color: 'var(--primary-color)' }}>
+                <DocketIcon name="scale" size={36} />
+              </div>
               <p style={{ fontSize: '1.1rem', margin: 0 }}>لا توجد جلسات محاكم مسجلة في هذا التاريخ ({selectedDate})</p>
             </div>
           ) : (

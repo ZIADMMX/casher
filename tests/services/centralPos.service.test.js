@@ -58,6 +58,23 @@ describe('centralPos.createCentralSale', () => {
     expect(client.release).toHaveBeenCalledTimes(1);
   });
 
+  test('stores the restaurant order mode and starts it in the kitchen queue', async () => {
+    const client = setupClient();
+    await createCentralSale({
+      userId: 7,
+      warehouseId: 4,
+      saleData: {
+        items: [{ variantId: 12, quantity: 1 }],
+        paymentMethod: 'cash',
+        orderMode: 'dine_in',
+      },
+    });
+
+    const saleInsert = client.query.mock.calls.find(([sql]) => sql.includes('INSERT INTO sales'));
+    expect(saleInsert[0]).toContain('order_mode, kitchen_status');
+    expect(saleInsert[1].slice(-2)).toEqual(['dine_in', 'new']);
+  });
+
   test('rolls back the complete sale when stock changed before deduction', async () => {
     const client = setupClient({ stockAvailable: false });
     await expect(createCentralSale({

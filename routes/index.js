@@ -16,6 +16,7 @@ const subscriptionsRoutes = require('./subscriptions');
 const commissionsRoutes = require('./commissions');
 const onboardingRoutes = require('./onboarding');
 const systemRoutes = require('./system');
+const courtsRoutes = require('./courts');
 
 router.use(authRoutes);
 router.use(productsRoutes);
@@ -32,5 +33,6 @@ router.use(subscriptionsRoutes);
 router.use(commissionsRoutes);
 router.use(onboardingRoutes);
 router.use(systemRoutes);
+router.use(courtsRoutes);
 
 module.exports = router;

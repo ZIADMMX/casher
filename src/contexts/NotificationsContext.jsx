@@ -45,6 +45,8 @@ export function NotificationsProvider({ children }) {
     if (window.electronAPI?.onNotificationReceived) {
       const unsubscribe = window.electronAPI.onNotificationReceived((newNotification) => {
         if (newNotification) {
+          if (newNotification.user_id != null
+            && String(newNotification.user_id) !== String(currentUser?.id)) return;
           setNotifications((prev) => [newNotification, ...prev.filter((n) => n.id !== newNotification.id)]);
           setUnreadCount((prev) => prev + 1);
           setToastNotification(newNotification);

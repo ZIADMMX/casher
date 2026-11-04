@@ -47,6 +47,10 @@ async function createCentralSale({ userId, warehouseId, saleData, pool = writePo
   if (!['cash', 'card', 'credit'].includes(paymentMethod)) {
     throw new PosError('طريقة الدفع غير صحيحة');
   }
+  const orderMode = saleData.orderMode ?? null;
+  if (orderMode !== null && !['dine_in', 'takeaway', 'delivery'].includes(orderMode)) {
+    throw new PosError('طريقة استلام الطلب غير صالحة');
+  }
   if (paymentMethod === 'credit' && (!String(saleData.customerName || '').trim() || !saleData.dueDate)) {
     throw new PosError('اسم العميل وتاريخ الاستحقاق مطلوبان للبيع الآجل');
   }
@@ -102,8 +106,8 @@ async function createCentralSale({ userId, warehouseId, saleData, pool = writePo
     const saleResult = await client.query(
       `INSERT INTO sales (
          shift_id, branch_id, warehouse_id, customer_name, customer_phone,
-         user_id, total_amount, payment_method, due_date
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         user_id, total_amount, payment_method, due_date, order_mode, kitchen_status
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        RETURNING id`,
       [
         shift.id,
@@ -115,6 +119,8 @@ async function createCentralSale({ userId, warehouseId, saleData, pool = writePo
         totalAmount,
         paymentMethod,
         paymentMethod === 'credit' ? saleData.dueDate : null,
+        orderMode,
+        orderMode ? 'new' : null,
       ]
     );
     const saleId = saleResult.rows[0].id;
@@ -179,6 +185,76 @@ async function createCentralSale({ userId, warehouseId, saleData, pool = writePo
   } finally {
     client.release();
   }
+}
+
+async function getCentralKitchenOrders({ userId, pool = writePool }) {
+  const userResult = await pool.query(
+    'SELECT id, branch_id, is_active FROM users WHERE id = $1 LIMIT 1',
+    [userId]
+  );
+  const user = userResult.rows[0];
+  if (!user || !user.is_active) throw new PosError('حساب المستخدم غير نشط أو غير موجود', 401);
+
+  const ordersResult = await pool.query(
+    `SELECT s.id, s.order_mode, s.kitchen_status, s.total_amount, s.customer_name,
+       s.customer_phone, s.created_at, u.username AS cashier_name
+     FROM sales s
+     LEFT JOIN users u ON u.id = s.user_id
+     WHERE s.order_mode IS NOT NULL
+       AND (s.branch_id = $1 OR $1::INTEGER IS NULL)
+       AND s.created_at::DATE = CURRENT_DATE
+     ORDER BY s.created_at ASC, s.id ASC`,
+    [user.branch_id]
+  );
+  if (!ordersResult.rows.length) return [];
+
+  const saleIds = ordersResult.rows.map((order) => order.id);
+  const itemsResult = await pool.query(
+    `SELECT si.sale_id, si.quantity, si.unit_price, p.name AS product_name,
+       pv.size, pv.color
+     FROM sale_items si
+     LEFT JOIN product_variants pv ON pv.id = si.variant_id
+     LEFT JOIN products p ON p.id = pv.product_id
+     WHERE si.sale_id = ANY($1::BIGINT[])
+     ORDER BY si.sale_id, si.id`,
+    [saleIds]
+  );
+  const itemsBySale = new Map();
+  for (const item of itemsResult.rows) {
+    const items = itemsBySale.get(String(item.sale_id)) || [];
+    items.push(item);
+    itemsBySale.set(String(item.sale_id), items);
+  }
+  return ordersResult.rows.map((order) => ({
+    ...order,
+    items: itemsBySale.get(String(order.id)) || [],
+  }));
+}
+
+async function updateCentralKitchenOrderStatus({ userId, saleId, status, pool = writePool }) {
+  if (!Number.isSafeInteger(Number(saleId)) || Number(saleId) <= 0) {
+    throw new PosError('رقم الطلب غير صالح');
+  }
+  if (!['new', 'preparing', 'ready', 'served'].includes(status)) {
+    throw new PosError('حالة طلب المطبخ غير صالحة');
+  }
+  const userResult = await pool.query(
+    'SELECT id, branch_id, is_active FROM users WHERE id = $1 LIMIT 1',
+    [userId]
+  );
+  const user = userResult.rows[0];
+  if (!user || !user.is_active) throw new PosError('حساب المستخدم غير نشط أو غير موجود', 401);
+
+  const result = await pool.query(
+    `UPDATE sales
+     SET kitchen_status = $1
+     WHERE id = $2 AND order_mode IS NOT NULL
+       AND (branch_id = $3 OR $3::INTEGER IS NULL)
+     RETURNING id, order_mode, kitchen_status`,
+    [status, Number(saleId), user.branch_id]
+  );
+  if (!result.rows.length) throw new PosError('طلب المطبخ غير موجود', 404);
+  return result.rows[0];
 }
 
 async function createCentralProduct({ userId, warehouseId, productData, variantData, productId, pool = writePool }) {
@@ -281,4 +357,10 @@ async function createCentralProduct({ userId, warehouseId, productData, variantD
   }
 }
 
-module.exports = { createCentralSale, createCentralProduct, PosError };
+module.exports = {
+  createCentralSale,
+  getCentralKitchenOrders,
+  updateCentralKitchenOrderStatus,
+  createCentralProduct,
+  PosError,
+};

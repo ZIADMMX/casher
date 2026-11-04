@@ -1,4 +1,4 @@
-import { Component, useState, useEffect, lazy, Suspense } from 'react';
+import { Component, useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import LoginPage from './pages/LoginPage.jsx';
 import InitialSetupPage from './pages/InitialSetupPage.jsx';
 import ForcePasswordChangePage from './pages/ForcePasswordChangePage.jsx';
@@ -8,6 +8,7 @@ import ReturnsPage from './pages/ReturnsPage.jsx';
 import ProfileModal from './components/ProfileModal.jsx';
 import ReviewModal from './components/ReviewModal.jsx';
 import NotificationToast from './components/NotificationToast.jsx';
+import RateLimitNotice from './components/RateLimitNotice.jsx';
 import LicenseLockScreen from './components/LicenseLockScreen.jsx';
 import LicenseBanner from './components/LicenseBanner.jsx';
 import { UserProvider, useUser } from './contexts/UserContext.jsx';
@@ -24,6 +25,7 @@ const TodayPage = lazy(() => import('./pages/TodayPage.jsx'));
 const ProductsPage = lazy(() => import('./pages/ProductsPage.jsx'));
 const InventoryManagementPage = lazy(() => import('./pages/InventoryManagementPage.jsx'));
 const AppointmentsPage = lazy(() => import('./pages/AppointmentsPage.jsx'));
+const CRMPage = lazy(() => import('./pages/CRMPage.jsx'));
 const ReportsPage = lazy(() => import('./pages/ReportsPage.jsx'));
 const CustomersPage = lazy(() => import('./pages/CustomersPage.jsx'));
 const SuppliersPage = lazy(() => import('./pages/SuppliersPage.jsx'));
@@ -34,6 +36,7 @@ const LeavesPage = lazy(() => import('./pages/LeavesPage.jsx'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage.jsx'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage.jsx'));
 const OrdersPage = lazy(() => import('./pages/OrdersPage.jsx'));
+const KitchenDisplayPage = lazy(() => import('./pages/KitchenDisplayPage.jsx'));
 const SubscriptionsPage = lazy(() => import('./pages/SubscriptionsPage.jsx'));
 const CommissionsPage = lazy(() => import('./pages/CommissionsPage.jsx'));
 const EnterpriseManagementPage = lazy(() => import('./pages/EnterpriseManagementPage.jsx'));
@@ -41,6 +44,7 @@ const RolesPage = lazy(() => import('./pages/RolesPage.jsx'));
 const SalariesPage = lazy(() => import('./pages/SalariesPage.jsx'));
 const WorkflowsPage = lazy(() => import('./pages/WorkflowsPage.jsx'));
 const CasesPage = lazy(() => import('./pages/CasesPage.jsx'));
+const CourtsPage = lazy(() => import('./pages/CourtsPage.jsx'));
 
 class UsersPageErrorBoundary extends Component {
   state = { error: null };
@@ -98,36 +102,56 @@ class ApplicationPageErrorBoundary extends Component {
 function AppContent() {
   const { currentUser, setCurrentUser, logout, setupRequired, loadingSession } = useUser();
   const { configuration, isModuleEnabled } = useBusinessProfile();
-  const [activePage, setActivePage] = useState('pos');
+  const { settings } = useSettings();
+  const profileKey = configuration?.profile?.key || settings?.business_type || settings?.onboarding_sector || 'retail';
+  const defaultPage = profileKey === 'law_firm' ? 'today' : profileKey === 'crm' ? 'crm' : 'pos';
+  const [activePage, setActivePage] = useState(defaultPage);
+  const [caseToOpen, setCaseToOpen] = useState(null);
+  const [openNewCaseOnLoad, setOpenNewCaseOnLoad] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [licenseStatus, setLicenseStatus] = useState(null);
+  const [licenseError, setLicenseError] = useState('');
   const [workOrderForCheckout, setWorkOrderForCheckout] = useState(null);
-  const { settings } = useSettings();
-  const profileKey = configuration?.profile?.key || settings?.business_type || settings?.onboarding_sector || 'retail';
+  function navigateToPage(page, options = {}) {
+    setCaseToOpen(page === 'cases' ? options.caseId || null : null);
+    setOpenNewCaseOnLoad(page === 'cases' && options.createCase === true);
+    setActivePage(page);
+  }
 
-  useEffect(() => {
-    async function checkLicense() {
-      if (window.electronAPI?.getLicenseStatus) {
-        try {
-          const status = await window.electronAPI.getLicenseStatus();
-          setLicenseStatus(status);
-        } catch (e) {
-          console.error('فشل فحص الترخيص:', e);
-        }
-      }
+  const checkLicense = useCallback(async () => {
+    setLicenseError('');
+    try {
+      const status = await window.electronAPI.getLicenseStatus();
+      setLicenseStatus(status);
+    } catch (error) {
+      setLicenseError(error.message || 'تعذر التحقق من وقت الترخيص');
     }
-    checkLicense();
   }, []);
 
   useEffect(() => {
-    if (!currentUser || activePage !== 'pos') return;
+    checkLicense();
+    const unsubscribeStatus = window.electronAPI.onLicenseStatusChanged?.((status) => {
+      setLicenseStatus(status);
+      setLicenseError('');
+    }) || (() => {});
+    const unsubscribeError = window.electronAPI.onLicenseVerificationFailed?.((error) => {
+      setLicenseError(error?.message || 'تعذر التحقق من وقت الترخيص');
+    }) || (() => {});
+    return () => {
+      unsubscribeStatus();
+      unsubscribeError();
+    };
+  }, [checkLicense]);
+
+  useEffect(() => {
+    if (!currentUser || profileKey === 'law_firm' || activePage !== 'pos') return;
     window.electronAPI.getCentralServerConfig()
       .then((config) => {
         if (config.baseUrl && !config.warehouseId) setActivePage('branches');
       })
       .catch((error) => console.error('تعذر التحقق من إعداد فرع الجهاز:', error));
-  }, [activePage, currentUser]);
+  }, [activePage, currentUser, profileKey]);
 
   useEffect(() => {
     if (!currentUser || loadingSession || activePage === 'pos' || showReviewModal) return undefined;
@@ -172,14 +196,47 @@ function AppContent() {
 
   async function handleLogout() {
     await logout();
-    setActivePage('pos');
+    setActivePage(defaultPage);
   }
 
   useEffect(() => {
     if (!isBusinessProfilePageEnabled(activePage, profileKey, isModuleEnabled)) {
-      setActivePage('pos');
+      setActivePage(defaultPage);
     }
-  }, [activePage, isModuleEnabled, profileKey]);
+  }, [activePage, defaultPage, isModuleEnabled, profileKey]);
+
+  if (licenseError) {
+    return (
+      <LicenseLockScreen
+        hwid={licenseStatus?.hwid}
+        error={licenseError}
+        onRetry={checkLicense}
+        onActivateSuccess={(newStatus) => {
+          setLicenseStatus(newStatus);
+          setLicenseError('');
+        }}
+      />
+    );
+  }
+
+  if (!licenseStatus) {
+    return (
+      <ThreeLoadingScreen
+        fullscreen
+        text="جاري التحقق من الترخيص"
+        subtext="يتم التحقق من وقت الخادم قبل فتح النظام..."
+      />
+    );
+  }
+
+  if (licenseStatus.isExpired && !licenseStatus.isActivated) {
+    return (
+      <LicenseLockScreen
+        hwid={licenseStatus.hwid}
+        onActivateSuccess={(newStatus) => setLicenseStatus(newStatus)}
+      />
+    );
+  }
 
   if (loadingSession) {
     return (
@@ -195,16 +252,6 @@ function AppContent() {
     return setupRequired ? <InitialSetupPage /> : <LoginPage />;
   }
 
-  // Lock Screen if trial expired and not activated
-  if (licenseStatus && licenseStatus.isExpired && !licenseStatus.isActivated) {
-    return (
-      <LicenseLockScreen
-        hwid={licenseStatus.hwid}
-        onActivateSuccess={(newStatus) => setLicenseStatus(newStatus)}
-      />
-    );
-  }
-
   if (currentUser.forcePasswordChange === true) {
     return (
       <ForcePasswordChangePage
@@ -215,20 +262,25 @@ function AppContent() {
 
   function renderPage() {
     if (!isBusinessProfilePageEnabled(activePage, profileKey, isModuleEnabled)) {
+      if (profileKey === 'crm') return <CRMPage />;
+      if (profileKey === 'law_firm') return <TodayPage onNavigate={navigateToPage} currentUser={currentUser} />;
       return <POSPage onNavigate={setActivePage} />;
     }
 
     const pagePermissions = {
-      today: 'pos.view',
+      today: profileKey === 'law_firm' ? 'cases.view' : 'pos.view',
       pos: 'pos.view',
+      kitchen: 'pos.view',
       orders: 'orders.view',
       appointments: 'appointments.view',
+      courts: 'cases.view',
       subscriptions: 'subscriptions.view',
       commissions: 'commissions.view',
       returns: 'pos.refund',
       products: 'products.view',
       branches: 'products.view',
       customers: 'customers.view',
+      crm: 'customers.view',
       suppliers: 'suppliers.view',
       shifts: 'shifts.view',
       reports: 'reports.view',
@@ -243,7 +295,7 @@ function AppContent() {
       workflows: 'enterprise.view',
     };
     const hasPageAccess = activePage === 'profile' || (!currentUser.systemRoleKey
-      ? currentUser.role === 'admin' || ['today', 'pos', 'orders', 'appointments', 'subscriptions', 'returns', 'customers', 'shifts', 'workflows'].includes(activePage)
+      ? currentUser.role === 'admin' || ['today', 'pos', 'kitchen', 'orders', 'appointments', 'subscriptions', 'returns', 'customers', 'crm', 'shifts', 'workflows'].includes(activePage)
       : hasPermission(currentUser, pagePermissions[activePage]));
     if (!hasPageAccess) {
       return (
@@ -256,7 +308,7 @@ function AppContent() {
 
     switch (activePage) {
       case 'today':
-        return <TodayPage onNavigate={setActivePage} currentUser={currentUser} />;
+        return <TodayPage onNavigate={navigateToPage} currentUser={currentUser} />;
       case 'products':
         return <ProductsPage />;
       case 'branches':
@@ -277,10 +329,12 @@ function AppContent() {
             onNavigate={setActivePage}
             onCheckoutOrder={(order) => {
               setWorkOrderForCheckout(order);
-              setActivePage('pos');
+              setActivePage(profileKey === 'law_firm' ? 'today' : 'pos');
             }}
           />
         );
+      case 'kitchen':
+        return <KitchenDisplayPage />;
       case 'subscriptions':
         return <SubscriptionsPage />;
       case 'commissions':
@@ -292,7 +346,9 @@ function AppContent() {
       case 'reports':
         return <ReportsPage />;
       case 'customers':
-        return <CustomersPage />;
+        return <CustomersPage onNavigate={setActivePage} />;
+      case 'crm':
+        return <CRMPage />;
       case 'suppliers':
         return <SuppliersPage />;
       case 'users':
@@ -318,9 +374,22 @@ function AppContent() {
       case 'workflows':
         return <WorkflowsPage />;
       case 'cases':
-        return <CasesPage />;
+        return (
+          <CasesPage
+            initialCaseId={caseToOpen}
+            openCreateOnMount={openNewCaseOnLoad}
+            onInitialActionHandled={() => {
+              setCaseToOpen(null);
+              setOpenNewCaseOnLoad(false);
+            }}
+          />
+        );
+      case 'courts':
+        return <CourtsPage />;
       default:
-        return <POSPage />;
+        return profileKey === 'law_firm'
+          ? <TodayPage onNavigate={navigateToPage} currentUser={currentUser} />
+          : <POSPage onNavigate={setActivePage} />;
     }
   }
 
@@ -382,6 +451,7 @@ function App() {
         <BusinessProfileProvider>
           <NotificationsProvider>
             <AppContent />
+            <RateLimitNotice />
           </NotificationsProvider>
         </BusinessProfileProvider>
       </SettingsProvider>

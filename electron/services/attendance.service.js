@@ -35,8 +35,12 @@ function getMyTodayStatus() {
 }
 
 function isCheckedInToday(userId) {
+  return Boolean(getActiveAttendanceToday(userId));
+}
+
+function getActiveAttendanceToday(userId) {
   const record = attendanceRepo.getRecord(userId, getTodayDate());
-  return Boolean(record?.check_in && !record.check_out);
+  return record?.check_in && !record.check_out ? record : null;
 }
 
 function getLast30DaysSummary() {
@@ -104,11 +108,8 @@ function checkOut({ userId, date }) {
   if (date !== getTodayDate()) {
     throw new Error('تسجيل الانصراف الفوري متاح لتاريخ اليوم فقط');
   }
-  if (session.role !== 'admin') {
-    const openShift = shiftsRepo.getCurrentOpenShift(session.id);
-    if (openShift) {
-      throw new Error('أغلق ورديتك أولاً قبل تسجيل الانصراف');
-    }
+  if (shiftsRepo.getCurrentOpenShift(targetUserId)) {
+    throw new Error('أغلق ورديتك أولاً قبل تسجيل الانصراف');
   }
 
   const record = attendanceRepo.getRecord(targetUserId, date);
@@ -125,6 +126,7 @@ module.exports = {
   getAttendanceForDate,
   getMyTodayStatus,
   isCheckedInToday,
+  getActiveAttendanceToday,
   getLast30DaysSummary,
   updateSchedule,
   checkIn,

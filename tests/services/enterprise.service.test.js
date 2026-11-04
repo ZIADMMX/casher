@@ -33,6 +33,16 @@ describe('Enterprise Framework Service Unit Tests', () => {
     expect(getActiveBusinessProfile()?.key).toBeDefined();
   });
 
+  test('reenables the team module for an existing active business profile', () => {
+    setActiveBusinessProfile('retail');
+    setModuleEnabled('users', false);
+
+    seedEnterpriseDefaults();
+
+    expect(getActiveBusinessProfile()?.key).toBe('retail');
+    expect(getModules().find((module) => module.key === 'users')?.is_enabled).toBe(1);
+  });
+
   test('CRM migration restores last_interaction_at on older customer schemas', () => {
     db.exec('ALTER TABLE customers DROP COLUMN last_interaction_at');
 
@@ -215,6 +225,24 @@ describe('Enterprise Framework Service Unit Tests', () => {
     setActiveBusinessProfile('retail');
   });
 
+  test('CRM business profile enables CRM without point-of-sale or inventory modules', () => {
+    try {
+      const active = setActiveBusinessProfile('crm');
+      expect(active.key).toBe('crm');
+
+      const moduleStates = new Map(
+        getActiveBusinessConfiguration().modules.map((module) => [module.key, module.is_enabled])
+      );
+      expect(moduleStates.get('crm')).toBe(1);
+      expect(moduleStates.get('reports')).toBe(1);
+      expect(moduleStates.get('pos')).toBe(0);
+      expect(moduleStates.get('inventory')).toBe(0);
+      expect(moduleStates.get('subscriptions')).toBe(0);
+    } finally {
+      setActiveBusinessProfile('retail');
+    }
+  });
+
   test('business profiles enable only their configured feature modules plus shared operations', () => {
     const sharedModules = ['pos', 'settings', 'enterprise', 'returns', 'shifts', 'users'];
     const readModuleStates = () => new Map(
@@ -388,6 +416,11 @@ describe('Enterprise Framework Service Unit Tests', () => {
   test('createRole and setRolePermissions handle custom role creation and granular matrix', () => {
     const { createRole, setRolePermissions, getRoles } = require('../../electron/services/enterprise.service');
     const testRoleKey = 'supervisor_test_' + Date.now();
+    // setRolePermissions checks who is granting; act as the main admin.
+    const requireAuthSpy = jest.spyOn(require('../../electron/services/auth.service'), 'requireAuth')
+      .mockReturnValue({ id: 1 });
+    const getByIdSpy = jest.spyOn(require('../../electron/repositories/users.repository'), 'getById')
+      .mockReturnValue({ id: 1, role: 'admin', system_role_key: null });
     try {
       createRole(testRoleKey, 'مشرف اختبارات', 'دور مخصص للاختبارات');
 
@@ -399,6 +432,8 @@ describe('Enterprise Framework Service Unit Tests', () => {
       expect(createdRole).toBeDefined();
       expect(createdRole.permissions).toEqual(expect.arrayContaining(permissions));
     } finally {
+      requireAuthSpy.mockRestore();
+      getByIdSpy.mockRestore();
       db.prepare('DELETE FROM system_roles WHERE role_key = ?').run(testRoleKey);
       db.prepare('DELETE FROM role_permissions WHERE role_key = ?').run(testRoleKey);
     }

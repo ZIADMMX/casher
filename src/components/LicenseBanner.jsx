@@ -43,7 +43,11 @@ function LicenseBanner({ status, onActivateSuccess }) {
       <div className="license-trial-banner">
         <div className="license-trial-info">
           <span className="license-trial-badge">⏳ النسخة التجريبية</span>
-          <span>متبقي <strong>{status.remainingDays} يوماً</strong> على انتهاء الفترة التجريبية (14 يوماً)</span>
+          {status.warning ? (
+            <strong role="alert">تحذير: تنتهي الفترة التجريبية خلال {status.remainingDays === 1 ? 'يوم واحد' : 'يومين'}. فعّل النظام قبل انتهائها؛ ستظل بيانات المتجر محفوظة.</strong>
+          ) : (
+            <span>متبقي <strong>{status.remainingDays} يوماً</strong> على انتهاء الفترة التجريبية (14 يوماً)</span>
+          )}
         </div>
         <button
           type="button"

@@ -116,12 +116,14 @@ function getChannelAllocations(channelId, filters = {}) {
     FROM product_variants pv
     JOIN products p ON p.id = pv.product_id
     LEFT JOIN categories cat ON cat.id = p.category_id
-    LEFT JOIN warehouse_stock ws ON ws.variant_id = pv.id ${warehouseId ? 'AND ws.warehouse_id = ' + Number(warehouseId) : ''}
+    LEFT JOIN warehouse_stock ws
+      ON ws.variant_id = pv.id
+      AND (? IS NULL OR ws.warehouse_id = ?)
     LEFT JOIN channel_stock_allocations csa ON csa.variant_id = pv.id AND csa.channel_id = ?
     WHERE 1=1
   `;
 
-  const params = [channelId];
+  const params = [warehouseId, warehouseId, channelId];
 
   if (filters.search) {
     query += ` AND (p.name LIKE ? OR pv.sku LIKE ? OR pv.barcode LIKE ?)`;
@@ -163,8 +165,10 @@ function bulkSyncAllStockToChannel(channelId, bufferPercentage = 0) {
   const variants = db.prepare(`
     SELECT pv.id as variant_id, pv.selling_price, COALESCE(ws.quantity, pv.stock_quantity, 0) as stock
     FROM product_variants pv
-    LEFT JOIN warehouse_stock ws ON ws.variant_id = pv.id ${warehouseId ? 'AND ws.warehouse_id = ' + Number(warehouseId) : ''}
-  `).all();
+    LEFT JOIN warehouse_stock ws
+      ON ws.variant_id = pv.id
+      AND (? IS NULL OR ws.warehouse_id = ?)
+  `).all(warehouseId, warehouseId);
 
   const syncTx = db.transaction(() => {
     const upsert = db.prepare(`

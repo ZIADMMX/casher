@@ -29,8 +29,15 @@ jest.mock('../../electron/repositories/crm.repository', () => ({
 }));
 
 jest.mock('../../electron/services/notifications.service', () => ({ notify: jest.fn(() => ({ id: 1 })) }));
+jest.mock('../../electron/repositories/crmAdvanced.repository', () => ({
+  getDueActivities: jest.fn(() => []),
+  markActivityReminderSent: jest.fn(() => ({ changes: 1 })),
+  getStaleOpportunities: jest.fn(() => []),
+  markOpportunityStaleReminderSent: jest.fn(() => ({ changes: 1 }))
+}));
 
 const crmRepo = require('../../electron/repositories/crm.repository');
+const advancedCRMRepo = require('../../electron/repositories/crmAdvanced.repository');
 const notificationsService = require('../../electron/services/notifications.service');
 const crmService = require('../../electron/services/crm.service');
 
@@ -116,5 +123,23 @@ describe('CRM Service Unit Tests', () => {
     notificationsService.notify.mockReturnValueOnce(null);
     crmService.checkDueReminders();
     expect(crmRepo.markReminderSent).not.toHaveBeenCalled();
+  });
+
+  test('sends one CRM reminder for activities and deals idle for seven days', () => {
+    advancedCRMRepo.getDueActivities.mockReturnValueOnce([
+      { id: 8, title: 'مكالمة متابعة', owner_user_id: 2 }
+    ]);
+    advancedCRMRepo.getStaleOpportunities.mockReturnValueOnce([
+      { id: 9, title: 'تجديد عقد', customer_name: 'عميل', user_id: 3 }
+    ]);
+
+    crmService.checkDueReminders();
+
+    expect(advancedCRMRepo.markActivityReminderSent).toHaveBeenCalledWith(8);
+    expect(advancedCRMRepo.markOpportunityStaleReminderSent).toHaveBeenCalledWith(9);
+    expect(notificationsService.notify).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining('متوقفة منذ 7 أيام'),
+      linkPage: 'crm'
+    }));
   });
 });

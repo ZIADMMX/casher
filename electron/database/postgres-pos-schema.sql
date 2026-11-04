@@ -99,6 +99,20 @@ CREATE TABLE IF NOT EXISTS shifts (
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS attendance_records (
+  id BIGSERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  attendance_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  check_in TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  check_out TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (user_id, attendance_date)
+);
+
+ALTER TABLE shifts
+  ADD COLUMN IF NOT EXISTS attendance_record_id BIGINT REFERENCES attendance_records(id);
+
 CREATE UNIQUE INDEX IF NOT EXISTS idx_pg_one_open_shift_per_user_warehouse
   ON shifts (user_id, warehouse_id) WHERE status = 'open';
 
@@ -113,9 +127,17 @@ CREATE TABLE IF NOT EXISTS sales (
   total_amount NUMERIC(12, 2) NOT NULL CHECK (total_amount >= 0),
   discount NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (discount >= 0),
   payment_method TEXT NOT NULL CHECK (payment_method IN ('cash', 'card', 'credit')),
+  order_mode TEXT CHECK (order_mode IS NULL OR order_mode IN ('dine_in', 'takeaway', 'delivery')),
+  kitchen_status TEXT CHECK (kitchen_status IS NULL OR kitchen_status IN ('new', 'preparing', 'ready', 'served')),
   due_date DATE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE sales
+  ADD COLUMN IF NOT EXISTS order_mode TEXT
+    CHECK (order_mode IS NULL OR order_mode IN ('dine_in', 'takeaway', 'delivery')),
+  ADD COLUMN IF NOT EXISTS kitchen_status TEXT
+    CHECK (kitchen_status IS NULL OR kitchen_status IN ('new', 'preparing', 'ready', 'served'));
 
 CREATE TABLE IF NOT EXISTS sale_items (
   id BIGSERIAL PRIMARY KEY,

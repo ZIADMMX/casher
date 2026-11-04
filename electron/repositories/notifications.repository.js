@@ -14,8 +14,9 @@ const NotificationsRepository = {
     return db.prepare('SELECT * FROM notifications WHERE id = ?').get(id) || null;
   },
 
-  getAll({ limit = 50, onlyUnread = false } = {}) {
-    const clauses = [];
+  getAll({ limit = 50, onlyUnread = false, userId = null } = {}) {
+    const clauses = ['(user_id IS NULL OR user_id = ?)'];
+    const params = [userId];
     if (onlyUnread) {
       clauses.push('is_read = 0');
     }
@@ -24,23 +25,35 @@ const NotificationsRepository = {
       clauses.length ? `WHERE ${clauses.join(' AND ')}` : '',
       'ORDER BY id DESC LIMIT ?',
     ].filter(Boolean).join(' ');
-    return db.prepare(query).all(limit);
+    return db.prepare(query).all(...params, limit);
   },
 
-  getUnreadCount() {
-    const row = db.prepare('SELECT COUNT(*) as count FROM notifications WHERE is_read = 0').get();
+  getUnreadCount(userId = null) {
+    const row = db.prepare(`
+      SELECT COUNT(*) as count FROM notifications
+      WHERE is_read = 0 AND (user_id IS NULL OR user_id = ?)
+    `).get(userId);
     return row ? row.count : 0;
   },
 
-  markAsRead(id) {
-    const stmt = db.prepare('UPDATE notifications SET is_read = 1 WHERE id = ?');
-    stmt.run(id);
-    return this.getById(id);
+  markAsRead(id, userId = null) {
+    const stmt = db.prepare(`
+      UPDATE notifications SET is_read = 1
+      WHERE id = ? AND (user_id IS NULL OR user_id = ?)
+    `);
+    stmt.run(id, userId);
+    return db.prepare(`
+      SELECT * FROM notifications
+      WHERE id = ? AND (user_id IS NULL OR user_id = ?)
+    `).get(id, userId) || null;
   },
 
-  markAllAsRead() {
-    const stmt = db.prepare('UPDATE notifications SET is_read = 1 WHERE is_read = 0');
-    const res = stmt.run();
+  markAllAsRead(userId = null) {
+    const stmt = db.prepare(`
+      UPDATE notifications SET is_read = 1
+      WHERE is_read = 0 AND (user_id IS NULL OR user_id = ?)
+    `);
+    const res = stmt.run(userId);
     return { affected: res.changes };
   },
 

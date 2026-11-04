@@ -5,7 +5,13 @@ import { getSectorSvgIcon } from '../icons/SectorIcons.jsx';
  * SectorHeader.jsx
  * شريط أنيق يبرز هوية النشاط المختار والخصائص المفعلة لنقطة البيع (POS)
  */
-export default function SectorHeader({ sectorConfig, activeOrderMode, onSelectOrderMode, onOpenWorkOrders }) {
+export default function SectorHeader({
+  sectorConfig,
+  activeOrderMode,
+  onSelectOrderMode,
+  onOpenWorkOrders,
+  onOpenKitchen,
+}) {
   if (!sectorConfig) return null;
 
   return (
@@ -35,29 +41,37 @@ export default function SectorHeader({ sectorConfig, activeOrderMode, onSelectOr
 
       {/* أزرار مخصصة حسب نوع النشاط مثل صالة/تيك أواي للمطاعم أو صيانة فورية */}
       {sectorConfig.features?.tableService && (
-        <div className="pos-order-modes-toggle">
-          <button
-            type="button"
-            className={`order-mode-btn ${activeOrderMode === 'takeaway' ? 'active' : ''}`}
-            onClick={() => onSelectOrderMode?.('takeaway')}
-          >
-            سفري / Takeaway
+        <>
+          <div className="pos-order-modes-toggle" role="group" aria-label="طريقة استلام الطلب">
+            <button
+              type="button"
+              className={`order-mode-btn ${activeOrderMode === 'takeaway' ? 'active' : ''}`}
+              aria-pressed={activeOrderMode === 'takeaway'}
+              onClick={() => onSelectOrderMode?.('takeaway')}
+            >
+              سفري / Takeaway
+            </button>
+            <button
+              type="button"
+              className={`order-mode-btn ${activeOrderMode === 'dine_in' ? 'active' : ''}`}
+              aria-pressed={activeOrderMode === 'dine_in'}
+              onClick={() => onSelectOrderMode?.('dine_in')}
+            >
+              صالة / طاولات
+            </button>
+            <button
+              type="button"
+              className={`order-mode-btn ${activeOrderMode === 'delivery' ? 'active' : ''}`}
+              aria-pressed={activeOrderMode === 'delivery'}
+              onClick={() => onSelectOrderMode?.('delivery')}
+            >
+              دليفري / توصيل
+            </button>
+          </div>
+          <button type="button" className="order-mode-btn" onClick={onOpenKitchen}>
+            شاشة المطبخ (KDS)
           </button>
-          <button
-            type="button"
-            className={`order-mode-btn ${activeOrderMode === 'dine_in' ? 'active' : ''}`}
-            onClick={() => onSelectOrderMode?.('dine_in')}
-          >
-            صالة / طاولات
-          </button>
-          <button
-            type="button"
-            className={`order-mode-btn ${activeOrderMode === 'delivery' ? 'active' : ''}`}
-            onClick={() => onSelectOrderMode?.('delivery')}
-          >
-            دليفري / توصيل
-          </button>
-        </div>
+        </>
       )}
 
       {sectorConfig.features?.maintenanceTicket && (

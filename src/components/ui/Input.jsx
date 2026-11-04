@@ -11,11 +11,20 @@ import './Input.css';
  *  - disabled: boolean
  *  - error: boolean – shows error styling when true
  */
-export default function Input({ value, onChange, placeholder = '', type = 'text', disabled = false, error = false, ...rest }) {
-  const className = `input ${error ? 'input-error' : ''}`;
+export default function Input({
+  value,
+  onChange,
+  placeholder = '',
+  type = 'text',
+  disabled = false,
+  error = false,
+  className = '',
+  ...rest
+}) {
+  const classes = ['input', error ? 'input-error' : '', className].filter(Boolean).join(' ');
   return (
     <input
-      className={className}
+      className={classes}
       type={type}
       value={value}
       onChange={onChange}

@@ -1,4 +1,9 @@
-const { isBusinessProfilePageEnabled, SECTOR_PAGE_POLICIES, normalizeSectorKey } = require('../../src/utils/businessProfilePages.cjs');
+const {
+  PAGE_MODULES,
+  isBusinessProfilePageEnabled,
+  SECTOR_PAGE_POLICIES,
+  normalizeSectorKey,
+} = require('../../src/utils/businessProfilePages.cjs');
 
 describe('Sector Page Isolation Policies', () => {
   const allSectors = [
@@ -11,6 +16,7 @@ describe('Sector Page Isolation Policies', () => {
     'subscriptions_gym',
     'salon_barbershop',
     'law_firm',
+    'crm',
   ];
 
   test('every sector has defined allowedPages and deniedPages in SECTOR_PAGE_POLICIES', () => {
@@ -27,6 +33,30 @@ describe('Sector Page Isolation Policies', () => {
     expect(normalizeSectorKey('auto_workshop')).toBe('spare_parts');
     expect(normalizeSectorKey('spare_parts')).toBe('spare_parts');
     expect(normalizeSectorKey(null)).toBe('custom');
+  });
+
+  test('CRM is separate from the law firm sector and follows the CRM module toggle elsewhere', () => {
+    expect(PAGE_MODULES.crm).toBe('crm');
+    [...allSectors.filter((sector) => !['crm', 'law_firm'].includes(sector)), 'custom'].forEach((sector) => {
+      expect(isBusinessProfilePageEnabled('crm', sector, () => true)).toBe(true);
+    });
+    expect(isBusinessProfilePageEnabled('crm', 'law_firm', () => true)).toBe(false);
+    expect(isBusinessProfilePageEnabled('crm', 'retail', () => false)).toBe(false);
+    expect(isBusinessProfilePageEnabled('customers', 'law_firm', () => false)).toBe(true);
+  });
+
+  test('CRM sector exposes CRM tools without exposing point of sale or unrelated sector pages', () => {
+    expect(isBusinessProfilePageEnabled('crm', 'crm', () => true)).toBe(true);
+    expect(isBusinessProfilePageEnabled('customers', 'crm', () => true)).toBe(false);
+    expect(isBusinessProfilePageEnabled('reports', 'crm', () => true)).toBe(true);
+    expect(isBusinessProfilePageEnabled('users', 'crm', () => true)).toBe(true);
+    ['users', 'attendance', 'leaves', 'roles', 'salaries'].forEach((page) => {
+      expect(isBusinessProfilePageEnabled(page, 'crm', () => true)).toBe(true);
+      expect(isBusinessProfilePageEnabled(page, 'crm', () => false)).toBe(true);
+    });
+    expect(isBusinessProfilePageEnabled('pos', 'crm', () => true)).toBe(false);
+    expect(isBusinessProfilePageEnabled('products', 'crm', () => true)).toBe(false);
+    expect(isBusinessProfilePageEnabled('appointments', 'crm', () => true)).toBe(false);
   });
 
   describe('Strict Denials per Sector', () => {
@@ -109,9 +139,13 @@ describe('Sector Page Isolation Policies', () => {
       expect(isBusinessProfilePageEnabled('orders', 'salon_barbershop')).toBe(false);
     });
 
-    test('Law firm has cases, appointments, but NOT salon, subscriptions, returns, products, branches, orders', () => {
+    test('Law firm has legal pages but NOT POS or retail, CRM, and salon pages', () => {
       expect(isBusinessProfilePageEnabled('cases', 'law_firm')).toBe(true);
       expect(isBusinessProfilePageEnabled('appointments', 'law_firm')).toBe(true);
+      expect(isBusinessProfilePageEnabled('today', 'law_firm')).toBe(true);
+      expect(isBusinessProfilePageEnabled('today', 'law_firm', () => false)).toBe(true);
+      expect(isBusinessProfilePageEnabled('pos', 'law_firm')).toBe(false);
+      expect(isBusinessProfilePageEnabled('crm', 'law_firm')).toBe(false);
       expect(isBusinessProfilePageEnabled('salon', 'law_firm')).toBe(false);
       expect(isBusinessProfilePageEnabled('subscriptions', 'law_firm')).toBe(false);
       expect(isBusinessProfilePageEnabled('returns', 'law_firm')).toBe(false);

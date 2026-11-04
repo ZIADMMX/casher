@@ -1,10 +1,21 @@
 const { db } = require('../database/db');
 
+// Internal secrets: readable only through get(key) by the main process, never
+// returned by getAll() or writable through setMany() from the settings screen.
+const PROTECTED_KEYS = new Set([
+  'system_session_secret',
+  'system_session_secret_generation',
+  'last_active_session_token',
+]);
+
 const SettingsRepository = {
+  PROTECTED_KEYS,
+
   getAll() {
     const rows = db.prepare('SELECT key, value FROM settings').all();
     const result = {};
     for (const row of rows) {
+      if (PROTECTED_KEYS.has(row.key)) continue;
       result[row.key] = row.value;
     }
     return result;
@@ -34,6 +45,9 @@ const SettingsRepository = {
 
     const updateAll = db.transaction((entries) => {
       for (const [key, value] of Object.entries(entries)) {
+        if (PROTECTED_KEYS.has(key)) {
+          throw new Error('لا يمكن تعديل هذا الإعداد');
+        }
         stmt.run(key, String(value ?? ''));
       }
     });

@@ -12,29 +12,54 @@ jest.mock('../../electron/repositories/shifts.repository', () => ({
 }));
 jest.mock('../../electron/services/notifications.service', () => ({ notify: jest.fn() }));
 jest.mock('../../electron/services/attendance.service', () => ({
-  isCheckedInToday: jest.fn(() => true),
+  getActiveAttendanceToday: jest.fn(() => ({
+    id: 21,
+    user_id: 7,
+    check_in: '2026-10-31 08:00:00',
+    check_out: null,
+  })),
 }));
 jest.mock('../../electron/services/auth.service', () => ({
-  getCurrentSession: jest.fn(() => ({ id: 7, username: 'cashier' })),
+  getCurrentSession: jest.fn(() => ({ id: 7, username: 'cashier', role: 'cashier' })),
 }));
 
 const shiftsRepo = require('../../electron/repositories/shifts.repository');
 const attendanceService = require('../../electron/services/attendance.service');
+const authService = require('../../electron/services/auth.service');
 const { openShift, closeShift, addShiftExpense } = require('../../electron/services/shifts.service');
 
 describe('shifts.service financial operations', () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    authService.getCurrentSession.mockReturnValue({ id: 7, username: 'cashier', role: 'cashier' });
+    attendanceService.getActiveAttendanceToday.mockReturnValue({
+      id: 21,
+      user_id: 7,
+      check_in: '2026-10-31 08:00:00',
+      check_out: null,
+    });
+  });
 
   test('passes precise opening cash and returns the opened shift', () => {
     expect(openShift({ openingCash: '100.25' })).toEqual({ id: 4, opening_cash: 100 });
     expect(shiftsRepo.openShift).toHaveBeenCalledWith(expect.objectContaining({
       openingCash: 100.25,
       userId: 7,
+      attendanceRecordId: 21,
     }));
   });
 
   test('blocks cashier shift opening until today attendance is active', () => {
-    attendanceService.isCheckedInToday.mockReturnValue(false);
+    attendanceService.getActiveAttendanceToday.mockReturnValue(null);
+
+    expect(() => openShift({ openingCash: 100 }))
+      .toThrow('سجّل حضورك أولاً قبل فتح الوردية');
+    expect(shiftsRepo.openShift).not.toHaveBeenCalled();
+  });
+
+  test('also blocks administrators from opening a shift without attendance', () => {
+    authService.getCurrentSession.mockReturnValue({ id: 7, username: 'admin', role: 'admin' });
+    attendanceService.getActiveAttendanceToday.mockReturnValue(null);
 
     expect(() => openShift({ openingCash: 100 }))
       .toThrow('سجّل حضورك أولاً قبل فتح الوردية');

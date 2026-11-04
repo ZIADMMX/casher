@@ -11,6 +11,7 @@ import BundlePromotionsPanel from '../components/products/BundlePromotionsPanel.
 import { useUser } from '../contexts/UserContext.jsx';
 import ProductUnitsModal from '../components/products/ProductUnitsModal.jsx';
 import ExpiryManagerModal from '../components/products/ExpiryManagerModal.jsx';
+import { getCategoryIcon } from '../components/ProductGrid.jsx';
 import { useDispatch } from 'react-redux';
 import { setProducts } from '../features/products/productsSlice';
 
@@ -72,6 +73,7 @@ function ProductVariantsModal({
   onPrintBarcode,
   onPrintPriceTag,
   onOpenUnits,
+  quantityLabel,
 }) {
   const sizeLabel = attributes.find((attribute) => attribute.attribute_key === 'size')?.attribute_name || 'المقاس';
   const colorLabel = attributes.find((attribute) => attribute.attribute_key === 'color')?.attribute_name || 'اللون';
@@ -186,7 +188,7 @@ function ProductVariantsModal({
           </div>
           <div className="quick-stat-box">
             <span>إجمالي المخزون</span>
-            <span>{totalProductPieces} قطعة</span>
+            <span>{totalProductPieces} {quantityLabel}</span>
           </div>
           <div className="quick-stat-box">
             <span>نطاق الأسعار</span>
@@ -413,11 +415,11 @@ function ProductVariantsModal({
                   </td>
                   <td>
                     <div style={{ display: 'flex', gap: '4px' }}>
-                      <button className="icon-btn" title="تعديل هذا المقاس" onClick={() => startEdit(v)}>✎</button>
+                      <button className="icon-btn" title="تعديل هذا المتغير" onClick={() => startEdit(v)}>✎</button>
                       <button className="icon-btn" title="تعدد وحدات القياس (كرتونة / باكت)" onClick={() => onOpenUnits?.(v, product.name)}>📦</button>
                       <button className="icon-btn" title="طباعة باركود" onClick={() => onPrintBarcode(v, product.name)}>🏷</button>
                       <button className="icon-btn" title="طباعة بطاقة سعر معلقة" onClick={() => onPrintPriceTag(v, product.name)}>💳</button>
-                      <button className="icon-btn icon-btn-danger" title="حذف المقاس" onClick={() => onDeleteVariant(v.id)}>🗑</button>
+                      <button className="icon-btn icon-btn-danger" title="حذف المتغير" onClick={() => onDeleteVariant(v.id)}>🗑</button>
                     </div>
                   </td>
                 </tr>
@@ -432,6 +434,23 @@ function ProductVariantsModal({
 
 function ProductsPage() {
   const { attributes, configuration, getTerm } = useBusinessProfile();
+  const sectorKey = configuration?.profile?.key
+    || configuration?.settings?.business_type
+    || configuration?.settings?.onboarding_sector
+    || 'retail';
+  const isGrocery = sectorKey === 'grocery';
+  const quantityLabel = isGrocery ? 'وحدة' : 'قطعة';
+  const hasSizeAttribute = attributes.some((attribute) => attribute.attribute_key === 'size');
+  const hasColorAttribute = attributes.some((attribute) => attribute.attribute_key === 'color');
+  const variantLabel = isGrocery
+    ? 'الوحدات والعبوات'
+    : hasSizeAttribute && hasColorAttribute
+      ? 'المقاسات والألوان'
+      : hasSizeAttribute
+        ? 'المقاسات'
+        : hasColorAttribute
+          ? 'الألوان'
+          : 'الخيارات';
   const { currentUser } = useUser();
   const {
     products, loading, error, stats,
@@ -451,6 +470,8 @@ useEffect(() => {
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 150);
   const [activeCategory, setActiveCategory] = useState('الكل');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
   const [categories, setCategories] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [selectedProductForModal, setSelectedProductForModal] = useState(null);
@@ -524,6 +545,21 @@ useEffect(() => {
     });
   }, [products, debouncedSearch, activeCategory]);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, activeCategory, pageSize]);
+
+  const pageCount = Math.max(1, Math.ceil(filteredProducts.length / pageSize));
+  const visiblePage = Math.min(currentPage, pageCount);
+  const pagedProducts = useMemo(() => {
+    const startIndex = (visiblePage - 1) * pageSize;
+    return filteredProducts.slice(startIndex, startIndex + pageSize);
+  }, [filteredProducts, pageSize, visiblePage]);
+
+  useEffect(() => {
+    if (currentPage > pageCount) setCurrentPage(pageCount);
+  }, [currentPage, pageCount]);
+
   useBarcodeScanner((code) => {
     const clean = normalizeBarcodeText(code);
     if (!clean) return;
@@ -583,7 +619,7 @@ useEffect(() => {
   }
 
   async function handleDeleteProduct(productId, productName) {
-    if (!window.confirm(`متأكد إنك عايز تحذف "${productName}" وكل المقاسات/الألوان بتاعته؟`)) return;
+    if (!window.confirm(`متأكد إنك عايز تحذف "${productName}" وكل المتغيرات المرتبطة به؟`)) return;
     await removeProduct(productId);
     if (selectedProductForModal?.id === productId) {
       setSelectedProductForModal(null);
@@ -618,7 +654,7 @@ useEffect(() => {
         <div>
           <h1>إدارة {getTerm('product', 'المنتجات')} والمخزون</h1>
           <p className="page-subtitle">
-            إجمالي {stats.totalProducts} منتج مسجل · {stats.totalPieces} قطعة متوفرة بالمخزن
+            إجمالي {stats.totalProducts} منتج مسجل · {stats.totalPieces} {quantityLabel} متوفرة بالمخزن
           </p>
         </div>
         <div className="header-action-group" style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
@@ -923,7 +959,7 @@ useEffect(() => {
         />
       ) : (
         <div className="products-grid-modern">
-          {filteredProducts.map((product) => {
+          {pagedProducts.map((product) => {
             const totalStock = product.variants.reduce((sum, v) => sum + (v.stock_quantity || 0), 0);
             const isLowStock = product.variants.some((v) => v.stock_quantity <= v.low_stock_threshold);
             const minPrice = Math.min(...product.variants.map((v) => v.selling_price));
@@ -935,10 +971,15 @@ useEffect(() => {
                 {/* Card Top Image & Badges */}
                 <div className="prod-card-top-image">
                   {product.image_path ? (
-                    <img src={formatProductImageUrl(product.image_path)} alt={product.name} />
+                    <img
+                      src={formatProductImageUrl(product.image_path)}
+                      alt={product.name}
+                      loading="lazy"
+                      decoding="async"
+                    />
                   ) : (
                     <span className="prod-placeholder-icon">
-                      {product.categoryName?.includes('بنطلون') ? '👖' : product.categoryName?.includes('حذاء') || product.categoryName?.includes('شوز') ? '👟' : '👕'}
+                      {getCategoryIcon(product.categoryName, product.name, sectorKey)}
                     </span>
                   )}
 
@@ -949,7 +990,7 @@ useEffect(() => {
                     ) : isLowStock ? (
                       <span className="prod-stock-pill badge-warning">نواقص ({totalStock})</span>
                     ) : (
-                      <span className="prod-stock-pill badge-success">{totalStock} قطعة</span>
+                      <span className="prod-stock-pill badge-success">{totalStock} {quantityLabel}</span>
                     )}
                   </div>
                 </div>
@@ -981,7 +1022,7 @@ useEffect(() => {
                   {/* Variants Preview Chips */}
                   <div className="prod-variants-summary">
                     <div className="variants-summary-title">
-                      <span>المقاسات والألوان ({product.variants.length})</span>
+                      <span>{variantLabel} ({product.variants.length})</span>
                       <span>المخزون الإجمالي: {totalStock}</span>
                     </div>
                     <div className="variants-chips-row">
@@ -992,7 +1033,7 @@ useEffect(() => {
                           title={`الكمية: ${v.stock_quantity} | السعر: ${v.selling_price} ج.م`}
                         >
                           <span className="chip-color-dot" />
-                          {v.size || v.color || 'عادي'} ({v.stock_quantity})
+                          {v.size || v.color || v.attributes?.map((attribute) => attribute.value).find(Boolean) || (isGrocery ? 'وحدة' : 'متغير')} ({v.stock_quantity})
                         </span>
                       ))}
                       {product.variants.length > 5 && (
@@ -1010,7 +1051,7 @@ useEffect(() => {
                       className="prod-btn-details"
                       onClick={() => setSelectedProductForModal(product)}
                     >
-                      <span>⚙️ إدارة المقاسات والأسعار ({product.variants.length})</span>
+                      <span>⚙️ إدارة {variantLabel} والأسعار ({product.variants.length})</span>
                     </button>
                     {product.variants?.[0] && (
                       <button
@@ -1032,12 +1073,50 @@ useEffect(() => {
 
           {filteredProducts.length === 0 && (
             <div className="products-empty">
-              <span>👕</span>
+              <span>{getCategoryIcon('', '', sectorKey)}</span>
               <strong>لا توجد منتجات مطابقة لهذا البحث أو التصنيف</strong>
               <p>جرّب اختيار تصنيف آخر أو إضافة منتجات جديدة إلى المحل</p>
             </div>
           )}
         </div>
+      )}
+
+      {!loading && filteredProducts.length > 0 && (
+        <nav className="products-pagination" aria-label="صفحات المنتجات">
+          <div className="products-pagination-summary">
+            عرض {(visiblePage - 1) * pageSize + 1} - {Math.min(visiblePage * pageSize, filteredProducts.length)} من {filteredProducts.length} منتج
+          </div>
+          <div className="products-pagination-controls">
+            <label htmlFor="products-page-size">منتج في الصفحة</label>
+            <select
+              id="products-page-size"
+              value={pageSize}
+              onChange={(event) => setPageSize(Number(event.target.value))}
+            >
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
+            <button
+              type="button"
+              className="secondary-btn"
+              onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+              disabled={visiblePage === 1}
+              aria-label="الصفحة السابقة"
+            >
+              السابقة
+            </button>
+            <span aria-live="polite">الصفحة {visiblePage} من {pageCount}</span>
+            <button
+              type="button"
+              className="secondary-btn"
+              onClick={() => setCurrentPage((page) => Math.min(pageCount, page + 1))}
+              disabled={visiblePage === pageCount}
+              aria-label="الصفحة التالية"
+            >
+              التالية
+            </button>
+          </div>
+        </nav>
       )}
 
       {/* Modal for Detailed Variants & Pricing Management */}
@@ -1052,6 +1131,7 @@ useEffect(() => {
           onPrintBarcode={handlePrintBarcode}
           onPrintPriceTag={handlePrintPriceTag}
           onOpenUnits={(v, name) => setSelectedVariantForUnits({ variant: v, productName: name })}
+          quantityLabel={quantityLabel}
         />
       )}
 

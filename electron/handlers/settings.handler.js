@@ -65,7 +65,7 @@ function registerSettingsHandlers() {
     }
 
     const selectedFile = result.filePaths[0];
-    const res = SettingsService.restoreDatabase(selectedFile);
+    const res = await SettingsService.restoreDatabase(selectedFile);
     return { success: true, message: res.message };
   });
 

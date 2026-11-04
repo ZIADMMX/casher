@@ -1,7 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import foxLogo from '../assets/fox-logo.png';
 import '../styles/cases.css';
 import CaseDetailsModal from '../components/legal/CaseDetailsModal.jsx';
 import DailyDocketModal from '../components/legal/DailyDocketModal.jsx';
+import { useUser } from '../contexts/UserContext.jsx';
 
 const CASE_TYPES = [
   { key: 'all', label: 'جميع الأنواع' },
@@ -22,26 +24,45 @@ const STATUS_FILTERS = [
   { key: 'closed', label: 'منتهية ومحفوظة' },
 ];
 
-export default function CasesPage() {
-  const [cases, setCases] = useState([]);
-  const [stats, setStats] = useState(null);
-  const [customers, setCustomers] = useState([]);
-  const [loading, setLoading] = useState(true);
+const ICON_PATHS = {
+  scale: <><path d="M12 3v18M5 7h14M5 7l-3 6h6L5 7Zm14 0-3 6h6l-3-6ZM8 21h8" /></>,
+  folder: <><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z" /><path d="M3 10h18" /></>,
+  courthouse: <><path d="m3 9 9-6 9 6M5 10v8M9 10v8M15 10v8M19 10v8M3 21h18M2 18h20" /></>,
+  wallet: <><path d="M4 6.5A2.5 2.5 0 0 1 6.5 4H20v16H6.5A2.5 2.5 0 0 1 4 17.5v-11Z" /><path d="M4 7h13a3 3 0 0 1 3 3v1h-5a2 2 0 0 0 0 4h5v2M15 13h.01" /></>,
+  search: <><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></>,
+  docket: <><rect x="4" y="4" width="16" height="17" rx="2" /><path d="M9 4V3h6v1M8 9h8M8 13h8M8 17h5" /></>,
+  add: <><path d="M12 5v14M5 12h14" /></>,
+  open: <><path d="M14 4h6v6M20 4l-9 9" /><path d="M18 13v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h5" /></>,
+  edit: <><path d="m15 5 4 4M4 20l4-.8L19 8a2.1 2.1 0 0 0-3-3L5 16l-1 4Z" /></>,
+  close: <><path d="M5 12h14M13 6l6 6-6 6" /></>,
+  empty: <><path d="M4 6h16M6 6l1 14h10l1-14M9 6V4h6v2M10 10v6M14 10v6" /></>,
+  filter: <><path d="M4 6h16M7 12h10M10 18h4" /><circle cx="8" cy="6" r="1.5" /><circle cx="15" cy="12" r="1.5" /></>,
+};
 
-  // Filters
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [typeFilter, setTypeFilter] = useState('all');
+function LegalIcon({ name, size = 20 }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      {ICON_PATHS[name]}
+    </svg>
+  );
+}
 
-  // Modals
-  const [selectedCaseId, setSelectedCaseId] = useState(null);
-  const [showDocketModal, setShowDocketModal] = useState(false);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-
-  // Create Case Form State
-  const [createForm, setCreateForm] = useState({
+function getEmptyCaseForm(currentUserId = '') {
+  return {
     case_number: '',
     court_name: '',
+    court_id: '',
     circuit_name: '',
     client_id: '',
     client_role: 'plaintiff',
@@ -49,16 +70,51 @@ export default function CasesPage() {
     opponent_lawyer: '',
     subject: '',
     case_type: 'civil',
+    assigned_lawyer_id: currentUserId ? String(currentUserId) : '',
     billing_type: 'fixed',
     contract_amount: '',
     paid_amount: '',
     hourly_rate: '',
     power_of_attorney_num: '',
+    status: 'active',
     notes: '',
-  });
+  };
+}
+
+export default function CasesPage({
+  initialCaseId = null,
+  openCreateOnMount = false,
+  onInitialActionHandled,
+}) {
+  const { currentUser } = useUser();
+  const [cases, setCases] = useState([]);
+  const [stats, setStats] = useState(null);
+  const [customers, setCustomers] = useState([]);
+  const [lawyers, setLawyers] = useState([]);
+  const [courts, setCourts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const casesRequestId = useRef(0);
+
+  // Filters
+  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState('all');
+
+  // Modals
+  const [selectedCaseId, setSelectedCaseId] = useState(null);
+  const [selectedCaseTab, setSelectedCaseTab] = useState('details');
+  const [showDocketModal, setShowDocketModal] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editingCaseId, setEditingCaseId] = useState(null);
+
+  const [createForm, setCreateForm] = useState(() => getEmptyCaseForm(currentUser?.id));
 
   const loadData = useCallback(async () => {
+    const requestId = ++casesRequestId.current;
     setLoading(true);
+    setLoadError('');
     try {
       if (window.electronAPI?.getAllCases) {
         const data = await window.electronAPI.getAllCases({
@@ -66,26 +122,57 @@ export default function CasesPage() {
           status: statusFilter,
           case_type: typeFilter,
         });
+        if (requestId !== casesRequestId.current) return;
         setCases(data || []);
       }
       if (window.electronAPI?.getCasesSummaryStats) {
         const s = await window.electronAPI.getCasesSummaryStats();
+        if (requestId !== casesRequestId.current) return;
         setStats(s);
       }
       if (window.electronAPI?.getAllCustomers) {
         const custs = await window.electronAPI.getAllCustomers();
+        if (requestId !== casesRequestId.current) return;
         setCustomers(custs || []);
+      }
+      if (window.electronAPI?.getCaseLawyers) {
+        const team = await window.electronAPI.getCaseLawyers();
+        if (requestId !== casesRequestId.current) return;
+        setLawyers(team || []);
+      }
+      if (window.electronAPI?.getCourts) {
+        const directory = await window.electronAPI.getCourts({ status: 'active', page: 1, pageSize: 100 });
+        if (requestId !== casesRequestId.current) return;
+        setCourts(directory.items || []);
       }
     } catch (err) {
       console.error('Failed to load cases data:', err);
+      if (requestId === casesRequestId.current) {
+        setLoadError(err instanceof Error ? err.message : 'حدث خطأ غير متوقع');
+      }
     } finally {
-      setLoading(false);
+      if (requestId === casesRequestId.current) setLoading(false);
     }
   }, [search, statusFilter, typeFilter]);
 
   useEffect(() => {
     loadData();
+    return () => {
+      casesRequestId.current += 1;
+    };
   }, [loadData]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSearch(searchInput.trim()), 350);
+    return () => window.clearTimeout(timer);
+  }, [searchInput]);
+
+  useEffect(() => {
+    if (!initialCaseId && !openCreateOnMount) return;
+    if (initialCaseId) setSelectedCaseId(initialCaseId);
+    if (openCreateOnMount) setShowCreateModal(true);
+    onInitialActionHandled?.();
+  }, [initialCaseId, onInitialActionHandled, openCreateOnMount]);
 
   // Handle Create Case
   async function handleCreateCase(e) {
@@ -97,51 +184,82 @@ export default function CasesPage() {
     if (!createForm.subject?.trim()) return alert('موضوع الدعوى مطلوب');
 
     try {
-      await window.electronAPI.createCase(createForm);
+      const { paid_amount: initialPayment, ...caseData } = createForm;
+      const payload = {
+        ...caseData,
+        ...(!editingCaseId ? { paid_amount: initialPayment } : {}),
+        assigned_lawyer_id: createForm.assigned_lawyer_id || null,
+      };
+      if (editingCaseId) {
+        await window.electronAPI.updateCase(editingCaseId, payload);
+      } else {
+        await window.electronAPI.createCase(payload);
+      }
       setShowCreateModal(false);
-      setCreateForm({
-        case_number: '',
-        court_name: '',
-        circuit_name: '',
-        client_id: '',
-        client_role: 'plaintiff',
-        opponent_name: '',
-        opponent_lawyer: '',
-        subject: '',
-        case_type: 'civil',
-        billing_type: 'fixed',
-        contract_amount: '',
-        paid_amount: '',
-        hourly_rate: '',
-        power_of_attorney_num: '',
-        notes: '',
-      });
+      setEditingCaseId(null);
+      setCreateForm(getEmptyCaseForm(currentUser?.id));
       await loadData();
     } catch (err) {
-      alert('خطأ أثناء حفظ القضية: ' + err.message);
+      alert(`خطأ أثناء ${editingCaseId ? 'تعديل' : 'حفظ'} القضية: ${err.message}`);
     }
   }
 
-  // Handle Delete Case
-  async function handleDeleteCase(id, caseNum) {
-    if (!window.confirm(`هل أنت متأكد من حذف ملف القضية رقم (${caseNum})؟ سيتم حذف كافة جلساتها ومستنداتها المرتبطة.`)) {
+  async function handleEditCase(id) {
+    try {
+      const legalCase = await window.electronAPI.getCaseById(id);
+      if (!legalCase) throw new Error('ملف القضية غير موجود');
+      setEditingCaseId(id);
+      setCreateForm({
+        ...getEmptyCaseForm(currentUser?.id),
+        ...legalCase,
+        court_id: legalCase.court_id || '',
+        client_id: String(legalCase.client_id),
+        assigned_lawyer_id: legalCase.assigned_lawyer_id ? String(legalCase.assigned_lawyer_id) : '',
+        contract_amount: String(legalCase.contract_amount ?? ''),
+        paid_amount: String(legalCase.paid_amount ?? ''),
+        hourly_rate: String(legalCase.hourly_rate ?? ''),
+      });
+      setShowCreateModal(true);
+    } catch (err) {
+      alert('تعذر فتح بيانات القضية للتعديل: ' + err.message);
+    }
+  }
+
+  async function handleCloseCase(id, caseNum) {
+    if (!window.confirm(`هل تريد إغلاق القضية رقم (${caseNum})؟ سيبقى الملف وسجلاته محفوظة.`)) {
       return;
     }
     try {
       await window.electronAPI.deleteCase(id);
       await loadData();
     } catch (err) {
-      alert('تعذر حذف القضية: ' + err.message);
+      alert('تعذر إغلاق القضية: ' + err.message);
     }
+  }
+
+  const activeFiltersCount = Number(Boolean(searchInput.trim()))
+    + Number(statusFilter !== 'all')
+    + Number(typeFilter !== 'all');
+
+  function clearFilters() {
+    setSearchInput('');
+    setSearch('');
+    setStatusFilter('all');
+    setTypeFilter('all');
   }
 
   return (
     <div className="cases-page-container">
-      {/* Top Header */}
       <div className="cases-header">
         <div className="cases-title-area">
-          <h1>⚖️ مركز إدارة القضايا والمحاكم</h1>
-          <p>إدارة ملفات الدعاوى، جلسات المحاكم والرول اليومي، أمانات الموكلين والأرشيف القضائي</p>
+          <div className="cases-brand-row">
+            <img src={foxLogo} alt="FoxCloud" className="cases-brand-logo" />
+            <span className="cases-brand-name">FOX CLOUD</span>
+            <span className="cases-brand-divider" />
+            <span className="cases-brand-sector"><LegalIcon name="scale" size={15} /> منظومة المحاماة</span>
+          </div>
+          <h1>إدارة ملفات القضايا</h1>
+          <p>مركز موحّد لمتابعة الدعاوى والجلسات والمحاكم والأتعاب والأرشيف القضائي.</p>
         </div>
         <div className="cases-actions-area">
           <button
@@ -149,59 +267,65 @@ export default function CasesPage() {
             className="btn-secondary-legal"
             onClick={() => setShowDocketModal(true)}
           >
-            📋 رول جلسات اليوم
+            <LegalIcon name="docket" size={17} /> رول جلسات اليوم
           </button>
           <button
             type="button"
             className="btn-primary-legal"
-            onClick={() => setShowCreateModal(true)}
+            onClick={() => {
+              setEditingCaseId(null);
+              setCreateForm(getEmptyCaseForm(currentUser?.id));
+              setShowCreateModal(true);
+            }}
           >
-            + قيد قضية جديدة
+            <LegalIcon name="add" size={18} /> قيد قضية جديدة
           </button>
         </div>
       </div>
 
-      {/* KPI Stats Row */}
       <div className="cases-stats-row">
-        <div className="stat-card-legal">
-          <div className="stat-icon-wrapper blue">📁</div>
+        <button type="button" className="stat-card-legal stat-card-action" onClick={clearFilters}>
+          <div className="stat-icon-wrapper blue"><LegalIcon name="folder" /></div>
           <div className="stat-content">
             <span className="stat-label">إجمالي ملفات القضايا</span>
             <span className="stat-number">{stats?.total_cases || 0}</span>
           </div>
-        </div>
-        <div className="stat-card-legal">
-          <div className="stat-icon-wrapper emerald">⚖️</div>
+          <span className="stat-card-hint">عرض الكل</span>
+        </button>
+        <button type="button" className="stat-card-legal stat-card-action" onClick={() => { setStatusFilter('active'); setTypeFilter('all'); }}>
+          <div className="stat-icon-wrapper emerald"><LegalIcon name="scale" /></div>
           <div className="stat-content">
             <span className="stat-label">قضايا متداولة بالجلسات</span>
             <span className="stat-number">{stats?.active_cases || 0}</span>
           </div>
-        </div>
-        <div className="stat-card-legal">
-          <div className="stat-icon-wrapper amber">🏛️</div>
+          <span className="stat-card-hint">القضايا النشطة</span>
+        </button>
+        <button type="button" className="stat-card-legal stat-card-action" onClick={() => setShowDocketModal(true)}>
+          <div className="stat-icon-wrapper amber"><LegalIcon name="courthouse" /></div>
           <div className="stat-content">
             <span className="stat-label">جلسات قادمة مجدولة</span>
             <span className="stat-number">{stats?.next_hearings_count || 0}</span>
           </div>
-        </div>
+          <span className="stat-card-hint">فتح الرول</span>
+        </button>
         <div className="stat-card-legal">
-          <div className="stat-icon-wrapper purple">💰</div>
+          <div className="stat-icon-wrapper purple"><LegalIcon name="wallet" /></div>
           <div className="stat-content">
             <span className="stat-label">إجمالي الأتعاب المحصلة</span>
-            <span className="stat-number">{(stats?.total_paid_fees || 0).toLocaleString()} EGP</span>
+            <span className="stat-number">{(stats?.total_paid_fees || 0).toLocaleString('ar-EG')} <small>ج.م</small></span>
           </div>
         </div>
       </div>
 
-      {/* Filters & Search */}
       <div className="cases-filters-bar">
         <div className="search-input-wrapper">
-          <span className="search-icon-inside">🔍</span>
+          <span className="search-icon-inside"><LegalIcon name="search" size={18} /></span>
           <input
-            type="text"
+            type="search"
             placeholder="ابحث برقم القضية، اسم المحكمة، الموكّل، أو الخصم..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            aria-label="البحث في ملفات القضايا"
           />
         </div>
 
@@ -224,9 +348,23 @@ export default function CasesPage() {
             <option key={s.key} value={s.key}>{s.label}</option>
           ))}
         </select>
+        {activeFiltersCount > 0 && (
+          <button type="button" className="cases-clear-filters" onClick={clearFilters}>
+            مسح الفلاتر <span>{activeFiltersCount}</span>
+          </button>
+        )}
+        <div className="cases-results-count" aria-live="polite">
+          {loading ? 'جارٍ تحديث النتائج...' : `${cases.length} ملف`}
+        </div>
       </div>
 
-      {/* Main Table */}
+      {loadError && (
+        <div className="cases-load-error" role="alert">
+          <span>تعذر تحميل بيانات القضايا: {loadError}</span>
+          <button type="button" onClick={loadData}>إعادة المحاولة</button>
+        </div>
+      )}
+
       <div className="cases-table-wrapper">
         <table className="cases-table">
           <thead>
@@ -234,6 +372,7 @@ export default function CasesPage() {
               <th>رقم القضية</th>
               <th>المحكمة والدائرة</th>
               <th>الموكّل (صفته)</th>
+              <th>المحامي المسؤول</th>
               <th>الخصم</th>
               <th>موضوع الدعوى</th>
               <th>الأتعاب (المسدد / الإجمالي)</th>
@@ -245,15 +384,26 @@ export default function CasesPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan="9" style={{ textAlign: 'center', padding: '36px', color: '#64748b' }}>
-                  جاري تحميل القضايا...
+                <td colSpan="10" className="cases-loading-cell">
+                  <span className="cases-loading-spinner" />
+                  <span>{cases.length ? 'جارٍ تحديث ملفات القضايا...' : 'جارٍ تحميل ملفات القضايا...'}</span>
                 </td>
               </tr>
             ) : cases.length === 0 ? (
               <tr>
-                <td colSpan="9" style={{ textAlign: 'center', padding: '48px 20px', color: '#64748b' }}>
-                  <div style={{ fontSize: '2rem', marginBottom: '8px' }}>⚖️</div>
-                  <p style={{ margin: 0, fontSize: '1rem' }}>لا توجد قضايا مطابقة للبحث أو الفلترة المحددة</p>
+                <td colSpan="10" className="cases-empty-cell">
+                  <span className="cases-empty-icon"><LegalIcon name="empty" size={30} /></span>
+                  <strong>{activeFiltersCount ? 'لا توجد ملفات مطابقة' : 'ابدأ أول ملف قضية في مكتبك'}</strong>
+                  <p>{activeFiltersCount ? 'جرّب تغيير كلمات البحث أو إزالة بعض الفلاتر.' : 'سجّل بيانات القضية والمحكمة والموكّل لتبدأ متابعة الجلسات والمستندات.'}</p>
+                  {activeFiltersCount ? (
+                    <button type="button" className="cases-empty-action" onClick={clearFilters}>إزالة الفلاتر</button>
+                  ) : (
+                    <button type="button" className="cases-empty-action" onClick={() => {
+                      setEditingCaseId(null);
+                      setCreateForm(getEmptyCaseForm(currentUser?.id));
+                      setShowCreateModal(true);
+                    }}><LegalIcon name="add" size={16} /> قيد قضية جديدة</button>
+                  )}
                 </td>
               </tr>
             ) : (
@@ -264,7 +414,9 @@ export default function CasesPage() {
                   </td>
                   <td>
                     <div className="court-info">
-                      <span className="court-name-bold">{c.court_name}</span>
+                      <span className="court-name-bold">
+                        {courts.find((court) => String(court.id) === String(c.court_id))?.name || c.court_name}
+                      </span>
                       {c.circuit_name && <span className="circuit-sub">{c.circuit_name}</span>}
                     </div>
                   </td>
@@ -278,6 +430,7 @@ export default function CasesPage() {
                       </div>
                     </div>
                   </td>
+                  <td>{c.assigned_lawyer_name || 'غير معين'}</td>
                   <td>
                     <span style={{ color: '#b91c1c', fontWeight: 600 }}>{c.opponent_name}</span>
                   </td>
@@ -300,10 +453,7 @@ export default function CasesPage() {
                   </td>
                   <td>
                     <span className={`status-badge ${c.status}`}>
-                      {c.status === 'active' ? 'متداولة' :
-                       c.status === 'adjourned' ? 'مؤجلة' :
-                       c.status === 'judged' ? 'محكوم بها' :
-                       c.status === 'appealed' ? 'مستأنفة' : 'منتهية'}
+                      {STATUS_FILTERS.find((status) => status.key === c.status)?.label || c.status}
                     </span>
                   </td>
                   <td>
@@ -311,18 +461,40 @@ export default function CasesPage() {
                       <button
                         type="button"
                         className="btn-icon-action primary-action"
-                        onClick={() => setSelectedCaseId(c.id)}
+                        onClick={() => {
+                          setSelectedCaseTab('details');
+                          setSelectedCaseId(c.id);
+                        }}
                         title="فتح ملف القضية الكامل"
                       >
-                        📂 فتح الملف
+                        <LegalIcon name="open" size={15} /> فتح الملف
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-icon-action"
+                        onClick={() => {
+                          setSelectedCaseTab('tasks');
+                          setSelectedCaseId(c.id);
+                        }}
+                        title="فتح مهام ومتابعات القضية"
+                      >
+                        مهام المتابعة
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-icon-action"
+                        onClick={() => handleEditCase(c.id)}
+                        title="تعديل بيانات القضية"
+                      >
+                        <LegalIcon name="edit" size={15} /> تعديل
                       </button>
                       <button
                         type="button"
                         className="btn-icon-action danger-action"
-                        onClick={() => handleDeleteCase(c.id, c.case_number)}
-                        title="حذف القضية"
+                        onClick={() => handleCloseCase(c.id, c.case_number)}
+                        title="إغلاق القضية مع الاحتفاظ بسجلاتها"
                       >
-                        🗑️
+                        <LegalIcon name="close" size={15} /> إغلاق
                       </button>
                     </div>
                   </td>
@@ -335,13 +507,19 @@ export default function CasesPage() {
 
       {/* MODAL 1: Create Case Modal */}
       {showCreateModal && (
-        <div className="legal-modal-overlay" onClick={() => setShowCreateModal(false)}>
-          <div className="legal-modal-container" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '850px' }}>
+        <div className="legal-modal-overlay" onClick={() => {
+          setShowCreateModal(false);
+          setEditingCaseId(null);
+        }}>
+          <div className="legal-modal-container legal-case-create-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '850px' }}>
             <div className="legal-modal-header">
-              <h2>⚖️ قيد وتوثيق ملف قضية جديدة</h2>
-              <button type="button" className="modal-close-btn" onClick={() => setShowCreateModal(false)}>✕</button>
+              <h2><LegalIcon name={editingCaseId ? 'edit' : 'scale'} size={21} /> {editingCaseId ? 'تعديل بيانات القضية' : 'قيد وتوثيق ملف قضية جديدة'}</h2>
+              <button type="button" className="modal-close-btn" onClick={() => {
+                setShowCreateModal(false);
+                setEditingCaseId(null);
+              }}>✕</button>
             </div>
-            <form onSubmit={handleCreateCase}>
+            <form className="legal-case-create-form" onSubmit={handleCreateCase}>
               <div className="legal-modal-body">
                 <div className="form-grid-2">
                   <div className="form-group">
@@ -356,14 +534,46 @@ export default function CasesPage() {
                   </div>
 
                   <div className="form-group">
-                    <label>اسم المحكمة *</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="مثال: محكمة جنوب القاهرة الابتدائية"
-                      value={createForm.court_name}
-                      onChange={(e) => setCreateForm({ ...createForm, court_name: e.target.value })}
-                    />
+                    <label htmlFor="case-court">المحكمة *</label>
+                    <select
+                      id="case-court"
+                      value={createForm.court_id || (createForm.court_name ? 'manual' : '')}
+                      onChange={(e) => {
+                        const selectedId = e.target.value;
+                        if (selectedId === 'manual') {
+                          setCreateForm({ ...createForm, court_id: '', court_name: '' });
+                        } else if (!selectedId) {
+                          setCreateForm({ ...createForm, court_id: '', court_name: '' });
+                        } else {
+                          const selectedCourt = courts.find((court) => String(court.id) === selectedId);
+                          setCreateForm({
+                            ...createForm,
+                            court_id: selectedId,
+                            court_name: selectedCourt?.name || createForm.court_name,
+                          });
+                        }
+                      }}
+                    >
+                      <option value="">اختر المحكمة</option>
+                      {courts.map((court) => (
+                        <option key={court.id} value={court.id}>{court.name}</option>
+                      ))}
+                      {createForm.court_id && !courts.some((court) => String(court.id) === String(createForm.court_id)) && (
+                        <option value={createForm.court_id}>{createForm.court_name} (المحكمة الحالية)</option>
+                      )}
+                      <option value="manual">إدخال اسم يدويًا</option>
+                    </select>
+                    {(!createForm.court_id || createForm.court_id === 'manual') && (
+                      <input
+                        type="text"
+                        required
+                        maxLength={180}
+                        placeholder="اكتب اسم المحكمة"
+                        aria-label="اسم المحكمة"
+                        value={createForm.court_name}
+                        onChange={(e) => setCreateForm({ ...createForm, court_id: '', court_name: e.target.value })}
+                      />
+                    )}
                   </div>
 
                   <div className="form-group">
@@ -388,6 +598,21 @@ export default function CasesPage() {
                       <option value="labor">عمالي ومنازعات عمل</option>
                       <option value="family">أسرة وأحوال شخصية</option>
                       <option value="contracts">عقود واستشارات</option>
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label>المحامي المسؤول</label>
+                    <select
+                      value={createForm.assigned_lawyer_id}
+                      onChange={(e) => setCreateForm({ ...createForm, assigned_lawyer_id: e.target.value })}
+                    >
+                      <option value="">غير معين</option>
+                      {lawyers.map((lawyer) => (
+                        <option key={lawyer.id} value={lawyer.id}>
+                          {lawyer.full_name || [lawyer.first_name, lawyer.last_name].filter(Boolean).join(' ') || lawyer.username}
+                        </option>
+                      ))}
                     </select>
                   </div>
 
@@ -460,15 +685,66 @@ export default function CasesPage() {
                   </div>
 
                   <div className="form-group">
-                    <label>المسدد مقدماً من الأتعاب (EGP)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      placeholder="0.00"
-                      value={createForm.paid_amount}
-                      onChange={(e) => setCreateForm({ ...createForm, paid_amount: e.target.value })}
-                    />
+                    <label>نظام الأتعاب</label>
+                    <select
+                      value={createForm.billing_type}
+                      onChange={(e) => setCreateForm({ ...createForm, billing_type: e.target.value })}
+                    >
+                      <option value="fixed">مقطوعة</option>
+                      <option value="hourly">بالساعة</option>
+                      <option value="contingency">نسبة من المحكوم به</option>
+                    </select>
                   </div>
+
+                  {createForm.billing_type === 'hourly' && (
+                    <div className="form-group">
+                      <label>سعر الساعة (EGP)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={createForm.hourly_rate}
+                        onChange={(e) => setCreateForm({ ...createForm, hourly_rate: e.target.value })}
+                      />
+                    </div>
+                  )}
+
+                  {editingCaseId && (
+                    <div className="form-group">
+                      <label>حالة القضية</label>
+                      <select
+                        value={createForm.status}
+                        onChange={(e) => setCreateForm({ ...createForm, status: e.target.value })}
+                      >
+                        {STATUS_FILTERS.filter((status) => status.key !== 'all').map((status) => (
+                          <option key={status.key} value={status.key}>{status.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {!editingCaseId ? (
+                    <div className="form-group">
+                      <label>دفعة الأتعاب عند فتح الملف (EGP)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="0.00"
+                        value={createForm.paid_amount}
+                        onChange={(e) => setCreateForm({ ...createForm, paid_amount: e.target.value })}
+                      />
+                      <small>سيتم تسجيلها تلقائيًا كحركة مالية وإيصال في سجل القضية.</small>
+                    </div>
+                  ) : (
+                    <div className="form-group">
+                      <label>المسدد من الأتعاب</label>
+                      <div className="case-paid-amount-note">
+                        {(Number(createForm.paid_amount) || 0).toLocaleString('ar-EG')} EGP
+                        <small>لتعديل المبلغ، أضف أو عدّل حركة «سداد أتعاب» من الملف المالي للقضية.</small>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="form-group full-width">
                     <label>رقم التوكيل ومكتب التوثيق</label>
@@ -479,11 +755,23 @@ export default function CasesPage() {
                       onChange={(e) => setCreateForm({ ...createForm, power_of_attorney_num: e.target.value })}
                     />
                   </div>
+
+                  <div className="form-group full-width">
+                    <label>ملاحظات القضية</label>
+                    <textarea
+                      rows="2"
+                      value={createForm.notes || ''}
+                      onChange={(e) => setCreateForm({ ...createForm, notes: e.target.value })}
+                    />
+                  </div>
                 </div>
               </div>
               <div className="legal-modal-footer">
-                <button type="button" className="btn-secondary-legal" onClick={() => setShowCreateModal(false)}>إلغاء</button>
-                <button type="submit" className="btn-primary-legal">حفظ وقيد القضية</button>
+                <button type="button" className="btn-secondary-legal" onClick={() => {
+                  setShowCreateModal(false);
+                  setEditingCaseId(null);
+                }}>إلغاء</button>
+                <button type="submit" className="btn-primary-legal">{editingCaseId ? 'حفظ التعديلات' : 'حفظ وقيد القضية'}</button>
               </div>
             </form>
           </div>
@@ -493,9 +781,14 @@ export default function CasesPage() {
       {/* MODAL 2: Full Case Details & Tabs Modal */}
       {selectedCaseId && (
         <CaseDetailsModal
+          key={`${selectedCaseId}-${selectedCaseTab}`}
           caseId={selectedCaseId}
+          initialTab={selectedCaseTab}
           onClose={() => setSelectedCaseId(null)}
           onRefreshList={loadData}
+          lawyers={lawyers}
+          courts={courts}
+          currentUser={currentUser}
         />
       )}
 

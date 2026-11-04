@@ -420,3 +420,189 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.law-firm-appointments {
+  color: #172033;
+  background:
+    radial-gradient(ellipse at 100% 0%, rgba(242, 96, 12, 0.045), transparent 34%),
+    #f5f6fa;
+}
+
+.law-firm-appointments .appointments-header,
+.law-firm-appointments .appointments-tabs,
+.law-firm-appointments .appointment-card {
+  border-color: #e4e8ef;
+  background: #fff;
+  box-shadow: 0 8px 26px rgba(27, 39, 61, 0.055);
+}
+
+.law-firm-appointments .appointments-header h1,
+.law-firm-appointments .appointment-card h2,
+.law-firm-appointments .appointment-item-title,
+.law-firm-appointments .appointment-item-title strong {
+  color: #172033;
+}
+
+.law-firm-appointments .appointments-header p,
+.law-firm-appointments .appointment-card h3,
+.law-firm-appointments .appointment-card label,
+.law-firm-appointments .appointment-item {
+  color: #667085;
+}
+
+.law-firm-appointments .appointments-tabs button {
+  color: #667085;
+}
+
+.law-firm-appointments .appointments-tabs button:hover {
+  color: #c84b08;
+  background: #fff4ed;
+}
+
+.law-firm-appointments .appointments-tabs button.active {
+  color: #fff;
+  background: #f2600c;
+  box-shadow: 0 5px 14px rgba(242, 96, 12, 0.2);
+}
+
+.law-firm-appointments .appointment-card h2 {
+  border-color: #edf0f4;
+}
+
+.law-firm-appointments .appointment-card input:not([type="checkbox"]),
+.law-firm-appointments .appointment-card select,
+.law-firm-appointments .appointment-card textarea,
+.law-firm-appointments .appointment-card-heading input {
+  border-color: #dfe4ec;
+  color: #172033;
+  background: #fbfcfe;
+}
+
+.law-firm-appointments .appointment-card input::placeholder,
+.law-firm-appointments .appointment-card textarea::placeholder {
+  color: #98a2b3;
+}
+
+.law-firm-appointments .appointment-card input:not([type="checkbox"]):focus,
+.law-firm-appointments .appointment-card select:focus,
+.law-firm-appointments .appointment-card textarea:focus,
+.law-firm-appointments .appointment-card-heading input:focus {
+  border-color: #f2600c;
+  box-shadow: 0 0 0 3px rgba(242, 96, 12, 0.1);
+}
+
+.law-firm-appointments .appointment-card select option {
+  color: #172033;
+  background: #fff;
+}
+
+.law-firm-appointments .appointment-card input[type="checkbox"] {
+  accent-color: #f2600c;
+}
+
+.law-firm-appointments .appointment-button.primary,
+.law-firm-appointments .appointment-item-actions button.convert {
+  color: #fff;
+  background: #f2600c;
+  box-shadow: 0 4px 12px rgba(242, 96, 12, 0.18);
+}
+
+.law-firm-appointments .appointment-button.primary:hover:not(:disabled),
+.law-firm-appointments .appointment-item-actions button.convert:hover {
+  background: #d94d00;
+}
+
+.law-firm-appointments .appointment-button.secondary,
+.law-firm-appointments .appointment-item-actions button {
+  border-color: #e1e6ee;
+  color: #344054;
+  background: #fff;
+}
+
+.law-firm-appointments .appointment-button.secondary:hover:not(:disabled),
+.law-firm-appointments .appointment-item-actions button:hover {
+  border-color: #f6b18b;
+  color: #c84b08;
+  background: #fff7f2;
+}
+
+.law-firm-appointments .appointment-alert.error {
+  border-color: #fecaca;
+  color: #b42318;
+  background: #fef3f2;
+}
+
+.law-firm-appointments .appointment-alert.success {
+  border-color: #abefc6;
+  color: #067647;
+  background: #ecfdf3;
+}
+
+.law-firm-appointments .appointment-hint {
+  color: #667085;
+  background: #f8fafc;
+  border-right-color: #f2600c;
+}
+
+.law-firm-appointments .appointment-item {
+  border-color: #e5e9f0;
+  background: #fff;
+}
+
+.law-firm-appointments .appointment-item:hover {
+  border-color: #f6b18b;
+  background: #fffaf7;
+}
+
+.law-firm-appointments .appointment-status.booked {
+  border-color: #fed7aa;
+  color: #c2410c;
+  background: #fff7ed;
+}
+
+.law-firm-appointments .appointment-status.confirmed,
+.law-firm-appointments .appointment-status.completed {
+  border-color: #abefc6;
+  color: #067647;
+  background: #ecfdf3;
+}
+
+.law-firm-appointments .appointment-status.cancelled,
+.law-firm-appointments .appointment-status.no_show {
+  border-color: #fecdca;
+  color: #b42318;
+  background: #fef3f2;
+}
+
+.law-firm-appointments .appointment-status.converted {
+  border-color: #d9d6fe;
+  color: #5925dc;
+  background: #f4f3ff;
+}
+
+.law-firm-appointments .appointment-reschedule,
+.law-firm-appointments .working-hours-row {
+  border-color: #e5e9f0;
+  background: #f8fafc;
+}
+
+.law-firm-appointments .appointment-empty {
+  border-color: #e1e6ee;
+  color: #667085;
+  background: #fafbfc;
+}
+
+.law-firm-appointments .legal-appointment-icon {
+  display: inline-block;
+  flex: 0 0 auto;
+  vertical-align: middle;
+  color: #f2600c;
+}
+
+.law-firm-appointments .appointments-header h1,
+.law-firm-appointments .appointment-card h2,
+.law-firm-appointments .appointment-item-title strong {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}

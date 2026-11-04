@@ -1,9 +1,10 @@
-/**
+﻿/**
  * Kashiear POS - Modular Express REST API Server
- * Exposes all backend services via a REST API on http://127.0.0.1:5000
+ * Exposes all backend services via local HTTP and HTTPS REST endpoints.
  */
 
 require('dotenv').config();
+const https = require('node:https');
 const {
   boosthis,
   enableTelemetry,
@@ -17,7 +18,7 @@ enableTelemetry({
 });
 
 const express = require('express');
-const cors = require('cors');
+const { applyCorsPolicy } = require('./electron/security/corsPolicy');
 
 // Database initialization & unified migrations
 const { runAllMigrations } = require('./electron/database/db');
@@ -26,7 +27,12 @@ runAllMigrations();
 // Services
 const authService = require('./electron/services/auth.service');
 const { getPermissionForApi } = require('./electron/security/permissions');
-const { checkRateLimit } = require('./electron/services/rateLimiter');
+const {
+  checkRateLimit,
+  checkRequestActionRateLimit,
+  getClientIp,
+  tryAcquireRequestSlot,
+} = require('./electron/services/rateLimiter');
 const resilienceService = require('./electron/services/resilience.service');
 
 // Routes aggregator
@@ -48,26 +54,26 @@ mount(app);
 // -------------------------------------------------------------
 // Middleware: CORS
 // -------------------------------------------------------------
-const allowedOrigins = [
-  'http://localhost:5173',
-  'http://127.0.0.1:5173',
-  'http://localhost:5174',
-  'http://127.0.0.1:5174',
-];
+app.use((req, res, next) => {
+  if (!applyCorsPolicy(req, res)) {
+    return res.status(403).json({ error: 'هذا المصدر غير مسموح له بالاتصال بالخادم' });
+  }
+  if (req.method === 'OPTIONS') {
+    return;
+  }
+  next();
+});
 
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps, curl, postman) or matching whitelist
-      if (!origin || allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
-      return callback(null, true); // Permissive in dev/testing mode
-    },
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-  })
-);
+app.use((req, res, next) => {
+  const releaseSlot = tryAcquireRequestSlot();
+  if (!releaseSlot) {
+    res.set('Retry-After', '1');
+    return res.status(503).json({ error: 'الخادم مشغول حاليًا، يرجى المحاولة بعد لحظات' });
+  }
+  res.once('finish', releaseSlot);
+  res.once('close', releaseSlot);
+  next();
+});
 
 // -------------------------------------------------------------
 // Middleware: Body Parser with 2MB limit (Prevents Memory Exhaustion / DoS)
@@ -79,13 +85,14 @@ app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 // Middleware: Rate Limiter
 // -------------------------------------------------------------
 app.use(async (req, res, next) => {
-  const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+  const clientIp = getClientIp(req);
   try {
-    const allowed = await checkRateLimit(clientIp);
+    const allowed = await checkRateLimit(`express-api:${clientIp}`);
     if (!allowed) {
       res.set('Retry-After', '60');
       return res.status(429).json({
         error: 'تم تجاوز الحد الأقصى للطلبات (Rate Limit Exceeded). يرجى المحاولة بعد قليل.',
+        retryAfterMs: 60000,
       });
     }
     next();
@@ -103,7 +110,6 @@ const rootHandler = (req, res) => {
     status: 'online',
     name: 'Kashiear POS REST API (Express)',
     version: '2.0.0',
-    activeSession: authService.getCurrentSession(),
     endpoints: [
       'POST /api/auth/login',
       'POST /api/auth/logout',
@@ -147,8 +153,8 @@ app.get('/api', rootHandler);
 // Middleware: Security & Permissions Guard for /api
 // -------------------------------------------------------------
 app.use('/api', (req, res, next) => {
-  // 1. استثناء المسارات العامة (المصادقة وفحص صحة الخادم)
-  if (req.path.startsWith('/auth/') || req.path === '/system/health') {
+  // 1. استثناء المسارات العامة (تسجيل الدخول وفحص صحة الخادم فقط)
+  if ((req.path === '/auth/login' && req.method === 'POST') || req.path === '/system/health') {
     return next();
   }
 
@@ -168,22 +174,38 @@ app.use('/api', (req, res, next) => {
 
   // إرفاق بيانات المستخدم في الطلب للاستخدام في المسارات اللاحقة
   req.user = session;
+  req.token = token;
 
   // 4. فحص الصلاحيات المقيدة في خريطة الصلاحيات
+  // runWithSession يجعل الخدمات ترى جلسة صاحب التوكن بدل الجلسة الافتراضية المحفوظة
   const permission = getPermissionForApi(`/api${req.path}`, req.method.toUpperCase());
-  if (permission) {
-    return authService.runWithPermission(permission, () => {
+  return authService.runWithSession(session, () => authService.runWithPermission(permission, () => {
+    if (permission) {
       try {
         authService.requirePermission(permission, token);
-        next();
       } catch (err) {
         return res.status(403).json({ error: err.message || 'غير مصرح لك بتنفيذ هذا الإجراء' });
       }
-    });
-  }
+    }
+    // المسارات غير المقيدة بصلاحية محددة يسمح بها طالما أن المستخدم مسجل دخول
+    next();
+  }));
+});
 
-  // المسارات غير المقيدة بصلاحية محددة يسمح بها طالما أن المستخدم مسجل دخول
-  next();
+app.use('/api', async (req, res, next) => {
+  try {
+    const actionLimit = await checkRequestActionRateLimit(req, req.user?.id);
+    if (actionLimit && !actionLimit.allowed) {
+      res.set('Retry-After', String(Math.ceil(actionLimit.retryAfterMs / 1000)));
+      return res.status(429).json({
+        error: 'تم إيقاف هذه العملية مؤقتًا بسبب تكرار المحاولة. يرجى الانتظار قبل إعادة المحاولة.',
+        retryAfterMs: actionLimit.retryAfterMs,
+      });
+    }
+    next();
+  } catch (error) {
+    next(error);
+  }
 });
 
 // -------------------------------------------------------------
@@ -211,28 +233,56 @@ app.use((err, req, res, next) => {
 // -------------------------------------------------------------
 // Server Lifecycle & Graceful Shutdown
 // -------------------------------------------------------------
-const PORT = process.env.PORT || 5000;
-const HOST = '127.0.0.1';
+const PORT       = Number(process.env.PORT)       || 5000;
+const HTTPS_PORT = Number(process.env.HTTPS_PORT) || 5001;
+const HOST       = '127.0.0.1';
 
-const server = app.listen(PORT, HOST, () => {
+// HTTP Server (local tools / backward compat)
+const httpServer = app.listen(PORT, HOST, () => {
   console.log(`\n======================================================`);
-  console.log(`🚀 Kashiear POS REST API Server is running via Express!`);
-  console.log(`📡 URL: http://${HOST}:${PORT}`);
-  console.log(`📑 Health Check: http://${HOST}:${PORT}/api`);
+  console.log(`Kashiear POS REST API Server is running via Express!`);
+  console.log(`  HTTP  -> http://${HOST}:${PORT}`);
+  console.log(`  HTTPS -> https://${HOST}:${HTTPS_PORT}`);
+  console.log(`Health: http://${HOST}:${PORT}/api`);
   console.log(`======================================================\n`);
 });
 
-server.on('close', () => {
-  resilienceService.shutdownSystemBackbone();
-});
+// HTTPS Server
+let httpsServer = null;
+try {
+  const { getOrCreateCert } = require('./electron/security/sslCert');
+  const sslCreds = getOrCreateCert();
+  httpsServer = https
+    .createServer({ key: sslCreds.key, cert: sslCreds.cert }, app)
+    .listen(HTTPS_PORT, HOST, () => {
+      console.log(`[API] HTTPS listening on https://${HOST}:${HTTPS_PORT}`);
+    });
+} catch (err) {
+  console.error('[API] HTTPS unavailable:', err.message);
+}
 
 for (const signal of ['SIGINT', 'SIGTERM']) {
   process.once(signal, () => {
-    server.close(async () => {
-      await resilienceService.shutdownSystemBackbone();
-      process.exit(0);
-    });
-    setTimeout(() => process.exit(1), 5000).unref();
+    const forceExitTimer = setTimeout(() => process.exit(1), 5000).unref();
+    const shutdown = async () => {
+      try {
+        await resilienceService.shutdownSystemBackbone();
+        process.exitCode = 0;
+      } catch (err) {
+        console.error('[API] Graceful shutdown failed:', err);
+        process.exitCode = 1;
+      } finally {
+        clearTimeout(forceExitTimer);
+      }
+    };
+
+    const servers = [httpServer, httpsServer].filter(Boolean);
+    Promise.all(servers.map((server) => new Promise((resolve) => {
+      server.close((err) => {
+        if (err) console.error('[API] Server close failed:', err);
+        resolve();
+      });
+    }))).then(shutdown);
   });
 }
 

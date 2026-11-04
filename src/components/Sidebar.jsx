@@ -9,8 +9,10 @@ import { hasPermission } from '../utils/accessControl.js';
 const PAGE_PERMISSIONS = {
   today: 'pos.view',
   pos: 'pos.view',
+  kitchen: 'pos.view',
   orders: 'orders.view',
   cases: 'cases.view',
+  courts: 'cases.view',
   appointments: 'appointments.view',
   subscriptions: 'subscriptions.view',
   commissions: 'commissions.view',
@@ -18,6 +20,7 @@ const PAGE_PERMISSIONS = {
   products: 'products.view',
   branches: 'products.view',
   customers: 'customers.view',
+  crm: 'customers.view',
   suppliers: 'suppliers.view',
   shifts: 'shifts.view',
   reports: 'reports.view',
@@ -33,6 +36,7 @@ const PAGE_PERMISSIONS = {
 
 function Sidebar({ activePage, onNavigate, currentUser, onLogout, onOpenProfile, onOpenReview }) {
   const [isTeamMenuOpen, setIsTeamMenuOpen] = useState(false);
+  const [isRestarting, setIsRestarting] = useState(false);
   const { settings } = useSettings();
   const { configuration, isModuleEnabled, getTerm } = useBusinessProfile();
   const profileKey = configuration?.profile?.key || settings?.business_type || settings?.onboarding_sector || 'retail';
@@ -91,6 +95,18 @@ function Sidebar({ activePage, onNavigate, currentUser, onLogout, onOpenProfile,
       roles: ['admin', 'cashier'],
     },
     {
+      key: 'kitchen',
+      label: 'شاشة المطبخ (KDS)',
+      badge: 'مباشر',
+      icon: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M4 10h16v10H4z" />
+          <path d="M7 10V6a5 5 0 0 1 10 0v4M8 14h8M8 17h5" />
+        </svg>
+      ),
+      roles: ['admin', 'cashier'],
+    },
+    {
       key: 'cases',
       label: 'القضايا والمحاكم',
       badge: 'قضايا',
@@ -101,6 +117,16 @@ function Sidebar({ activePage, onNavigate, currentUser, onLogout, onOpenProfile,
           <path d="M4 7l3 7h-6l3-7z" />
           <path d="M20 7l3 7h-6l3-7z" />
           <path d="M9 21h6" />
+        </svg>
+      ),
+      roles: ['admin', 'cashier'],
+    },
+    {
+      key: 'courts',
+      label: 'المحاكم',
+      icon: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M3 9h18M5 9v10m4-10v10m6-10v10m4-10v10M3 21h18M12 3 2 8h20L12 3Z" />
         </svg>
       ),
       roles: ['admin', 'cashier'],
@@ -179,13 +205,29 @@ function Sidebar({ activePage, onNavigate, currentUser, onLogout, onOpenProfile,
     },
     {
       key: 'customers',
-      label: `${getTerm('customer', 'العملاء')} والديون`,
+      label: profileKey === 'law_firm'
+        ? 'الموكلون'
+        : `${getTerm('customer', 'العملاء')} والديون`,
       icon: (
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
           <circle cx="9" cy="7" r="4" />
           <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
           <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+        </svg>
+      ),
+      roles: ['admin', 'cashier'],
+    },
+    {
+      key: 'crm',
+      label: 'إدارة علاقات العملاء (CRM)',
+      badge: 'CRM',
+      icon: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="9" cy="8" r="4" />
+          <path d="M3 21v-2a6 6 0 0 1 12 0v2" />
+          <path d="M16 11a4 4 0 1 0 0-8" />
+          <path d="M18 14a5 5 0 0 1 3 5v2" />
         </svg>
       ),
       roles: ['admin', 'cashier'],
@@ -278,16 +320,22 @@ function Sidebar({ activePage, onNavigate, currentUser, onLogout, onOpenProfile,
     if (page === 'profile') return true;
     if (!currentUser.systemRoleKey) {
       return currentUser.role === 'admin'
-        || ['today', 'pos', 'orders', 'appointments', 'subscriptions', 'returns', 'customers', 'shifts', 'workflows'].includes(page);
+        || ['today', 'pos', 'kitchen', 'orders', 'appointments', 'subscriptions', 'returns', 'customers', 'crm', 'shifts', 'workflows'].includes(page);
     }
-    const permission = PAGE_PERMISSIONS[page];
+    const permission = profileKey === 'law_firm' && page === 'today'
+      ? 'cases.view'
+      : PAGE_PERMISSIONS[page];
     return permission ? hasPermission(currentUser, permission) : false;
   }
 
   const visibleLinks = allLinks.flatMap((link) => {
     if (link.children) {
-      const children = link.children.filter((child) => child.available && canAccess(child.key));
-      return children.length && isBusinessProfilePageEnabled('users', profileKey, isModuleEnabled)
+      const children = link.children.filter((child) => (
+        child.available
+        && canAccess(child.key)
+        && isBusinessProfilePageEnabled(child.key, profileKey, isModuleEnabled)
+      ));
+      return children.length
         ? [{ ...link, children }]
         : [];
     }
@@ -302,6 +350,25 @@ function Sidebar({ activePage, onNavigate, currentUser, onLogout, onOpenProfile,
     || currentUser.username;
   const initial = displayName ? displayName.charAt(0).toUpperCase() : 'U';
   const storeName = settings?.store_name || 'بوتيك الفخامة';
+
+  async function handleRestart() {
+    if (isRestarting || !window.confirm('سيتم إعادة تشغيل البرنامج. قد تفقد أي بيانات لم تحفظها. هل تريد المتابعة؟')) {
+      return;
+    }
+
+    setIsRestarting(true);
+    try {
+      await window.electronAPI.restartApp();
+    } catch (error) {
+      setIsRestarting(false);
+      console.error('تعذر إعادة تشغيل التطبيق:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const isRestartHandlerMissing = errorMessage.includes("No handler registered for 'app:restart'");
+      window.alert(isRestartHandlerMissing
+        ? 'ميزة إعادة التشغيل غير مفعّلة في جلسة البرنامج الحالية. أغلق البرنامج بالكامل وافتحه مرة واحدة لتفعيلها.'
+        : errorMessage || 'تعذر إعادة تشغيل التطبيق');
+    }
+  }
 
   return (
     <nav className="sidebar">
@@ -326,11 +393,37 @@ function Sidebar({ activePage, onNavigate, currentUser, onLogout, onOpenProfile,
           </div>
         </div>
 
-        {currentUser.role === 'admin' && (
-          <div className="sidebar-notification-wrap">
-            <NotificationBell onNavigate={onNavigate} />
-          </div>
-        )}
+        <div className="sidebar-header-actions">
+          {currentUser.role === 'admin' && (
+            <div className="sidebar-notification-wrap">
+              <NotificationBell onNavigate={onNavigate} />
+            </div>
+          )}
+          <button
+            type="button"
+            className="sidebar-restart-btn"
+            onClick={handleRestart}
+            disabled={isRestarting}
+            title="إعادة تشغيل البرنامج"
+            aria-label="إعادة تشغيل البرنامج"
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M20 7v5h-5" />
+              <path d="M4.93 4.93a9 9 0 1 1-1.42 10.02" />
+              <path d="M4 7v5h5" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       {/* Navigation Links */}
@@ -351,7 +444,13 @@ function Sidebar({ activePage, onNavigate, currentUser, onLogout, onOpenProfile,
                     aria-controls="team-work-submenu"
                   >
                     <span className="sidebar-link-icon">{link.icon}</span>
-                    <span className="sidebar-link-label">{link.label}</span>
+                    <span className="sidebar-link-label">
+                      {profileKey === 'law_firm' && link.key === 'reports'
+                        ? 'التقارير القانونية'
+                        : profileKey === 'law_firm' && link.key === 'settings'
+                          ? 'إعدادات مكتب المحاماة'
+                          : link.label}
+                    </span>
                     <svg
                       className={`sidebar-submenu-chevron ${isExpanded ? 'is-open' : ''}`}
                       width="14"

@@ -18,6 +18,7 @@ const reportsRepo = require('../../electron/repositories/reports.repository');
 const shiftsRepo = require('../../electron/repositories/shifts.repository');
 const purchasesRepo = require('../../electron/repositories/purchases.repository');
 const notificationsRepo = require('../../electron/repositories/notifications.repository');
+const crmAdvancedRepo = require('../../electron/repositories/crmAdvanced.repository');
 
 describe('Security: SQL Injection Immunity & Parameterized Queries', () => {
   beforeEach(() => {
@@ -41,6 +42,8 @@ describe('Security: SQL Injection Immunity & Parameterized Queries', () => {
       DROP TABLE IF EXISTS shifts;
       DROP TABLE IF EXISTS notifications;
       DROP TABLE IF EXISTS settings;
+      DROP TABLE IF EXISTS crm_leads;
+      DROP TABLE IF EXISTS crm_companies;
       DROP TABLE IF EXISTS users;
       PRAGMA foreign_keys = ON;
     `);
@@ -48,6 +51,22 @@ describe('Security: SQL Injection Immunity & Parameterized Queries', () => {
     const schemaPath = path.join(__dirname, '../../electron/database/schema.sql');
     const schema = fs.readFileSync(schemaPath, 'utf-8');
     mockDb.exec(schema);
+    mockDb.exec(`
+      CREATE TABLE crm_companies (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
+      CREATE TABLE crm_leads (
+        id INTEGER PRIMARY KEY,
+        name TEXT NOT NULL,
+        phone TEXT,
+        email TEXT,
+        company_id INTEGER,
+        source TEXT,
+        status TEXT,
+        owner_user_id INTEGER,
+        notes TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+      INSERT INTO crm_leads (name, status) VALUES ('Lead One', 'new'), ('Lead Two', 'new');
+    `);
 
     // Seed test data
     usersRepo.create({
@@ -180,6 +199,21 @@ describe('Security: SQL Injection Immunity & Parameterized Queries', () => {
 
         const all = variantsRepo.getAll();
         expect(all.length).toBe(1);
+      });
+
+      describe('CRM Repository SQL Injection Tests', () => {
+        test('search treats SQL payloads as literal lead text and leaves records untouched', () => {
+          const leads = crmAdvancedRepo.getLeads({ search: "' OR 1=1--" });
+
+          expect(leads).toEqual([]);
+          expect(crmAdvancedRepo.getLeads({}).map((lead) => lead.name)).toEqual([
+            'Lead One',
+            'Lead Two',
+          ]);
+          expect(mockDb.prepare(
+            "SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'table' AND name = 'crm_leads'"
+          ).get().count).toBe(1);
+        });
       });
     });
   });

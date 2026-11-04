@@ -450,6 +450,20 @@ function requireAdmin(callerOrToken = 'default') {
   throw new Error('غير مصرح لك بتنفيذ هذا الإجراء');
 }
 
+function isSystemOwner(user) {
+  return user?.role === 'admin' && !user.system_role_key;
+}
+
+/** Guard: only the main admin may reset, disable or remove an admin account */
+function assertCanManageTarget(actorSession, targetUserId) {
+  const target = usersRepo.getById(targetUserId);
+  if (!target) throw new Error('المستخدم غير موجود');
+  if (target.role === 'admin' && !isSystemOwner(usersRepo.getById(actorSession.id))) {
+    throw new Error('لا يمكن تعديل حساب مدير النظام إلا بواسطة المدير');
+  }
+  return target;
+}
+
 function addCashier({
   username, password, role, firstName, lastName, fullName, phone, email, jobTitle,
   specialty, workingHours, profileImage, payType, payAmount, commissionRate, isActive, notes, systemRoleKey,
@@ -545,8 +559,7 @@ function resetUserPassword({ userId, password }) {
     throw new Error('لا يمكنك إعادة تعيين كلمة مرور حسابك من هذه الصفحة');
   }
 
-  const user = usersRepo.getById(userId);
-  if (!user) throw new Error('المستخدم غير موجود');
+  assertCanManageTarget(session, userId);
   if (!password || password.length < 6) {
     throw new Error('كلمة المرور لازم تكون 6 أحرف على الأقل');
   }
@@ -563,6 +576,7 @@ function toggleUserActive(userId) {
     throw new Error('لا يمكنك تعطيل حسابك الخاص وأنت مسجل دخول به');
   }
 
+  assertCanManageTarget(session, userId);
   const users = usersRepo.getAll();
   const target = users.find((u) => u.id === userId);
   if (!target) throw new Error('المستخدم غير موجود');
@@ -578,6 +592,7 @@ function removeUser(userId) {
     throw new Error('لا يمكنك حذف حسابك الخاص وأنت مسجل دخول به');
   }
 
+  assertCanManageTarget(session, userId);
   const target = usersRepo.getDetails(userId);
   if (!target) throw new Error('المستخدم غير موجود');
   usersRepo.setActive(userId, false);
@@ -688,8 +703,16 @@ function saveMyProfile(profile, callerOrToken = 'default') {
   return getMyProfile(callerOrToken);
 }
 
+/**
+ * Forced password change (first login / after an admin reset) only.
+ * Voluntary changes go through updateProfile, which verifies the current password.
+ */
 function changePassword(newPassword, callerOrToken = 'default') {
   const session = requireAuth(callerOrToken);
+  const user = usersRepo.getById(session.id);
+  if (!user || user.force_password_change !== 1) {
+    throw new Error('لتغيير كلمة المرور أدخل كلمة المرور الحالية من الملف الشخصي');
+  }
 
   if (!newPassword || newPassword.length < 6) {
     throw new Error('كلمة المرور لازم تكون 6 أحرف على الأقل');
@@ -725,9 +748,9 @@ function changePassword(newPassword, callerOrToken = 'default') {
   };
 }
 
-function getRecoveryChallenge() {
+function getRecoveryChallenge(date = new Date()) {
   const hwid = getMachineHardwareId();
-  const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, ''); // YYYYMMDD
+  const dateStr = date.toISOString().slice(0, 10).replace(/-/g, ''); // YYYYMMDD
   if (!DEVELOPER_MASTER_SECRET) {
     return `CHAL-${hwid}-${dateStr}-0000`;
   }
@@ -812,7 +835,14 @@ function resetAdminPasswordWithChallenge({ challengeCode, responseOtp, newPasswo
     throw new Error('كلمة المرور الجديدة يجب ألا تقل عن 6 أحرف');
   }
 
-  const isValid = verifyRecoveryChallengeResponse(challengeCode, responseOtp);
+  // The challenge must be one this machine issued today or yesterday (UTC), so an
+  // OTP from support cannot be replayed later or on another installation.
+  const cleanChallenge = challengeCode.trim().toUpperCase();
+  const now = Date.now();
+  const issuedHere = [0, 1].some((daysAgo) => (
+    getRecoveryChallenge(new Date(now - daysAgo * 24 * 60 * 60 * 1000)).toUpperCase() === cleanChallenge
+  ));
+  const isValid = issuedHere && verifyRecoveryChallengeResponse(cleanChallenge, responseOtp);
   if (!isValid) {
     throw new Error('كود الاستجابة غير صحيح أو منتهي الصلاحية. تواصل مع الدعم الفني');
   }

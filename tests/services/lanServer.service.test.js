@@ -1,4 +1,5 @@
 const http = require('node:http');
+const https = require('node:https');
 const { monitorEventLoopDelay, performance } = require('node:perf_hooks');
 
 jest.mock('../../electron/services/auth.service', () => ({
@@ -90,9 +91,12 @@ jest.mock('../../electron/services/logger.service', () => ({
 }));
 
 const lanServer = require('../../electron/services/lanServer.service');
+const { getOrCreateCert } = require('../../electron/security/sslCert');
 
 describe('LAN Server Service (Multi-Terminal Master Hub)', () => {
   const TEST_PORT = 5899;
+  const TEST_HTTPS_PORT = TEST_PORT + 443;
+  const serverCertificate = getOrCreateCert();
 
   beforeAll(async () => {
     await lanServer.startServer(TEST_PORT);
@@ -116,13 +120,15 @@ describe('LAN Server Service (Multi-Terminal Master Hub)', () => {
         headers['Content-Length'] = Buffer.byteLength(payloadStr);
       }
 
-      const req = http.request(
+      const req = https.request(
         {
           hostname: '127.0.0.1',
-          port: TEST_PORT,
+          port: TEST_HTTPS_PORT,
           path,
           method: options.method || 'GET',
           headers,
+          ca: serverCertificate.cert,
+          agent: false,
         },
         (res) => {
           let rawData = '';
@@ -163,7 +169,17 @@ describe('LAN Server Service (Multi-Terminal Master Hub)', () => {
     const status = lanServer.getStatus();
     expect(status.isRunning).toBe(true);
     expect(status.port).toBe(TEST_PORT);
+    expect(status.httpsPort).toBe(TEST_HTTPS_PORT);
+    expect(status.certificateFingerprint).toBe(serverCertificate.fingerprint256);
     expect(status.localIps.length).toBeGreaterThan(0);
+  });
+
+  test('does not expose the API over the legacy HTTP port', async () => {
+    await expect(new Promise((resolve, reject) => {
+      const req = http.get({ hostname: '127.0.0.1', port: TEST_PORT, timeout: 500 }, resolve);
+      req.on('error', reject);
+      req.on('timeout', () => req.destroy(new Error('request timeout')));
+    })).rejects.toThrow();
   });
 
   test('responds to /api/health and OPTIONS preflight', async () => {
@@ -176,6 +192,69 @@ describe('LAN Server Service (Multi-Terminal Master Hub)', () => {
     // Test CORS preflight (OPTIONS)
     const optionsRes = await makeRequest('/api/health', { method: 'OPTIONS' });
     expect(optionsRes.statusCode).toBe(204);
+  });
+
+  test('allows approved origins and blocks untrusted origins', async () => {
+    const allowed = await makeRequest('/api/health', {
+      headers: { Origin: 'http://localhost:5173' },
+    });
+    expect(allowed.statusCode).toBe(200);
+    expect(allowed.headers['access-control-allow-origin']).toBe('http://localhost:5173');
+
+    const blocked = await makeRequest('/api/health', {
+      headers: { Origin: 'https://untrusted.example' },
+    });
+    expect(blocked.statusCode).toBe(403);
+    expect(blocked.headers['access-control-allow-origin']).toBeUndefined();
+  });
+
+  test('preflight permits the Electron origin and rejects untrusted origins', async () => {
+    const allowed = await makeRequest('/api/health', {
+      method: 'OPTIONS',
+      headers: { Origin: 'null', 'Access-Control-Request-Headers': 'authorization' },
+    });
+    expect(allowed.statusCode).toBe(204);
+    expect(allowed.headers['access-control-allow-origin']).toBe('null');
+    expect(allowed.headers['access-control-allow-headers']).toContain('Authorization');
+
+    const blocked = await makeRequest('/api/health', {
+      method: 'OPTIONS',
+      headers: { Origin: 'https://untrusted.example' },
+    });
+    expect(blocked.statusCode).toBe(403);
+  });
+
+  test('limits repeated writes to the same action and returns a retry delay', async () => {
+    const responses = [];
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      responses.push(await makeRequest('/api/products/add', { method: 'POST' }, {
+        product: { name: `Product ${attempt}` },
+      }));
+    }
+
+    expect(responses.slice(0, 5).every((response) => response.statusCode === 201)).toBe(true);
+    expect(responses[5].statusCode).toBe(429);
+    expect(responses[5].headers['retry-after']).toBeTruthy();
+    expect(responses[5].data.retryAfterMs).toBeGreaterThan(0);
+  });
+
+  test('allows additional origins configured by the operator', async () => {
+    const previousOrigins = process.env.CORS_ALLOWED_ORIGINS;
+    process.env.CORS_ALLOWED_ORIGINS = 'https://pos.example.com';
+
+    try {
+      const response = await makeRequest('/api/health', {
+        headers: { Origin: 'https://pos.example.com' },
+      });
+      expect(response.statusCode).toBe(200);
+      expect(response.headers['access-control-allow-origin']).toBe('https://pos.example.com');
+    } finally {
+      if (previousOrigins === undefined) {
+        delete process.env.CORS_ALLOWED_ORIGINS;
+      } else {
+        process.env.CORS_ALLOWED_ORIGINS = previousOrigins;
+      }
+    }
   });
 
   test('startServer resolves gracefully when already running', async () => {
@@ -236,6 +315,22 @@ describe('LAN Server Service (Multi-Terminal Master Hub)', () => {
     const res = await makeRequest('/api/non-existent-route');
     expect(res.statusCode).toBe(404);
     expect(res.data.error).toContain('Route not found');
+  });
+
+  describe('security: port validation (command injection guard)', () => {
+    const INVALID_PORTS = ['5899; calc', 'abc', -1, 0, 70000, '12.5', NaN];
+
+    test.each(INVALID_PORTS)('startServer rejects invalid port %p without crashing', async (badPort) => {
+      const result = await lanServer.startServer(badPort);
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('المنفذ');
+    });
+
+    test.each(INVALID_PORTS)('openWindowsFirewallPort rejects invalid port %p without executing commands', async (badPort) => {
+      const result = await lanServer.openWindowsFirewallPort(badPort);
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('المنفذ');
+    });
   });
 
   if (process.env.RUN_LAN_STRESS === '1') {

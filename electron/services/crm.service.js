@@ -1,4 +1,5 @@
 const crmRepo = require('../repositories/crm.repository');
+const advancedCRMRepo = require('../repositories/crmAdvanced.repository');
 const crmCache = require('./crm.cache');
 const NotificationsService = require('./notifications.service');
 
@@ -86,9 +87,11 @@ function getAllOpportunities(filters = {}) {
   return list;
 }
 
-function updateOpportunityStage(id, stage) {
+function updateOpportunityStage(id, stage, userId) {
   if (!ALLOWED_OPP_STAGES.includes(stage)) throw new Error('مرحلة الصفقة غير صحيحة');
-  const updated = crmRepo.updateOpportunityStage(id, stage);
+  const updated = userId == null
+    ? crmRepo.updateOpportunityStage(id, stage)
+    : crmRepo.updateOpportunityStage(id, stage, userId);
   crmCache.invalidate();
   return updated;
 }
@@ -113,6 +116,28 @@ function checkDueReminders() {
       });
       if (notification) crmRepo.markReminderSent(item.id);
     }
+  }
+  const dueActivities = advancedCRMRepo.getDueActivities();
+  for (const activity of dueActivities) {
+    const notification = NotificationsService.notify({
+      userId: activity.owner_user_id || null,
+      type: 'warning',
+      title: 'تذكير CRM مستحق الآن',
+      message: `${activity.title}${activity.details ? ` — ${activity.details}` : ''}`,
+      linkPage: 'crm'
+    });
+    if (notification) advancedCRMRepo.markActivityReminderSent(activity.id);
+  }
+  const staleOpportunities = advancedCRMRepo.getStaleOpportunities();
+  for (const opportunity of staleOpportunities) {
+    const notification = NotificationsService.notify({
+      userId: opportunity.user_id || null,
+      type: 'warning',
+      title: 'صفقة تحتاج إلى متابعة',
+      message: `الصفقة "${opportunity.title}" مع ${opportunity.customer_name} متوقفة منذ 7 أيام.`,
+      linkPage: 'crm'
+    });
+    if (notification) advancedCRMRepo.markOpportunityStaleReminderSent(opportunity.id);
   }
   return due;
 }

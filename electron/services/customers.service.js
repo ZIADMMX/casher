@@ -2,11 +2,31 @@
 const salesRepo = require('../repositories/sales.repository');
 const shiftsRepo = require('../repositories/shifts.repository');
 const { requireAdmin, requireAuth, getCurrentSession } = require('./auth.service');
+const crmAdvancedRepo = require('../repositories/crmAdvanced.repository');
 
-function addCustomer({ name, phone, email, initialDebt, debtNotes, dueDate }) {
-  requireAuth();
+function addCustomer({
+  name, phone, email, initialDebt, debtNotes, dueDate, company_id, lead_source,
+  email_consent, sms_consent
+}) {
+  const session = requireAuth();
   if (!name || !name.trim()) throw new Error('اسم العميل مطلوب');
-  const id = customersRepo.create({ name: name.trim(), phone, email });
+  const companyId = company_id == null || company_id === '' ? null : Number(company_id);
+  if (companyId != null && (!Number.isInteger(companyId) || companyId < 1)) {
+    throw new Error('الشركة المرتبطة غير صحيحة');
+  }
+  const id = customersRepo.create({
+    name: name.trim(),
+    phone,
+    email,
+    companyId,
+    leadSource: lead_source,
+    emailConsent: email_consent === true,
+    smsConsent: sms_consent === true,
+  });
+  crmAdvancedRepo.recordAudit('customer', id, 'created', {
+    company_id: companyId,
+    lead_source: lead_source || null,
+  }, session?.id);
   
   const debtAmount = Number(initialDebt);
   if (debtAmount && debtAmount > 0) {
@@ -30,8 +50,8 @@ function addManualDebt({ customerId, amount, notes, dueDate }) {
   if (!customerId) throw new Error('العميل مطلوب');
   if (!amount || amount <= 0) throw new Error('مبلغ المديونية غير صحيح');
 
-  const activeShift = shiftsRepo.getCurrentOpenShift(session?.id) || shiftsRepo.getCurrentOpenShift();
   const session = getCurrentSession();
+  const activeShift = shiftsRepo.getCurrentOpenShift(session?.id) || shiftsRepo.getCurrentOpenShift();
 
   const saleId = salesRepo.createSale({
     shiftId: activeShift ? activeShift.id : null,

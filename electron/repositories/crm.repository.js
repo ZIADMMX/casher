@@ -1,5 +1,16 @@
 const { db } = require('../database/db');
 
+function recordAudit(entityType, entityId, action, changes, userId) {
+  const tableExists = db.prepare(
+    "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'crm_audit_log'"
+  ).get();
+  if (!tableExists) return;
+  db.prepare(`
+    INSERT INTO crm_audit_log (entity_type, entity_id, action, changes_json, user_id)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(entityType, entityId, action, JSON.stringify(changes || {}), userId || null);
+}
+
 /**
  * CRM Repository
  * SQL Queries for Customer Interactions, Opportunities, Campaigns, and Unified Timeline Gathering
@@ -14,6 +25,7 @@ function addInteraction(data) {
     INSERT INTO crm_interactions (customer_id, user_id, type, subject, details, status, follow_up_date)
     VALUES (?, ?, ?, ?, ?, ?, ?)
   `).run(customer_id, user_id || null, type, subject, details || null, status, follow_up_date || null);
+  recordAudit('customer', customer_id, 'interaction_created', { interaction_id: Number(result.lastInsertRowid), type }, user_id);
 
   // Update customer last_interaction_at
   db.prepare("UPDATE customers SET last_interaction_at = CURRENT_TIMESTAMP WHERE id = ?").run(customer_id);
@@ -40,12 +52,23 @@ function updateInteractionStatus(id, status) {
 
 function createOpportunity(data) {
   const { customer_id, user_id, title, expected_value = 0, stage = 'lead', expected_close_date, notes } = data;
+  const pipelineStage = db.prepare(`
+    SELECT id, probability FROM crm_pipeline_stages WHERE stage_key = ?
+  `).get(stage);
 
   const result = db.prepare(`
-    INSERT INTO crm_opportunities (customer_id, user_id, title, expected_value, stage, expected_close_date, notes)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(customer_id, user_id || null, title, expected_value, stage, expected_close_date || null, notes || null);
+    INSERT INTO crm_opportunities
+      (customer_id, user_id, title, expected_value, stage, expected_close_date, notes,
+       pipeline_stage_id, probability, last_stage_changed_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+  `).run(
+    customer_id, user_id || null, title, expected_value, stage, expected_close_date || null,
+    notes || null, pipelineStage?.id || null, pipelineStage?.probability || 10
+  );
 
+  recordAudit('opportunity', Number(result.lastInsertRowid), 'created', {
+    customer_id, stage, expected_value
+  }, user_id);
   return result.lastInsertRowid;
 }
 
@@ -53,10 +76,12 @@ function getAllOpportunities(filters = {}) {
   const { stage, customer_id, user_id } = filters;
 
   let query = `
-    SELECT opp.*, c.name as customer_name, c.phone as customer_phone, u.username as assigned_username
+    SELECT opp.*, c.name as customer_name, c.phone as customer_phone, u.username as assigned_username,
+      stage.label AS pipeline_stage_label
     FROM crm_opportunities opp
     JOIN customers c ON opp.customer_id = c.id
     LEFT JOIN users u ON opp.user_id = u.id
+    LEFT JOIN crm_pipeline_stages stage ON stage.id = opp.pipeline_stage_id
     WHERE 1=1
   `;
   const params = [];
@@ -78,8 +103,19 @@ function getAllOpportunities(filters = {}) {
   return db.prepare(query).all(...params);
 }
 
-function updateOpportunityStage(id, stage) {
-  db.prepare("UPDATE crm_opportunities SET stage = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(stage, id);
+function updateOpportunityStage(id, stage, userId) {
+  const pipelineStage = db.prepare(`
+    SELECT id, probability FROM crm_pipeline_stages WHERE stage_key = ?
+  `).get(stage);
+  db.prepare(`
+    UPDATE crm_opportunities
+    SET stage = ?, pipeline_stage_id = ?, probability = ?, last_stage_changed_at = CURRENT_TIMESTAMP,
+        updated_at = CURRENT_TIMESTAMP,
+        closed_at = CASE WHEN ? IN ('won', 'lost') THEN CURRENT_TIMESTAMP ELSE NULL END,
+        stage_stale_reminded_at = NULL
+    WHERE id = ?
+  `).run(stage, pipelineStage?.id || null, pipelineStage?.probability ?? 10, stage, id);
+  recordAudit('opportunity', id, 'stage_changed', { stage }, userId);
   return db.prepare("SELECT * FROM crm_opportunities WHERE id = ?").get(id);
 }
 
@@ -87,6 +123,7 @@ function updateOpportunityStage(id, stage) {
 
 function updateCustomerRatingAndTier(customerId, rating, tier) {
   db.prepare("UPDATE customers SET rating = ?, tier = ? WHERE id = ?").run(rating || 5, tier || 'Regular', customerId);
+  recordAudit('customer', customerId, 'rating_updated', { rating: rating || 5, tier: tier || 'Regular' }, null);
   return db.prepare("SELECT * FROM customers WHERE id = ?").get(customerId);
 }
 
@@ -181,7 +218,35 @@ function getRawTimelineElementsForCustomer(customerId) {
     WHERE customer_id = ?
   `).all(customerId);
 
-  return [...sales, ...returns, ...payments, ...interactions, ...opportunities];
+  const activities = db.prepare(`
+    SELECT 'activity' AS kind, 'activity' AS timeline_type, activity.id AS reference_id,
+      activity.id, activity.activity_type AS type, activity.created_at, 0 AS amount,
+      activity.details, activity.title, activity.status, activity.due_at AS follow_up_date,
+      users.username AS creator_name
+    FROM crm_activities activity
+    LEFT JOIN users ON users.id = activity.created_by
+    WHERE activity.record_type = 'customer' AND activity.record_id = ?
+  `).all(customerId);
+
+  const notes = db.prepare(`
+    SELECT 'note' AS kind, 'note' AS timeline_type, note.id AS reference_id,
+      note.id, 'note' AS type, note.created_at, 0 AS amount, note.body AS details,
+      'ملاحظة CRM' AS title, users.username AS creator_name
+    FROM crm_notes note
+    LEFT JOIN users ON users.id = note.user_id
+    WHERE note.record_type = 'customer' AND note.record_id = ?
+  `).all(customerId);
+
+  const attachments = db.prepare(`
+    SELECT 'attachment' AS kind, 'attachment' AS timeline_type, file.id AS reference_id,
+      file.id, 'attachment' AS type, file.created_at, 0 AS amount,
+      file.file_name AS details, 'ملف مرفق' AS title, users.username AS creator_name
+    FROM crm_attachments file
+    LEFT JOIN users ON users.id = file.user_id
+    WHERE file.record_type = 'customer' AND file.record_id = ?
+  `).all(customerId);
+
+  return [...sales, ...returns, ...payments, ...interactions, ...opportunities, ...activities, ...notes, ...attachments];
 }
 
 function getDueReminders() {

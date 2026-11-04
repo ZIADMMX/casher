@@ -46,14 +46,22 @@ jest.mock('../../electron/services/notifications.service', () => ({
 }));
 
 const authService = require('../../electron/services/auth.service');
+const attendanceService = require('../../electron/services/attendance.service');
 const shiftsService = require('../../electron/services/shifts.service');
 const productsService = require('../../electron/services/products.service');
 const salesService = require('../../electron/services/sales.service');
+const returnsService = require('../../electron/services/returns.service');
+const customersService = require('../../electron/services/customers.service');
+const bundlePromotionsService = require('../../electron/services/bundlePromotions.service');
+const kitchenService = require('../../electron/services/kitchen.service');
 const printService = require('../../electron/services/print.service');
 const usersRepo = require('../../electron/repositories/users.repository');
 const productsRepo = require('../../electron/repositories/products.repository');
 const variantsRepo = require('../../electron/repositories/productVariants.repository');
 const salesRepo = require('../../electron/repositories/sales.repository');
+const customersRepo = require('../../electron/repositories/customers.repository');
+const SettingsRepository = require('../../electron/repositories/settings.repository');
+const returnsRepo = require('../../electron/repositories/returns.repository');
 const inventoryRepo = require('../../electron/repositories/inventory.repository');
 const ordersRepo = require('../../electron/repositories/orders.repository');
 const ordersService = require('../../electron/services/orders.service');
@@ -78,6 +86,7 @@ describe('End-to-End Sales Integration Test (من إضافة منتج للسلة
       DELETE FROM sales;
       DELETE FROM shift_expenses;
       DELETE FROM shifts;
+      DELETE FROM attendance_records;
       DELETE FROM product_variants;
       DELETE FROM products;
       DELETE FROM customers;
@@ -134,6 +143,176 @@ describe('End-to-End Sales Integration Test (من إضافة منتج للسلة
     if (mockDb) mockDb.close();
   });
 
+  test('requires an active attendance record for every shift and links it through checkout', () => {
+    const cashierLogin = authService.login('cashier_samir', 'pass123');
+    const cashierId = cashierLogin.user.id;
+    const today = attendanceService.getTodayDate();
+
+    expect(() => shiftsService.openShift({ openingCash: 100 }))
+      .toThrow('سجّل حضورك أولاً قبل فتح الوردية');
+
+    attendanceService.checkIn({ date: today });
+    const attendance = attendanceService.getMyTodayStatus();
+    const shift = shiftsService.openShift({ openingCash: 100 });
+    expect(shift.attendance_record_id).toBe(attendance.id);
+
+    expect(() => attendanceService.checkOut({ date: today }))
+      .toThrow('أغلق ورديتك أولاً قبل تسجيل الانصراف');
+
+    shiftsService.closeShift({ shiftId: shift.id, actualCash: 100 });
+    expect(attendanceService.checkOut({ date: today })).toEqual({ success: true });
+    expect(() => shiftsService.openShift({ openingCash: 100 }))
+      .toThrow('سجّل حضورك أولاً قبل فتح الوردية');
+
+    usersRepo.create({
+      username: 'admin_shift_test',
+      passwordHash: bcrypt.hashSync('pass123', 4),
+      role: 'admin',
+      forcePasswordChange: false,
+    });
+    authService.login('admin_shift_test', 'pass123');
+    expect(() => shiftsService.openShift({ openingCash: 100 }))
+      .toThrow('سجّل حضورك أولاً قبل فتح الوردية');
+
+    attendanceService.checkIn({ date: today });
+    const adminAttendance = attendanceService.getMyTodayStatus();
+    const adminShift = shiftsService.openShift({ openingCash: 100 });
+    expect(adminShift.user_id).not.toBe(cashierId);
+    expect(adminShift.attendance_record_id).toBe(adminAttendance.id);
+  });
+
+  test('tracks mixed sales, debt collection, promotion, returns, exchange, and shift cash totals', () => {
+    const previousPromotions = SettingsRepository.get('bundle_promotions');
+    try {
+      authService.login('cashier_samir', 'pass123');
+      attendanceService.checkIn({ date: attendanceService.getTodayDate() });
+      const shift = shiftsService.openShift({ openingCash: 200 });
+
+      const cashSale = salesService.createSale({
+        items: [{ variantId: variant1Id, quantity: 2 }],
+        discount: 30,
+        paymentMethod: 'cash',
+      });
+      expect(cashSale.totalAmount).toBe(270);
+
+      const cardSale = salesService.createSale({
+        items: [{ variantId: variant2Id, quantity: 1 }],
+        paymentMethod: 'card',
+      });
+      expect(cardSale.totalAmount).toBe(160);
+
+      const creditSale = salesService.createSale({
+        items: [{ variantId: variant1Id, quantity: 1 }],
+        paymentMethod: 'credit',
+        customerName: 'عميل آجل',
+        customerPhone: '01000000000',
+        dueDate: '2099-12-31',
+      });
+      expect(creditSale.totalAmount).toBe(150);
+
+      bundlePromotionsService.saveBundlePromotions([{
+        name: 'اشترِ قطعتين واحصل على الثالثة مجانًا',
+        type: 'buy_x_get_y',
+        buyQuantity: 2,
+        freeQuantity: 1,
+        eligibleVariantIds: [variant1Id, variant2Id],
+      }]);
+      const promotionSale = salesService.createSale({
+        items: [
+          { variantId: variant1Id, quantity: 2 },
+          { variantId: variant2Id, quantity: 1 },
+        ],
+        paymentMethod: 'card',
+      });
+      expect(promotionSale.totalAmount).toBe(310);
+      expect(salesRepo.getById(promotionSale.saleId).discount).toBe(150);
+
+      const customer = customersRepo.getByPhone('01000000000');
+      expect(customer).toBeDefined();
+      expect(customersService.recordCustomerPayment({
+        customerId: customer.id,
+        amount: 50,
+        paymentMethod: 'cash',
+      }).remainingBalance).toBe(100);
+
+      returnsService.processReturn({
+        saleId: cashSale.saleId,
+        variantId: variant1Id,
+        quantity: 1,
+        mode: 'refund',
+        reason: 'مرتجع جزئي',
+      });
+      returnsService.processReturn({
+        saleId: cardSale.saleId,
+        variantId: variant2Id,
+        quantity: 1,
+        mode: 'exchange',
+        exchangeVariantId: variant1Id,
+        exchangePaymentMethod: 'cash',
+        reason: 'استبدال',
+      });
+
+      const xReport = shiftsService.getShiftXReport(shift.id);
+      expect(xReport.liveTotals).toEqual(expect.objectContaining({
+        cashSales: 270,
+        cardSales: 470,
+        creditSales: 150,
+        totalSales: 890,
+        customerCashPayments: 50,
+        cashRefunds: 135,
+        cashExchangeNet: -10,
+        expectedCash: 375,
+      }));
+      expect(customersService.getCustomerLedger(customer.id).balance).toBe(100);
+      expect(variantsRepo.getById(variant1Id).stock_quantity).toBe(15);
+      expect(variantsRepo.getById(variant2Id).stock_quantity).toBe(14);
+
+      const closedShift = shiftsService.closeShift({
+        shiftId: shift.id,
+        actualCash: xReport.liveTotals.expectedCash,
+      });
+      expect(closedShift.status).toBe('closed');
+      expect(closedShift.expected_cash).toBe(375);
+      expect(closedShift.actual_cash).toBe(375);
+      expect(closedShift.cash_difference).toBe(0);
+    } finally {
+      SettingsRepository.set('bundle_promotions', previousPromotions || '');
+    }
+  });
+
+  test('persists restaurant fulfillment mode and moves its sale through the kitchen display', () => {
+    authService.login('cashier_samir', 'pass123');
+    attendanceService.checkIn({ date: attendanceService.getTodayDate() });
+    shiftsService.openShift({ openingCash: 100 });
+
+    const sale = salesService.createSale({
+      items: [{ variantId: variant1Id, quantity: 1 }],
+      paymentMethod: 'cash',
+      orderMode: 'dine_in',
+    });
+
+    const savedSale = salesRepo.getById(sale.saleId);
+    expect(savedSale.order_mode).toBe('dine_in');
+    expect(savedSale.kitchen_status).toBe('new');
+    expect(kitchenService.getKitchenOrders()).toEqual([
+      expect.objectContaining({
+        id: sale.saleId,
+        order_mode: 'dine_in',
+        kitchen_status: 'new',
+        items: [expect.objectContaining({ product_name: 'تيشيرت بولو كلاسيك', quantity: 1 })],
+      }),
+    ]);
+
+    expect(kitchenService.updateKitchenOrderStatus({
+      saleId: sale.saleId,
+      status: 'preparing',
+    }).kitchen_status).toBe('preparing');
+    expect(() => kitchenService.updateKitchenOrderStatus({
+      saleId: sale.saleId,
+      status: 'invalid',
+    })).toThrow('حالة طلب المطبخ غير صالحة');
+  });
+
   test('Full Journey: Login -> Open Shift -> Scan Barcodes -> Cart -> Discount -> Checkout -> Deduct Stock -> Print Receipt', async () => {
     // ========================================================
     // خطوة 1: تسجيل دخول الكاشير
@@ -142,6 +321,7 @@ describe('End-to-End Sales Integration Test (من إضافة منتج للسلة
     expect(loginResult).toHaveProperty('token');
     expect(loginResult.user.username).toBe('cashier_samir');
     expect(loginResult.user.role).toBe('cashier');
+    attendanceService.checkIn({ date: attendanceService.getTodayDate() });
 
     // ========================================================
     // خطوة 2: بدء الوردية (Open Shift) مع عهدة نقدية
@@ -252,6 +432,7 @@ describe('End-to-End Sales Integration Test (من إضافة منتج للسلة
 
   test('repair work order records parts without stock deduction and invoices them once at delivery', () => {
     authService.login('cashier_samir', 'pass123');
+    attendanceService.checkIn({ date: attendanceService.getTodayDate() });
     shiftsService.openShift({
       openingCash: 200,
       shiftType: 'morning',
@@ -292,5 +473,74 @@ describe('End-to-End Sales Integration Test (من إضافة منتج للسلة
       paymentMethod: 'cash',
     })).toThrow('يجب أن يكون أمر الشغل جاهزًا وغير مفوتر');
     expect(inventoryRepo.getStockQuantity(inventoryRepo.getDefaultWarehouseId(), variant1Id)).toBe(19);
+  });
+
+  test('local offline sales keep unique increasing invoice IDs without a network connection', () => {
+    authService.login('cashier_samir', 'pass123');
+    attendanceService.checkIn({ date: attendanceService.getTodayDate() });
+    shiftsService.openShift({ openingCash: 100 });
+
+    const firstSale = salesService.createSale({
+      items: [{ variantId: variant1Id, quantity: 1 }],
+      paymentMethod: 'cash',
+    });
+    const secondSale = salesService.createSale({
+      items: [{ variantId: variant2Id, quantity: 1 }],
+      paymentMethod: 'cash',
+    });
+
+    expect(secondSale.saleId).toBeGreaterThan(firstSale.saleId);
+    expect(salesRepo.getById(firstSale.saleId).total_amount).toBe(150);
+    expect(salesRepo.getById(secondSale.saleId).total_amount).toBe(160);
+    expect(shiftsService.getCurrentShift().liveTotals.expectedCash).toBe(410);
+  });
+
+  test('partial return of one item from five updates stock, refund, and expected drawer cash', () => {
+    authService.login('cashier_samir', 'pass123');
+    attendanceService.checkIn({ date: attendanceService.getTodayDate() });
+    const shift = shiftsService.openShift({ openingCash: 200 });
+    const sale = salesService.createSale({
+      items: [{ variantId: variant1Id, quantity: 5 }],
+      paymentMethod: 'cash',
+    });
+
+    const returned = returnsService.processReturn({
+      saleId: sale.saleId,
+      variantId: variant1Id,
+      quantity: 1,
+      reason: 'اختبار إرجاع جزئي',
+    });
+
+    expect(returned.refundAmount).toBe(150);
+    expect(returnsRepo.getReturnedQuantity(sale.saleId, variant1Id)).toBe(1);
+    expect(inventoryRepo.getStockQuantity(inventoryRepo.getDefaultWarehouseId(), variant1Id)).toBe(16);
+    expect(shiftsService.getCurrentShift().liveTotals.expectedCash).toBe(800);
+
+    const closedShift = shiftsService.closeShift({
+      shiftId: shift.id,
+      actualCash: 800,
+    });
+    expect(closedShift.expected_cash).toBe(800);
+    expect(closedShift.cash_difference).toBe(0);
+  });
+
+  test('petty cash expenses are deducted and shift closing reports exact shortage and overage', () => {
+    authService.login('cashier_samir', 'pass123');
+    attendanceService.checkIn({ date: attendanceService.getTodayDate() });
+
+    const shortageShift = shiftsService.openShift({ openingCash: 100 });
+    shiftsService.addShiftExpense({ amount: 25, category: 'مصروف نثري', notes: 'اختبار' });
+    expect(shiftsService.getCurrentShift().liveTotals.expectedCash).toBe(75);
+    const shortage = shiftsService.closeShift({ shiftId: shortageShift.id, actualCash: 65 });
+    expect(shortage.expected_cash).toBe(75);
+    expect(shortage.cash_difference).toBe(-10);
+    expect(shortage.total_expenses).toBe(25);
+
+    const overageShift = shiftsService.openShift({ openingCash: 100 });
+    shiftsService.addShiftExpense({ amount: 25, category: 'مصروف نثري', notes: 'اختبار' });
+    const overage = shiftsService.closeShift({ shiftId: overageShift.id, actualCash: 85 });
+    expect(overage.expected_cash).toBe(75);
+    expect(overage.cash_difference).toBe(10);
+    expect(overage.total_expenses).toBe(25);
   });
 });

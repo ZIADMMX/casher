@@ -23,7 +23,8 @@ router.put('/auth/profile', (req, res, next) => {
 router.post('/auth/login', (req, res, next) => {
   try {
     const { username, password } = req.body;
-    const session = authService.login(username, password);
+    // لا نستخدم المستدعي الافتراضي حتى لا يُحفظ توكن الـ API كجلسة افتراضية مشتركة
+    const session = authService.login(username, password, 'rest-api');
     res.json({ success: true, session });
   } catch (err) {
     next(err);
@@ -32,7 +33,7 @@ router.post('/auth/login', (req, res, next) => {
 
 router.post('/auth/logout', (req, res, next) => {
   try {
-    authService.logout();
+    authService.logout(req.token);
     res.json({ success: true, message: 'Logged out successfully' });
   } catch (err) {
     next(err);

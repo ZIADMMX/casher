@@ -2,6 +2,7 @@
 
 const PAGE_MODULES = {
   pos: 'pos',
+  kitchen: 'pos',
   orders: 'orders',
   subscriptions: 'subscriptions',
   commissions: 'commissions',
@@ -9,6 +10,7 @@ const PAGE_MODULES = {
   products: 'inventory',
   branches: 'inventory',
   customers: 'crm',
+  crm: 'crm',
   suppliers: 'purchases',
   shifts: 'shifts',
   reports: 'reports',
@@ -24,6 +26,7 @@ const PAGE_MODULES = {
   today: 'pos',
   profile: null,
   cases: 'cases',
+  courts: 'cases',
   appointments: 'appointments',
 };
 
@@ -33,7 +36,7 @@ const SECTOR_PAGE_POLICIES = {
   grocery: {
     allowedPages: [
       'today', 'pos', 'orders', 'returns', 'products', 'branches',
-      'customers', 'suppliers', 'shifts', 'reports', 'users', 'attendance',
+      'customers', 'crm', 'suppliers', 'shifts', 'reports', 'users', 'attendance',
       'leaves', 'roles', 'salaries', 'settings', 'enterprise', 'workflows',
       'screen-designer', 'profile',
     ],
@@ -42,7 +45,7 @@ const SECTOR_PAGE_POLICIES = {
   retail: {
     allowedPages: [
       'today', 'pos', 'orders', 'returns', 'products', 'branches',
-      'customers', 'suppliers', 'shifts', 'reports', 'users', 'attendance',
+      'customers', 'crm', 'suppliers', 'shifts', 'reports', 'users', 'attendance',
       'leaves', 'roles', 'salaries', 'settings', 'enterprise', 'workflows',
       'screen-designer', 'profile',
     ],
@@ -50,8 +53,8 @@ const SECTOR_PAGE_POLICIES = {
   },
   cafe_restaurant: {
     allowedPages: [
-      'today', 'pos', 'orders', 'returns', 'products', 'branches',
-      'customers', 'suppliers', 'shifts', 'reports', 'users', 'attendance',
+      'today', 'pos', 'kitchen', 'orders', 'returns', 'products', 'branches',
+      'customers', 'crm', 'suppliers', 'shifts', 'reports', 'users', 'attendance',
       'leaves', 'roles', 'salaries', 'settings', 'enterprise', 'workflows',
       'screen-designer', 'profile',
     ],
@@ -60,7 +63,7 @@ const SECTOR_PAGE_POLICIES = {
   electronics: {
     allowedPages: [
       'today', 'pos', 'orders', 'returns', 'products', 'branches',
-      'customers', 'suppliers', 'shifts', 'reports', 'users', 'attendance',
+      'customers', 'crm', 'suppliers', 'shifts', 'reports', 'users', 'attendance',
       'leaves', 'roles', 'salaries', 'settings', 'enterprise', 'workflows',
       'screen-designer', 'profile',
     ],
@@ -69,7 +72,7 @@ const SECTOR_PAGE_POLICIES = {
   maintenance: {
     allowedPages: [
       'today', 'pos', 'orders', 'returns', 'products', 'branches',
-      'customers', 'suppliers', 'shifts', 'reports', 'users', 'attendance',
+      'customers', 'crm', 'suppliers', 'shifts', 'reports', 'users', 'attendance',
       'leaves', 'roles', 'salaries', 'settings', 'enterprise', 'workflows',
       'screen-designer', 'profile', 'commissions',
     ],
@@ -78,7 +81,7 @@ const SECTOR_PAGE_POLICIES = {
   spare_parts: {
     allowedPages: [
       'today', 'pos', 'orders', 'returns', 'products', 'branches',
-      'customers', 'suppliers', 'shifts', 'reports', 'users', 'attendance',
+      'customers', 'crm', 'suppliers', 'shifts', 'reports', 'users', 'attendance',
       'leaves', 'roles', 'salaries', 'settings', 'enterprise', 'workflows',
       'screen-designer', 'profile', 'commissions',
     ],
@@ -87,7 +90,7 @@ const SECTOR_PAGE_POLICIES = {
   subscriptions_gym: {
     allowedPages: [
       'today', 'pos', 'subscriptions', 'appointments', 'products', 'branches',
-      'customers', 'suppliers', 'shifts', 'reports', 'users', 'attendance',
+      'customers', 'crm', 'suppliers', 'shifts', 'reports', 'users', 'attendance',
       'leaves', 'roles', 'salaries', 'settings', 'enterprise', 'workflows',
       'screen-designer', 'profile', 'commissions',
     ],
@@ -96,7 +99,7 @@ const SECTOR_PAGE_POLICIES = {
   salon_barbershop: {
     allowedPages: [
       'today', 'pos', 'subscriptions', 'commissions',
-      'products', 'customers', 'shifts', 'reports',
+      'products', 'customers', 'crm', 'shifts', 'reports',
       'users', 'attendance', 'leaves', 'roles', 'salaries', 'settings',
       'enterprise', 'screen-designer', 'profile',
     ],
@@ -104,21 +107,33 @@ const SECTOR_PAGE_POLICIES = {
   },
   law_firm: {
     allowedPages: [
-      'today', 'pos', 'cases', 'appointments', 'customers', 'suppliers',
+      'today', 'cases', 'appointments', 'customers', 'suppliers',
+      'courts',
       'shifts', 'reports', 'users', 'attendance', 'leaves', 'roles',
       'salaries', 'settings', 'enterprise', 'workflows', 'screen-designer',
       'profile',
     ],
-    deniedPages: ['salon', 'subscriptions', 'returns', 'products', 'branches', 'orders'],
+    deniedPages: ['salon', 'subscriptions', 'returns', 'products', 'branches', 'orders', 'crm', 'pos'],
   },
   custom: {
     allowedPages: [
       'today', 'pos', 'orders', 'returns', 'products', 'branches',
-      'customers', 'suppliers', 'shifts', 'reports', 'users', 'attendance',
+      'customers', 'crm', 'suppliers', 'shifts', 'reports', 'users', 'attendance',
       'leaves', 'roles', 'salaries', 'settings', 'enterprise', 'workflows',
       'screen-designer', 'profile', 'commissions', 'subscriptions', 'appointments',
     ],
     deniedPages: ['cases', 'salon'],
+  },
+  crm: {
+    allowedPages: [
+      'crm', 'reports', 'users', 'attendance', 'leaves', 'roles', 'salaries',
+      'settings', 'enterprise', 'profile',
+    ],
+    deniedPages: [
+      'today', 'pos', 'kitchen', 'orders', 'appointments', 'subscriptions',
+      'commissions', 'returns', 'products', 'branches', 'suppliers', 'shifts',
+      'workflows', 'screen-designer', 'cases', 'salon',
+    ],
   },
 };
 
@@ -140,6 +155,17 @@ function isBusinessProfilePageEnabled(pageKey, profileKey, isModuleEnabled) {
   // 2. فحص قائمة الصفحات المسموحة للقطاع
   if (policy.allowedPages && !policy.allowedPages.includes(pageKey)) {
     return false;
+  }
+
+  if (
+    normalizedProfile === 'crm'
+    && ['users', 'attendance', 'leaves', 'roles', 'salaries'].includes(pageKey)
+  ) {
+    return true;
+  }
+
+  if (normalizedProfile === 'law_firm' && ['customers', 'today'].includes(pageKey)) {
+    return true;
   }
 
   // 3. فحص تبعية الوحدة (Module Dependency) إذا تم تزويد دالة فحص الوحدات

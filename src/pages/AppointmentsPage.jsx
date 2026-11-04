@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useBusinessProfile } from '../contexts/BusinessProfileContext.jsx';
 import '../styles/appointments.css';
 
-const RESOURCE_TYPES = [
+const GYM_RESOURCE_TYPES = [
   ['trainer', '🏋️‍♂️ كابتن / مدرب شخصي (PT)'],
   ['class_hall', '🧘 صالة كلاسات جماعية'],
   ['sauna_spa', '🧖‍♂️ منطقة سونا وسبا / ريكفري'],
@@ -11,8 +12,26 @@ const RESOURCE_TYPES = [
   ['other', 'أخرى'],
 ];
 
+const LAW_FIRM_RESOURCE_TYPES = [
+  ['employee', 'محامٍ / مستشار قانوني'],
+  ['room', 'قاعة جلسات / غرفة اجتماعات'],
+  ['chair', 'سكرتير / موظف قانوني'],
+  ['car', 'انتقال إلى المحكمة'],
+  ['device', 'جلسة عن بُعد / اتصال مرئي'],
+  ['other', 'أخرى'],
+];
+
 const STATUS_LABELS = {
   booked: 'محجوز',
+  confirmed: 'مؤكد',
+  completed: 'مكتمل',
+  cancelled: 'ملغي',
+  no_show: 'لم يحضر',
+  converted: 'محول لطلب خدمة',
+};
+
+const GYM_STATUS_LABELS = {
+  ...STATUS_LABELS,
   confirmed: 'مؤكد 🟢',
   completed: 'مكتمل ✅',
   cancelled: 'ملغي ❌',
@@ -20,14 +39,37 @@ const STATUS_LABELS = {
   converted: 'محول لطلب خدمة 📑',
 };
 
-const DAYS = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+function LegalIcon({ name, size = 18 }) {
+  const paths = {
+    scale: <><path d="M12 3v18M5 7h14M5 7l-3 6h6L5 7Zm14 0-3 6h6l-3-6ZM8 21h8" /></>,
+    calendar: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 10h18" /></>,
+    clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
+    person: <><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></>,
+    wallet: <><rect x="3" y="5" width="18" height="15" rx="2" /><path d="M3 9h18M16 14h.01" /></>,
+    briefcase: <><rect x="3" y="7" width="18" height="14" rx="2" /><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 12h18" /></>,
+    check: <><path d="m5 12 4 4L19 6" /></>,
+    alert: <><path d="m12 3 9 18H3l9-18Z" /><path d="M12 9v4M12 17h.01" /></>,
+  };
+  return (
+    <svg
+      className="legal-appointment-icon"
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      {paths[name]}
+    </svg>
+  );
+}
 
-const TABS = [
-  ['appointments', 'جدول حصص وتدريبات المشتركين'],
-  ['resources', 'الكباتن والمدربين والصالات'],
-  ['services', 'أنواع الحصص والجلسات'],
-  ['holidays', 'مواعيد العمل وإجازات الكباتن'],
-];
+const DAYS = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
 
 function localDateValue(dateObj) {
   if (!dateObj || isNaN(dateObj.getTime())) return '';
@@ -46,22 +88,22 @@ function defaultHours() {
   }));
 }
 
-const blankResource = () => ({
+const blankResource = (resourceType = 'trainer') => ({
   id: null,
   name: '',
-  resourceType: 'trainer',
+  resourceType,
   description: '',
   isActive: true,
   workingHours: defaultHours(),
 });
 
-const blankService = () => ({
+const blankService = (resourceType = 'trainer') => ({
   id: null,
   name: '',
   durationMinutes: 45,
   bufferMinutes: 15,
   price: 150,
-  resourceType: 'trainer',
+  resourceType,
   description: '',
   isActive: true,
 });
@@ -89,6 +131,22 @@ const blankAppointment = () => ({
 });
 
 function AppointmentsPage() {
+  const { configuration } = useBusinessProfile();
+  const isLawFirm = configuration?.profile?.key === 'law_firm';
+  const resourceTypes = isLawFirm ? LAW_FIRM_RESOURCE_TYPES : GYM_RESOURCE_TYPES;
+  const text = useCallback((gym, lawFirm) => (isLawFirm ? lawFirm : gym), [isLawFirm]);
+  const tabs = isLawFirm ? [
+    ['appointments', 'جدول الجلسات والاستشارات'],
+    ['resources', 'المحامون وقاعات الجلسات'],
+    ['services', 'أنواع الجلسات والخدمات القانونية'],
+    ['holidays', 'أوقات عدم التوفر'],
+  ] : [
+    ['appointments', 'جدول حصص وتدريبات المشتركين'],
+    ['resources', 'الكباتن والمدربين والصالات'],
+    ['services', 'أنواع الحصص والجلسات'],
+    ['holidays', 'مواعيد العمل وإجازات الكباتن'],
+  ];
+  const defaultResourceType = isLawFirm ? 'employee' : 'trainer';
   const [tab, setTab] = useState('appointments');
   const [resources, setResources] = useState([]);
   const [services, setServices] = useState([]);
@@ -101,8 +159,8 @@ function AppointmentsPage() {
   const [activeSubscription, setActiveSubscription] = useState(null);
   const [loadingSubscription, setLoadingSubscription] = useState(false);
   
-  const [resourceForm, setResourceForm] = useState(blankResource);
-  const [serviceForm, setServiceForm] = useState(blankService);
+  const [resourceForm, setResourceForm] = useState(() => blankResource(defaultResourceType));
+  const [serviceForm, setServiceForm] = useState(() => blankService(defaultResourceType));
   const [holidayForm, setHolidayForm] = useState(blankHoliday);
   const [appointmentForm, setAppointmentForm] = useState(blankAppointment);
   const [rescheduleForm, setRescheduleForm] = useState(null);
@@ -146,12 +204,12 @@ function AppointmentsPage() {
       setAppointments(Array.isArray(appointmentRows) ? appointmentRows : []);
       setCustomers(Array.isArray(customerRows) ? customerRows : []);
     } catch (loadError) {
-      console.error('تعذر تحميل بيانات المواعيد والجيم:', loadError);
+      console.error(text('تعذر تحميل بيانات المواعيد والجيم:', 'تعذر تحميل بيانات المواعيد القانونية:'), loadError);
       setError(loadError instanceof Error ? loadError.message : 'تعذر تحميل البيانات');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [text]);
 
   useEffect(() => {
     loadData();
@@ -160,7 +218,7 @@ function AppointmentsPage() {
   // Fetch active customer subscription when customer is selected
   useEffect(() => {
     async function checkSub() {
-      if (!appointmentForm.customerId) {
+      if (isLawFirm || !appointmentForm.customerId) {
         setActiveSubscription(null);
         return;
       }
@@ -178,7 +236,7 @@ function AppointmentsPage() {
       }
     }
     checkSub();
-  }, [appointmentForm.customerId]);
+  }, [appointmentForm.customerId, isLawFirm]);
 
   async function runAction(action, successMessage) {
     setBusy(true);
@@ -206,33 +264,37 @@ function AppointmentsPage() {
         ...resourceForm,
         workingHours,
       }),
-      resourceForm.id ? 'تم تحديث بيانات الكابتن وساعات عمله' : 'تمت إضافة الكابتن وساعات عمله بنجاح'
+      resourceForm.id
+        ? text('تم تحديث بيانات الكابتن وساعات عمله', 'تم تحديث بيانات المورد وأوقات عمله')
+        : text('تمت إضافة الكابتن وساعات عمله بنجاح', 'تمت إضافة المورد وأوقات عمله بنجاح')
     );
-    setResourceForm(blankResource());
+    setResourceForm(blankResource(defaultResourceType));
   }
 
   async function submitService(event) {
     event.preventDefault();
     await runAction(
       () => window.electronAPI.saveAppointmentService(serviceForm),
-      serviceForm.id ? 'تم تحديث الخدمة/الحصة بنجاح' : 'تمت إضافة الحصة بنجاح'
+      serviceForm.id
+        ? text('تم تحديث الخدمة/الحصة بنجاح', 'تم تحديث الخدمة القانونية بنجاح')
+        : text('تمت إضافة الحصة بنجاح', 'تمت إضافة الخدمة القانونية بنجاح')
     );
-    setServiceForm(blankService());
+    setServiceForm(blankService(defaultResourceType));
   }
 
   async function submitHoliday(event) {
     event.preventDefault();
     await runAction(
       () => window.electronAPI.saveAppointmentHoliday(holidayForm),
-      'تم تسجيل إجازة الكابتن بنجاح'
+      text('تم تسجيل إجازة الكابتن بنجاح', 'تم تسجيل وقت عدم التوفر بنجاح')
     );
     setHolidayForm(blankHoliday());
   }
 
   async function submitAppointment(event) {
     event.preventDefault();
-    if (!appointmentForm.serviceId) return setError('الرجاء اختيار الخدمة/الحصة أولاً');
-    if (!appointmentForm.resourceId) return setError('الرجاء اختيار المدرب/الكابتن المسؤول');
+    if (!appointmentForm.serviceId) return setError(text('الرجاء اختيار الخدمة/الحصة أولاً', 'الرجاء اختيار الجلسة أو الخدمة القانونية أولاً'));
+    if (!appointmentForm.resourceId) return setError(text('الرجاء اختيار المدرب/الكابتن المسؤول', 'الرجاء اختيار المحامي أو المسؤول عن الموعد'));
 
     await runAction(
       async () => {
@@ -247,7 +309,7 @@ function AppointmentsPage() {
         });
 
         // Deduct 1 credit from customer active subscription if selected
-        if (appointmentForm.deductSubscriptionCredit && activeSubscription && activeSubscription.remaining_credits > 0) {
+        if (!isLawFirm && appointmentForm.deductSubscriptionCredit && activeSubscription && activeSubscription.remaining_credits > 0) {
           try {
             await window.electronAPI.consumeSubscriptionCredit(
               activeSubscription.id,
@@ -260,7 +322,7 @@ function AppointmentsPage() {
           }
         }
       },
-      'تم تأكيد حجز الحصة بنجاح وإشعار الكابتن والمشترك!',
+      text('تم تأكيد حجز الحصة بنجاح وإشعار الكابتن والمشترك!', 'تم تأكيد الموعد وإشعار المحامي والموكل!'),
     );
     setAppointmentForm(blankAppointment());
     setActiveSubscription(null);
@@ -273,7 +335,7 @@ function AppointmentsPage() {
         startAt: rescheduleForm.startAt,
         resourceId: Number(rescheduleForm.resourceId),
       }),
-      'تم تغيير وتأكيد موعد الحصة الجديد بنجاح',
+      text('تم تغيير وتأكيد موعد الحصة الجديد بنجاح', 'تم تعديل الموعد وتأكيده بنجاح'),
     );
     setRescheduleForm(null);
   }
@@ -296,7 +358,7 @@ function AppointmentsPage() {
     setResourceForm({
       id: resource.id,
       name: resource.name,
-      resourceType: resource.resource_type || 'trainer',
+      resourceType: resource.resource_type || defaultResourceType,
       description: resource.description || '',
       isActive: Boolean(resource.is_active),
       workingHours: DAYS.map((_, weekday) => {
@@ -323,25 +385,32 @@ function AppointmentsPage() {
   };
 
   return (
-    <section className="appointments-page" dir="rtl">
+    <section className={`appointments-page${isLawFirm ? ' law-firm-appointments' : ''}`} dir="rtl">
       {/* Header */}
       <header className="appointments-header">
         <div>
-          <h1>🏋️‍♂️ حجز الحصص والكباتن واشتراكات الجيم</h1>
-          <p>إدارة حصص التدريب الشخصي (PT)، الكلاسات الجماعية، وربطها المباشر بباقات واشتراكات الأعضاء.</p>
+          <h1>
+            {isLawFirm && <LegalIcon name="scale" size={22} />}
+            {text('🏋️‍♂️ حجز الحصص والكباتن واشتراكات الجيم', 'المواعيد والجلسات القانونية')}
+          </h1>
+          <p>{text(
+            'إدارة حصص التدريب الشخصي (PT)، الكلاسات الجماعية، وربطها المباشر بباقات واشتراكات الأعضاء.',
+            'تنظيم جلسات المحاكم واستشارات الموكلين، وتحديد المحامي أو القاعة والوقت المناسب.'
+          )}</p>
         </div>
         <button type="button" className="appointment-button secondary" onClick={loadData} disabled={busy}>
-          🔄 تحديث الجدول
+          {isLawFirm && <LegalIcon name="calendar" />}
+          {isLawFirm ? 'تحديث الجدول' : '🔄 تحديث الجدول'}
         </button>
       </header>
 
       {/* Alerts */}
-      {error && <div className="appointment-alert error" role="alert">❌ {error}</div>}
-      {notice && <div className="appointment-alert success" role="status">✅ {notice}</div>}
+      {error && <div className="appointment-alert error" role="alert">{isLawFirm ? <LegalIcon name="alert" /> : '❌'} {error}</div>}
+      {notice && <div className="appointment-alert success" role="status">{isLawFirm ? <LegalIcon name="check" /> : '✅'} {notice}</div>}
 
       {/* Navigation Tabs */}
-      <nav className="appointments-tabs" aria-label="Gym appointments and subscriptions">
-        {TABS.map(([key, label]) => (
+      <nav className="appointments-tabs" aria-label={text('مواعيد الجيم والاشتراكات', 'المواعيد والجلسات القانونية')}>
+      {tabs.map(([key, label]) => (
           <button
             key={key}
             type="button"
@@ -354,7 +423,7 @@ function AppointmentsPage() {
       </nav>
 
       {loading ? (
-        <div className="appointment-empty">جاري تحميل جدول الجيم والمشتركين...</div>
+        <div className="appointment-empty">{text('جاري تحميل جدول الجيم والمشتركين...', 'جاري تحميل المواعيد والموكلين...')}</div>
       ) : (
         <>
           {/* TAB 1: APPOINTMENTS */}
@@ -362,10 +431,13 @@ function AppointmentsPage() {
             <div className="appointment-layout">
               {/* Create Appointment Form */}
               <form className="appointment-card" onSubmit={submitAppointment}>
-                <h2>🏋️ حجز حصة / سيشن للمشترك</h2>
+                <h2>
+                  {isLawFirm && <LegalIcon name="scale" />}
+                  {text('🏋️ حجز حصة / سيشن للمشترك', 'تسجيل جلسة محكمة / استشارة موكّل')}
+                </h2>
                 
                 {/* Select Customer */}
-                <label>المشترك / العميل
+                <label>{text('المشترك / العميل', 'الموكل / العميل')}
                   <select
                     value={appointmentForm.customerId}
                     onChange={(e) => {
@@ -379,7 +451,7 @@ function AppointmentsPage() {
                       }));
                     }}
                   >
-                    <option value="">اختر مشترك مسجل في الجيم...</option>
+                    <option value="">{text('اختر مشترك مسجل في الجيم...', 'اختر موكلاً مسجلاً...')}</option>
                     {customers.map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.name} {c.phone ? `(${c.phone})` : ''}
@@ -389,9 +461,9 @@ function AppointmentsPage() {
                 </label>
 
                 {/* Show Active Subscription Info Box if found */}
-                {loadingSubscription && <div style={{ fontSize: '12px', color: '#3B82F6' }}>جاري جلب اشتراك العميل...</div>}
+                {!isLawFirm && loadingSubscription && <div style={{ fontSize: '12px', color: '#3B82F6' }}>جاري جلب اشتراك العميل...</div>}
                 
-                {activeSubscription && (
+                {!isLawFirm && activeSubscription && (
                   <div style={{
                     padding: '10px 14px',
                     borderRadius: '10px',
@@ -408,7 +480,7 @@ function AppointmentsPage() {
                     <div>ينتهي في: {activeSubscription.end_date}</div>
                     
                     {activeSubscription.remaining_credits > 0 && (
-                      <label className="appointment-check" style={{ marginTop: '4px', color: '#FFF' }}>
+                      <label className="appointment-check" style={{ marginTop: '4px', color: isLawFirm ? '#475467' : '#FFF' }}>
                         <input
                           type="checkbox"
                           checked={appointmentForm.deductSubscriptionCredit}
@@ -420,11 +492,11 @@ function AppointmentsPage() {
                   </div>
                 )}
 
-                <label>اسم المشترك *
+                <label>{text('اسم المشترك', 'اسم الموكل')} *
                   <input
                     required
                     type="text"
-                    placeholder="اسم المشترك"
+                    placeholder={text('اسم المشترك', 'اسم الموكل')}
                     value={appointmentForm.customerName}
                     onChange={(event) => setAppointmentForm({ ...appointmentForm, customerName: event.target.value })}
                   />
@@ -439,7 +511,7 @@ function AppointmentsPage() {
                   />
                 </label>
 
-                <label>نوع الحصة / الخدمة *
+                <label>{text('نوع الحصة / الخدمة', 'نوع الجلسة / الخدمة القانونية')} *
                   <select
                     required
                     value={appointmentForm.serviceId}
@@ -454,7 +526,7 @@ function AppointmentsPage() {
                       }));
                     }}
                   >
-                    <option value="">اختر الحصة (تدريب شخصي، كلاس، ريكفري...)</option>
+                    <option value="">{text('اختر الحصة (تدريب شخصي، كلاس، ريكفري...)', 'اختر الجلسة (استشارة، جلسة محكمة، متابعة ملف...)')}</option>
                     {activeServices.map((service) => (
                       <option key={service.id} value={service.id}>
                         {service.name} — ({service.duration_minutes || service.durationMinutes} دقيقة) — {Number(service.price).toFixed(2)} ج.م
@@ -463,24 +535,24 @@ function AppointmentsPage() {
                   </select>
                 </label>
 
-                <label>الكابتن / المدرب / الصالة *
+                <label>{text('الكابتن / المدرب / الصالة', 'المحامي / المسؤول / القاعة')} *
                   <select
                     required
                     value={appointmentForm.resourceId}
                     onChange={(event) => setAppointmentForm({ ...appointmentForm, resourceId: event.target.value })}
                   >
-                    <option value="">اختر المدرب أو الصالة...</option>
+                    <option value="">{text('اختر المدرب أو الصالة...', 'اختر المحامي أو القاعة...')}</option>
                     {activeResources
                       .filter((resource) => !selectedService?.resource_type || resource.resource_type === selectedService.resource_type)
                       .map((resource) => (
                         <option key={resource.id} value={resource.id}>
-                          {resource.name} ({RESOURCE_TYPES.find(([val]) => val === resource.resource_type)?.[1] || resource.resource_type})
+                          {resource.name} ({resourceTypes.find(([val]) => val === resource.resource_type)?.[1] || resource.resource_type})
                         </option>
                       ))}
                   </select>
                 </label>
 
-                <label>تاريخ ووقت الحصة *
+                <label>{text('تاريخ ووقت الحصة', 'تاريخ ووقت الجلسة')} *
                   <input
                     type="datetime-local"
                     required
@@ -489,7 +561,7 @@ function AppointmentsPage() {
                   />
                 </label>
 
-                <label>العربون / المدفوع مقدماً (ج.م)
+                <label>{text('العربون / المدفوع مقدماً (ج.م)', 'الأتعاب المدفوعة مقدماً (ج.م)')}
                   <input
                     type="number"
                     min="0"
@@ -499,7 +571,7 @@ function AppointmentsPage() {
                   />
                 </label>
 
-                <label>تنبيه المشترك داخل التطبيق قبل الحصة (بالدقائق)
+                <label>{text('تنبيه المشترك داخل التطبيق قبل الحصة (بالدقائق)', 'تذكير الموكل قبل الموعد (بالدقائق)')}
                   <input
                     type="number"
                     min="0"
@@ -509,24 +581,24 @@ function AppointmentsPage() {
                   />
                 </label>
 
-                <label className="appointment-wide">ملاحظات الحصة
+                <label className="appointment-wide">{text('ملاحظات الحصة', 'ملاحظات الجلسة')}
                   <textarea
                     rows="2"
-                    placeholder="تركيز التقديم، الإصابات، ملاحظات الكابتن..."
+                    placeholder={text('تركيز التقديم، الإصابات، ملاحظات الكابتن...', 'رقم القضية، المحكمة، المستندات المطلوبة، أو تفاصيل الاستشارة...')}
                     value={appointmentForm.notes}
                     onChange={(event) => setAppointmentForm({ ...appointmentForm, notes: event.target.value })}
                   />
                 </label>
 
                 <button className="appointment-button primary appointment-wide" type="submit" disabled={busy}>
-                  {busy ? 'جاري الحجز...' : '✅ تأكيد حجز الحصة'}
+                  {busy ? text('جاري الحجز...', 'جاري تسجيل الموعد...') : text('✅ تأكيد حجز الحصة', '✅ تأكيد حجز الموعد')}
                 </button>
               </form>
 
               {/* Appointments List View */}
               <div className="appointment-card">
                 <div className="appointment-card-heading">
-                  <h2>جدول الحصص اليومي</h2>
+                  <h2>{text('جدول الحصص اليومي', 'جدول الجلسات اليومي')}</h2>
                   <input
                     type="date"
                     value={selectedDate}
@@ -536,25 +608,27 @@ function AppointmentsPage() {
                 </div>
 
                 {!filteredAppointments.length ? (
-                  <div className="appointment-empty">لا توجد حصص محجوزة في هذا اليوم ({selectedDate}).</div>
+                  <div className="appointment-empty">{text('لا توجد حصص محجوزة في هذا اليوم', 'لا توجد جلسات أو استشارات محجوزة في هذا اليوم')} ({selectedDate}).</div>
                 ) : (
                   <div className="appointment-list">
                     {filteredAppointments.map((appointment) => (
                       <article className="appointment-item" key={appointment.id}>
                         <div className="appointment-item-title">
-                          <strong>🏋️ {appointment.service_name}</strong>
+                          <strong>{isLawFirm && <LegalIcon name="briefcase" />}{!isLawFirm && '🏋️'} {appointment.service_name}</strong>
                           <span className={`appointment-status ${appointment.status}`}>
-                            {STATUS_LABELS[appointment.status] || appointment.status}
+                            {isLawFirm && appointment.status === 'converted'
+                              ? 'تم إصدار فاتورة أتعاب'
+                              : (isLawFirm ? STATUS_LABELS : GYM_STATUS_LABELS)[appointment.status] || appointment.status}
                           </span>
                         </div>
 
-                        <div>🕒 {formatDateTime(appointment.start_at)} — {new Date(appointment.end_at).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}</div>
-                        <div>👤 المشترك: {appointment.customer_name} {appointment.customer_phone && `· 📱 ${appointment.customer_phone}`}</div>
-                        <div>🏋️ الكابتن / الصالة: {appointment.resource_name} · المدفوع: {Number(appointment.deposit_amount || 0).toFixed(2)} ج.م</div>
+                        <div>{isLawFirm ? <LegalIcon name="clock" /> : '🕒'} {formatDateTime(appointment.start_at)} — {new Date(appointment.end_at).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}</div>
+                        <div>{isLawFirm ? <LegalIcon name="person" /> : '👤'} {text('المشترك:', 'الموكل:')} {appointment.customer_name} {appointment.customer_phone && `· ${isLawFirm ? '' : '📱 '}${appointment.customer_phone}`}</div>
+                        <div>{isLawFirm ? <LegalIcon name="scale" /> : '🏋️'} {text('الكابتن / الصالة:', 'المحامي / القاعة:')} {appointment.resource_name} · {text('المدفوع:', 'الأتعاب المدفوعة:')} {Number(appointment.deposit_amount || 0).toFixed(2)} ج.م</div>
 
                         {appointment.converted_order_number && (
-                          <div style={{ color: '#c084fc', fontWeight: 700 }}>
-                            📑 رقم طلب الحصة: {appointment.converted_order_number}
+                          <div style={{ color: isLawFirm ? '#c84b08' : '#c084fc', fontWeight: 700 }}>
+                            {!isLawFirm && '📑'} {text('رقم طلب الحصة:', 'رقم فاتورة الأتعاب:')} {appointment.converted_order_number}
                           </div>
                         )}
 
@@ -565,13 +639,13 @@ function AppointmentsPage() {
                             style={{ alignSelf: 'flex-start' }}
                             onClick={() => beginReschedule(appointment)}
                           >
-                            ✏️ تعديل موعد الحصة
+                            {text('✏️ تعديل موعد الحصة', 'تعديل موعد الجلسة')}
                           </button>
                         )}
 
                         {rescheduleForm?.id === appointment.id && (
                           <form className="appointment-reschedule" onSubmit={(event) => submitReschedule(event, appointment.id)}>
-                            <label>الكابتن
+                            <label>{text('الكابتن', 'المحامي / المسؤول')}
                               <select
                                 required
                                 value={rescheduleForm.resourceId}
@@ -597,17 +671,20 @@ function AppointmentsPage() {
 
                         <div className="appointment-item-actions">
                           {appointment.status === 'booked' && (
-                            <button type="button" onClick={() => runAction(() => window.electronAPI.updateAppointmentStatus(appointment.id, 'confirmed'), 'تم تأكيد الحضور للحصة')}>
-                              تأكيد الحضور
+                            <button type="button" onClick={() => runAction(() => window.electronAPI.updateAppointmentStatus(appointment.id, 'confirmed'), text('تم تأكيد الحضور للحصة', 'تم تأكيد الموعد'))}>
+                              {text('تأكيد الحضور', 'تأكيد الموعد')}
                             </button>
                           )}
                           {['booked', 'confirmed'].includes(appointment.status) && (
-                            <button type="button" onClick={() => runAction(() => window.electronAPI.updateAppointmentStatus(appointment.id, 'completed'), 'تم إكمال الحصة')}>
-                              إكمال الحصة
+                            <button type="button" onClick={() => runAction(() => window.electronAPI.updateAppointmentStatus(appointment.id, 'completed'), text('تم إكمال الحصة', 'تم إكمال الجلسة'))}>
+                              {text('إكمال الحصة', 'إكمال الجلسة')}
                             </button>
                           )}
                           {['booked', 'confirmed'].includes(appointment.status) && (
-                            <button type="button" style={{ color: '#f87171' }} onClick={() => runAction(() => window.electronAPI.updateAppointmentStatus(appointment.id, 'cancelled'), 'تم إلغاء الحجز')}>
+                            <button type="button" style={{ color: isLawFirm ? '#b42318' : '#f87171' }} onClick={() => runAction(
+                              () => window.electronAPI.updateAppointmentStatus(appointment.id, 'cancelled'),
+                              text('تم إلغاء الحجز', 'تم إلغاء الموعد')
+                            )}>
                               إلغاء
                             </button>
                           )}
@@ -617,10 +694,10 @@ function AppointmentsPage() {
                               className="convert"
                               onClick={() => runAction(
                                 () => window.electronAPI.convertAppointmentToServiceOrder(appointment.id),
-                                'تم تحويل الحصة إلى أمر عمل وفاتورة بنجاح!',
+                                text('تم تحويل الحصة إلى أمر عمل وفاتورة بنجاح!', 'تم تحويل الموعد إلى فاتورة بنجاح!'),
                               )}
                             >
-                              🚀 تحويل لفاتورة / أمر عمل
+                              {text('🚀 تحويل لفاتورة / أمر عمل', '🚀 إصدار فاتورة أتعاب')}
                             </button>
                           )}
                         </div>
@@ -632,27 +709,29 @@ function AppointmentsPage() {
             </div>
           )}
 
-          {/* TAB 2: RESOURCES (TRAINERS / ROOMS) */}
+          {/* TAB 2: BOOKABLE RESOURCES */}
           {tab === 'resources' && (
             <div className="appointment-layout">
               <form className="appointment-card" onSubmit={submitResource}>
-                <h2>{resourceForm.id ? 'تعديل بيانات كابتن / صالة' : 'إضافة كابتن / مدرب / صالة'}</h2>
-                <label>اسم الكابتن أو المورد *
-                  <input required value={resourceForm.name} onChange={(event) => setResourceForm({ ...resourceForm, name: event.target.value })} placeholder="مثال: كابتن محمد علي / صالة زومبا A" />
+                <h2>{resourceForm.id
+                  ? text('تعديل بيانات كابتن / صالة', 'تعديل بيانات المحامي / القاعة')
+                  : text('إضافة كابتن / مدرب / صالة', 'إضافة محامٍ / موظف / قاعة')}</h2>
+                <label>{text('اسم الكابتن أو المورد', 'اسم المحامي أو الموظف / القاعة')} *
+                  <input required value={resourceForm.name} onChange={(event) => setResourceForm({ ...resourceForm, name: event.target.value })} placeholder={text('مثال: كابتن محمد علي / صالة زومبا A', 'مثال: الأستاذ محمد علي / قاعة الاجتماعات')} />
                 </label>
-                <label>التخصص / النوع *
+                <label>{text('التخصص / النوع', 'التخصص / نوع المورد')} *
                   <select value={resourceForm.resourceType} onChange={(event) => setResourceForm({ ...resourceForm, resourceType: event.target.value })}>
-                    {RESOURCE_TYPES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                    {resourceTypes.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                   </select>
                 </label>
-                <label>الوصف والتخصص
-                  <input value={resourceForm.description} onChange={(event) => setResourceForm({ ...resourceForm, description: event.target.value })} placeholder="مدرب كمال أجسام / لياقة بدنية..." />
+                <label>{text('الوصف والتخصص', 'الوصف / التخصص')}
+                  <input value={resourceForm.description} onChange={(event) => setResourceForm({ ...resourceForm, description: event.target.value })} placeholder={text('مدرب كمال أجسام / لياقة بدنية...', 'مثال: محامٍ مدني / قاعة اجتماعات الموكلين...')} />
                 </label>
                 <label className="appointment-check">
-                  <input type="checkbox" checked={resourceForm.isActive} onChange={(event) => setResourceForm({ ...resourceForm, isActive: event.target.checked })} /> كابتن نشط متاح للحجز
+                  <input type="checkbox" checked={resourceForm.isActive} onChange={(event) => setResourceForm({ ...resourceForm, isActive: event.target.checked })} /> {text('كابتن نشط متاح للحجز', 'متاح لحجز المواعيد')}
                 </label>
 
-                <h3>ساعات تواجد وعمل الكابتن الأسبوعية</h3>
+                <h3>{text('ساعات تواجد وعمل الكابتن الأسبوعية', 'أوقات التواجد والعمل الأسبوعية')}</h3>
                 <div className="working-hours-list">
                   {resourceForm.workingHours.map((hours) => (
                     <div className="working-hours-row" key={hours.weekday}>
@@ -692,10 +771,10 @@ function AppointmentsPage() {
 
                 <div className="appointment-form-actions">
                   <button className="appointment-button primary" type="submit" disabled={busy}>
-                    {resourceForm.id ? 'حفظ التعديلات' : 'إضافة الكابتن'}
+                    {resourceForm.id ? 'حفظ التعديلات' : text('إضافة الكابتن', 'إضافة المورد')}
                   </button>
                   {resourceForm.id && (
-                    <button className="appointment-button secondary" type="button" onClick={() => setResourceForm(blankResource())}>
+                    <button className="appointment-button secondary" type="button" onClick={() => setResourceForm(blankResource(defaultResourceType))}>
                       إلغاء التعديل
                     </button>
                   )}
@@ -703,15 +782,17 @@ function AppointmentsPage() {
               </form>
 
               <div className="appointment-card">
-                <h2>الكباتن والمدربين والصالات المسجلة</h2>
-                {!resources.length ? <div className="appointment-empty">لا يوجد كباتن مسجلين بعد.</div> : (
+                <h2>{text('الكباتن والمدربين والصالات المسجلة', 'المحامون والموظفون والقاعات المسجلة')}</h2>
+                {!resources.length ? <div className="appointment-empty">{text('لا يوجد كباتن مسجلين بعد.', 'لا يوجد محامون أو موارد مسجلة بعد.')}</div> : (
                   resources.map((resource) => (
                     <article className="appointment-item" key={resource.id}>
                       <div className="appointment-item-title">
-                        <strong>🏋️ {resource.name}</strong>
-                        <span>{RESOURCE_TYPES.find(([value]) => value === resource.resource_type)?.[1] || resource.resource_type}</span>
+                        <strong>{isLawFirm && <LegalIcon name="scale" />}{!isLawFirm && '🏋️'} {resource.name}</strong>
+                        <span>{resourceTypes.find(([value]) => value === resource.resource_type)?.[1] || resource.resource_type}</span>
                       </div>
-                      <div>{resource.description || 'بدون وصف'} · {resource.working_days || 0} أيام عمل أسبوعياً · {resource.is_active ? '🟢 نشط' : '🔴 متوقف'}</div>
+                      <div>{resource.description || 'بدون وصف'} · {resource.working_days || 0} أيام عمل أسبوعياً · {isLawFirm
+                        ? <span className={`appointment-status ${resource.is_active ? 'confirmed' : 'cancelled'}`}>{resource.is_active ? 'نشط' : 'متوقف'}</span>
+                        : resource.is_active ? '🟢 نشط' : '🔴 متوقف'}</div>
                       <button
                         type="button"
                         className="appointment-button secondary"
@@ -721,11 +802,13 @@ function AppointmentsPage() {
                             const fullResource = await window.electronAPI.getAppointmentResource(resource.id);
                             editResource(fullResource);
                           } catch (resourceError) {
-                            setError(resourceError instanceof Error ? resourceError.message : 'تعذر فتح الكابتن');
+                            setError(resourceError instanceof Error
+                              ? resourceError.message
+                              : text('تعذر فتح بيانات الكابتن', 'تعذر فتح بيانات المورد'));
                           }
                         }}
                       >
-                        ✏️ تعديل وساعات العمل
+                        {text('✏️ تعديل وساعات العمل', 'تعديل البيانات وأوقات العمل')}
                       </button>
                     </article>
                   ))
@@ -734,42 +817,44 @@ function AppointmentsPage() {
             </div>
           )}
 
-          {/* TAB 3: SERVICES (CLASSES / SESSIONS) */}
+          {/* TAB 3: BOOKABLE SERVICES */}
           {tab === 'services' && (
             <div className="appointment-layout">
               <form className="appointment-card" onSubmit={submitService}>
-                <h2>{serviceForm.id ? 'تعديل الحصة' : 'إضافة نوع حصة / جلسة'}</h2>
-                <label>اسم الحصة / السيشن *
-                  <input required value={serviceForm.name} onChange={(event) => setServiceForm({ ...serviceForm, name: event.target.value })} placeholder="مثال: تدريب شخصي PT / كلاس زومبا" />
+                <h2>{serviceForm.id
+                  ? text('تعديل الحصة', 'تعديل الخدمة القانونية')
+                  : text('إضافة نوع حصة / جلسة', 'إضافة نوع جلسة / خدمة قانونية')}</h2>
+                <label>{text('اسم الحصة / السيشن', 'اسم الجلسة / الخدمة القانونية')} *
+                  <input required value={serviceForm.name} onChange={(event) => setServiceForm({ ...serviceForm, name: event.target.value })} placeholder={text('مثال: تدريب شخصي PT / كلاس زومبا', 'مثال: استشارة قانونية / جلسة محكمة')} />
                 </label>
-                <label>مدة الحصة (بالدقائق) *
+                <label>{text('مدة الحصة (بالدقائق)', 'مدة الموعد (بالدقائق)')} *
                   <input type="number" min="1" max="1440" required value={serviceForm.durationMinutes} onChange={(event) => setServiceForm({ ...serviceForm, durationMinutes: event.target.value })} />
                 </label>
-                <label>وقت تجهيز بين الحصص (بالدقائق)
+                <label>{text('وقت تجهيز بين الحصص (بالدقائق)', 'وقت فاصل بين المواعيد (بالدقائق)')}
                   <input type="number" min="0" value={serviceForm.bufferMinutes} onChange={(event) => setServiceForm({ ...serviceForm, bufferMinutes: event.target.value })} />
                 </label>
-                <label>سعر الحصة التقديري (ج.م) *
+                <label>{text('سعر الحصة التقديري (ج.م)', 'الأتعاب التقديرية للخدمة (ج.م)')} *
                   <input type="number" min="0" step="0.01" value={serviceForm.price} onChange={(event) => setServiceForm({ ...serviceForm, price: event.target.value })} />
                 </label>
-                <label>المكان أو المورد المخصص
+                <label>{text('المكان أو المورد المخصص', 'المحامي أو المورد المخصص')}
                   <select value={serviceForm.resourceType} onChange={(event) => setServiceForm({ ...serviceForm, resourceType: event.target.value })}>
-                    <option value="">أي مدرب أو صالة</option>
-                    {RESOURCE_TYPES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                    <option value="">{text('أي مدرب أو صالة', 'أي محامٍ أو قاعة')}</option>
+                    {resourceTypes.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                   </select>
                 </label>
                 <label>الوصف
-                  <input value={serviceForm.description} onChange={(event) => setServiceForm({ ...serviceForm, description: event.target.value })} placeholder="تفاصيل الحصة..." />
+                  <input value={serviceForm.description} onChange={(event) => setServiceForm({ ...serviceForm, description: event.target.value })} placeholder={text('تفاصيل الحصة...', 'تفاصيل الخدمة القانونية...')} />
                 </label>
                 <label className="appointment-check">
-                  <input type="checkbox" checked={serviceForm.isActive} onChange={(event) => setServiceForm({ ...serviceForm, isActive: event.target.checked })} /> حصة نشطة ومتاحة للحجز
+                  <input type="checkbox" checked={serviceForm.isActive} onChange={(event) => setServiceForm({ ...serviceForm, isActive: event.target.checked })} /> {text('حصة نشطة ومتاحة للحجز', 'خدمة نشطة ومتاحة للحجز')}
                 </label>
                 
                 <div className="appointment-form-actions">
                   <button className="appointment-button primary" type="submit" disabled={busy}>
-                    {serviceForm.id ? 'حفظ التعديلات' : 'إضافة الحصة'}
+                    {serviceForm.id ? 'حفظ التعديلات' : text('إضافة الحصة', 'إضافة الخدمة')}
                   </button>
                   {serviceForm.id && (
-                    <button className="appointment-button secondary" type="button" onClick={() => setServiceForm(blankService())}>
+                    <button className="appointment-button secondary" type="button" onClick={() => setServiceForm(blankService(defaultResourceType))}>
                       إلغاء التعديل
                     </button>
                   )}
@@ -777,15 +862,17 @@ function AppointmentsPage() {
               </form>
 
               <div className="appointment-card">
-                <h2>قائمة الحصص والجلسات</h2>
-                {!services.length ? <div className="appointment-empty">لا توجد حصص مسجلة بعد.</div> : (
+                <h2>{text('قائمة الحصص والجلسات', 'قائمة الجلسات والخدمات القانونية')}</h2>
+                {!services.length ? <div className="appointment-empty">{text('لا توجد حصص مسجلة بعد.', 'لا توجد خدمات قانونية مسجلة بعد.')}</div> : (
                   services.map((service) => (
                     <article className="appointment-item" key={service.id}>
                       <div className="appointment-item-title">
-                        <strong>🧘 {service.name}</strong>
-                        <span>{service.is_active ? '🟢 نشطة' : '🔴 متوقفة'}</span>
+                        <strong>{isLawFirm && <LegalIcon name="briefcase" />}{!isLawFirm && '🧘'} {service.name}</strong>
+                        <span className={isLawFirm ? `appointment-status ${service.is_active ? 'confirmed' : 'cancelled'}` : ''}>
+                          {isLawFirm ? service.is_active ? 'نشطة' : 'متوقفة' : service.is_active ? '🟢 نشطة' : '🔴 متوقفة'}
+                        </span>
                       </div>
-                      <div>المدة: {service.duration_minutes || service.durationMinutes} دقيقة · التجهيز: {service.buffer_minutes || service.bufferMinutes || 0} دقيقة · السعر: {Number(service.price).toFixed(2)} ج.م</div>
+                      <div>{text('المدة:', 'المدة:')} {service.duration_minutes || service.durationMinutes} دقيقة · {text('التجهيز:', 'الفاصل:')} {service.buffer_minutes || service.bufferMinutes || 0} دقيقة · السعر: {Number(service.price).toFixed(2)} ج.م</div>
                       <button
                         type="button"
                         className="appointment-button secondary"
@@ -803,7 +890,7 @@ function AppointmentsPage() {
                           });
                         }}
                       >
-                        ✏️ تعديل الحصة
+                        {text('✏️ تعديل الحصة', 'تعديل الخدمة')}
                       </button>
                     </article>
                   ))
@@ -816,10 +903,10 @@ function AppointmentsPage() {
           {tab === 'holidays' && (
             <div className="appointment-layout">
               <form className="appointment-card" onSubmit={submitHoliday}>
-                <h2>إجازات الكباتن والصيانة الاستثنائية</h2>
-                <label>الكابتن / الصالة
+                <h2>{text('إجازات الكباتن والصيانة الاستثنائية', 'أوقات عدم التوفر والاستثناءات')}</h2>
+                <label>{text('الكابتن / الصالة', 'المحامي / القاعة')}
                   <select value={holidayForm.resourceId} onChange={(event) => setHolidayForm({ ...holidayForm, resourceId: event.target.value })}>
-                    <option value="">إجازة عامة للجيم بالكامل</option>
+                    <option value="">{text('إجازة عامة للجيم بالكامل', 'عدم توفر عام للمكتب')}</option>
                     {resources.map((resource) => <option key={resource.id} value={resource.id}>{resource.name}</option>)}
                   </select>
                 </label>
@@ -835,34 +922,34 @@ function AppointmentsPage() {
                 <label>إلى وقت
                   <input type="time" value={holidayForm.endTime} onChange={(event) => setHolidayForm({ ...holidayForm, endTime: event.target.value })} />
                 </label>
-                <label className="appointment-wide">سبب الإجازة *
-                  <input required value={holidayForm.name} onChange={(event) => setHolidayForm({ ...holidayForm, name: event.target.value })} placeholder="مثال: إجازة الكابتن السنوية / صيانة صالة السونا" />
+                <label className="appointment-wide">{text('سبب الإجازة', 'سبب عدم التوفر')} *
+                  <input required value={holidayForm.name} onChange={(event) => setHolidayForm({ ...holidayForm, name: event.target.value })} placeholder={text('مثال: إجازة الكابتن السنوية / صيانة صالة السونا', 'مثال: إجازة المحامي / إغلاق المكتب')} />
                 </label>
                 <button className="appointment-button primary appointment-wide" type="submit" disabled={busy}>
-                  💾 حفظ وتسجيل الإجازة
+                  {text('💾 حفظ وتسجيل الإجازة', '💾 حفظ وقت عدم التوفر')}
                 </button>
               </form>
 
               <div className="appointment-card">
-                <h2>سجل الإجازات والأعطال</h2>
-                {!holidays.length ? <div className="appointment-empty">لا توجد إجازات مسجلة حالياً.</div> : (
+                <h2>{text('سجل الإجازات والأعطال', 'سجل أوقات عدم التوفر')}</h2>
+                {!holidays.length ? <div className="appointment-empty">{text('لا توجد إجازات مسجلة حالياً.', 'لا توجد أوقات عدم توفر مسجلة حالياً.')}</div> : (
                   holidays.map((holiday) => (
                     <article className="appointment-item" key={holiday.id}>
                       <div className="appointment-item-title">
-                        <strong>🏖️ {holiday.name}</strong>
-                        <span>{holiday.resource_name || 'عامة لكل الجيم'}</span>
+                        <strong>{isLawFirm && <LegalIcon name="calendar" />}{!isLawFirm && '🏖️'} {holiday.name}</strong>
+                        <span>{holiday.resource_name || text('عامة لكل الجيم', 'عام للمكتب')}</span>
                       </div>
                       <div>من {holiday.start_date} إلى {holiday.end_date} {holiday.start_time && `· الوقت: ${holiday.start_time}–${holiday.endTime || holiday.end_time}`}</div>
                       <button
                         type="button"
-                        style={{ color: '#f87171', alignSelf: 'flex-start' }}
+                        style={{ color: isLawFirm ? '#b42318' : '#f87171', alignSelf: 'flex-start' }}
                         className="appointment-button secondary"
                         onClick={() => runAction(
                           () => window.electronAPI.removeAppointmentHoliday(holiday.id),
-                          'تم حذف الإجازة بنجاح',
+                          text('تم حذف الإجازة بنجاح', 'تم حذف وقت عدم التوفر بنجاح'),
                         )}
                       >
-                        🗑️ حذف الإجازة
+                        {text('🗑️ حذف الإجازة', 'حذف وقت عدم التوفر')}
                       </button>
                     </article>
                   ))

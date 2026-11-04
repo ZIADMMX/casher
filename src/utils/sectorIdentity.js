@@ -5,6 +5,20 @@
 
 export function getSectorIdentity(sectorKey) {
   switch (sectorKey) {
+    case 'crm':
+      return {
+        type: 'crm',
+        isService: true,
+        businessNamePrefix: 'شركة',
+        successTitle: (name) => `تم تجهيز مركز CRM لشركة «${name}»`,
+        successSubtitle: 'أصبح قطاع CRM المستقل جاهزاً لإدارة العملاء والصفقات والتواصل.',
+        metric1Label: 'قطاع CRM مستقل',
+        metric2Label: 'مراحل خط المبيعات',
+        metric3Label: 'ملفات العملاء والسجل الموحد',
+        metric4Label: 'إدارة حسب صلاحيات الفريق',
+        primaryActionTitle: 'ابدأ بإضافة أول عميل',
+      };
+
     case 'law_firm':
       return {
         type: 'legal',

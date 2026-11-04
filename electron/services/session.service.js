@@ -8,14 +8,24 @@ const jwt = require('jsonwebtoken');
 // Secret key – read from environment or persist in settings database
 const _fallbackSecret = crypto.randomBytes(32).toString('hex');
 
+// Bump when the stored secret must be replaced on every installation
+// (v2: older builds exposed it through settings:getAll).
+const SECRET_GENERATION = '2';
+
 function getSecret() {
   if (process.env.SESSION_SECRET) return process.env.SESSION_SECRET;
   try {
     const settingsRepo = require('../repositories/settings.repository');
     let saved = settingsRepo.get('system_session_secret');
+    if (saved && settingsRepo.get('system_session_secret_generation') !== SECRET_GENERATION) {
+      // Discard the possibly leaked secret: every token signed with it becomes invalid.
+      saved = null;
+      settingsRepo.set('last_active_session_token', '');
+    }
     if (!saved) {
       saved = crypto.randomBytes(32).toString('hex');
       settingsRepo.set('system_session_secret', saved);
+      settingsRepo.set('system_session_secret_generation', SECRET_GENERATION);
     }
     return saved;
   } catch {

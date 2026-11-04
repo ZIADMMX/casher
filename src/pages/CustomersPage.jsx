@@ -6,20 +6,30 @@ import { useUser } from '../contexts/UserContext.jsx';
 import CustomerTimelineDrawer from '../components/crm/CustomerTimelineDrawer.jsx';
 import SalesPipelineBoard from '../components/crm/SalesPipelineBoard.jsx';
 import { useBusinessProfile } from '../contexts/BusinessProfileContext.jsx';
+import { useSettings } from '../contexts/SettingsContext.jsx';
+import Toast from '../components/ui/Toast.jsx';
+import LegalClientDetailsModal from '../components/legal/LegalClientDetailsModal.jsx';
 
-function CustomersPage() {
-  const { getTerm } = useBusinessProfile();
+function CustomersPage({ crmMode = false, onNavigate }) {
+  const { getTerm, configuration } = useBusinessProfile();
+  const { settings } = useSettings();
   const { currentUser } = useUser();
   const isAdmin = currentUser?.role === 'admin';
+  const businessProfileKey = configuration?.profile?.key
+    || settings?.business_type
+    || settings?.onboarding_sector;
+  const isLawFirm = businessProfileKey === 'law_firm' && !crmMode;
   const { customers, addCustomer, addManualDebt, recordPayment, loading, error, refetch } = useCustomers();
   
   const [activeView, setActiveView] = useState('customers'); // 'customers' | 'pipeline'
   const [selectedTimelineCustomer, setSelectedTimelineCustomer] = useState(null);
+  const [selectedLegalClient, setSelectedLegalClient] = useState(null);
   const [campaigns, setCampaigns] = useState([]);
   const [selectedCampaign, setSelectedCampaign] = useState(null);
   const [campaignAudience, setCampaignAudience] = useState([]);
   const [campaignLoading, setCampaignLoading] = useState(false);
   const [campaignError, setCampaignError] = useState('');
+  const [toast, setToast] = useState(null);
   const [campaignForm, setCampaignForm] = useState({
     name: '',
     product_keyword: '',
@@ -31,10 +41,16 @@ function CustomersPage() {
   });
 
   const [search, setSearch] = useState('');
-  const debouncedSearch = useDebounce(search, 150);
+  const debouncedSearch = useDebounce(search, 400);
+  const isSearchPending = search !== debouncedSearch;
   const [showForm, setShowForm] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
-  const [form, setForm] = useState({ name: '', phone: '', email: '', initialDebt: '', dueDate: '', debtNotes: '' });
+  const [form, setForm] = useState({
+    name: '', phone: '', email: '', initialDebt: '', dueDate: '', debtNotes: '',
+    company_id: '', lead_source: '', email_consent: false, sms_consent: false,
+  });
+  const [crmCompanies, setCrmCompanies] = useState([]);
+  const [companyLoadError, setCompanyLoadError] = useState('');
   const [copiedPhone, setCopiedPhone] = useState(null);
   const [debtModalCustomer, setDebtModalCustomer] = useState(null);
   const [debtForm, setDebtForm] = useState({ amount: '', notes: '', dueDate: '' });
@@ -67,9 +83,13 @@ function CustomersPage() {
     const term = debouncedSearch.trim().toLowerCase();
     if (!term) return customers;
     return customers.filter((c) =>
-      c.name.toLowerCase().includes(term) || (c.phone || '').includes(term)
+      c.name.toLowerCase().includes(term)
+      || (c.phone || '').includes(term)
+      || (c.email || '').toLowerCase().includes(term)
+      || (!isLawFirm && (c.company_name || '').toLowerCase().includes(term))
+      || (!isLawFirm && (c.lead_source || '').toLowerCase().includes(term))
     );
-  }, [customers, debouncedSearch]);
+  }, [customers, debouncedSearch, isLawFirm]);
 
   const stats = useMemo(() => {
     const totalSpentAll = customers.reduce((sum, c) => sum + (c.totalSpent || 0), 0);
@@ -93,13 +113,20 @@ function CustomersPage() {
       name: form.name,
       phone: form.phone || null,
       email: form.email || null,
-      initialDebt: form.initialDebt ? Number(form.initialDebt) : 0,
-      debtNotes: form.debtNotes || null,
-      dueDate: form.dueDate || null,
+      initialDebt: !isLawFirm && form.initialDebt ? Number(form.initialDebt) : 0,
+      debtNotes: !isLawFirm ? form.debtNotes || null : null,
+      dueDate: !isLawFirm ? form.dueDate || null : null,
+      company_id: crmMode && form.company_id ? Number(form.company_id) : null,
+      lead_source: crmMode ? form.lead_source || null : null,
+      email_consent: crmMode && form.email_consent,
+      sms_consent: crmMode && form.sms_consent,
     };
     const result = await addCustomer(payload);
     if (result) {
-      setForm({ name: '', phone: '', email: '', initialDebt: '', dueDate: '', debtNotes: '' });
+      setForm({
+        name: '', phone: '', email: '', initialDebt: '', dueDate: '', debtNotes: '',
+        company_id: '', lead_source: '', email_consent: false, sms_consent: false,
+      });
       setShowForm(false);
     }
   }
@@ -136,14 +163,30 @@ function CustomersPage() {
 
   async function handleExport() {
     try {
-      const result = await window.electronAPI.exportCustomers();
+      const result = crmMode
+        ? await window.electronAPI.exportCRMRecords('customers')
+        : await window.electronAPI.exportCustomers();
       if (!result.canceled) {
-        alert('تم تصدير ملف إكسيل بنجاح');
+        setToast({
+          id: Date.now(),
+          type: 'success',
+          message: crmMode ? 'تم تصدير بيانات جهات الاتصال بنجاح' : 'تم تصدير ملف إكسيل بنجاح',
+        });
       }
     } catch (err) {
-      alert(err.message);
+      setToast({ id: Date.now(), type: 'danger', message: err.message || 'تعذر تصدير بيانات العملاء' });
     }
   }
+
+  useEffect(() => {
+    if (!crmMode) return;
+    window.electronAPI.getCRMCompanies()
+      .then((companies) => setCrmCompanies(companies || []))
+      .catch((loadError) => {
+        console.error('Failed to load CRM companies:', loadError);
+        setCompanyLoadError(loadError.message || 'تعذر تحميل الشركات');
+      });
+  }, [crmMode]);
 
   useEffect(() => {
     try {
@@ -152,11 +195,12 @@ function CustomersPage() {
 
       const pending = JSON.parse(rawPending);
       if (pending?.name) {
-        setForm({
+        setForm((current) => ({
+          ...current,
           name: pending.name || '',
           phone: pending.phone || '',
           email: pending.email || '',
-        });
+        }));
         setShowForm(true);
       }
 
@@ -228,7 +272,11 @@ function CustomersPage() {
       const result = await window.electronAPI.createCRMCampaignReminders(selectedCampaign.id);
       setCampaignAudience(await window.electronAPI.getCRMCampaignAudience(selectedCampaign.id));
       setCampaigns(await window.electronAPI.getCRMCampaigns());
-      alert(`تم إنشاء ${result.createdCount} تذكير متابعة.`);
+      setToast({
+        id: Date.now(),
+        type: 'success',
+        message: `تم إنشاء ${result.createdCount} تذكير متابعة.`,
+      });
     } catch (err) {
       console.error('Failed to create campaign reminders:', err);
       setCampaignError(err.message || 'تعذر إنشاء تذكيرات الحملة');
@@ -248,16 +296,34 @@ function CustomersPage() {
 
   return (
     <div className="customers-page-container">
+      {toast && (
+        <Toast
+          key={toast.id}
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
       {/* Header */}
       <div className="page-header-row">
         <div>
-          <h1>إدارة {getTerm('customer', 'العملاء')} ومركز الاتصالات (CRM)</h1>
-          <p className="page-subtitle">تواصل ومتابعة العملاء، الشكاوى، الفرص البيعية والحملات حسب سلوك الشراء</p>
+          <h1>{crmMode
+            ? 'جهات الاتصال وCustomer 360°'
+            : isLawFirm
+              ? 'الموكلون وملفاتهم القانونية'
+              : `إدارة ${getTerm('customer', 'العملاء')} ومركز الاتصالات (CRM)`}</h1>
+          <p className="page-subtitle">
+            {crmMode
+              ? 'سجلات العملاء، علاقاتهم بالشركات، وسجل التواصل في مكان واحد'
+              : isLawFirm
+                ? 'بيانات الموكلين، قضاياهم، سجل التواصل، والتوكيلات ومواعيد انتهائها'
+              : 'تواصل ومتابعة العملاء، الشكاوى، الفرص البيعية والحملات حسب سلوك الشراء'}
+          </p>
         </div>
         <div className="header-action-group" style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          {isAdmin && (
+          {(isAdmin || crmMode) && (
             <>
-              <button
+              {isAdmin && <button
                 type="button" 
                 className="secondary-btn" 
                 onClick={() => setShowImportModal(true)} 
@@ -266,20 +332,20 @@ function CustomersPage() {
               >
                 <span>📊</span>
                 <span>استيراد من Excel</span>
-              </button>
+              </button>}
               <button className="secondary-btn" onClick={handleExport} title="تصدير بيانات العملاء إلى Excel">
                 📥 تصدير البيانات (Excel)
               </button>
             </>
           )}
           <button className="primary-btn" onClick={() => setShowForm((v) => !v)}>
-            {showForm ? '✕ إلغاء' : '+ إضافة عميل جديد'}
+            {showForm ? '✕ إلغاء' : isLawFirm ? '+ إضافة موكل جديد' : '+ إضافة عميل جديد'}
           </button>
         </div>
       </div>
 
       {/* Main View Switcher Tabs */}
-      <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', borderBottom: '2px solid #e5e7eb', paddingBottom: '10px' }}>
+      {!crmMode && !isLawFirm && <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', borderBottom: '2px solid #e5e7eb', paddingBottom: '10px' }}>
         <button 
           className={`secondary-btn ${activeView === 'customers' ? 'active-tab-btn' : ''}`}
           onClick={() => setActiveView('customers')}
@@ -301,7 +367,7 @@ function CustomersPage() {
         >
           🎯 حملات حسب الشراء
         </button>
-      </div>
+      </div>}
 
       {activeView === 'pipeline' ? (
         <SalesPipelineBoard />
@@ -409,39 +475,41 @@ function CustomersPage() {
       ) : (
         <>
           {/* Stats Cards */}
-          <div className="stats-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '15px' }}>
-            <div className="stat-card">
-              <span className="stat-label">إجمالي العملاء المسجلين</span>
-              <span className="stat-value">{stats.count}</span>
-            </div>
-            <div className="stat-card">
+          {!isLawFirm && (
+            <div className="stats-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '15px' }}>
+              <div className="stat-card">
+                <span className="stat-label">إجمالي العملاء المسجلين</span>
+                <span className="stat-value">{stats.count}</span>
+              </div>
+            {!crmMode && <div className="stat-card">
               <span className="stat-label">إجمالي مشتريات العملاء</span>
               <span className="stat-value" style={{ color: '#2563eb' }}>{stats.totalSpent.toLocaleString()} ج.م</span>
-            </div>
-            <div className="stat-card">
+            </div>}
+            {!crmMode && <div className="stat-card">
               <span className="stat-label">إجمالي مديونية العملاء (الآجل)</span>
               <span className="stat-value" style={{ color: stats.totalDebt > 0 ? '#dc2626' : '#16a34a' }}>
                 {stats.totalDebt.toLocaleString()} ج.م
               </span>
-            </div>
-            <div className="stat-card">
+            </div>}
+            {!crmMode && <div className="stat-card">
               <span className="stat-label">عدد فواتير العملاء</span>
               <span className="stat-value">{stats.totalInvoices}</span>
-            </div>
-            <div className="stat-card">
+            </div>}
+            {!crmMode && <div className="stat-card">
               <span className="stat-label">متوسط مشتريات العميل</span>
               <span className="stat-value">
                 {stats.count ? Math.round(stats.totalSpent / stats.count).toLocaleString() : 0} ج.م
               </span>
+            </div>}
             </div>
-          </div>
+          )}
 
           {showForm && (
             <form className="fox-form-card reports-fade-in" style={{ marginBottom: '25px' }} onSubmit={handleSubmit}>
               <div className="fox-form-card-header">
                 <div className="form-card-title-group">
-                  <span className="form-title-badge">➕ إضافة عميل</span>
-                  <h3 className="form-card-title">إضافة عميل جديد</h3>
+                  <span className="form-title-badge">{isLawFirm ? '⚖️ إضافة موكل' : '➕ إضافة عميل'}</span>
+                  <h3 className="form-card-title">{isLawFirm ? 'إضافة موكل جديد' : 'إضافة عميل جديد'}</h3>
                 </div>
                 <button type="button" className="form-close-btn" onClick={() => setShowForm(false)}>✕ إغلاق</button>
               </div>
@@ -450,18 +518,63 @@ function CustomersPage() {
               
               <div className="fox-form-grid-main" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', padding: '20px' }}>
                 <div className="form-field-group">
-                  <label className="form-label">اسم العميل <span className="req-star">*</span></label>
+                  <label className="form-label">{isLawFirm ? 'اسم الموكل' : 'اسم العميل'} <span className="req-star">*</span></label>
                   <div className="fox-field-input-wrap">
                     <input
                       type="text"
                       className="fox-lux-input"
-                      placeholder="أدخل اسم العميل..."
+                      placeholder={isLawFirm ? 'أدخل اسم الموكل...' : 'أدخل اسم العميل...'}
                       value={form.name}
                       onChange={(e) => updateForm('name', e.target.value)}
                       required
                     />
                   </div>
+
                 </div>
+
+                {crmMode && (
+                  <>
+                    <div className="form-field-group">
+                      <label className="form-label">الشركة المرتبطة</label>
+                      <select
+                        className="fox-lux-input"
+                        value={form.company_id}
+                        onChange={(e) => updateForm('company_id', e.target.value)}
+                      >
+                        <option value="">بدون شركة</option>
+                        {crmCompanies.map((company) => (
+                          <option key={company.id} value={company.id}>{company.name}</option>
+                        ))}
+                      </select>
+                      {companyLoadError && <small className="form-error">{companyLoadError}</small>}
+                    </div>
+                    <div className="form-field-group">
+                      <label className="form-label">مصدر العميل</label>
+                      <input
+                        className="fox-lux-input"
+                        value={form.lead_source}
+                        onChange={(e) => updateForm('lead_source', e.target.value)}
+                        maxLength={100}
+                      />
+                    </div>
+                    <label className="form-field-group">
+                      <span className="form-label">موافقة البريد الإلكتروني</span>
+                      <input
+                        type="checkbox"
+                        checked={form.email_consent}
+                        onChange={(e) => updateForm('email_consent', e.target.checked)}
+                      />
+                    </label>
+                    <label className="form-field-group">
+                      <span className="form-label">موافقة الرسائل النصية</span>
+                      <input
+                        type="checkbox"
+                        checked={form.sms_consent}
+                        onChange={(e) => updateForm('sms_consent', e.target.checked)}
+                      />
+                    </label>
+                  </>
+                )}
                 
                 <div className="form-field-group">
                   <label className="form-label">رقم الهاتف</label>
@@ -489,7 +602,7 @@ function CustomersPage() {
                   </div>
                 </div>
 
-                <div className="form-field-group">
+                {!crmMode && !isLawFirm && <div className="form-field-group">
                   <label className="form-label">الرصيد الافتتاحي / مديونية سابقة (ج.م)</label>
                   <div className="fox-field-input-wrap">
                     <input
@@ -502,9 +615,9 @@ function CustomersPage() {
                       onChange={(e) => updateForm('initialDebt', e.target.value)}
                     />
                   </div>
-                </div>
+                </div>}
 
-                {Number(form.initialDebt || 0) > 0 && (
+                {!crmMode && !isLawFirm && Number(form.initialDebt || 0) > 0 && (
                   <>
                     <div className="form-field-group">
                       <label className="form-label">تاريخ استحقاق المديونية</label>
@@ -535,23 +648,27 @@ function CustomersPage() {
               </div>
               
               <div className="form-actions-footer" style={{ padding: '0 20px 20px', display: 'flex', gap: '10px' }}>
-                <button type="submit" className="primary-btn">حفظ العميل</button>
+                <button type="submit" className="primary-btn">{isLawFirm ? 'حفظ الموكل' : 'حفظ العميل'}</button>
                 <button type="button" className="secondary-btn" onClick={() => setShowForm(false)}>إلغاء</button>
               </div>
             </form>
           )}
 
           {/* Search Bar */}
-          <div className="search-bar-wrapper">
+          <div className="search-bar-wrapper" aria-busy={isSearchPending}>
             <span className="search-icon">🔍</span>
             <input
               type="text"
-              placeholder="ابحث باسم العميل أو رقم الهاتف..."
+              placeholder={crmMode
+                ? 'ابحث بالاسم أو الهاتف أو البريد أو الشركة'
+                : isLawFirm ? 'ابحث باسم الموكل أو رقم الهاتف أو البريد' : 'ابحث باسم العميل أو رقم الهاتف...'}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              aria-label={isLawFirm ? 'البحث عن موكل' : 'البحث عن عميل'}
             />
+            {isSearchPending && <span className="customer-search-status" role="status">جاري البحث...</span>}
             {search && (
-              <button className="clear-search-btn" onClick={() => setSearch('')}>✕</button>
+              <button type="button" className="clear-search-btn" onClick={() => setSearch('')} aria-label="مسح البحث">✕</button>
             )}
           </div>
 
@@ -563,13 +680,16 @@ function CustomersPage() {
               <table className="customers-table">
                 <thead>
                   <tr>
-                    <th>اسم العميل</th>
+                    <th>{isLawFirm ? 'اسم الموكل' : 'اسم العميل'}</th>
+                    {crmMode && <th>الشركة</th>}
                     <th>رقم الهاتف</th>
-                    <th>التصنيف والتقييم</th>
-                    <th>إجمالي المشتريات والمديونية</th>
-                    <th>عدد الفواتير</th>
-                    <th>آخر تواصل</th>
-                    <th>إجراءات CRM والمالية</th>
+                    {(crmMode || isLawFirm) && <th>البريد الإلكتروني</th>}
+                    {crmMode && <th>المصدر</th>}
+                    {!isLawFirm && <th>التصنيف والتقييم</th>}
+                    {!crmMode && !isLawFirm && <th>إجمالي المشتريات والمديونية</th>}
+                    {!crmMode && !isLawFirm && <th>عدد الفواتير</th>}
+                    {!isLawFirm && <th>آخر تواصل</th>}
+                    <th>{isLawFirm ? 'ملف الموكل' : 'إجراءات CRM'}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -581,6 +701,7 @@ function CustomersPage() {
                           <span className="customer-name-text">{c.name}</span>
                         </div>
                       </td>
+                      {crmMode && <td>{c.company_name || '—'}</td>}
                       <td>
                         {c.phone ? (
                           <span
@@ -597,7 +718,10 @@ function CustomersPage() {
                           <span className="text-muted">-</span>
                         )}
                       </td>
-                      <td>
+                      {isLawFirm && <td>{c.email || '—'}</td>}
+                      {crmMode && <td>{c.email || '—'}</td>}
+                      {crmMode && <td>{c.lead_source || '—'}</td>}
+                      {!isLawFirm && <td>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                           <span className={`badge ${getTierBadgeClass(c.tier)}`} style={{ alignSelf: 'flex-start' }}>
                             {c.tier || 'Regular'}
@@ -606,8 +730,8 @@ function CustomersPage() {
                             {'★'.repeat(c.rating || 5)}{'☆'.repeat(5 - (c.rating || 5))}
                           </span>
                         </div>
-                      </td>
-                      <td>
+                      </td>}
+                      {!crmMode && !isLawFirm && <td>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.9rem' }}>
                             <span style={{ color: '#6b7280', fontSize: '0.8rem' }}>🛍️ مشتريات:</span>
@@ -626,20 +750,31 @@ function CustomersPage() {
                             )}
                           </div>
                         </div>
-                      </td>
-                      <td>
+                      </td>}
+                      {!crmMode && !isLawFirm && <td>
                         <span className="badge badge-neutral">{c.invoiceCount || 0} فاتورة</span>
-                      </td>
-                      <td>
+                      </td>}
+                      {!isLawFirm && <td>
                         {c.last_interaction_at ? (
                           <span title={new Date(c.last_interaction_at).toLocaleString('ar-EG')}>
                             {new Date(c.last_interaction_at).toLocaleDateString('ar-EG')}
                           </span>
                         ) : <span className="text-muted">لا يوجد تواصل</span>}
-                      </td>
+                      </td>}
                       <td>
                         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
-                          <button
+                          {isLawFirm ? (
+                            <button
+                              type="button"
+                              className="secondary-btn"
+                              style={{ padding: '4px 8px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '4px' }}
+                              onClick={() => setSelectedLegalClient(c)}
+                              title="عرض بيانات الموكل وقضاياه وتواصله وتوكيلاته"
+                            >
+                              <span>⚖️</span>
+                              <span>فتح ملف الموكل</span>
+                            </button>
+                          ) : <button
                             className="secondary-btn"
                             style={{ padding: '4px 8px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '4px' }}
                             onClick={() => setSelectedTimelineCustomer(c)}
@@ -647,9 +782,9 @@ function CustomersPage() {
                           >
                             <span>🕒</span>
                             <span>Timeline & CRM</span>
-                          </button>
+                          </button>}
 
-                          {isAdmin && (
+                          {!crmMode && !isLawFirm && isAdmin && (
                             <button
                               className="secondary-btn"
                               style={{ padding: '4px 8px', fontSize: '0.85rem' }}
@@ -659,7 +794,7 @@ function CustomersPage() {
                             </button>
                           )}
 
-                          {isAdmin && Number(c.debt || 0) > 0 && (
+                          {!crmMode && !isLawFirm && isAdmin && Number(c.debt || 0) > 0 && (
                             <button
                               className="primary-btn"
                               style={{ padding: '4px 8px', fontSize: '0.85rem' }}
@@ -674,8 +809,8 @@ function CustomersPage() {
                   ))}
                   {filtered.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="empty-table-cell">
-                        {search ? 'لا توجد نتائج مطابقة للبحث' : 'لم يتم تسجيل أي عملاء بعد'}
+                      <td colSpan={crmMode ? 8 : isLawFirm ? 4 : 7} className="empty-table-cell">
+                        {search ? 'لا توجد نتائج مطابقة للبحث' : isLawFirm ? 'لم يتم تسجيل أي موكلين بعد' : 'لم يتم تسجيل أي عملاء بعد'}
                       </td>
                     </tr>
                   )}
@@ -692,11 +827,24 @@ function CustomersPage() {
           customer={selectedTimelineCustomer}
           onClose={() => setSelectedTimelineCustomer(null)}
           onCustomerUpdated={() => refetch()}
+          crmMode={crmMode}
+          isAdmin={isAdmin}
+        />
+      )}
+
+      {selectedLegalClient && (
+        <LegalClientDetailsModal
+          customer={selectedLegalClient}
+          onClose={() => setSelectedLegalClient(null)}
+          onOpenCases={() => {
+            setSelectedLegalClient(null);
+            onNavigate?.('cases');
+          }}
         />
       )}
 
       {/* Manual Debt Modal */}
-      {debtModalCustomer && (
+      {!crmMode && debtModalCustomer && (
         <div className="modal-overlay" onClick={() => setDebtModalCustomer(null)}>
           <div className="modal-box" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
@@ -750,7 +898,7 @@ function CustomersPage() {
         </div>
       )}
 
-      {paymentModalCustomer && (
+      {!crmMode && paymentModalCustomer && (
         <div className="modal-overlay" onClick={() => setPaymentModalCustomer(null)}>
           <div className="modal-box" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">

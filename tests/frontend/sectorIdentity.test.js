@@ -28,6 +28,14 @@ describe('sectorIdentity utility', () => {
     expect(identity.serviceBadgeText).toContain('خدمة صالون');
   });
 
+  it('returns a standalone CRM identity', () => {
+    const identity = getSectorIdentity('crm');
+    expect(identity.type).toBe('crm');
+    expect(identity.isService).toBe(true);
+    expect(identity.successTitle('FOX')).toContain('FOX');
+    expect(identity.primaryActionTitle).toContain('عميل');
+  });
+
   it('returns retail identity as fallback for undefined or retail', () => {
     const identity = getSectorIdentity('retail');
     expect(identity.type).toBe('retail');

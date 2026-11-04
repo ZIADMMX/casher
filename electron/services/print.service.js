@@ -388,9 +388,9 @@ function buildReceiptHtml(sale, options = {}) {
   const rowsHtml = sale.items
     .map((item) => `
       <tr>
-        <td>${item.productName}${item.size ? ` (${item.size})` : ''}${item.color ? ` - ${item.color}` : ''}</td>
-        <td style="text-align:center">${item.quantity}</td>
-        <td style="text-align:left">${item.unitPrice * item.quantity} ج.م</td>
+        <td>${escapeHtml(item.productName)}${item.size ? ` (${escapeHtml(item.size)})` : ''}${item.color ? ` - ${escapeHtml(item.color)}` : ''}</td>
+        <td style="text-align:center">${escapeHtml(item.quantity)}</td>
+        <td style="text-align:left">${escapeHtml(item.unitPrice * item.quantity)} ج.م</td>
       </tr>`)
     .join('');
 

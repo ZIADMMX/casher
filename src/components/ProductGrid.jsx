@@ -1,8 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { formatProductImageUrl } from '../utils/media.js';
 import { useBusinessProfile } from '../contexts/BusinessProfileContext.jsx';
 
-function getCategoryIcon(catName = '', prodName = '', sectorKey = 'retail') {
+const EMPTY_PRODUCTS = [];
+const POS_PRODUCTS_PAGE_SIZE = 50;
+
+export function getCategoryIcon(catName = '', prodName = '', sectorKey = 'retail') {
   const text = `${catName} ${prodName}`.toLowerCase().replace(/[إأآا]/g, 'ا');
 
   if (sectorKey === 'salon_barbershop') {
@@ -28,10 +31,14 @@ function getCategoryIcon(catName = '', prodName = '', sectorKey = 'retail') {
   }
 
   // سوبر ماركت وبقالة
-  if (sectorKey === 'grocery' || text.includes('لبن') || text.includes('جبن') || text.includes('شيبسي') || text.includes('زيت') || text.includes('أرز')) {
+  if (sectorKey === 'grocery' || text.includes('لبن') || text.includes('جبن') || text.includes('شيبسي') || text.includes('زيت') || text.includes('ارز')) {
     if (text.includes('لبن') || text.includes('حليب') || text.includes('زبادي')) return '🥛';
     if (text.includes('جبن') || text.includes('رومي')) return '🧀';
     if (text.includes('تفاح') || text.includes('موز') || text.includes('طماطم') || text.includes('خضار')) return '🍎';
+    if (text.includes('مياه') || text.includes('عصير') || text.includes('مشروب')) return '🥤';
+    if (text.includes('معلبات') || text.includes('تونة') || text.includes('صلصة')) return '🥫';
+    if (text.includes('منظف') || text.includes('مسحوق') || text.includes('صابون')) return '🧴';
+    if (text.includes('ارز') || text.includes('مكرونة') || text.includes('زيت') || text.includes('دقيق')) return '🍚';
     if (text.includes('شوكولاتة') || text.includes('بسكويت') || text.includes('شيبسي')) return '🍫';
     return '🛒';
   }
@@ -88,16 +95,35 @@ function ProductImage({ product, sectorKey }) {
       src={formatProductImageUrl(product.image_path)}
       alt={product.name}
       className="prod-img"
+      loading="lazy"
+      decoding="async"
       onError={() => setHasError(true)}
     />
   );
 }
 
-function ProductGrid({ products = [], selectedVariant = {}, pickVariant, addToCart, getStockBadge, cart = [], sectorConfig }) {
+function ProductGrid({ products = EMPTY_PRODUCTS, selectedVariant = {}, pickVariant, addToCart, getStockBadge, cart = [], sectorConfig }) {
   const { attributes } = useBusinessProfile();
   const sectorKey = sectorConfig?.key || 'retail';
+  const productList = Array.isArray(products) ? products : EMPTY_PRODUCTS;
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageCount = Math.max(1, Math.ceil(productList.length / POS_PRODUCTS_PAGE_SIZE));
+  const visiblePage = Math.min(currentPage, pageCount);
 
-  if (!products || products.length === 0) {
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [productList]);
+
+  useEffect(() => {
+    if (currentPage > pageCount) setCurrentPage(pageCount);
+  }, [currentPage, pageCount]);
+
+  const visibleProducts = useMemo(() => {
+    const startIndex = (visiblePage - 1) * POS_PRODUCTS_PAGE_SIZE;
+    return productList.slice(startIndex, startIndex + POS_PRODUCTS_PAGE_SIZE);
+  }, [productList, visiblePage]);
+
+  if (productList.length === 0) {
     return (
       <div className="pos-no-products">
         <div className="no-prod-icon">🔍</div>
@@ -109,8 +135,9 @@ function ProductGrid({ products = [], selectedVariant = {}, pickVariant, addToCa
 
 
   return (
-    <div className="pos-grid-container">
-      {products.map((product) => {
+    <>
+      <div className="pos-grid-container">
+      {visibleProducts.map((product) => {
         const activeVariantId = selectedVariant[product.id] || product.variants[0]?.id;
         const activeVariant = product.variants.find((v) => v.id === activeVariantId) || product.variants[0];
         const isService = Boolean(product.is_service);
@@ -245,7 +272,33 @@ function ProductGrid({ products = [], selectedVariant = {}, pickVariant, addToCa
           </div>
         );
       })}
-    </div>
+      </div>
+      {productList.length > POS_PRODUCTS_PAGE_SIZE && (
+        <nav className="pos-products-pagination" aria-label="صفحات منتجات البيع">
+          <button
+            type="button"
+            className="secondary-btn"
+            onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+            disabled={visiblePage === 1}
+            aria-label="منتجات البيع السابقة"
+          >
+            السابقة
+          </button>
+          <span aria-live="polite">
+            {`عرض ${(visiblePage - 1) * POS_PRODUCTS_PAGE_SIZE + 1} - ${Math.min(visiblePage * POS_PRODUCTS_PAGE_SIZE, productList.length)} من ${productList.length} منتج`}
+          </span>
+          <button
+            type="button"
+            className="secondary-btn"
+            onClick={() => setCurrentPage((page) => Math.min(pageCount, page + 1))}
+            disabled={visiblePage === pageCount}
+            aria-label="منتجات البيع التالية"
+          >
+            التالية
+          </button>
+        </nav>
+      )}
+    </>
   );
 }
 

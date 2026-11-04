@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useBusinessProfile } from '../contexts/BusinessProfileContext.jsx';
+import { useSettings } from '../contexts/SettingsContext.jsx';
+import LawFirmTodayPage from '../components/legal/LawFirmTodayPage.jsx';
 import '../styles/today.css';
 
-export default function TodayPage({ onNavigate }) {
+function SectorTodayPage({ onNavigate }) {
   const { configuration } = useBusinessProfile();
   
   // Normalize profile key (supports salon, salon_barbershop, barbershop)
@@ -331,8 +333,8 @@ export default function TodayPage({ onNavigate }) {
           scheduleEmptySub: 'ابدأ بتسجيل طلب جديد عبر شاشة الكاشير السريع',
           btn1Text: 'نقطة البيع (POS)',
           btn1Action: () => onNavigate('pos'),
-          btn2Text: 'شاشة الطلبات والمطبخ',
-          btn2Action: () => onNavigate('orders'),
+          btn2Text: 'شاشة المطبخ (KDS)',
+          btn2Action: () => onNavigate('kitchen'),
         };
 
       case 'grocery':
@@ -870,4 +872,16 @@ export default function TodayPage({ onNavigate }) {
       </div>
     </div>
   );
+}
+
+export default function TodayPage({ onNavigate }) {
+  const { configuration } = useBusinessProfile();
+  const { settings } = useSettings();
+  const profileKey = configuration?.profile?.key
+    || settings?.business_type
+    || settings?.onboarding_sector;
+  if (profileKey === 'law_firm') {
+    return <LawFirmTodayPage onNavigate={onNavigate} />;
+  }
+  return <SectorTodayPage onNavigate={onNavigate} />;
 }

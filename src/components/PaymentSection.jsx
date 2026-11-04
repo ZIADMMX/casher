@@ -12,6 +12,7 @@ function PaymentSection({
   creditDueDate,
   setCreditDueDate,
   onNavigate,
+  sectionRef,
 }) {
   // حساب الفئات السريعة بناءً على الإجمالي
   const quickCashOptions = [
@@ -23,7 +24,7 @@ function PaymentSection({
   ].filter((opt) => opt.value >= total || opt.label === 'المبلغ بالضبط');
 
   return (
-    <div className="pos-payment-section">
+    <div className="pos-payment-section" ref={sectionRef} tabIndex={-1}>
       <div className="payment-method-tabs">
         <button
           type="button"
@@ -176,4 +177,3 @@ function PaymentSection({
 }
 
 export default PaymentSection;
-

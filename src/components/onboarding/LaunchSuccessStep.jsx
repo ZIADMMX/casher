@@ -12,15 +12,20 @@ export default function LaunchSuccessStep({
   const primaryTitle = customizedData?.primaryActionTitle || identity.primaryActionTitle || 'ابدأ العمل الآن';
 
   const isService = identity.isService;
-  const categoriesCount = provisionSummary?.categoriesCreated ?? customizedData?.categories?.length ?? 0;
-  const productsCount = provisionSummary?.productsCreated ?? customizedData?.products?.length ?? 0;
+  const categoriesCount = identity.type === 'crm'
+    ? 1
+    : provisionSummary?.categoriesCreated ?? customizedData?.categories?.length ?? 0;
+  const productsCount = identity.type === 'crm'
+    ? 5
+    : provisionSummary?.productsCreated ?? customizedData?.products?.length ?? 0;
 
   // Third metric: Service sectors show active system status, retail shows stock units
   const metric3Value = isService 
     ? 'مفعل وجاهز' 
     : (customizedData?.kpis?.totalStock ?? 0);
   
-  const metric3Icon = identity.type === 'legal' ? '⚖️' 
+  const metric3Icon = identity.type === 'crm' ? '👥'
+    : identity.type === 'legal' ? '⚖️'
     : identity.type === 'gym' ? '🏋️' 
     : identity.type === 'salon' ? '✂️' 
     : identity.type === 'repair' ? '🔧' 
@@ -57,7 +62,7 @@ export default function LaunchSuccessStep({
       {/* Provision Summary Grid */}
       <div className="success-summary-grid">
         <div className="summary-metric-card">
-          <span className="metric-icon">{identity.type === 'legal' ? '⚖️' : '📂'}</span>
+          <span className="metric-icon">{identity.type === 'crm' ? '👥' : identity.type === 'legal' ? '⚖️' : '📂'}</span>
           <div className="metric-text-group">
             <span className="metric-number">
               {categoriesCount}
@@ -67,7 +72,7 @@ export default function LaunchSuccessStep({
         </div>
 
         <div className="summary-metric-card">
-          <span className="metric-icon">{identity.type === 'legal' ? '📜' : (isService ? '⭐' : '🏷️')}</span>
+          <span className="metric-icon">{identity.type === 'crm' ? '📊' : identity.type === 'legal' ? '📜' : (isService ? '⭐' : '🏷️')}</span>
           <div className="metric-text-group">
             <span className="metric-number">
               {productsCount}
@@ -90,7 +95,9 @@ export default function LaunchSuccessStep({
           <span className="metric-icon">⏰</span>
           <div className="metric-text-group">
             <span className="metric-number text-orange">
-              {customizedData?.workingHours?.open_time || '09:00'} - {customizedData?.workingHours?.close_time || '23:00'}
+              {identity.type === 'crm'
+                ? 'مركز موحد'
+                : `${customizedData?.workingHours?.open_time || '09:00'} - ${customizedData?.workingHours?.close_time || '23:00'}`}
             </span>
             <span className="metric-label">{identity.metric4Label || 'مواعيد التشغيل اليومية'}</span>
           </div>

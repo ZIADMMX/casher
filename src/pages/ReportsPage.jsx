@@ -1,4 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useSettings } from '../contexts/SettingsContext.jsx';
+import { useBusinessProfile } from '../contexts/BusinessProfileContext.jsx';
+import CRMReportsPage from './CRMReportsPage.jsx';
+import LawFirmReportsPage from '../components/legal/LawFirmReportsPage.jsx';
 
 function getLocalDateString(date = new Date()) {
   const year = date.getFullYear();
@@ -267,7 +271,7 @@ function InvoiceModal({ invoiceId, onClose }) {
   );
 }
 
-function ReportsPage() {
+function SalesReportsPage() {
   const [period, setPeriod] = useState('month');
   const [customRange, setCustomRange] = useState(() => {
     const today = getLocalDateString();
@@ -632,6 +636,18 @@ function ReportsPage() {
       )}
     </div>
   );
+}
+
+function ReportsPage() {
+  const { configuration } = useBusinessProfile();
+  const { settings } = useSettings();
+  const profileKey = configuration?.profile?.key
+    || settings?.business_type
+    || settings?.onboarding_sector
+    || 'retail';
+
+  if (profileKey === 'law_firm') return <LawFirmReportsPage />;
+  return profileKey === 'crm' ? <CRMReportsPage /> : <SalesReportsPage />;
 }
 
 export default ReportsPage;

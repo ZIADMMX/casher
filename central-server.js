@@ -11,10 +11,18 @@ const crypto = require('node:crypto');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const { applyCorsPolicy } = require('./electron/security/corsPolicy');
 
 const { writePool, queryWrite, queryRead, checkHealth, ensureDatabaseReady } = require('./electron/database/dbPool');
 const { personalProfileSchema, reviewSchema } = require('./electron/validators/schema');
-const { createCentralSale, createCentralProduct, PosError } = require('./electron/services/centralPos.service');
+const { COURT_TYPES, validateCourtInput, isCourtId } = require('./electron/validators/courts');
+const {
+  createCentralSale,
+  getCentralKitchenOrders,
+  updateCentralKitchenOrderStatus,
+  createCentralProduct,
+  PosError,
+} = require('./electron/services/centralPos.service');
 
 // Parse command line arguments for port and instance ID
 const args = process.argv.slice(2);
@@ -26,6 +34,10 @@ for (const a of args) {
 }
 
 const PORT = argPort || Number(process.env.PORT) || 5000;
+// Nodes sit behind load-balancer.js on the same machine; set CENTRAL_BIND_HOST to expose a node directly.
+const BIND_HOST = process.env.CENTRAL_BIND_HOST || '127.0.0.1';
+// Short-lived tokens; the desktop client refreshes them periodically via /api/auth/refresh.
+const TOKEN_TTL = process.env.CENTRAL_TOKEN_TTL || '8h';
 const INSTANCE_ID = argInstance || process.env.INSTANCE_ID || `api-node-${PORT}`;
 
 // Enforce strong JWT_SECRET: Reject hardcoded fallbacks and insecure default secrets
@@ -56,9 +68,6 @@ let totalRequestsHandled = 0;
 function sendJSON(res, statusCode, data) {
   res.writeHead(statusCode, {
     'Content-Type': 'application/json; charset=utf-8',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, X-Branch-Warehouse-Id',
     'X-Instance-ID': INSTANCE_ID,
     'X-Server-Port': String(PORT),
   });
@@ -118,10 +127,17 @@ const ENTERPRISE_PROFILES = [
   { key: 'spare_parts', name: '🚘 قطع غيار وسيارات (Auto Spare Parts)', modules: ['inventory', 'pos', 'purchases', 'orders', 'reports', 'settings'] },
 ];
 
-const { checkRateLimit } = require('./electron/services/rateLimiter');
+const {
+  checkActionRateLimit,
+  checkRateLimit,
+  checkRequestActionRateLimit,
+  getClientIp,
+  tryAcquireRequestSlot,
+} = require('./electron/services/rateLimiter');
 let profileSchemaMigration = null;
 let reviewsSchemaMigration = null;
 let posSchemaMigration = null;
+let courtsSchemaMigration = null;
 
 async function ensurePosSchema() {
   if (!posSchemaMigration) {
@@ -186,15 +202,75 @@ async function ensureReviewsSchema() {
   await reviewsSchemaMigration;
 }
 
+async function ensureCourtsSchema() {
+  if (!courtsSchemaMigration) {
+    courtsSchemaMigration = writePool.query(`
+      CREATE TABLE IF NOT EXISTS courts (
+        id UUID PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        court_type TEXT NOT NULL CHECK (court_type IN (
+          'first_instance', 'cassation', 'appeals', 'family',
+          'criminal', 'commercial', 'labor', 'administrative'
+        )),
+        specialization TEXT,
+        notes TEXT,
+        phone TEXT,
+        city TEXT,
+        address TEXT,
+        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+        created_by BIGINT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_courts_tenant_name_active
+        ON courts (tenant_id, LOWER(name)) WHERE is_active = TRUE;
+      CREATE INDEX IF NOT EXISTS idx_courts_tenant_type_active
+        ON courts (tenant_id, court_type, is_active);
+    `).catch((error) => {
+      courtsSchemaMigration = null;
+      throw error;
+    });
+  }
+  await courtsSchemaMigration;
+}
+
 const server = http.createServer(async (req, res) => {
-  const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
-  if (!checkRateLimit(clientIp)) {
+  if (!applyCorsPolicy(req, res)) {
+    return sendJSON(res, 403, { error: 'هذا المصدر غير مسموح له بالاتصال بالخادم' });
+  }
+  if (req.method === 'OPTIONS') {
+    return;
+  }
+
+  const releaseSlot = tryAcquireRequestSlot();
+  if (!releaseSlot) {
+    res.setHeader('Retry-After', '1');
+    return sendJSON(res, 503, { error: 'الخادم مشغول حاليًا، يرجى المحاولة بعد لحظات' });
+  }
+  res.once('finish', releaseSlot);
+  res.once('close', releaseSlot);
+
+  const session = authenticate(req);
+  const actionLimit = await checkRequestActionRateLimit(req, session?.id, { trustProxy: true });
+  if (actionLimit && !actionLimit.allowed) {
+    res.setHeader('Retry-After', String(Math.ceil(actionLimit.retryAfterMs / 1000)));
+    return sendJSON(res, 429, {
+      error: 'تم إيقاف هذه العملية مؤقتًا بسبب تكرار المحاولة. يرجى الانتظار قبل إعادة المحاولة.',
+      retryAfterMs: actionLimit.retryAfterMs,
+    });
+  }
+
+  const clientIp = getClientIp(req, { trustProxy: true });
+  if (!await checkRateLimit(`central-api:${clientIp}`)) {
     res.writeHead(429, {
       'Content-Type': 'application/json; charset=utf-8',
-      'Access-Control-Allow-Origin': '*',
       'Retry-After': '60'
     });
-    return res.end(JSON.stringify({ error: 'تم تجاوز الحد الأقصى للطلبات. يرجى المحاولة بعد قليل.' }));
+    return res.end(JSON.stringify({
+      error: 'تم تجاوز الحد الأقصى للطلبات. يرجى المحاولة بعد قليل.',
+      retryAfterMs: 60000,
+    }));
   }
 
   totalRequestsHandled++;
@@ -202,17 +278,14 @@ const server = http.createServer(async (req, res) => {
   const pathname = parsedUrl.pathname;
   const method = req.method.toUpperCase();
 
-  // CORS Preflight
-  if (method === 'OPTIONS') {
-    res.writeHead(204, {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, X-Branch-Warehouse-Id',
-    });
-    return res.end();
-  }
-
   try {
+    if (pathname === '/api/license/time' && method === 'GET') {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      return sendJSON(res, 200, { utc: new Date().toISOString() });
+    }
+
     // -------------------------------------------------------------
     // 1. Health & Server Info
     // -------------------------------------------------------------
@@ -239,6 +312,19 @@ const server = http.createServer(async (req, res) => {
         return sendJSON(res, 400, { error: 'اسم المستخدم وكلمة المرور مطلوبان' });
       }
 
+      // Per-account limit so rotating client addresses cannot brute-force one user.
+      const accountLimit = await checkActionRateLimit(
+        `account:${String(username).trim().toLowerCase()}`,
+        'POST /api/auth/login'
+      );
+      if (!accountLimit.allowed) {
+        res.setHeader('Retry-After', String(Math.ceil(accountLimit.retryAfterMs / 1000)));
+        return sendJSON(res, 429, {
+          error: 'تم إيقاف تسجيل الدخول لهذا الحساب مؤقتًا بسبب كثرة المحاولات',
+          retryAfterMs: accountLimit.retryAfterMs,
+        });
+      }
+
       const userRes = await queryRead('SELECT * FROM users WHERE username = $1 LIMIT 1', [username.trim()]);
       if (userRes.rows.length === 0) {
         return sendJSON(res, 401, { error: 'اسم المستخدم أو كلمة المرور غير صحيحة' });
@@ -257,7 +343,7 @@ const server = http.createServer(async (req, res) => {
       const token = jwt.sign(
         { id: user.id, username: user.username, role: user.role, branch_id: user.branch_id },
         JWT_SECRET,
-        { expiresIn: '30d' }
+        { expiresIn: TOKEN_TTL }
       );
 
       return sendJSON(res, 200, {
@@ -269,7 +355,165 @@ const server = http.createServer(async (req, res) => {
     // -------------------------------------------------------------
     // Check Auth for all /api/admin/* and protected routes
     // -------------------------------------------------------------
-    const currentUser = authenticate(req);
+    // The token only proves identity; role, branch and active state come from the
+    // database so a disabled or demoted user loses access immediately.
+    let currentUser = authenticate(req);
+    if (currentUser?.id) {
+      const liveUser = await queryRead(
+        'SELECT id, username, role, branch_id, is_active FROM users WHERE id = $1 LIMIT 1',
+        [currentUser.id]
+      );
+      const user = liveUser.rows[0];
+      currentUser = user && user.is_active
+        ? { id: user.id, username: user.username, role: user.role, branch_id: user.branch_id }
+        : null;
+    }
+
+    if (pathname === '/api/courts' && method === 'GET') {
+      if (!currentUser?.id) return sendJSON(res, 401, { error: 'يجب تسجيل الدخول أولاً' });
+      await ensureCourtsSchema();
+      const page = Number(parsedUrl.query.page || 1);
+      const pageSize = Number(parsedUrl.query.pageSize || 10);
+      const status = parsedUrl.query.status || 'active';
+      const courtType = parsedUrl.query.courtType || '';
+      const search = String(parsedUrl.query.search || '').trim().slice(0, 180);
+      if (!Number.isSafeInteger(page) || page < 1
+        || !Number.isSafeInteger(pageSize) || pageSize < 1 || pageSize > 100
+        || !['active', 'inactive', 'all'].includes(status)
+        || (courtType && !COURT_TYPES.includes(courtType))) {
+        return sendJSON(res, 400, { error: 'معايير البحث أو التصفح غير صالحة' });
+      }
+
+      const tenantId = currentUser.branch_id == null ? 'central' : `branch:${currentUser.branch_id}`;
+      const filters = [tenantId];
+      let where = 'tenant_id = $1';
+      if (search) {
+        filters.push(`%${search}%`);
+        where += ` AND (name ILIKE $${filters.length} OR city ILIKE $${filters.length} OR specialization ILIKE $${filters.length})`;
+      }
+      if (courtType) {
+        filters.push(courtType);
+        where += ` AND court_type = $${filters.length}`;
+      }
+      if (status !== 'all') {
+        filters.push(status === 'active');
+        where += ` AND is_active = $${filters.length}`;
+      }
+
+      const countResult = await queryRead(`SELECT COUNT(*)::INTEGER AS count FROM courts WHERE ${where}`, filters);
+      const listParams = [...filters, pageSize, (page - 1) * pageSize];
+      const courts = await queryRead(
+        `SELECT id, name, court_type, specialization, notes, phone, city, address,
+                is_active, created_at, updated_at
+         FROM courts WHERE ${where}
+         ORDER BY name
+         LIMIT $${listParams.length - 1} OFFSET $${listParams.length}`,
+        listParams
+      );
+      return sendJSON(res, 200, {
+        items: courts.rows,
+        total: countResult.rows[0]?.count || 0,
+        page,
+        pageSize,
+      });
+    }
+
+    if (pathname === '/api/courts' && method === 'POST') {
+      if (!currentUser?.id) return sendJSON(res, 401, { error: 'يجب تسجيل الدخول أولاً' });
+      if (currentUser.role !== 'admin') return sendJSON(res, 403, { error: 'صلاحية المدير مطلوبة' });
+      await ensureCourtsSchema();
+      let data;
+      try {
+        data = validateCourtInput(await parseBody(req));
+      } catch (error) {
+        return sendJSON(res, 400, { error: error.message });
+      }
+      const tenantId = currentUser.branch_id == null ? 'central' : `branch:${currentUser.branch_id}`;
+      try {
+        const created = await queryWrite(
+          `INSERT INTO courts (id, tenant_id, name, court_type, specialization, notes, phone, city, address, created_by)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+           RETURNING id, name, court_type, specialization, notes, phone, city, address,
+                     is_active, created_at, updated_at`,
+          [crypto.randomUUID(), tenantId, data.name, data.court_type, data.specialization || null,
+            data.notes || null, data.phone || null, data.city || null, data.address || null, currentUser.id]
+        );
+        return sendJSON(res, 201, created.rows[0]);
+      } catch (error) {
+        if (error.code === '23505') return sendJSON(res, 409, { error: 'يوجد محكمة نشطة بهذا الاسم بالفعل' });
+        throw error;
+      }
+    }
+
+    const courtPathMatch = pathname.match(/^\/api\/courts\/([^/]+)$/);
+    if (courtPathMatch && ['GET', 'PUT', 'DELETE'].includes(method)) {
+      if (!currentUser?.id) return sendJSON(res, 401, { error: 'يجب تسجيل الدخول أولاً' });
+      if (!isCourtId(courtPathMatch[1])) return sendJSON(res, 400, { error: 'معرّف المحكمة غير صالح' });
+      await ensureCourtsSchema();
+      const tenantId = currentUser.branch_id == null ? 'central' : `branch:${currentUser.branch_id}`;
+      if (method === 'GET') {
+        const result = await queryRead(
+          `SELECT id, name, court_type, specialization, notes, phone, city, address,
+                  is_active, created_at, updated_at
+           FROM courts WHERE id = $1 AND tenant_id = $2`,
+          [courtPathMatch[1], tenantId]
+        );
+        return result.rows[0]
+          ? sendJSON(res, 200, result.rows[0])
+          : sendJSON(res, 404, { error: 'المحكمة غير موجودة' });
+      }
+      if (currentUser.role !== 'admin') return sendJSON(res, 403, { error: 'صلاحية المدير مطلوبة' });
+
+      if (method === 'DELETE') {
+        const result = await queryWrite(
+          `UPDATE courts SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP
+           WHERE id = $1 AND tenant_id = $2
+           RETURNING id, name, court_type, specialization, notes, phone, city, address,
+                     is_active, created_at, updated_at`,
+          [courtPathMatch[1], tenantId]
+        );
+        return result.rows[0]
+          ? sendJSON(res, 200, result.rows[0])
+          : sendJSON(res, 404, { error: 'المحكمة غير موجودة' });
+      }
+
+      let data;
+      try {
+        data = validateCourtInput(await parseBody(req), { partial: true });
+      } catch (error) {
+        return sendJSON(res, 400, { error: error.message });
+      }
+      const columns = {
+        name: 'name',
+        court_type: 'court_type',
+        specialization: 'specialization',
+        notes: 'notes',
+        phone: 'phone',
+        city: 'city',
+        address: 'address',
+        is_active: 'is_active',
+      };
+      const fields = Object.keys(data).filter((field) => columns[field]);
+      if (!fields.length) return sendJSON(res, 400, { error: 'لا توجد بيانات لتحديثها' });
+      const values = fields.map((field) => data[field]);
+      const assignments = fields.map((field, index) => `${columns[field]} = $${index + 3}`);
+      assignments.push('updated_at = CURRENT_TIMESTAMP');
+      try {
+        const result = await queryWrite(
+          `UPDATE courts SET ${assignments.join(', ')}
+           WHERE id = $1 AND tenant_id = $2
+           RETURNING id, name, court_type, specialization, notes, phone, city, address,
+                     is_active, created_at, updated_at`,
+          [courtPathMatch[1], tenantId, ...values]
+        );
+        return result.rows[0]
+          ? sendJSON(res, 200, result.rows[0])
+          : sendJSON(res, 404, { error: 'المحكمة غير موجودة' });
+      } catch (error) {
+        if (error.code === '23505') return sendJSON(res, 409, { error: 'يوجد محكمة نشطة بهذا الاسم بالفعل' });
+        throw error;
+      }
+    }
 
     if (pathname === '/api/inventory/branches' && method === 'GET') {
       if (!currentUser?.id) return sendJSON(res, 401, { error: 'يجب تسجيل الدخول أولاً' });
@@ -432,6 +676,81 @@ const server = http.createServer(async (req, res) => {
       return sendJSON(res, 200, productResult.rows);
     }
 
+    if (pathname === '/api/attendance/me/today' && method === 'GET') {
+      if (!currentUser?.id) return sendJSON(res, 401, { error: 'يجب تسجيل الدخول أولاً' });
+      await ensurePosSchema();
+      const attendance = await queryWrite(
+        `SELECT id, user_id, attendance_date::TEXT AS attendance_date, check_in, check_out
+         FROM attendance_records
+         WHERE user_id = $1 AND attendance_date = CURRENT_DATE`,
+        [currentUser.id]
+      );
+      return sendJSON(res, 200, attendance.rows[0] || null);
+    }
+
+    if (pathname === '/api/attendance/check-in' && method === 'POST') {
+      if (!currentUser?.id) return sendJSON(res, 401, { error: 'يجب تسجيل الدخول أولاً' });
+      await ensurePosSchema();
+      await parseBody(req);
+      const user = await queryWrite(
+        'SELECT id, is_active FROM users WHERE id = $1 LIMIT 1',
+        [currentUser.id]
+      );
+      if (!user.rows[0]?.is_active) {
+        return sendJSON(res, 403, { error: 'الحساب غير نشط أو غير موجود' });
+      }
+      const attendance = await queryWrite(
+        `INSERT INTO attendance_records (user_id)
+         VALUES ($1)
+         ON CONFLICT (user_id, attendance_date) DO NOTHING
+         RETURNING id`,
+        [currentUser.id]
+      );
+      if (!attendance.rowCount) {
+        return sendJSON(res, 409, { error: 'تم تسجيل حضور الموظف لهذا اليوم بالفعل' });
+      }
+      return sendJSON(res, 200, { success: true });
+    }
+
+    if (pathname === '/api/attendance/check-out' && method === 'POST') {
+      if (!currentUser?.id) return sendJSON(res, 401, { error: 'يجب تسجيل الدخول أولاً' });
+      await ensurePosSchema();
+      await parseBody(req);
+      const client = await writePool.connect();
+      try {
+        await client.query('BEGIN');
+        const attendance = await client.query(
+          `SELECT id FROM attendance_records
+           WHERE user_id = $1 AND attendance_date = CURRENT_DATE AND check_out IS NULL
+           FOR UPDATE`,
+          [currentUser.id]
+        );
+        if (!attendance.rows[0]) {
+          await client.query('ROLLBACK');
+          return sendJSON(res, 409, { error: 'يجب تسجيل الحضور قبل الانصراف' });
+        }
+        const openShift = await client.query(
+          "SELECT 1 FROM shifts WHERE user_id = $1 AND status = 'open' LIMIT 1",
+          [currentUser.id]
+        );
+        if (openShift.rowCount) {
+          await client.query('ROLLBACK');
+          return sendJSON(res, 409, { error: 'أغلق ورديتك أولاً قبل تسجيل الانصراف' });
+        }
+        await client.query(
+          'UPDATE attendance_records SET check_out = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1',
+          [attendance.rows[0].id]
+        );
+        await client.query('COMMIT');
+        return sendJSON(res, 200, { success: true });
+      } catch (error) {
+        try { await client.query('ROLLBACK'); } catch {}
+        throw error;
+      } finally {
+        client.release();
+      }
+    }
+
     if (pathname === '/api/shifts/current' && method === 'GET') {
       if (!currentUser?.id) return sendJSON(res, 401, { error: 'يجب تسجيل الدخول أولاً' });
       await ensurePosSchema();
@@ -453,11 +772,22 @@ const server = http.createServer(async (req, res) => {
       try {
         await client.query('BEGIN');
         const userResult = await client.query(
-          'SELECT id, username, branch_id, is_active FROM users WHERE id = $1 FOR SHARE',
+          'SELECT id, username, role, branch_id, is_active FROM users WHERE id = $1 FOR SHARE',
           [currentUser.id]
         );
         const user = userResult.rows[0];
         if (!user || !user.is_active) throw new PosError('حساب المستخدم غير نشط أو غير موجود', 401);
+        const attendance = await client.query(
+          `SELECT id FROM attendance_records
+           WHERE user_id = $1 AND attendance_date = CURRENT_DATE
+             AND check_in IS NOT NULL AND check_out IS NULL
+           FOR UPDATE`,
+          [user.id]
+        );
+        const attendanceRecord = attendance.rows[0];
+        if (!attendanceRecord) {
+          throw new PosError('سجّل حضورك أولاً قبل فتح الوردية', 403);
+        }
         const requestedWarehouseId = Number(req.headers['x-branch-warehouse-id']);
         const warehouseResult = requestedWarehouseId
           ? await client.query('SELECT id, branch_id FROM warehouses WHERE id = $1 AND is_active = TRUE FOR SHARE', [requestedWarehouseId])
@@ -472,11 +802,12 @@ const server = http.createServer(async (req, res) => {
         const openingCash = Number(body.openingCash || 0);
         if (!Number.isFinite(openingCash) || openingCash < 0) throw new PosError('العهدة الابتدائية غير صحيحة');
         const shiftResult = await client.query(
-          `INSERT INTO shifts (user_id, branch_id, warehouse_id, opened_by_name, shift_type, pos_station, opening_cash, opening_notes)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+          `INSERT INTO shifts (user_id, branch_id, warehouse_id, opened_by_name, shift_type, pos_station, opening_cash, opening_notes, attendance_record_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
           [user.id, warehouse.branch_id, warehouse.id, user.username,
             body.shiftType === 'evening' ? 'evening' : 'morning',
-            body.posStation || 'الدرج الرئيسي - POS 1', openingCash, body.notes || null]
+            body.posStation || 'الدرج الرئيسي - POS 1', openingCash, body.notes || null,
+            attendanceRecord.id]
         );
         await client.query('COMMIT');
         return sendJSON(res, 201, shiftResult.rows[0]);
@@ -510,6 +841,33 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
+    if (pathname === '/api/sales/kitchen-orders' && method === 'GET') {
+      if (!currentUser?.id) return sendJSON(res, 401, { error: 'يجب تسجيل الدخول أولاً' });
+      await ensurePosSchema();
+      try {
+        return sendJSON(res, 200, await getCentralKitchenOrders({ userId: currentUser.id }));
+      } catch (error) {
+        if (error instanceof PosError) return sendJSON(res, error.statusCode, { error: error.message });
+        throw error;
+      }
+    }
+
+    if (pathname === '/api/sales/kitchen-orders/status' && method === 'POST') {
+      if (!currentUser?.id) return sendJSON(res, 401, { error: 'يجب تسجيل الدخول أولاً' });
+      await ensurePosSchema();
+      const body = await parseBody(req);
+      try {
+        return sendJSON(res, 200, await updateCentralKitchenOrderStatus({
+          userId: currentUser.id,
+          saleId: body.saleId,
+          status: body.status,
+        }));
+      } catch (error) {
+        if (error instanceof PosError) return sendJSON(res, error.statusCode, { error: error.message });
+        throw error;
+      }
+    }
+
     if (pathname === '/api/auth/refresh' && method === 'POST') {
       if (!currentUser?.id) {
         return sendJSON(res, 401, { error: 'يجب تسجيل الدخول أولاً' });
@@ -528,7 +886,7 @@ const server = http.createServer(async (req, res) => {
       const token = jwt.sign(
         { id: user.id, username: user.username, role: user.role, branch_id: user.branch_id },
         JWT_SECRET,
-        { expiresIn: '30d' }
+        { expiresIn: TOKEN_TTL }
       );
       return sendJSON(res, 200, {
         token,
@@ -887,8 +1245,8 @@ async function startCentralServer() {
       console.warn('⚠️ [PostgreSQL Central]: replica unavailable, app will continue with primary fallback.', health.replica.error);
     }
 
-    server.listen(PORT, () => {
-      console.log(`🚀 [FOX.CLOUD Central Server]: Running on http://localhost:${PORT}`);
+    server.listen(PORT, BIND_HOST, () => {
+      console.log(`🚀 [FOX.CLOUD Central Server]: Running on http://${BIND_HOST}:${PORT}`);
       console.log(`📡 [Master Database]: Connected (Write Pool)`);
       console.log(`📖 [Replica Database]: ${health.replica.status === 'OK' ? 'Connected (Read Replica)' : 'Unavailable - fallback to primary enabled'}`);
     });

@@ -41,6 +41,7 @@ function CartPanel({
   setUseSubscriptionCredit,
   sectorConfig,
   onOpenScaleEdit,
+  paymentSectionRef,
 }) {
   const totalItemsCount = cart.reduce((sum, item) => sum + (item.isScaleItem ? 1 : (item.quantity || 1)), 0);
   const orderTitle = sectorConfig?.orderTerm || 'سلة المبيعات';
@@ -306,6 +307,7 @@ function CartPanel({
           creditDueDate={creditDueDate}
           setCreditDueDate={setCreditDueDate}
           onNavigate={onNavigate}
+          sectionRef={paymentSectionRef}
         />
 
         {/* Big Complete Sale Button */}
@@ -325,4 +327,3 @@ function CartPanel({
 }
 
 export default CartPanel;
-

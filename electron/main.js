@@ -95,6 +95,7 @@ protocol.registerSchemesAsPrivileged([
 const { registerMediaProtocol } = require('./security/mediaProtocol');
 const { db, dbPath, runAllMigrations } = require('./database/db');
 const { registerSalesHandlers } = require('./handlers/sales.handler');
+const { registerKitchenHandlers } = require('./handlers/kitchen.handler');
 const { registerProductHandlers } = require('./handlers/products.handler');
 const { registerAuthHandlers } = require('./handlers/auth.handler');
 const { registerUsersHandlers } = require('./handlers/users.handler');
@@ -131,7 +132,9 @@ const { registerPayrollHandlers } = require('./handlers/payroll.handler');
 const { registerReviewsHandlers } = require('./handlers/reviews.handler');
 const { registerSalonHandlers } = require('./handlers/salon.handler');
 const { registerCasesHandlers } = require('./handlers/cases.handler');
+const { registerCourtsHandlers } = require('./handlers/courts.handler');
 const { registerGroceryHandlers } = require('./handlers/grocery.handler');
+const { registerAppHandlers } = require('./handlers/app.handler');
 const salonService = require('./services/salon.service');
 const { configureUpdater } = require('./updater');
 
@@ -202,11 +205,14 @@ function runMigrations() {
 }
 
 function startSafeInterval(name, callback, intervalMs) {
-  const run = () => {
+  const run = async () => {
     try {
-      Promise.resolve(callback()).catch((err) => logError(name, err));
+      await require('./services/licenseGuard.service').requireActiveLicense();
+      await callback();
     } catch (err) {
-      logError(name, err);
+      if (err.code !== 'LICENSE_EXPIRED') {
+        logError(name, err);
+      }
     }
   };
   run();
@@ -338,6 +344,7 @@ app.whenReady().then(async () => {
   registerLeavesHandlers();
   registerAuditHandlers();
   registerSalesHandlers();
+  registerKitchenHandlers();
   registerBundlePromotionHandlers();
   registerReportsHandlers();
   registerPrintHandlers();
@@ -361,7 +368,9 @@ app.whenReady().then(async () => {
   registerReviewsHandlers();
   registerSalonHandlers();
   registerCasesHandlers();
+  registerCourtsHandlers();
   registerGroceryHandlers();
+  registerAppHandlers();
   registerReturnsHandlers();
   registerExportHandlers();
   try {
@@ -376,6 +385,20 @@ app.whenReady().then(async () => {
   const { registerOnboardingHandlers } = require('./handlers/onboarding.handler');
   registerOnboardingHandlers();
 
+  const { requireActiveLicense } = require('./services/licenseGuard.service');
+  const licenseStatusTimer = setInterval(async () => {
+    try {
+      await requireActiveLicense({
+        sender: mainWindow && !mainWindow.isDestroyed() ? mainWindow.webContents : null,
+      });
+    } catch (error) {
+      if (error.code !== 'LICENSE_EXPIRED' && mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('license:verificationFailed', { message: error.message });
+      }
+    }
+  }, 15_000);
+  licenseStatusTimer.unref();
+
   const resilienceService = require('./services/resilience.service');
   const { registerResilienceHandlers } = require('./handlers/resilience.handler');
   registerResilienceHandlers();
@@ -387,6 +410,9 @@ app.whenReady().then(async () => {
   startSafeInterval('AppointmentReminders', () => appointmentsService.checkDueReminders(), 60_000);
   const crmService = require('./services/crm.service');
   startSafeInterval('CrmReminders', () => crmService.checkDueReminders(), 60_000);
+  const casesService = require('./services/cases.service');
+  startSafeInterval('CourtSessionReminders', () => casesService.checkDueCourtSessionReminders(48), 60_000);
+    startSafeInterval('LegalTaskReminders', () => casesService.checkDueCaseTaskReminders(), 60_000);
   startSafeInterval('DailyDatabaseBackup', () => autoBackupDaily(), 6 * 60 * 60 * 1000);
   configureUpdater();
   app.on('activate', () => {

@@ -1,7 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-describe('sales migration preserves branch fields', () => {
+describe('database schema migrations', () => {
   const baseTestDir = path.join(__dirname, '../.jest-cache');
   if (!fs.existsSync(baseTestDir)) fs.mkdirSync(baseTestDir, { recursive: true });
 
@@ -63,6 +63,24 @@ describe('sales migration preserves branch fields', () => {
     expect(salesSql).toContain('warehouse_id');
 
     closeDatabase();
+  });
+
+  describe('kitchen order migration', () => {
+    it('adds constrained restaurant mode and kitchen status columns to existing sales', () => {
+      const Database = require('better-sqlite3');
+      const migrationDb = new Database(':memory:');
+      const { migrateKitchenOrdersV5 } = require('../electron/database/db.js');
+      migrationDb.exec('CREATE TABLE sales (id INTEGER PRIMARY KEY)');
+
+      migrateKitchenOrdersV5(migrationDb);
+
+      const columns = migrationDb.prepare('PRAGMA table_info(sales)').all().map((column) => column.name);
+      expect(columns).toEqual(expect.arrayContaining(['order_mode', 'kitchen_status']));
+      expect(() => migrationDb.prepare(
+        "INSERT INTO sales (order_mode, kitchen_status) VALUES ('invalid', 'new')"
+      ).run()).toThrow();
+      migrationDb.close();
+    });
   });
 
   it('adds branch_id and warehouse_id to legacy shifts schema during initDatabase', () => {

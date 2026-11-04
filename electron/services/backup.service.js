@@ -1,9 +1,84 @@
 const { dialog, app } = require('electron');
 const Database = require('better-sqlite3');
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
-const { db, dbPath, closeDatabase, checkpointWalIfNeeded } = require('../database/db');
+const { db, dbPath, closeDatabase } = require('../database/db');
 const { logError } = require('./logger.service');
+
+function verifyDatabase(filePath) {
+  const database = new Database(filePath, { readonly: true, fileMustExist: true });
+  try {
+    if (database.pragma('integrity_check', { simple: true }) !== 'ok') {
+      throw new Error('ملف قاعدة البيانات تالف ولا يمكن استخدامه');
+    }
+  } finally {
+    database.close();
+  }
+}
+
+function makeTempPath(filePath, label) {
+  return path.join(
+    path.dirname(filePath),
+    `.${path.basename(filePath)}.${label}.${crypto.randomUUID()}.tmp`
+  );
+}
+
+function replaceFileAtomically(tempPath, filePath) {
+  const previousPath = makeTempPath(filePath, 'previous');
+  const hadPreviousFile = fs.existsSync(filePath);
+
+  if (hadPreviousFile) fs.renameSync(filePath, previousPath);
+  try {
+    fs.renameSync(tempPath, filePath);
+  } catch (error) {
+    if (hadPreviousFile) fs.renameSync(previousPath, filePath);
+    throw error;
+  }
+
+  if (hadPreviousFile) {
+    try {
+      fs.unlinkSync(previousPath);
+    } catch (error) {
+      logError('RemovePreviousBackup', error);
+    }
+  }
+}
+
+function copyAndSync(sourcePath, destPath) {
+  fs.copyFileSync(sourcePath, destPath);
+  const fd = fs.openSync(destPath, 'r+');
+  try {
+    fs.fsyncSync(fd);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+function removeDatabaseSidecars() {
+  for (const suffix of ['-wal', '-shm']) {
+    const sidecarPath = `${dbPath}${suffix}`;
+    if (fs.existsSync(sidecarPath)) fs.unlinkSync(sidecarPath);
+  }
+}
+
+async function backupToFile(filePath) {
+  const tempPath = makeTempPath(filePath, 'backup');
+  try {
+    await db.backup(tempPath);
+    verifyDatabase(tempPath);
+    replaceFileAtomically(tempPath, filePath);
+  } catch (error) {
+    if (fs.existsSync(tempPath)) {
+      try {
+        fs.unlinkSync(tempPath);
+      } catch (cleanupError) {
+        logError('CleanupBackupTemp', cleanupError);
+      }
+    }
+    throw error;
+  }
+}
 
 /**
  * Perform a manual backup of the database.
@@ -27,12 +102,7 @@ async function backupNow(destFilePath) {
     // If the user cancelled the dialog (or destFilePath was falsy), signal cancellation.
     if (!savePath) return { success: false, canceled: true, filePath: null, path: null };
 
-    // Flush WAL changes to main DB before backup if in WAL mode
-    try {
-      checkpointWalIfNeeded(db);
-    } catch {}
-
-    await db.backup(savePath);
+    await backupToFile(savePath);
     return { success: true, filePath: savePath, path: savePath };
   } catch (err) {
     logError('BackupNow', err);
@@ -53,7 +123,7 @@ async function backupNow(destFilePath) {
  * Restore the database from a selected backup file.
  * Returns { success: true } on success, otherwise throws.
  */
-function restoreFromBackup() {
+async function restoreFromBackup() {
   try {
     const result = dialog.showOpenDialogSync({
       title: 'اختر ملف النسخة الاحتياطية',
@@ -62,106 +132,80 @@ function restoreFromBackup() {
     });
 
     if (!result || result.length === 0) return { success: false, canceled: true };
-    const chosenPath = result[0];
-
-    // 1. التحقق من سلامة وصلاحية ملف النسخة الاحتياطية
-    const backupDb = new Database(chosenPath, { readonly: true, fileMustExist: true });
-    try {
-      const integrityCheck = backupDb.pragma('integrity_check', { simple: true });
-      if (integrityCheck !== 'ok') {
-        throw new Error('ملف النسخة الاحتياطية تالف ولا يمكن استعادته');
-      }
-    } finally {
-      backupDb.close();
-    }
-
-    // 2. أخذ نسخة احتياطية فورية لحماية البيانات الحالية قبل الاستبدال
-    const emergencyBackupPath = `${dbPath}.before-restore.bak`;
-    try {
-      if (fs.existsSync(dbPath)) {
-        fs.copyFileSync(dbPath, emergencyBackupPath);
-      }
-    } catch (e) {
-      logError('PreRestoreSafetyBackup', e);
-    }
-
-    // 3. عمل Checkpoint لملف WAL قبل الإغلاق لضمان تفريغ أي معاملات معلقة
-    try {
-      checkpointWalIfNeeded(db);
-    } catch (e) {
-      logError('RestoreCheckpoint', e);
-    }
-
-    // 4. إغلاق اتصال قاعدة البيانات الحالي بأمان
-    closeDatabase();
-
-    // 5. حذف ملفات WAL و SHM السابقة لمنع تلوث قاعدة البيانات المستعادة وتلفها
-    const walPath = `${dbPath}-wal`;
-    const shmPath = `${dbPath}-shm`;
-    try {
-      if (fs.existsSync(walPath)) fs.unlinkSync(walPath);
-    } catch (e) {
-      logError('DeleteWalFile', e);
-    }
-    try {
-      if (fs.existsSync(shmPath)) fs.unlinkSync(shmPath);
-    } catch (e) {
-      logError('DeleteShmFile', e);
-    }
-
-    // 6. كتابة النسخة الاحتياطية إلى ملف مؤقت داخل نفس مجلد قاعدة البيانات ثم استبدالها
-    // بشكل ذري لتجنب الكتابة المباشرة إلى قاعدة البيانات الحالية أثناء الاستعادة.
-    const restoreTempPath = path.join(
-      path.dirname(dbPath),
-      `.${path.basename(dbPath)}.restore-tmp.${Date.now()}.db`
-    );
-    try {
-      if (fs.existsSync(restoreTempPath)) fs.unlinkSync(restoreTempPath);
-      fs.copyFileSync(chosenPath, restoreTempPath);
-      const restoreFd = fs.openSync(restoreTempPath, 'r+');
-      fs.fsyncSync(restoreFd);
-      fs.closeSync(restoreFd);
-      fs.renameSync(restoreTempPath, dbPath);
-    } catch (e) {
-      logError('RestoreReplaceDatabase', e);
-      if (fs.existsSync(restoreTempPath)) {
-        try { fs.unlinkSync(restoreTempPath); } catch {}
-      }
-      if (fs.existsSync(emergencyBackupPath)) {
-        try { fs.copyFileSync(emergencyBackupPath, dbPath); } catch {}
-      }
-      throw new Error('فشل استبدال ملف قاعدة البيانات أثناء الاستعادة');
-    }
-
-    // التأكد من عدم وجود أي بقايا wal أو shm بعد استبدال قاعدة البيانات
-    try {
-      if (fs.existsSync(walPath)) fs.unlinkSync(walPath);
-      if (fs.existsSync(shmPath)) fs.unlinkSync(shmPath);
-    } catch {
-      // ignore
-    }
-
-    // 7. التحقق من سلامة قاعدة البيانات المستعادة بعد كتابتها
-    const verifyDb = new Database(dbPath, { readonly: true, fileMustExist: true });
-    try {
-      const check = verifyDb.pragma('integrity_check', { simple: true });
-      if (check !== 'ok') {
-        if (fs.existsSync(emergencyBackupPath)) {
-          fs.copyFileSync(emergencyBackupPath, dbPath);
-        }
-        throw new Error('فشل التحقق من سلامة قاعدة البيانات بعد الاستعادة');
-      }
-    } finally {
-      verifyDb.close();
-    }
-
-    // Relaunch app to load new DB
-    app.relaunch();
-    app.exit(0);
-    return { success: true };
+    return await restoreDatabase(result[0]);
   } catch (err) {
     logError('RestoreBackup', err);
     throw new Error(err.message || 'فشل استعادة النسخ الاحتياطي');
+  }
+}
+
+async function restoreDatabase(sourceFilePath) {
+  let restoreTempPath;
+  let emergencyBackupPath;
+  let databaseClosed = false;
+
+  try {
+    if (!sourceFilePath || !fs.existsSync(sourceFilePath)) {
+      throw new Error('ملف النسخة الاحتياطية غير موجود');
+    }
+    verifyDatabase(sourceFilePath);
+
+    restoreTempPath = makeTempPath(dbPath, 'restore');
+    copyAndSync(sourceFilePath, restoreTempPath);
+    verifyDatabase(restoreTempPath);
+
+    if (!fs.existsSync(dbPath)) {
+      throw new Error('ملف قاعدة البيانات الحالية غير موجود لإنشاء نسخة طوارئ');
+    }
+    emergencyBackupPath = `${dbPath}.before-restore-${Date.now()}-${crypto.randomUUID()}.bak`;
+    await backupToFile(emergencyBackupPath);
+
+    closeDatabase();
+    databaseClosed = true;
+    removeDatabaseSidecars();
+    replaceFileAtomically(restoreTempPath, dbPath);
+    restoreTempPath = null;
+    removeDatabaseSidecars();
+    verifyDatabase(dbPath);
+
+    app.relaunch();
+    app.exit(0);
+    return { success: true, message: 'تمت استعادة قاعدة البيانات بنجاح' };
+  } catch (error) {
+    logError('RestoreDatabase', error);
+    if (restoreTempPath && fs.existsSync(restoreTempPath)) {
+      try {
+        fs.unlinkSync(restoreTempPath);
+      } catch (cleanupError) {
+        logError('CleanupRestoreTemp', cleanupError);
+      }
+    }
+
+    if (databaseClosed && emergencyBackupPath && fs.existsSync(emergencyBackupPath)) {
+      let recoveryTempPath;
+      try {
+        recoveryTempPath = makeTempPath(dbPath, 'recovery');
+        copyAndSync(emergencyBackupPath, recoveryTempPath);
+        verifyDatabase(recoveryTempPath);
+        removeDatabaseSidecars();
+        replaceFileAtomically(recoveryTempPath, dbPath);
+        recoveryTempPath = null;
+        removeDatabaseSidecars();
+        app.relaunch();
+        app.exit(0);
+      } catch (recoveryError) {
+        logError('RestoreRollback', recoveryError);
+      } finally {
+        if (recoveryTempPath && fs.existsSync(recoveryTempPath)) {
+          try {
+            fs.unlinkSync(recoveryTempPath);
+          } catch (cleanupError) {
+            logError('CleanupRecoveryTemp', cleanupError);
+          }
+        }
+      }
+    }
+    throw new Error(error.message || 'فشل استعادة النسخ الاحتياطي');
   }
 }
 
@@ -173,7 +217,7 @@ async function autoBackupOnClose() {
     `kashiear-auto-${new Date().toISOString().replace(/[:.]/g, '-')}.db`
   );
 
-  await db.backup(backupPath);
+  await backupToFile(backupPath);
   const shutdownBackups = fs.readdirSync(backupsDir)
     .filter((file) => file.startsWith('kashiear-auto-') && file.endsWith('.db'))
     .sort()
@@ -196,10 +240,15 @@ async function autoBackupDaily() {
   const backupPath = path.join(backupsDir, `kashiear-daily-${dateKey}.db`);
 
   if (fs.existsSync(backupPath)) {
-    return { success: true, skipped: true, filePath: backupPath };
+    try {
+      verifyDatabase(backupPath);
+      return { success: true, skipped: true, filePath: backupPath };
+    } catch (error) {
+      logError('VerifyExistingDailyBackup', error);
+    }
   }
 
-  await db.backup(backupPath);
+  await backupToFile(backupPath);
 
   const cutoffDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
     .toISOString()
@@ -218,4 +267,10 @@ async function autoBackupDaily() {
   return { success: true, filePath: backupPath };
 }
 
-module.exports = { backupNow, restoreFromBackup, autoBackupOnClose, autoBackupDaily };
+module.exports = {
+  backupNow,
+  restoreFromBackup,
+  restoreDatabase,
+  autoBackupOnClose,
+  autoBackupDaily,
+};

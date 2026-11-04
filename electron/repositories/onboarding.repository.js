@@ -145,8 +145,11 @@ function activatePreset({ preset, storeName, customSectorName }) {
 
     const profile = db.prepare('SELECT settings_json FROM business_profiles WHERE key = ?').get(preset.sector_key);
     const existingSettings = profile?.settings_json ? JSON.parse(profile.settings_json) : {};
+    const baselineModules = preset.sector_key === 'crm'
+      ? ['settings', 'enterprise', 'users']
+      : ['pos', 'settings', 'enterprise', 'returns', 'shifts', 'users'];
     const moduleKeys = [...new Set([
-      'pos', 'settings', 'enterprise', 'returns', 'shifts', 'users',
+      ...baselineModules,
       ...(preset.enabled_modules || []),
     ])];
     const terms = preset.terminology || {};
@@ -268,7 +271,10 @@ function provisionSectorData({
 
       // تفعيل الموديولات الخاصة بالنشاط
       if (Array.isArray(preset.enabled_modules) && preset.enabled_modules.length > 0) {
-        const enabledSet = new Set(preset.enabled_modules);
+        const enabledModules = preset.sector_key === 'crm'
+          ? [...new Set(['crm', 'reports', 'settings', 'users', 'enterprise'])]
+          : preset.enabled_modules;
+        const enabledSet = new Set(enabledModules);
         const updateModule = db.prepare('UPDATE system_modules SET is_enabled = ?, updated_at = CURRENT_TIMESTAMP WHERE key = ?');
         for (const mod of db.prepare('SELECT key FROM system_modules').all()) {
           updateModule.run(enabledSet.has(mod.key) ? 1 : 0, mod.key);

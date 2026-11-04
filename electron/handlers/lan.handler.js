@@ -1,6 +1,28 @@
 const { safeHandle } = require('./safeHandle');
 const lanServer = require('../services/lanServer.service');
-const http = require('node:http');
+const https = require('node:https');
+const { configureSystemCertificateTrust } = require('../security/tlsTrust');
+
+function getSecureHealthUrl(targetUrl) {
+  const parsed = new URL(targetUrl);
+  if (!['http:', 'https:'].includes(parsed.protocol)
+    || parsed.username || parsed.password
+    || (parsed.pathname && parsed.pathname !== '/')
+    || parsed.search || parsed.hash) {
+    throw new Error('عنوان الخادم غير صالح');
+  }
+  if (parsed.protocol === 'http:') {
+    const legacyPort = parsed.port ? Number(parsed.port) : 5000;
+    if (!Number.isInteger(legacyPort) || legacyPort < 1 || legacyPort + 443 > 65535) {
+      throw new Error('منفذ الخادم غير صالح');
+    }
+    parsed.protocol = 'https:';
+    parsed.port = String(legacyPort + 443);
+  }
+  if (!parsed.port) parsed.port = '5443';
+  parsed.pathname = '/api/health';
+  return parsed;
+}
 
 // منع حقن أوامر النظام عبر تمرير منفذ غير رقمي لأوامر netsh/powershell
 function parsePort(rawPort) {
@@ -42,10 +64,10 @@ function registerLanHandlers() {
           return resolve({ success: false, message: 'عنوان الخادم غير صحيح' });
         }
 
-        const cleanUrl = targetUrl.endsWith('/') ? targetUrl.slice(0, -1) : targetUrl;
-        const pingEndpoint = `${cleanUrl}/api/health`;
+        const pingEndpoint = getSecureHealthUrl(targetUrl);
+        configureSystemCertificateTrust();
 
-        const req = http.get(pingEndpoint, { timeout: 3000 }, (res) => {
+        const req = https.get(pingEndpoint, { timeout: 3000 }, (res) => {
           let data = '';
           res.on('data', (chunk) => { data += chunk; });
           res.on('end', () => {

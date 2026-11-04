@@ -27,11 +27,11 @@ export default function ShiftStatus({
   const [attendanceRecord, setAttendanceRecord] = useState(null);
   const [attendanceLoading, setAttendanceLoading] = useState(false);
   const [attendanceSaving, setAttendanceSaving] = useState(false);
-  const isCashier = Boolean(posSessionUser && posSessionUser.role !== 'admin');
+  const canManageOwnAttendance = Boolean(posSessionUser);
   const ownsOpenShift = Boolean(activeShift && Number(activeShift.user_id) === Number(posSessionUser?.id));
 
   useEffect(() => {
-    if (!isCashier || !window.electronAPI?.getMyAttendanceStatus) return undefined;
+    if (!canManageOwnAttendance || !window.electronAPI?.getMyAttendanceStatus) return undefined;
     let mounted = true;
     setAttendanceLoading(true);
     window.electronAPI.getMyAttendanceStatus()
@@ -39,10 +39,10 @@ export default function ShiftStatus({
       .catch((error) => { if (mounted) setMessage({ type: 'error', text: error.message || 'تعذر تحميل حالة الحضور' }); })
       .finally(() => { if (mounted) setAttendanceLoading(false); });
     return () => { mounted = false; };
-  }, [isCashier, posSessionUser?.id, activeShift?.id, setMessage]);
+  }, [canManageOwnAttendance, posSessionUser?.id, activeShift?.id, setMessage]);
 
   async function handleAttendanceAction() {
-    if (!isCashier || attendanceSaving) return;
+    if (!canManageOwnAttendance || attendanceSaving) return;
     if (attendanceRecord?.check_in && ownsOpenShift) {
       setMessage({ type: 'warning', text: 'أغلق الوردية أولاً قبل تسجيل الانصراف.' });
       return;
@@ -77,7 +77,7 @@ export default function ShiftStatus({
 
   return (
     <div className="pos-status-pills">
-      {isCashier && (
+      {canManageOwnAttendance && (
         <div className={`attendance-clock-pill${attendanceRecord?.check_in && !attendanceRecord?.check_out ? ' is-present' : ''}`}>
           <span>{attendanceRecord?.check_in ? 'حالة اليوم' : 'قبل فتح الوردية'}</span>
           <button

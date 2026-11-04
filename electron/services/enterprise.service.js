@@ -14,7 +14,7 @@ const DEFAULT_MODULES = [
   { key: 'orders', name: 'مركز الطلبات والعمليات', description: 'طلبات التوصيل، الحجوزات، التفصيل، الصيانة والخدمات', display_order: 3, is_enabled: 1 },
   { key: 'subscriptions', name: 'الاشتراكات والباقات', description: 'باقات الجلسات، العضويات، الاشتراكات الشهرية والتجميد', display_order: 4, is_enabled: 1 },
   { key: 'commissions', name: 'نظام العمولات والحوافز', description: 'حساب عمولات الموظفين التلقائية ومحرك الأهداف', display_order: 5, is_enabled: 1 },
-  { key: 'crm', name: 'مركز اتصالات العملاء', description: 'السجل الزمني الموحد، صفقات المبيعات Kanban وتقييم العملاء', display_order: 6, is_enabled: 1 },
+  { key: 'crm', name: 'إدارة علاقات العملاء', description: 'ملفات العملاء وسجل التعامل والفرص البيعية والمتابعة', display_order: 6, is_enabled: 1 },
   { key: 'purchases', name: 'الموردين والمشتريات', description: 'فواتير الموردين والآجل والديون', display_order: 7, is_enabled: 1 },
   { key: 'reports', name: 'التقارير والأرباح', description: 'تقارير المبيعات، الأرباح، الوردية والتحليلات', display_order: 8, is_enabled: 1 },
   { key: 'settings', name: 'إعدادات النظام والأمان', description: 'النسخ الاحتياطي، الطابعة والمعلومات العامة', display_order: 9, is_enabled: 1 },
@@ -139,6 +139,17 @@ const DEFAULT_PROFILES = [
       term_customer: 'زبون / عميل',
       enabled_modules: ['salon', 'pos', 'commissions', 'subscriptions', 'inventory', 'crm', 'shifts', 'reports', 'settings', 'users', 'enterprise']
     }
+  },
+  {
+    key: 'crm',
+    name: '👥 إدارة علاقات العملاء (CRM)',
+    is_active: 0,
+    settings_json: {
+      attributes: ['lead_source', 'contact_role', 'customer_segment'],
+      term_order: 'صفقة / فرصة بيع',
+      term_customer: 'عميل / جهة اتصال',
+      enabled_modules: ['crm', 'reports', 'settings', 'enterprise', 'users']
+    }
   }
 ];
 const ALWAYS_ENABLED_PROFILE_MODULES = ['pos', 'settings', 'enterprise'];
@@ -241,7 +252,11 @@ function seedEnterpriseDefaults() {
       }
     }
     if (!existingProfiles.some((profile) => profile.is_active)) {
-      enterpriseRepo.setActiveBusinessProfile('retail', DEFAULT_PROFILES[0].settings_json.enabled_modules);
+      setActiveBusinessProfile('retail');
+    }
+    const usersModule = enterpriseRepo.getModules().find((module) => module.key === 'users');
+    if (usersModule && !usersModule.is_enabled) {
+      enterpriseRepo.setModuleEnabled('users', true);
     }
 
     // Seed Roles
@@ -335,8 +350,11 @@ function setActiveBusinessProfile(profileKey) {
   const profile = enterpriseRepo.getBusinessProfiles().find((item) => item.key === profileKey);
   if (!profile) throw new Error('القالب التجاري المحدد غير موجود');
   const settings = parseProfileSettings(profile);
+  const baselineModules = profileKey === 'crm'
+    ? ['settings', 'enterprise', 'users']
+    : PROFILE_BASELINE_MODULES;
   const enabledModules = new Set([
-    ...PROFILE_BASELINE_MODULES,
+    ...baselineModules,
     ...(settings.enabled_modules || []),
   ]);
   return enterpriseRepo.setActiveBusinessProfile(profileKey, [...enabledModules]);
@@ -864,7 +882,31 @@ function setRolePermissions(roleKey, permissions) {
   if (uniquePermissions.some((permission) => !VALID_PERMISSIONS.has(permission))) {
     throw new Error('تحتوي قائمة الصلاحيات على صلاحية غير معروفة');
   }
+  assertCanGrantRolePermissions(roleKey, uniquePermissions);
   return enterpriseRepo.setRolePermissions(roleKey, uniquePermissions);
+}
+
+/**
+ * A delegated role manager (non-owner with roles.manage) must not escalate:
+ * it cannot edit its own role, and cannot grant permissions it does not hold.
+ */
+function assertCanGrantRolePermissions(roleKey, permissions) {
+  const authService = require('./auth.service');
+  const usersRepo = require('../repositories/users.repository');
+  const session = authService.requireAuth();
+  const actor = usersRepo.getById(session.id);
+  if (!actor) throw new Error('غير مصرح لك بتنفيذ هذا الإجراء');
+  if (actor.role === 'admin' && !actor.system_role_key) return;
+
+  if (actor.system_role_key === roleKey) {
+    throw new Error('لا يمكنك تعديل صلاحيات دورك الوظيفي');
+  }
+  const held = new Set(enterpriseRepo.getRolePermissions(actor.system_role_key));
+  const current = new Set(enterpriseRepo.getRolePermissions(roleKey));
+  const escalated = permissions.filter((permission) => !current.has(permission) && !held.has(permission));
+  if (escalated.length) {
+    throw new Error('لا يمكنك منح صلاحيات لا تملكها');
+  }
 }
 
 /**

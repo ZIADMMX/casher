@@ -114,6 +114,21 @@ export default function InitialSetupPage() {
 
   function handleSectorStepNext() {
     setError('');
+    if (selectedSector === 'crm') {
+      setCustomizedCatalogData({
+        sectorKey: 'crm',
+        storeName: businessName,
+        customSectorName: '',
+        categories: [],
+        products: [],
+        addons: [],
+        workingHours: null,
+        primaryActionTitle: 'ابدأ بإضافة أول عميل',
+        primaryActionRoute: 'crm',
+      });
+      setStep('provisioning');
+      return;
+    }
     setStep('catalog');
   }
 

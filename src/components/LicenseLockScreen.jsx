@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { normalizeErrorMessage } from '../utils/normalizeError';
 
-function LicenseLockScreen({ hwid, onActivateSuccess }) {
+function LicenseLockScreen({ hwid, error: verificationError, onRetry, onActivateSuccess }) {
   const [serialKey, setSerialKey] = useState('');
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState('');
@@ -42,8 +42,10 @@ function LicenseLockScreen({ hwid, onActivateSuccess }) {
       <div className="license-lock-box">
         <div className="license-lock-header">
           <div className="license-lock-icon">🔒</div>
-          <h2>انتهت الفترة التجريبية (14 يوماً)</h2>
-          <p>يرجى تفعيل البرنامج بواسطة مفتاح التفعيل الخاص بك لمتابعة الاستخدام.</p>
+          <h2>{verificationError ? 'تعذر التحقق من وقت الترخيص' : 'انتهت الفترة التجريبية (14 يوماً)'}</h2>
+          <p>{verificationError
+            ? 'اتصل بالإنترنت ثم أعد المحاولة. لن تُحذف بيانات المتجر.'
+            : 'يرجى تفعيل البرنامج بواسطة مفتاح التفعيل الخاص بك لمتابعة الاستخدام. بيانات المتجر محفوظة.'}</p>
         </div>
 
         <div className="license-modal-content" style={{ padding: '24px 28px' }}>
@@ -52,6 +54,19 @@ function LicenseLockScreen({ hwid, onActivateSuccess }) {
               <span>⚠️</span>
               <span>{error}</span>
             </div>
+          )}
+
+          {verificationError && (
+            <div className="license-modal-error" role="alert">
+              <span>⚠️</span>
+              <span>{verificationError}</span>
+            </div>
+          )}
+
+          {verificationError && (
+            <button type="button" className="license-btn-submit" onClick={onRetry} disabled={loading}>
+              إعادة التحقق من وقت الخادم
+            </button>
           )}
 
           {/* Machine ID */}
@@ -66,6 +81,7 @@ function LicenseLockScreen({ hwid, onActivateSuccess }) {
                 type="button"
                 className={`hwid-copy-action ${copied ? 'copied' : ''}`}
                 onClick={handleCopyHwid}
+                disabled={!hwid}
               >
                 {copied ? '✓ تم النسخ' : '📋 نسخ الرمز'}
               </button>

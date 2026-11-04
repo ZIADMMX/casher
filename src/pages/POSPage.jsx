@@ -155,6 +155,7 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
   }, [refreshShift]);
 
   const searchInputRef = useRef(null);
+  const paymentSectionRef = useRef(null);
   const promotionPreviewSequence = useRef(0);
 
   useEffect(() => {
@@ -476,6 +477,7 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
       discount,
       couponCode,
       paymentMethod,
+      orderMode: activeOrderMode,
       creditCustomerName,
       creditCustomerPhone,
       creditDueDate,
@@ -483,7 +485,7 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
     setHeldOrders((prev) => [newHold, ...prev]);
     clearCart();
     setMessage({ type: 'success', text: 'تم تعليق الفاتورة الحالية بنجاح ⏸️' });
-  }, [cart, discount, couponCode, paymentMethod, creditCustomerName, creditCustomerPhone, creditDueDate, clearCart]);
+  }, [cart, discount, couponCode, paymentMethod, activeOrderMode, creditCustomerName, creditCustomerPhone, creditDueDate, clearCart]);
 
   // استرجاع فاتورة معلقة
   function handleResumeHeldOrder(order) {
@@ -495,6 +497,7 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
     setDiscount(order.discount || 0);
     setCouponCode(order.couponCode || '');
     setPaymentMethod(order.paymentMethod || 'cash');
+    setActiveOrderMode(order.orderMode || 'takeaway');
     setCreditCustomerName(order.creditCustomerName || '');
     setCreditCustomerPhone(order.creditCustomerPhone || '');
     setCreditDueDate(order.creditDueDate || '');
@@ -551,6 +554,7 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
         })),
         discount: Number(discount || 0),
         paymentMethod,
+        orderMode: sectorConfig.key === 'cafe_restaurant' ? activeOrderMode : null,
         customerId: selectedCustomerId ? Number(selectedCustomerId) : null,
         customerName: selectedCustomerObj ? selectedCustomerObj.name : creditCustomerName,
         customerPhone: selectedCustomerObj ? selectedCustomerObj.phone : creditCustomerPhone,
@@ -643,7 +647,7 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
       playErrorBeep();
       setMessage({ type: 'error', text: err.message });
     }
-  }, [cart, isCreditInvalid, isCashInvalid, discount, paymentMethod, creditCustomerName, creditCustomerPhone, creditDueDate, cashReceived, changeDue, clearCart, loadProducts, refreshShift, onNavigate, activeSubscription, posCustomers, selectedCustomerId, useSubscriptionCredit, settings.thermal_printer_name, settings.receipt_paper_size, settings.cash_drawer_pin, workOrder, onWorkOrderCheckoutComplete]);
+  }, [cart, isCreditInvalid, isCashInvalid, discount, paymentMethod, activeOrderMode, sectorConfig.key, creditCustomerName, creditCustomerPhone, creditDueDate, cashReceived, changeDue, clearCart, loadProducts, refreshShift, onNavigate, activeSubscription, posCustomers, selectedCustomerId, useSubscriptionCredit, settings.thermal_printer_name, settings.receipt_paper_size, settings.cash_drawer_pin, workOrder, onWorkOrderCheckoutComplete]);
 
   function handleExitWorkOrderCheckout() {
     if (cart.length && !window.confirm('هل تريد إلغاء تجهيز فاتورة أمر الشغل والعودة للبيع العادي؟ سيبقى أمر الشغل محفوظًا.')) {
@@ -718,7 +722,7 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
     }
   }, [settings.thermal_printer_name, settings.cash_drawer_pin]);
 
-  // Keyboard Shortcuts (F1 focus search, F2 hold, F3 show held, F4 discount, F7 open drawer, F9 cash checkout, F10 credit checkout, Esc confirms/close)
+  // Keyboard Shortcuts (F1 search, F2 hold, F3 held orders, F4 discount, F7 cash drawer, F9/F10 payment method, F12 payment section)
   useEffect(() => {
     function handleKeyDown(e) {
       switch (e.key) {
@@ -745,23 +749,34 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
         case 'F9':
           e.preventDefault();
           setPaymentMethod('cash');
-          handleCompleteSale();
           break;
         case 'F10':
           e.preventDefault();
           setPaymentMethod('credit');
-          handleCompleteSale();
+          setCashReceived('');
+          break;
+        case 'F12':
+          e.preventDefault();
+          paymentSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          paymentSectionRef.current?.querySelector('button:not(:disabled), input:not(:disabled)')?.focus();
           break;
         case 'Escape':
           e.preventDefault();
-          // Close any open modal first
-          if (showHeldModal) setShowHeldModal(false);
-          if (showShiftOpenModal) setShowShiftOpenModal(false);
-          if (showShiftExpenseModal) setShowShiftExpenseModal(false);
-          if (showShiftCloseModal) setShowShiftCloseModal(false);
-          if (showDiscountModal) setShowDiscountModal(false);
-          // Then confirm clear cart if it has items
-          if (cart.length) {
+          if (scaleModalItem) {
+            setScaleModalItem(null);
+          } else if (shiftPreviewReport) {
+            setShiftPreviewReport(null);
+          } else if (showHeldModal) {
+            setShowHeldModal(false);
+          } else if (showShiftCloseModal) {
+            setShowShiftCloseModal(false);
+          } else if (showShiftExpenseModal) {
+            setShowShiftExpenseModal(false);
+          } else if (showShiftOpenModal) {
+            setShowShiftOpenModal(false);
+          } else if (showDiscountModal) {
+            setShowDiscountModal(false);
+          } else if (cart.length) {
             if (window.confirm('هل تريد إفراغ السلة؟')) {
               clearCart();
             }
@@ -773,7 +788,7 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
     }
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [cart, showHeldModal, showShiftOpenModal, showShiftExpenseModal, showShiftCloseModal, showDiscountModal, handleHoldCurrentOrder, handleCompleteSale, setPaymentMethod, clearCart, handleManualOpenCashDrawer]);
+  }, [cart, showHeldModal, showShiftOpenModal, showShiftExpenseModal, showShiftCloseModal, showDiscountModal, shiftPreviewReport, scaleModalItem, handleHoldCurrentOrder, setPaymentMethod, clearCart, handleManualOpenCashDrawer]);
 
   function getStockBadge(product) {
     const totalStock = product.variants?.reduce((sum, v) => sum + v.stock_quantity, 0) || 0;
@@ -831,6 +846,7 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
           useSubscriptionCredit={useSubscriptionCredit}
           setUseSubscriptionCredit={setUseSubscriptionCredit}
           sectorConfig={sectorConfig}
+          paymentSectionRef={paymentSectionRef}
         />
       </div>
 
@@ -842,6 +858,7 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
           activeOrderMode={activeOrderMode}
           onSelectOrderMode={setActiveOrderMode}
           onOpenWorkOrders={() => onNavigate?.('orders')}
+          onOpenKitchen={() => onNavigate?.('kitchen')}
         />
         {workOrder && (
           <div className="pos-work-order-banner">

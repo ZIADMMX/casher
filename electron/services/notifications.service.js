@@ -33,20 +33,20 @@ const NotificationsService = {
     }
   },
 
-  getAll(options) {
-    return NotificationsRepository.getAll(options);
+  getAll(options, userId) {
+    return NotificationsRepository.getAll({ ...options, userId });
   },
 
-  getUnreadCount() {
-    return NotificationsRepository.getUnreadCount();
+  getUnreadCount(userId) {
+    return NotificationsRepository.getUnreadCount(userId);
   },
 
-  markAsRead(id) {
-    return NotificationsRepository.markAsRead(id);
+  markAsRead(id, userId) {
+    return NotificationsRepository.markAsRead(id, userId);
   },
 
-  markAllAsRead() {
-    return NotificationsRepository.markAllAsRead();
+  markAllAsRead(userId) {
+    return NotificationsRepository.markAllAsRead(userId);
   },
 
   clearAll() {

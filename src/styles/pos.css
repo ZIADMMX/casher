@@ -402,6 +402,20 @@
   gap: 14px;
 }
 
+.pos-products-pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 14px 0;
+}
+
+.pos-products-pagination button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* ---- Modern Product Card ---- */
 .pos-product-card {
   background: #ffffff;

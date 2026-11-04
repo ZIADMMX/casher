@@ -26,6 +26,7 @@ const RESOURCE_PERMISSIONS = {
   'shifts': 'shifts',
   'appointments': 'appointments',
   'cases': 'cases',
+  'courts': 'cases',
   'salon': 'pos',
   'grocery': 'pos',
   'promotions': 'promotions',
@@ -85,8 +86,8 @@ function getPermissionForChannel(channel, args = []) {
     return `ai.${isReadAction(action) ? 'view' : 'manage'}`;
   }
   if (resource === 'crm') {
-    if (/^(get|check)/i.test(action)) return 'customers.view';
-    return /^(create|add)/i.test(action) ? 'customers.create' : 'customers.edit';
+    if (/^(get|check|list|export|openAttachment)/i.test(action)) return 'customers.view';
+    return /^(create|add|import)/i.test(action) ? 'customers.create' : 'customers.edit';
   }
   if (resource === 'export') {
     if (action === 'employees') return 'team.export';
@@ -131,6 +132,11 @@ function getPermissionForChannel(channel, args = []) {
     if (/delete|remove/i.test(action)) return 'cases.delete';
     return 'cases.manage';
   }
+  if (resource === 'courts') {
+    if (isReadAction(action)) return 'cases.view';
+    if (/delete|remove|deactivate/i.test(action)) return 'cases.delete';
+    return 'cases.manage';
+  }
   if (resource === 'products') {
     if (isReadAction(action)) return 'products.view';
     if (/delete|remove/i.test(action)) return 'products.delete';
@@ -138,6 +144,8 @@ function getPermissionForChannel(channel, args = []) {
     return 'products.edit';
   }
   if (resource === 'sales') {
+    if (action === 'getKitchenOrders') return 'pos.view';
+    if (action === 'updateKitchenOrderStatus') return 'pos.sell';
     if (isReadAction(action)) return 'sales.view';
     if (/refund|return/i.test(action)) return 'pos.refund';
     return 'pos.sell';
@@ -206,6 +214,7 @@ function getPermissionForApi(pathname, method) {
       ? 'customers.create'
       : 'customers.edit';
   }
+  if (resource === 'courts' && method === 'DELETE') return 'cases.delete';
   if (resource === 'orders' && action === 'manage') return 'orders.manage';
   if (resource === 'subscriptions' && action === 'manage') return 'subscriptions.manage';
   if (resource === 'purchases' && action === 'manage') return 'purchases.manage';

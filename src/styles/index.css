@@ -32,6 +32,73 @@
   padding: 22px 26px;
 }
 
+.rate-limit-backdrop {
+  position: fixed;
+  z-index: 100000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.62);
+  backdrop-filter: blur(3px);
+  direction: rtl;
+}
+
+.rate-limit-dialog {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: min(440px, 100%);
+  padding: 30px 26px 24px;
+  color: #7c2d12;
+  background: #fff7ed;
+  border: 1px solid #fdba74;
+  border-radius: 20px;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.3);
+  text-align: center;
+}
+
+.rate-limit-dialog-icon {
+  display: grid;
+  width: 58px;
+  height: 58px;
+  place-items: center;
+  margin-bottom: 14px;
+  background: #ffedd5;
+  border-radius: 50%;
+  font-size: 30px;
+}
+
+.rate-limit-dialog h2 {
+  margin: 0 0 10px;
+  font-size: 20px;
+}
+
+.rate-limit-dialog p {
+  margin: 0;
+  color: #713f12;
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+.rate-limit-countdown {
+  margin: 20px 0 10px;
+  color: #c2410c;
+  font-size: 42px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.rate-limit-countdown span {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.rate-limit-dialog-hint {
+  color: #9a3412;
+  font-size: 12px;
+}
+
 /* ===== Sidebar ===== */
 /* ===== Fox Sidebar Design ===== */
 .sidebar {
@@ -63,7 +130,7 @@
   justify-content: space-between;
   gap: 9px;
   padding: 5px 4px 17px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.09);
 }
 
 .sidebar-brand-main {
@@ -161,6 +228,47 @@
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.sidebar-header-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 7px;
+}
+
+.sidebar-restart-btn {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  place-items: center;
+  padding: 0;
+  color: #f1c99f;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: color 150ms ease, background 150ms ease, border-color 150ms ease;
+}
+
+.sidebar-restart-btn:hover:not(:disabled) {
+  color: #fff;
+  background: rgba(242, 172, 120, 0.2);
+  border-color: rgba(242, 172, 120, 0.55);
+}
+
+.sidebar-restart-btn:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.sidebar-restart-btn svg {
+  transition: transform 250ms ease;
+}
+
+.sidebar-restart-btn:hover:not(:disabled) svg {
+  transform: rotate(45deg);
 }
 
 .sidebar-notification-wrap {
@@ -1285,6 +1393,39 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 20px;
+}
+
+.products-pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 20px 0;
+  padding: 12px 16px;
+  background: #ffffff;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+}
+
+.products-pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.products-pagination-controls select {
+  min-width: 72px;
+  padding: 7px 10px;
+  border: 1px solid #CBD5E1;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.products-pagination-controls button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .fox-product-card {
@@ -2871,6 +3012,13 @@
   font-size: 14px;
   background: transparent;
   color: #0F172A;
+}
+
+.customer-search-status {
+  flex-shrink: 0;
+  color: #64748B;
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 .clear-search-btn {

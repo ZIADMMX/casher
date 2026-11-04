@@ -21,6 +21,7 @@ function createSale({
   items,
   discount = 0,
   paymentMethod,
+  orderMode,
   customerId,
   customerName,
   customerPhone,
@@ -36,6 +37,9 @@ function createSale({
     }
     if (!items || items.length === 0) {
       throw new Error('السلة فارغة');
+    }
+    if (orderMode != null && !['dine_in', 'takeaway', 'delivery'].includes(orderMode)) {
+      throw new Error('طريقة استلام الطلب غير صالحة');
     }
     let linkedOrder = null;
     if (orderId !== undefined && orderId !== null) {
@@ -179,6 +183,8 @@ function createSale({
         totalAmount,
         discount: effectiveDiscount,
         paymentMethod,
+        orderMode,
+        kitchenStatus: orderMode ? 'new' : null,
         dueDate: paymentMethod === 'credit' ? dueDate : null,
         branchId,
         warehouseId,

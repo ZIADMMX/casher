@@ -25,6 +25,8 @@ async function invokeAuth(localChannel, credentials) {
 
 // Keep this object as the single, documented renderer-to-main API.
 contextBridge.exposeInMainWorld('electronAPI', {
+  restartApp: () => ipcRenderer.invoke('app:restart'),
+
   // Products and variants
   addProductWithVariant: (data) =>
     invokeRemoteOrLocal('POST', '/api/products/add', 'products:addWithVariant', data, data),
@@ -56,6 +58,7 @@ restoreBackup: () => ipcRenderer.invoke('backup:restore'),
   getAllCategories: () => invokeRemoteOrLocal('GET', '/api/categories', 'categories:getAll'),
   
   getReports: (period) => ipcRenderer.invoke('reports:get', period),
+  getLegalCaseReport: (period) => ipcRenderer.invoke('reports:getLegalCases', period),
   printReceipt: (sale, options) => ipcRenderer.invoke('print:receipt', { sale, options }),
   openCashDrawer: (options) => ipcRenderer.invoke('print:openCashDrawer', options),
   getPrinters: () => ipcRenderer.invoke('print:getPrinters'),
@@ -75,6 +78,14 @@ exportInvoices: (period) => ipcRenderer.invoke('export:invoices', period),
 exportEmployees: () => ipcRenderer.invoke('export:employees'),
 
   createSale: (saleData) => invokeRemoteOrLocal('POST', '/api/sales/create', 'sales:create', saleData, saleData),
+  getKitchenOrders: () => invokeRemoteOrLocal('GET', '/api/sales/kitchen-orders', 'sales:getKitchenOrders'),
+  updateKitchenOrderStatus: (saleId, status) => invokeRemoteOrLocal(
+    'POST',
+    '/api/sales/kitchen-orders/status',
+    'sales:updateKitchenOrderStatus',
+    { saleId, status },
+    { saleId, status }
+  ),
   previewBundlePromotions: (items) => ipcRenderer.invoke('sales:previewBundlePromotion', items),
   getBundlePromotions: () => ipcRenderer.invoke('promotions:getBundles'),
   saveBundlePromotions: (promotions) => ipcRenderer.invoke('promotions:saveBundles', promotions),
@@ -162,6 +173,16 @@ exportEmployees: () => ipcRenderer.invoke('export:employees'),
   // License & Software Activation
   getLicenseStatus: () => ipcRenderer.invoke('license:getStatus'),
   activateSoftware: (key) => ipcRenderer.invoke('license:activate', key),
+  onLicenseStatusChanged: (callback) => {
+    const listener = (_event, status) => callback(status);
+    ipcRenderer.on('license:statusChanged', listener);
+    return () => ipcRenderer.removeListener('license:statusChanged', listener);
+  },
+  onLicenseVerificationFailed: (callback) => {
+    const listener = (_event, error) => callback(error);
+    ipcRenderer.on('license:verificationFailed', listener);
+    return () => ipcRenderer.removeListener('license:verificationFailed', listener);
+  },
 
   // Excel Import
   selectImportFile: () => ipcRenderer.invoke('import:selectFile'),
@@ -264,12 +285,39 @@ exportEmployees: () => ipcRenderer.invoke('export:employees'),
   getSalonTipPoolSummary: (filters) => ipcRenderer.invoke('salon:getTipPoolSummary', filters),
 
   // Legal Cases Module (قطاع المحاماة)
+  getCaseLawyers: () => ipcRenderer.invoke('cases:getCaseLawyers'),
+  getCourts: (filters = {}) => {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(filters)) {
+      if (value !== undefined && value !== null && value !== '') params.set(key, String(value));
+    }
+    const query = params.toString();
+    return invokeRemoteOrLocal(
+      'GET',
+      `/api/courts${query ? `?${query}` : ''}`,
+      'courts:getAll',
+      undefined,
+      filters,
+    );
+  },
+  getCourtById: (id) => invokeRemoteOrLocal('GET', `/api/courts/${encodeURIComponent(id)}`, 'courts:getById', undefined, id),
+  createCourt: (data) => invokeRemoteOrLocal('POST', '/api/courts', 'courts:create', data, data),
+  updateCourt: (id, data) => invokeRemoteOrLocal('PUT', `/api/courts/${encodeURIComponent(id)}`, 'courts:update', data, { id, data }),
+  deactivateCourt: (id) => invokeRemoteOrLocal('DELETE', `/api/courts/${encodeURIComponent(id)}`, 'courts:deactivate', undefined, id),
   getAllCases: (filters) => ipcRenderer.invoke('cases:getAllCases', filters),
   getCaseById: (id) => ipcRenderer.invoke('cases:getCaseById', id),
   createCase: (data) => ipcRenderer.invoke('cases:createCase', data),
   updateCase: (id, data) => ipcRenderer.invoke('cases:updateCase', { id, data }),
   deleteCase: (id) => ipcRenderer.invoke('cases:deleteCase', id),
   getCasesSummaryStats: () => ipcRenderer.invoke('cases:getCasesSummaryStats'),
+  getCasesByClientId: (clientId) => ipcRenderer.invoke('cases:getCasesByClientId', clientId),
+  getLegalClientInteractions: (customerId) => ipcRenderer.invoke('cases:getLegalClientInteractions', customerId),
+  addLegalClientInteraction: (data) => ipcRenderer.invoke('cases:addLegalClientInteraction', data),
+  getCustomerPowerOfAttorneys: (customerId) => ipcRenderer.invoke('cases:getCustomerPowerOfAttorneys', customerId),
+  createCustomerPowerOfAttorney: (customerId, data) => ipcRenderer.invoke('cases:createCustomerPowerOfAttorney', { customerId, data }),
+  updateCustomerPowerOfAttorney: (id, data) => ipcRenderer.invoke('cases:updateCustomerPowerOfAttorney', { id, data }),
+  deleteCustomerPowerOfAttorney: (id) => ipcRenderer.invoke('cases:deleteCustomerPowerOfAttorney', id),
+  getLawFirmDashboard: (date) => ipcRenderer.invoke('cases:getLawFirmDashboard', date),
 
   getCaseSessions: (caseId) => ipcRenderer.invoke('cases:getSessionsByCaseId', caseId),
   getAllUpcomingCourtSessions: (filters) => ipcRenderer.invoke('cases:getAllUpcomingSessions', filters),
@@ -279,18 +327,31 @@ exportEmployees: () => ipcRenderer.invoke('export:employees'),
   deleteCourtSession: (id) => ipcRenderer.invoke('cases:deleteSession', id),
   getDailyCourtDocket: (date) => ipcRenderer.invoke('cases:getDailyDocket', date),
   checkDueCourtSessionReminders: (hoursAhead) => ipcRenderer.invoke('cases:checkDueCourtSessionReminders', hoursAhead),
+  getCaseTasks: (caseId) => ipcRenderer.invoke('cases:getTasksByCaseId', caseId),
+  createCaseTask: (data) => ipcRenderer.invoke('cases:createTask', data),
+  updateCaseTask: (id, data) => ipcRenderer.invoke('cases:updateTask', { id, data }),
+  deleteCaseTask: (id) => ipcRenderer.invoke('cases:deleteTask', id),
   getCaseFinancialBreakdown: (caseId) => ipcRenderer.invoke('cases:getCaseFinancialBreakdown', caseId),
+  printCaseFinancialReceipt: (financialId) => ipcRenderer.invoke('cases:printFinancialReceipt', financialId),
 
   getCaseDocuments: (caseId) => ipcRenderer.invoke('cases:getDocumentsByCaseId', caseId),
+  selectCaseDocumentFile: () => ipcRenderer.invoke('cases:selectDocumentFile'),
   createCaseDocument: (data) => ipcRenderer.invoke('cases:createDocument', data),
+  updateCaseDocument: (id, data) => ipcRenderer.invoke('cases:updateDocument', { id, data }),
   deleteCaseDocument: (id) => ipcRenderer.invoke('cases:deleteDocument', id),
+  getCaseDocumentVersions: (id) => ipcRenderer.invoke('cases:getDocumentVersions', id),
+  openCaseDocument: (id, version) => ipcRenderer.invoke('cases:openDocument', { id, version }),
+  restoreCaseDocumentVersion: (id, version) => ipcRenderer.invoke('cases:restoreDocumentVersion', { id, version }),
+  downloadCaseDocument: (id, fileName, version) => ipcRenderer.invoke('cases:downloadDocument', { id, fileName, version }),
 
   getCaseFinancials: (caseId) => ipcRenderer.invoke('cases:getFinancialsByCaseId', caseId),
   createCaseFinancial: (data) => ipcRenderer.invoke('cases:createFinancial', data),
+  updateCaseFinancial: (id, data) => ipcRenderer.invoke('cases:updateFinancial', { id, data }),
   deleteCaseFinancial: (id) => ipcRenderer.invoke('cases:deleteFinancial', id),
 
   getCaseTimeLogs: (caseId) => ipcRenderer.invoke('cases:getTimeLogsByCaseId', caseId),
   createCaseTimeLog: (data) => ipcRenderer.invoke('cases:createTimeLog', data),
+  updateCaseTimeLog: (id, data) => ipcRenderer.invoke('cases:updateTimeLog', { id, data }),
   deleteCaseTimeLog: (id) => ipcRenderer.invoke('cases:deleteTimeLog', id),
 
   // Supermarket & Grocery APIs (محرك السوبر ماركت والبقالة المتقدم)
@@ -327,6 +388,50 @@ exportEmployees: () => ipcRenderer.invoke('export:employees'),
   createCRMCampaign: (data) => ipcRenderer.invoke('crm:createCampaign', data),
   getCRMCampaignAudience: (campaignId) => ipcRenderer.invoke('crm:getCampaignAudience', campaignId),
   createCRMCampaignReminders: (campaignId) => ipcRenderer.invoke('crm:createCampaignReminders', campaignId),
+  getCRMCompanies: () => ipcRenderer.invoke('crm:getCompanies'),
+  getCRMAssignees: () => ipcRenderer.invoke('crm:getAssignees'),
+  createCRMCompany: (data) => ipcRenderer.invoke('crm:createCompany', data),
+  updateCRMCompany: (data) => ipcRenderer.invoke('crm:updateCompany', data),
+  getCRMLeads: (filters) => ipcRenderer.invoke('crm:getLeads', filters),
+  createCRMLead: (data) => ipcRenderer.invoke('crm:createLead', data),
+  updateCRMLead: (data) => ipcRenderer.invoke('crm:updateLead', data),
+  deleteCRMLead: (leadId) => ipcRenderer.invoke('crm:deleteLead', leadId),
+  updateCRMLeadStatus: (leadId, status) => ipcRenderer.invoke('crm:updateLeadStatus', { leadId, status }),
+  convertCRMLead: (leadId) => ipcRenderer.invoke('crm:convertLead', leadId),
+  getCRMPipelineStages: () => ipcRenderer.invoke('crm:getPipelineStages'),
+  createCRMPipelineStage: (data) => ipcRenderer.invoke('crm:createPipelineStage', data),
+  updateCRMPipelineStage: (data) => ipcRenderer.invoke('crm:updatePipelineStage', data),
+  createCRMAdvancedOpportunity: (data) => ipcRenderer.invoke('crm:createAdvancedOpportunity', data),
+  moveCRMOpportunity: (opportunityId, stageId) => ipcRenderer.invoke('crm:moveOpportunity', { opportunity_id: opportunityId, stage_id: stageId }),
+  assignCRMOpportunity: (opportunityId, ownerUserId) => ipcRenderer.invoke('crm:assignOpportunity', {
+    opportunity_id: opportunityId,
+    owner_user_id: ownerUserId || null,
+  }),
+  getCRMActivities: (filters) => ipcRenderer.invoke('crm:getActivities', filters),
+  createCRMActivity: (data) => ipcRenderer.invoke('crm:createActivity', data),
+  completeCRMActivity: (activityId) => ipcRenderer.invoke('crm:completeActivity', activityId),
+  getCRMNotes: (recordType, recordId) => ipcRenderer.invoke('crm:getNotes', { recordType, recordId }),
+  createCRMNote: (data) => ipcRenderer.invoke('crm:createNote', data),
+  getCRMAttachments: (recordType, recordId) => ipcRenderer.invoke('crm:getAttachments', { recordType, recordId }),
+  selectCRMFileAttachment: (recordType, recordId) => ipcRenderer.invoke('crm:selectAttachment', { recordType, recordId }),
+  openCRMAttachment: (attachmentId) => ipcRenderer.invoke('crm:openAttachment', attachmentId),
+  setCRMRecordTags: (data) => ipcRenderer.invoke('crm:setTags', data),
+  getCRMRecordTags: (recordType, recordId) => ipcRenderer.invoke('crm:getTags', { recordType, recordId }),
+  getCRMSavedFilters: (entityType) => ipcRenderer.invoke('crm:getSavedFilters', entityType),
+  saveCRMSavedFilter: (data) => ipcRenderer.invoke('crm:saveFilter', data),
+  getCRMAuditLog: (entityType, entityId) => ipcRenderer.invoke('crm:getAuditLog', { entityType, entityId }),
+  setCRMCustomerConsent: (customerId, consent) => ipcRenderer.invoke('crm:setConsent', { customerId, ...consent }),
+  getCRMCustomerRelationships: (customerId) => ipcRenderer.invoke('crm:getCustomerRelationships', customerId),
+  createCRMCustomerRelationship: (data) => ipcRenderer.invoke('crm:createCustomerRelationship', data),
+  anonymizeCRMCustomer: (customerId) => ipcRenderer.invoke('crm:anonymizeCustomer', customerId),
+  createCRMCustomField: (data) => ipcRenderer.invoke('crm:createCustomField', data),
+  getCRMCustomFields: (entityType) => ipcRenderer.invoke('crm:getCustomFields', entityType),
+  setCRMCustomFieldValues: (entityType, recordId, values) => ipcRenderer.invoke('crm:setCustomFieldValues', { entityType, recordId, values }),
+  getCRMCustomFieldValues: (entityType, recordId) => ipcRenderer.invoke('crm:getCustomFieldValues', { entityType, recordId }),
+  getCRMAutomationRules: () => ipcRenderer.invoke('crm:getAutomationRules'),
+  saveCRMStaleOpportunityRule: (data) => ipcRenderer.invoke('crm:saveStaleOpportunityRule', data),
+  importCRMLeads: () => ipcRenderer.invoke('crm:importLeads'),
+  exportCRMRecords: (entityType) => ipcRenderer.invoke('crm:exportRecords', entityType),
 
   // Resilience & Central Nervous Backbone Engine
   getSystemBackboneHealth: () => ipcRenderer.invoke('resilience:getHealth'),
@@ -452,6 +557,18 @@ exportEmployees: () => ipcRenderer.invoke('export:employees'),
   importUIConfig: (configData) => ipcRenderer.invoke('uiConfig:import', configData),
   getAvailableWidgets: (scope) => ipcRenderer.invoke('uiConfig:getWidgets', scope),
   reorderUIItems: (scope, itemIds, roleOrUserId) => ipcRenderer.invoke('uiConfig:reorder', { scope, itemIds, roleOrUserId }),
+
+  onRateLimitBlocked: (callback) => {
+    if (typeof callback !== 'function') return () => {};
+    const listener = (_event, notice) => {
+      callback({
+        retryAfterMs: Math.max(1000, Number(notice?.retryAfterMs) || 40000),
+        reason: notice?.reason === 'server_busy' ? 'server_busy' : 'rate_limit',
+      });
+    };
+    ipcRenderer.on('system:rateLimitBlocked', listener);
+    return () => ipcRenderer.removeListener('system:rateLimitBlocked', listener);
+  },
 
   // Onboarding Wizard APIs
   getOnboardingState: () => ipcRenderer.invoke('onboarding:getState'),

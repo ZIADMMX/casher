@@ -21,7 +21,13 @@ function getStmts() {
       getByBarcode: db.prepare(`
         SELECT pv.* FROM product_variants pv
         JOIN products p ON p.id = pv.product_id AND p.is_active = 1
-        WHERE pv.barcode = ? OR pv.sku = ? OR TRIM(pv.barcode) = TRIM(?) OR TRIM(pv.sku) = TRIM(?)
+        WHERE pv.barcode = ? OR pv.sku = ?
+        LIMIT 1
+      `),
+      getByTrimmedBarcode: db.prepare(`
+        SELECT pv.* FROM product_variants pv
+        JOIN products p ON p.id = pv.product_id AND p.is_active = 1
+        WHERE TRIM(pv.barcode) = ? OR TRIM(pv.sku) = ?
         LIMIT 1
       `),
       decreaseStock: db.prepare('UPDATE product_variants SET stock_quantity = stock_quantity - ? WHERE id = ? AND stock_quantity >= ?'),
@@ -67,7 +73,8 @@ function getById(id) {
 function getByBarcode(barcode) {
   if (!barcode) return null;
   const clean = String(barcode).trim();
-  return getStmts().getByBarcode.get(clean, clean, clean, clean);
+  const stmts = getStmts();
+  return stmts.getByBarcode.get(clean, clean) || stmts.getByTrimmedBarcode.get(clean, clean);
 }
 
 function hasTransactionHistory(id) {

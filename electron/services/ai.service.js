@@ -120,6 +120,7 @@ ${JSON.stringify(context, null, 2)}`,
 function predictStockouts(options = {}) {
   const daysWindow = Number(options.daysWindow) || 30;
   const warehouseId = options.warehouseId || null;
+  const dateModifier = `-${daysWindow} days`;
 
   // استعلام يجمع المبيعات في آخر N يوم مع رصيد المخزون الحالي
   const query = `
@@ -137,7 +138,8 @@ function predictStockouts(options = {}) {
       pv.low_stock_threshold,
       COALESCE(SUM(si.quantity), 0) as total_sold_in_window,
       COALESCE(
-        (SELECT SUM(quantity) FROM warehouse_stock ws WHERE ws.variant_id = pv.id ${warehouseId ? 'AND ws.warehouse_id = ' + Number(warehouseId) : ''}),
+        (SELECT SUM(quantity) FROM warehouse_stock ws
+         WHERE ws.variant_id = pv.id AND (? IS NULL OR ws.warehouse_id = ?)),
         pv.stock_quantity,
         0
       ) as current_stock
@@ -145,12 +147,12 @@ function predictStockouts(options = {}) {
     JOIN products p ON p.id = pv.product_id
     LEFT JOIN categories cat ON cat.id = p.category_id
     LEFT JOIN sale_items si ON si.variant_id = pv.id
-    LEFT JOIN sales s ON s.id = si.sale_id AND date(s.created_at, 'localtime') >= date('now', '-${daysWindow} days')
+    LEFT JOIN sales s ON s.id = si.sale_id AND date(s.created_at, 'localtime') >= date('now', ?)
     GROUP BY pv.id
     ORDER BY total_sold_in_window DESC
   `;
 
-  const rows = db.prepare(query).all();
+  const rows = db.prepare(query).all(warehouseId, warehouseId, dateModifier);
   const predictions = [];
 
   for (const item of rows) {
@@ -311,6 +313,7 @@ function suggestPurchaseQuantities(options = {}) {
 // -------------------------------------------------------------
 function detectSalesAnomalies(options = {}) {
   const days = Number(options.days) || 30;
+  const dateModifier = `-${days} days`;
   const anomalies = [];
 
   // 1. حساب المتوسط والانحراف المعياري لقيم الفواتير
@@ -319,8 +322,8 @@ function detectSalesAnomalies(options = {}) {
       AVG(total_amount) as avg_amount,
       COUNT(*) as count
     FROM sales
-    WHERE date(created_at, 'localtime') >= date('now', '-${days} days')
-  `).get();
+    WHERE date(created_at, 'localtime') >= date('now', ?)
+  `).get(dateModifier);
 
   const avgAmount = stats?.avg_amount || 0;
   const invoiceCount = stats?.count || 0;
@@ -328,10 +331,10 @@ function detectSalesAnomalies(options = {}) {
   if (invoiceCount >= 5) {
     // حساب التباين
     const varianceRow = db.prepare(`
-      SELECT AVG((total_amount - ${avgAmount}) * (total_amount - ${avgAmount})) as variance
+      SELECT AVG((total_amount - ?) * (total_amount - ?)) as variance
       FROM sales
-      WHERE date(created_at, 'localtime') >= date('now', '-${days} days')
-    `).get();
+      WHERE date(created_at, 'localtime') >= date('now', ?)
+    `).get(avgAmount, avgAmount, dateModifier);
 
     const stdDev = Math.sqrt(varianceRow?.variance || 0);
     const spikeThreshold = avgAmount + (2.2 * stdDev);
@@ -342,11 +345,11 @@ function detectSalesAnomalies(options = {}) {
       FROM sales s
       LEFT JOIN users u ON u.id = s.user_id
       LEFT JOIN branches b ON b.id = s.branch_id
-      WHERE date(s.created_at, 'localtime') >= date('now', '-${days} days')
+      WHERE date(s.created_at, 'localtime') >= date('now', ?)
         AND s.total_amount > ?
       ORDER BY s.total_amount DESC
       LIMIT 10
-    `).all(spikeThreshold);
+    `).all(dateModifier, spikeThreshold);
 
     for (const inv of spikeInvoices) {
       anomalies.push({
@@ -369,12 +372,12 @@ function detectSalesAnomalies(options = {}) {
     FROM sales s
     LEFT JOIN users u ON u.id = s.user_id
     LEFT JOIN branches b ON b.id = s.branch_id
-    WHERE date(s.created_at, 'localtime') >= date('now', '-${days} days')
+    WHERE date(s.created_at, 'localtime') >= date('now', ?)
       AND s.discount > 0
       AND (s.discount / (s.total_amount + s.discount)) >= 0.25
     ORDER BY s.discount DESC
     LIMIT 15
-  `).all();
+  `).all(dateModifier);
 
   for (const inv of highDiscountInvoices) {
     const originalTotal = inv.total_amount + inv.discount;
@@ -398,12 +401,12 @@ function detectSalesAnomalies(options = {}) {
     SELECT r.user_id, u.username, u.full_name as cashier_name, COUNT(*) as return_count, SUM(r.refund_amount) as total_refunded
     FROM returns r
     LEFT JOIN users u ON u.id = r.user_id
-    WHERE date(r.created_at, 'localtime') >= date('now', '-${days} days')
+    WHERE date(r.created_at, 'localtime') >= date('now', ?)
     GROUP BY r.user_id
     HAVING return_count >= 5
     ORDER BY return_count DESC
     LIMIT 5
-  `).all();
+  `).all(dateModifier);
 
   for (const ret of returnsByCashier) {
     anomalies.push({
@@ -422,11 +425,11 @@ function detectSalesAnomalies(options = {}) {
     SELECT s.*, u.username, u.full_name as cashier_name, strftime('%H:%M', s.created_at, 'localtime') as sale_time
     FROM sales s
     LEFT JOIN users u ON u.id = s.user_id
-    WHERE date(s.created_at, 'localtime') >= date('now', '-${days} days')
+    WHERE date(s.created_at, 'localtime') >= date('now', ?)
       AND CAST(strftime('%H', s.created_at, 'localtime') AS INTEGER) BETWEEN 2 AND 5
     ORDER BY s.created_at DESC
     LIMIT 10
-  `).all();
+  `).all(dateModifier);
 
   for (const sale of offHourSales) {
     anomalies.push({

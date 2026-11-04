@@ -20,7 +20,7 @@ function LoginPage() {
   const [showServerModal, setShowServerModal] = useState(false);
   const [serverMessage, setServerMessage] = useState('');
   const [serverMessageStatus, setServerMessageStatus] = useState('info'); // 'success' | 'error' | 'info'
-  const [lanServerStatus, setLanServerStatus] = useState({ isRunning: false, port: 5000 });
+  const [lanServerStatus, setLanServerStatus] = useState({ isRunning: false, port: 5000, httpsPort: 5443 });
   const [lanServerIps, setLanServerIps] = useState([]);
   const [testingConnection, setTestingConnection] = useState(false);
   const [scanningLan, setScanningLan] = useState(false);
@@ -75,11 +75,11 @@ function LoginPage() {
         if (status && status.success === false) {
           throw new Error(status.message || 'تعذر تشغيل الخادم على المنفذ 5000');
         }
-        setLanServerStatus({ isRunning: true, port: 5000 });
+        setLanServerStatus(status);
       }
       setConnectionMode('master');
       setServerMessageStatus('success');
-      setServerMessage('تم تفعيل وضع الخادم الرئيسي بنجاح! يمكن لباقي الكاشيرات الاتصال بهذا الجهاز الآن.');
+      setServerMessage('تم تفعيل خادم HTTPS. انسخ شهادة الخادم العامة وثبّتها على أجهزة الكاشير قبل ربطها.');
     } catch (serverError) {
       setServerMessageStatus('error');
       setServerMessage(normalizeErrorMessage(serverError));
@@ -92,7 +92,7 @@ function LoginPage() {
     try {
       if (lanServerStatus.isRunning) {
         await window.electronAPI.stopLanServer();
-        setLanServerStatus({ isRunning: false, port: 5000 });
+        setLanServerStatus({ isRunning: false, port: 5000, httpsPort: 5443 });
       }
       setConnectionMode('remote');
       setServerMessageStatus('info');
@@ -109,7 +109,7 @@ function LoginPage() {
     try {
       if (lanServerStatus.isRunning) {
         await window.electronAPI.stopLanServer();
-        setLanServerStatus({ isRunning: false, port: 5000 });
+        setLanServerStatus({ isRunning: false, port: 5000, httpsPort: 5443 });
       }
       if (serverAddress) {
         await window.electronAPI.configureCentralServer('');
@@ -127,13 +127,17 @@ function LoginPage() {
   function formatServerUrl(input) {
     let raw = input.trim();
     if (!raw) return '';
-    if (!raw.startsWith('http://') && !raw.startsWith('https://')) {
-      raw = `http://${raw}`;
+    if (!/^https?:\/\//i.test(raw)) {
+      raw = `https://${raw}`;
     }
     try {
       const urlObj = new URL(raw);
+      if (urlObj.protocol === 'http:') {
+        urlObj.protocol = 'https:';
+        urlObj.port = urlObj.port ? String(Number(urlObj.port) + 443) : '5443';
+      }
       if (!urlObj.port) {
-        urlObj.port = '5000';
+        urlObj.port = '5443';
       }
       return urlObj.toString().replace(/\/$/, '');
     } catch {
@@ -165,7 +169,7 @@ function LoginPage() {
     const formatted = formatServerUrl(serverAddress);
     if (!formatted) {
       setServerMessageStatus('error');
-      setServerMessage('الرجاء إدخال عنوان الخادم أو الـ IP أولاً (مثال: 192.168.1.10:5000)');
+      setServerMessage('أدخل عنوان الخادم أو IP (مثال: https://192.168.1.10:5443).');
       return;
     }
 
@@ -217,7 +221,7 @@ function LoginPage() {
       for (let host = 1; host <= 20; host++) {
         const testIp = `${subnetParts}.${host}`;
         if (!localIps.includes(testIp)) {
-          candidateIps.push(`http://${testIp}:5000`);
+          candidateIps.push(`https://${testIp}:5443`);
         }
       }
 
@@ -520,7 +524,7 @@ function LoginPage() {
                   {lanServerStatus.isRunning && (
                     <div className="mode-ips-box" onClick={(e) => e.stopPropagation()}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                        <span style={{ fontWeight: '600', color: '#94A3B8' }}>عناوين الاتصال لباقي الأجهزة:</span>
+                        <span style={{ fontWeight: '600', color: '#94A3B8' }}>عناوين HTTPS للأجهزة الأخرى:</span>
                       </div>
 
                       {/* Computer Hostname URL (Recommended) */}
@@ -528,19 +532,19 @@ function LoginPage() {
                         <div
                           className="mode-ip-item"
                           style={{ borderColor: 'rgba(59, 130, 246, 0.4)', background: 'rgba(59, 130, 246, 0.08)' }}
-                          onClick={() => copyToClipboard(`http://${lanServerStatus.hostname}:${lanServerStatus.port}`)}
-                          title="انقر لنسخ عنوان اسم الجهاز (موصى به - لا يتغير إذا تغير الـ IP)"
+                          onClick={() => copyToClipboard(`https://${lanServerStatus.hostname}:${lanServerStatus.httpsPort || 5443}`)}
+                          title="انقر لنسخ عنوان HTTPS باسم الجهاز"
                         >
-                          <code>{`http://${lanServerStatus.hostname}:${lanServerStatus.port}`}</code>
+                          <code>{`https://${lanServerStatus.hostname}:${lanServerStatus.httpsPort || 5443}`}</code>
                           <span style={{ color: '#60A5FA', fontSize: '11px' }}>
-                            {copiedIp === `http://${lanServerStatus.hostname}:${lanServerStatus.port}` ? '✓ تم النسخ' : '⭐ اسم الجهاز 📋'}
+                            {copiedIp === `https://${lanServerStatus.hostname}:${lanServerStatus.httpsPort || 5443}` ? '✓ تم النسخ' : 'اسم الجهاز 📋'}
                           </span>
                         </div>
                       )}
 
                       {/* Local IPv4 items */}
                       {lanServerIps.map((ip, idx) => {
-                        const fullUrl = `http://${ip.address}:${lanServerStatus.port}`;
+                        const fullUrl = `https://${ip.address}:${lanServerStatus.httpsPort || 5443}`;
                         return (
                           <div
                             key={idx}
@@ -553,6 +557,15 @@ function LoginPage() {
                           </div>
                         );
                       })}
+
+                      {lanServerStatus.certificatePath && (
+                        <div style={{ marginTop: '8px', padding: '8px', borderRadius: '6px', background: 'rgba(245, 158, 11, 0.1)', color: '#FCD34D', fontSize: '11px', lineHeight: 1.7 }}>
+                          <div>انسخ شهادة الخادم العامة إلى الأجهزة الطرفية، وتحقق من بصمة SHA-256 قبل الوثوق بها:</div>
+                          <code dir="ltr" style={{ display: 'block', overflowWrap: 'anywhere' }}>{lanServerStatus.certificatePath}</code>
+                          <code dir="ltr" style={{ display: 'block', overflowWrap: 'anywhere' }}>{lanServerStatus.certificateFingerprint}</code>
+                          <div>أضف <code>server.cert</code> إلى مخزن الشهادات الموثوقة للمستخدم على كل جهاز، ثم أعد تشغيل التطبيق. لا تشارك <code>server.key</code>.</div>
+                        </div>
+                      )}
 
                       {/* Windows Firewall Permission Button */}
                       <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px dashed rgba(255, 255, 255, 0.1)' }}>
@@ -577,7 +590,7 @@ function LoginPage() {
                           }}
                         >
                           <span>🛡️</span>
-                          <span>{firewallConfiguring ? 'جاري ضبط جدار الحماية...' : 'السماح بالمنفذ 5000 في جدار حماية Windows'}</span>
+                          <span>{firewallConfiguring ? 'جاري ضبط جدار الحماية...' : `السماح بمنفذ HTTPS ${lanServerStatus.httpsPort || 5443} في جدار الحماية`}</span>
                         </button>
                         {firewallMessage && (
                           <div style={{
@@ -643,7 +656,7 @@ function LoginPage() {
                       className="network-text-input"
                       value={serverAddress}
                       onChange={(event) => setServerAddress(event.target.value)}
-                      placeholder="192.168.1.10:5000"
+                      placeholder="192.168.1.10:5443"
                       dir="ltr"
                     />
                     <button

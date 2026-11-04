@@ -6,6 +6,10 @@ function registerReportsHandlers() {
   safeHandle('reports:get', reportPeriodSchema, (event, period) => {
     return reportsService.getFullReport(period);
   });
+
+  safeHandle('reports:getLegalCases', reportPeriodSchema, (event, period) => {
+    return reportsService.getLegalCaseReport(period);
+  });
 }
 
 module.exports = { registerReportsHandlers };
