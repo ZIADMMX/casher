@@ -5,6 +5,7 @@ const { monitorEventLoopDelay, performance } = require('node:perf_hooks');
 jest.mock('../../electron/services/auth.service', () => ({
   login: jest.fn(() => ({ success: true, token: 'mock-token', user: { id: 1, role: 'admin' } })),
   getCurrentSession: jest.fn(() => ({ id: 1, role: 'admin' })),
+  getSessionByToken: jest.fn((token) => (token === 'valid-token' ? { id: 1, role: 'admin' } : null)),
   runWithSession: jest.fn((session, callback) => callback()),
   setPermissionContext: jest.fn(),
   requirePermission: jest.fn(),
@@ -288,6 +289,23 @@ describe('LAN Server Service (Multi-Terminal Master Hub)', () => {
   test('rejects catalog requests without a valid bearer token', async () => {
     const response = await makeRequest('/api/products', { headers: { Authorization: '' } });
     expect(response.statusCode).toBe(401);
+  });
+
+  test.each(['lan-api', 'default', '1'])(
+    'rejects a caller key sent as the bearer token (%s)',
+    async (callerKey) => {
+      const authService = require('../../electron/services/auth.service');
+      const response = await makeRequest('/api/products', { headers: { Authorization: `Bearer ${callerKey}` } });
+      expect(response.statusCode).toBe(401);
+      expect(authService.getSessionByToken).toHaveBeenCalledWith(callerKey);
+      expect(authService.getCurrentSession).not.toHaveBeenCalledWith(callerKey);
+    }
+  );
+
+  test('a terminal login is not bound to a caller key on this machine', async () => {
+    const authService = require('../../electron/services/auth.service');
+    await makeRequest('/api/auth/login', { method: 'POST' }, { username: 'admin', password: '123' });
+    expect(authService.login).toHaveBeenLastCalledWith('admin', '123', 'lan-api', { remember: false });
   });
 
   test('requires a warehouse assignment before returning branch product stock', async () => {

@@ -143,7 +143,11 @@ function getDummyHash() {
   return dummyHash;
 }
 
-function login(username, password, callerId = 'default') {
+/**
+ * remember: false issues a token without binding it to a caller key. Remote
+ * clients (LAN API) keep their token themselves and send it with each request.
+ */
+function login(username, password, callerId = 'default', { remember = true } = {}) {
   const normUser = String(username || '').trim().toLowerCase();
 
   // Check brute-force lockout
@@ -212,7 +216,7 @@ function login(username, password, callerId = 'default') {
   };
   const token = sessionService.generateToken(payload);
 
-  setSessionForCaller(callerId, token);
+  if (remember) setSessionForCaller(callerId, token);
 
   try {
     require('./audit.service').logAction({
@@ -304,6 +308,37 @@ function logout(callerOrToken = 'default') {
   }
 }
 
+/** Verify a signed token and load its user. Throws when the token is invalid or stale. */
+function sessionFromToken(token) {
+  const decoded = sessionService.verifyToken(token);
+  const user = usersRepo.getById(decoded.id);
+  if (!user || user.is_active === 0) return null;
+  if (decoded.pwv !== passwordStamp(user)) throw new Error('PasswordChanged');
+  const sessionRole = user.system_role_key || user.role || decoded.role;
+  return {
+    id: decoded.id,
+    username: decoded.username,
+    role: sessionRole,
+    systemRoleKey: user.system_role_key || null,
+    permissions: getPermissionsForUser(user),
+    forcePasswordChange: decoded.forcePasswordChange === true,
+  };
+}
+
+/**
+ * Session for a token sent by a remote client (LAN API). Only a signed token is
+ * accepted: the value is never looked up as a window/caller key, so a client
+ * cannot borrow someone else's session by sending 'lan-api' or 'default'.
+ */
+function getSessionByToken(token) {
+  if (typeof token !== 'string' || !token) return null;
+  try {
+    return sessionFromToken(token);
+  } catch {
+    return null;
+  }
+}
+
 function getCurrentSession(callerOrToken = 'default') {
   if (callerOrToken === 'default' && requestSession.getStore()) {
     return requestSession.getStore();
@@ -327,19 +362,7 @@ function getCurrentSession(callerOrToken = 'default') {
   if (!token) return null;
 
   try {
-    const decoded = sessionService.verifyToken(token);
-    const user = usersRepo.getById(decoded.id);
-    if (!user || user.is_active === 0) return null;
-    if (decoded.pwv !== passwordStamp(user)) throw new Error('PasswordChanged');
-    const sessionRole = user.system_role_key || user.role || decoded.role;
-    return {
-      id: decoded.id,
-      username: decoded.username,
-      role: sessionRole,
-      systemRoleKey: user.system_role_key || null,
-      permissions: getPermissionsForUser(user),
-      forcePasswordChange: decoded.forcePasswordChange === true,
-    };
+    return sessionFromToken(token);
   } catch {
     if (typeof callerOrToken !== 'string' || (!callerOrToken.startsWith('eyJ') && !callerOrToken.includes('.') && !callerOrToken.startsWith('token-'))) {
       activeSessions.delete(callerOrToken);
@@ -908,6 +931,7 @@ module.exports = {
   resetAdminPasswordWithRecoveryKey,
   resetAdminPasswordWithChallenge,
   getCurrentSession,
+  getSessionByToken,
   runWithSession,
   runWithPermission,
   setPermissionContext,

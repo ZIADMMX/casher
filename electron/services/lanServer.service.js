@@ -106,7 +106,7 @@ function authenticateRequest(req) {
     // Full check, not just the signature: the account must still exist, be
     // active and have the same password the token was issued for.
     try {
-      return token ? authService.getCurrentSession(token) : null;
+      return authService.getSessionByToken(token);
     } catch {
       return null;
     }
@@ -167,8 +167,9 @@ async function handleApiRequest(req, res) {
     // -------------------------------------------------------------
     if (pathname === '/api/auth/login' && method === 'POST') {
       const body = await parseBody(req);
-      // Not the default caller: a terminal login must not become this machine's session.
-      const result = authService.login(body.username, body.password, 'lan-api');
+      // The terminal keeps its token; it is never stored under a caller key here,
+      // so no other client can reach this session by naming that key.
+      const result = authService.login(body.username, body.password, 'lan-api', { remember: false });
       let defaultWarehouseId = null;
       try {
         defaultWarehouseId = inventoryRepo.getDefaultWarehouseId();
@@ -181,7 +182,7 @@ async function handleApiRequest(req, res) {
 
     if (pathname === '/api/auth/session' && method === 'GET') {
       const token = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '').trim();
-      const session = token ? authService.getCurrentSession(token) : null;
+      const session = authService.getSessionByToken(token);
       let defaultWarehouseId = null;
       try {
         defaultWarehouseId = inventoryRepo.getDefaultWarehouseId();
@@ -199,7 +200,7 @@ async function handleApiRequest(req, res) {
       const refreshedToken = require('./session.service').refreshToken(token);
       return sendJSON(res, 200, {
         token: refreshedToken,
-        user: authService.getCurrentSession(refreshedToken),
+        user: authService.getSessionByToken(refreshedToken),
       });
     }
 
