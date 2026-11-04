@@ -4,6 +4,7 @@ const { monitorEventLoopDelay, performance } = require('node:perf_hooks');
 
 jest.mock('../../electron/services/auth.service', () => ({
   login: jest.fn(() => ({ success: true, token: 'mock-token', user: { id: 1, role: 'admin' } })),
+  getCurrentSession: jest.fn(() => ({ id: 1, role: 'admin' })),
   runWithSession: jest.fn((session, callback) => callback()),
   setPermissionContext: jest.fn(),
   requirePermission: jest.fn(),

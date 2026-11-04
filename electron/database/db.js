@@ -23,7 +23,7 @@ if (userDataDir !== ':memory:' && !fs.existsSync(userDataDir)) {
   try { fs.mkdirSync(userDataDir, { recursive: true }); } catch {}
 }
 const dbPath = userDataDir === ':memory:' ? ':memory:' : path.join(userDataDir, 'shop.db');
-const DATABASE_SCHEMA_VERSION = 11;
+const DATABASE_SCHEMA_VERSION = 12;
 const SALES_SCHEMA_VERSION = 6;
 
 const DATABASE_LOCK_TIMEOUT_MS = 30000;
@@ -2441,6 +2441,24 @@ function runAllMigrations(dbInstance = db) {
     dbInstance.pragma('user_version = 11');
     console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 11 (مهام ومتابعات القضايا).');
   }
+
+  if (currentVersion < 12) {
+    migrateRevokedTokens(dbInstance);
+    dbInstance.pragma('user_version = 12');
+    console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 12 (حفظ الجلسات الملغاة).');
+  }
+}
+
+// Revoked JWT ids survive restarts; rows are useless after the token expires.
+function migrateRevokedTokens(dbInstance = db) {
+  dbInstance.exec(`
+    CREATE TABLE IF NOT EXISTS revoked_tokens (
+      jti TEXT PRIMARY KEY,
+      revoked_from INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_revoked_tokens_expires ON revoked_tokens(expires_at);
+  `);
 }
 
 function migrateLegalCaseTasks(dbInstance = db) {
@@ -2640,6 +2658,7 @@ module.exports = {
   migrateOrdersTables,
   migrateAppointmentsTables,
   migrateLegalCaseTasks,
+  migrateRevokedTokens,
   migrateSubscriptionsTables,
   migrateCommissionsTables,
   migrateCRMTables,

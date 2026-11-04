@@ -36,6 +36,15 @@ function recordFailedLoginAttempt(usernameKey) {
 const activeSessions = new Map();
 let fallbackToken = null;
 
+/**
+ * Short stamp of the current password hash, embedded in every token (pwv).
+ * Changing or resetting a password changes the stamp, so all tokens issued
+ * before it stop working on every device.
+ */
+function passwordStamp(user) {
+  return crypto.createHash('sha256').update(String(user?.password_hash || '')).digest('hex').slice(0, 16);
+}
+
 function persistSessionToken(token) {
   try {
     const settingsRepo = require('../repositories/settings.repository');
@@ -128,6 +137,12 @@ function createInitialAdmin({ username, password, fullName, phone }, callerId = 
   };
 }
 
+let dummyHash = null;
+function getDummyHash() {
+  if (!dummyHash) dummyHash = bcrypt.hashSync(crypto.randomBytes(16).toString('hex'), 10);
+  return dummyHash;
+}
+
 function login(username, password, callerId = 'default') {
   const normUser = String(username || '').trim().toLowerCase();
 
@@ -141,12 +156,29 @@ function login(username, password, callerId = 'default') {
   const user = usersRepo.getByUsername(username);
 
   if (!user) {
+    bcrypt.compareSync(String(password || ''), getDummyHash());
     recordFailedLoginAttempt(normUser);
     try {
       require('./audit.service').logAction({
         actionType: 'failed_login',
         title: 'محاولة تسجيل دخول فاشلة',
         details: `محاولة دخول فاشلة باسم: ${username}`,
+        severity: 'danger',
+      });
+    } catch {}
+    throw new Error('اسم المستخدم أو كلمة المرور غير صحيحة');
+  }
+
+  const isValid = bcrypt.compareSync(password, user.password_hash);
+  if (!isValid) {
+    recordFailedLoginAttempt(normUser);
+    try {
+      require('./audit.service').logAction({
+        actionType: 'failed_login',
+        title: 'كلمة مرور خاطئة',
+        details: `كلمة مرور خاطئة للمستخدم (${user.username})`,
+        userId: user.id,
+        username: user.username,
         severity: 'danger',
       });
     } catch {}
@@ -167,22 +199,6 @@ function login(username, password, callerId = 'default') {
     throw new Error('هذا الحساب معطل حاليًا. تواصل مع المدير');
   }
 
-  const isValid = bcrypt.compareSync(password, user.password_hash);
-  if (!isValid) {
-    recordFailedLoginAttempt(normUser);
-    try {
-      require('./audit.service').logAction({
-        actionType: 'failed_login',
-        title: 'كلمة مرور خاطئة',
-        details: `كلمة مرور خاطئة للمستخدم (${user.username})`,
-        userId: user.id,
-        username: user.username,
-        severity: 'danger',
-      });
-    } catch {}
-    throw new Error('اسم المستخدم أو كلمة المرور غير صحيحة');
-  }
-
   // Clear failed attempts upon successful login
   loginAttempts.delete(normUser);
 
@@ -192,6 +208,7 @@ function login(username, password, callerId = 'default') {
     username: user.username,
     role: user.system_role_key || user.role,
     forcePasswordChange: user.force_password_change === 1,
+    pwv: passwordStamp(user),
   };
   const token = sessionService.generateToken(payload);
 
@@ -313,6 +330,7 @@ function getCurrentSession(callerOrToken = 'default') {
     const decoded = sessionService.verifyToken(token);
     const user = usersRepo.getById(decoded.id);
     if (!user || user.is_active === 0) return null;
+    if (decoded.pwv !== passwordStamp(user)) throw new Error('PasswordChanged');
     const sessionRole = user.system_role_key || user.role || decoded.role;
     return {
       id: decoded.id,
@@ -363,6 +381,9 @@ function refreshSession(callerOrToken = 'default') {
   if (!oldToken) return null;
 
   try {
+    // A token for a disabled account or a changed password must not be refreshed,
+    // otherwise the renderer keeps showing a session that every call rejects.
+    if (!getCurrentSession(oldToken)) throw new Error('SessionInvalid');
     const newToken = sessionService.refreshToken(oldToken);
     setSessionForCaller(callerKey, newToken);
     const decoded = sessionService.verifyToken(newToken);
@@ -633,12 +654,13 @@ function updateProfile({ currentPassword, newUsername, newPassword }, callerOrTo
   }
 
   // تغيير كلمة المرور
+  let currentHash = user.password_hash;
   if (newPassword && newPassword.trim()) {
     if (newPassword.length < 6) {
       throw new Error('كلمة المرور الجديدة يجب أن تكون 6 أحرف على الأقل');
     }
-    const newHash = bcrypt.hashSync(newPassword, 10);
-    usersRepo.updatePassword(user.id, newHash);
+    currentHash = bcrypt.hashSync(newPassword, 10);
+    usersRepo.updatePassword(user.id, currentHash);
     usersRepo.clearForcePasswordChange(user.id);
   }
 
@@ -648,6 +670,7 @@ function updateProfile({ currentPassword, newUsername, newPassword }, callerOrTo
     username: updatedUsername,
     role: session.role,
     forcePasswordChange: false,
+    pwv: passwordStamp({ password_hash: currentHash }),
   };
   const newToken = sessionService.generateToken(newPayload);
 
@@ -727,6 +750,7 @@ function changePassword(newPassword, callerOrToken = 'default') {
     username: session.username,
     role: session.role,
     forcePasswordChange: false,
+    pwv: passwordStamp({ password_hash: newHash }),
   });
 
   const oldToken = activeSessions.get(callerOrToken) || (callerOrToken === 'default' ? fallbackToken : null);

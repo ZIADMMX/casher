@@ -127,6 +127,7 @@ describe('auth.service', () => {
       username: 'admin',
       role: 'admin',
       forcePasswordChange: false,
+      pwv: expect.stringMatching(/^[0-9a-f]{16}$/),
     });
     expect(authService.getCurrentSession()).toEqual({
       id: 1,

@@ -38,6 +38,7 @@ const PORT = argPort || Number(process.env.PORT) || 5000;
 const BIND_HOST = process.env.CENTRAL_BIND_HOST || '127.0.0.1';
 // Short-lived tokens; the desktop client refreshes them periodically via /api/auth/refresh.
 const TOKEN_TTL = process.env.CENTRAL_TOKEN_TTL || '8h';
+const DUMMY_PASSWORD_HASH = bcrypt.hashSync(crypto.randomBytes(16).toString('hex'), 10);
 const INSTANCE_ID = argInstance || process.env.INSTANCE_ID || `api-node-${PORT}`;
 
 // Enforce strong JWT_SECRET: Reject hardcoded fallbacks and insecure default secrets
@@ -290,16 +291,11 @@ const server = http.createServer(async (req, res) => {
     // 1. Health & Server Info
     // -------------------------------------------------------------
     if (pathname === '/api' || pathname === '/api/health') {
+      // Public liveness only; database, memory and traffic details are in /api/admin/health.
       const dbHealth = await checkHealth();
-      const uptimeSec = Math.floor((Date.now() - serverStartTime) / 1000);
       return sendJSON(res, 200, {
         status: dbHealth.primary.status === 'OK' ? 'ONLINE' : 'DEGRADED',
         service: 'FOX.CLOUD Master Central Engine',
-        version: '2.0.0',
-        uptimeSeconds: uptimeSec,
-        requestsHandled: totalRequestsHandled,
-        database: dbHealth,
-        memoryUsage: process.memoryUsage(),
       });
     }
 
@@ -326,18 +322,14 @@ const server = http.createServer(async (req, res) => {
       }
 
       const userRes = await queryRead('SELECT * FROM users WHERE username = $1 LIMIT 1', [username.trim()]);
-      if (userRes.rows.length === 0) {
+      const user = userRes.rows[0];
+      // Compare against a dummy hash for unknown users so timing does not reveal them.
+      const isMatch = bcrypt.compareSync(String(password), user ? user.password_hash : DUMMY_PASSWORD_HASH);
+      if (!user || !isMatch) {
         return sendJSON(res, 401, { error: 'اسم المستخدم أو كلمة المرور غير صحيحة' });
       }
-
-      const user = userRes.rows[0];
       if (!user.is_active) {
         return sendJSON(res, 403, { error: 'هذا الحساب معطل حالياً' });
-      }
-
-      const isMatch = bcrypt.compareSync(password, user.password_hash);
-      if (!isMatch) {
-        return sendJSON(res, 401, { error: 'اسم المستخدم أو كلمة المرور غير صحيحة' });
       }
 
       const token = jwt.sign(
@@ -1231,7 +1223,7 @@ const server = http.createServer(async (req, res) => {
 
   } catch (err) {
     console.error('Server Internal Error:', err);
-    return sendJSON(res, 500, { error: 'حدث خطأ غير متوقع في الخادم', details: err.message });
+    return sendJSON(res, 500, { error: 'حدث خطأ غير متوقع في الخادم' });
   }
 });
 

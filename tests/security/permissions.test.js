@@ -125,11 +125,13 @@ jest.mock('../../electron/services/session.service', () => {
 describe('Security & Permissions (RBAC Enforcement)', () => {
   const usersRepo = require('../../electron/repositories/users.repository');
 
+  // Same hash from getByUsername and getById: tokens are bound to the password hash.
   const adminUser = {
     id: 1,
     username: 'admin',
     role: 'admin',
     is_active: 1,
+    password_hash: require('bcryptjs').hashSync('admin123', 4),
   };
 
   const cashierUser = {
@@ -137,6 +139,7 @@ describe('Security & Permissions (RBAC Enforcement)', () => {
     username: 'cashier',
     role: 'cashier',
     is_active: 1,
+    password_hash: require('bcryptjs').hashSync('cashier123', 4),
   };
 
   beforeEach(() => {
@@ -168,7 +171,6 @@ describe('Security & Permissions (RBAC Enforcement)', () => {
         if (name === 'cashier') {
           return {
             ...cashierUser,
-            password_hash: require('bcryptjs').hashSync('cashier123', 4),
           };
         }
         return undefined;
@@ -240,7 +242,6 @@ describe('Security & Permissions (RBAC Enforcement)', () => {
         if (name === 'cashier') {
           return {
             ...cashierUser,
-            password_hash: require('bcryptjs').hashSync('cashier123', 4),
           };
         }
         return undefined;
@@ -265,7 +266,6 @@ describe('Security & Permissions (RBAC Enforcement)', () => {
         if (name === 'admin') {
           return {
             ...adminUser,
-            password_hash: require('bcryptjs').hashSync('admin123', 4),
           };
         }
         return undefined;

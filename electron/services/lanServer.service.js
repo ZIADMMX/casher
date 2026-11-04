@@ -103,9 +103,10 @@ function authenticateRequest(req) {
   const authHeader = req.headers['authorization'] || '';
   if (authHeader.startsWith('Bearer ')) {
     const token = authHeader.substring(7).trim();
-    const sessionService = require('./session.service');
+    // Full check, not just the signature: the account must still exist, be
+    // active and have the same password the token was issued for.
     try {
-      return sessionService.verifyToken(token);
+      return token ? authService.getCurrentSession(token) : null;
     } catch {
       return null;
     }
@@ -166,7 +167,8 @@ async function handleApiRequest(req, res) {
     // -------------------------------------------------------------
     if (pathname === '/api/auth/login' && method === 'POST') {
       const body = await parseBody(req);
-      const result = authService.login(body.username, body.password);
+      // Not the default caller: a terminal login must not become this machine's session.
+      const result = authService.login(body.username, body.password, 'lan-api');
       let defaultWarehouseId = null;
       try {
         defaultWarehouseId = inventoryRepo.getDefaultWarehouseId();
@@ -594,6 +596,11 @@ async function handleApiRequest(req, res) {
     });
   } catch (err) {
     logError('LANServerAPI', err);
+    // Business/validation messages are meant for the cashier; raw SQLite errors
+    // (table and column names) stay in the log.
+    if (String(err?.code || '').startsWith('SQLITE_')) {
+      return sendJSON(res, 500, { error: 'حدث خطأ غير متوقع في الخادم' });
+    }
     return sendJSON(res, 400, { error: err.message || 'Internal Server Error' });
   }
 }

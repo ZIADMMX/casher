@@ -133,7 +133,9 @@ describe('Cashier Audit Trail & Security Service', () => {
 
     // Create admin user & login
     mockDb.prepare("INSERT OR IGNORE INTO users (id, username, password_hash, role) VALUES (?, ?, ?, ?)").run(10, 'admin_test', 'hash_admin', 'admin');
-    const token = require('../../electron/services/session.service').generateToken({ id: 10, username: 'admin_test', role: 'admin' });
+    // pwv binds the token to the current password hash (see auth.service passwordStamp)
+    const pwv = require('node:crypto').createHash('sha256').update('hash_admin').digest('hex').slice(0, 16);
+    const token = require('../../electron/services/session.service').generateToken({ id: 10, username: 'admin_test', role: 'admin', pwv });
     authService.setSessionForCaller(undefined, token);
 
     // With admin session, getAuditLogs and getCashierSummary should work

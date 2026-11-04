@@ -129,3 +129,72 @@ describe('Security: developer recovery OTP is bound to this machine and date', (
       .toThrow();
   });
 });
+
+describe('Security: sessions end when the password changes', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    authService._resetMemoryForTesting();
+    authService.resetLoginAttempts();
+    mockUsers.clear();
+    mockUsers.set(1, { id: 1, username: 'owner', role: 'admin', system_role_key: null, password_hash: hash, is_active: 1 });
+    mockUsers.set(2, { id: 2, username: 'cashier', role: 'cashier', system_role_key: null, password_hash: hash, is_active: 1 });
+    usersRepo.updatePassword.mockImplementation((id, newHash) => { mockUsers.get(id).password_hash = newHash; });
+  });
+
+  afterEach(() => usersRepo.updatePassword.mockReset());
+
+  test('an admin password reset kills the cashier tokens on every device', () => {
+    const { token: cashierToken } = authService.login('cashier', 'secret123', 'terminal-1');
+    expect(authService.getCurrentSession(cashierToken)?.username).toBe('cashier');
+
+    authService.login('owner', 'secret123', 'default');
+    authService.resetUserPassword({ userId: 2, password: 'newpass1' });
+
+    expect(authService.getCurrentSession(cashierToken)).toBeNull();
+  });
+
+  test('a session killed by a password reset cannot be refreshed', () => {
+    authService.login('cashier', 'secret123', 'terminal-1');
+    authService.login('owner', 'secret123', 'default');
+    authService.resetUserPassword({ userId: 2, password: 'newpass1' });
+
+    expect(authService.refreshSession('terminal-1')).toBeNull();
+    expect(authService.getCurrentSession('terminal-1')).toBeNull();
+  });
+
+  test('a disabled account cannot refresh its session', () => {
+    authService.login('cashier', 'secret123', 'terminal-1');
+    mockUsers.get(2).is_active = 0;
+    expect(authService.refreshSession('terminal-1')).toBeNull();
+  });
+
+  test('a valid session still refreshes', () => {
+    authService.login('cashier', 'secret123', 'terminal-1');
+    expect(authService.refreshSession('terminal-1')?.user?.username).toBe('cashier');
+  });
+
+  test('tokens issued after the change keep working', () => {
+    authService.login('owner', 'secret123', 'default');
+    authService.resetUserPassword({ userId: 2, password: 'newpass1' });
+    const { token } = authService.login('cashier', 'newpass1', 'terminal-1');
+    expect(authService.getCurrentSession(token)?.username).toBe('cashier');
+  });
+});
+
+describe('Security: login does not reveal which accounts exist', () => {
+  beforeEach(() => {
+    authService._resetMemoryForTesting();
+    authService.resetLoginAttempts();
+    mockUsers.clear();
+    mockUsers.set(5, { id: 5, username: 'disabled', role: 'cashier', system_role_key: null, password_hash: hash, is_active: 0 });
+  });
+
+  test('a wrong password on a disabled account gets the generic error', () => {
+    expect(() => authService.login('disabled', 'wrong-pass')).toThrow('اسم المستخدم أو كلمة المرور غير صحيحة');
+    expect(() => authService.login('nobody', 'wrong-pass')).toThrow('اسم المستخدم أو كلمة المرور غير صحيحة');
+  });
+
+  test('only the correct password reveals that the account is disabled', () => {
+    expect(() => authService.login('disabled', 'secret123')).toThrow('معطل');
+  });
+});

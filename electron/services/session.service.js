@@ -37,9 +37,62 @@ function getSecret() {
 const DEFAULT_EXPIRE = Number(process.env.SESSION_EXPIRE_SECONDS) || (8 * 3600);
 
 // ---------- Token Blacklist ----------
-// In-memory set of invalidated JTI (JWT ID) values.
-// Tokens added here are treated as revoked even if they haven't expired yet.
-const _blacklist = new Set();
+// jti -> unix second from which the token is rejected. Kept in memory and in the
+// revoked_tokens table so logouts survive an app restart.
+const _blacklist = new Map();
+
+// A refreshed token stays usable briefly so requests already in flight with it
+// do not fail (the LAN client drops its session on 401).
+const REFRESH_GRACE_SECONDS = 60;
+
+function nowSeconds() {
+  return Math.floor(Date.now() / 1000);
+}
+
+function persistRevocation(jti, revokedFrom, expiresAt) {
+  try {
+    const { db } = require('../database/db');
+    db.prepare('DELETE FROM revoked_tokens WHERE expires_at <= ?').run(nowSeconds());
+    db.prepare(`
+      INSERT INTO revoked_tokens (jti, revoked_from, expires_at) VALUES (?, ?, ?)
+      ON CONFLICT(jti) DO UPDATE SET revoked_from = MIN(revoked_from, excluded.revoked_from)
+    `).run(jti, revokedFrom, expiresAt);
+  } catch {
+    // Database unavailable (unit tests): the in-memory blacklist still applies.
+  }
+}
+
+function getPersistedRevocation(jti) {
+  try {
+    const { db } = require('../database/db');
+    return db.prepare('SELECT revoked_from FROM revoked_tokens WHERE jti = ?').get(jti)?.revoked_from ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function isRevoked(jti) {
+  const revokedFrom = _blacklist.has(jti) ? _blacklist.get(jti) : getPersistedRevocation(jti);
+  return revokedFrom != null && nowSeconds() >= revokedFrom;
+}
+
+function revoke(decoded, graceSeconds = 0) {
+  if (!decoded?.jti) return;
+  const revokedFrom = nowSeconds() + graceSeconds;
+  const current = _blacklist.get(decoded.jti);
+  _blacklist.set(decoded.jti, current == null ? revokedFrom : Math.min(current, revokedFrom));
+  const expiresAt = decoded.exp || revokedFrom + DEFAULT_EXPIRE;
+  persistRevocation(decoded.jti, revokedFrom, expiresAt);
+
+  // Auto-clean memory once the token would have expired naturally
+  const ttl = (expiresAt * 1000) - Date.now();
+  if (ttl > 0) {
+    const cleanupTimer = setTimeout(() => _blacklist.delete(decoded.jti), ttl);
+    cleanupTimer.unref?.();
+  } else {
+    _blacklist.delete(decoded.jti);
+  }
+}
 
 /**
  * Generate a JWT for a given user payload.
@@ -60,7 +113,7 @@ function generateToken(payload, expiresIn = DEFAULT_EXPIRE) {
 function verifyToken(token) {
   if (!token) throw new Error('TokenMissing');
   const decoded = jwt.verify(token, getSecret());
-  if (decoded.jti && _blacklist.has(decoded.jti)) {
+  if (decoded.jti && isRevoked(decoded.jti)) {
     throw new Error('TokenRevoked');
   }
   return decoded;
@@ -73,22 +126,7 @@ function verifyToken(token) {
 function invalidateToken(token) {
   try {
     // Decode without verification so we can blacklist even if it's about to expire
-    const decoded = jwt.decode(token);
-    if (decoded && decoded.jti) {
-      _blacklist.add(decoded.jti);
-
-      // Auto-clean: schedule removal once the token would have expired naturally
-      if (decoded.exp) {
-        const ttl = (decoded.exp * 1000) - Date.now();
-        if (ttl > 0) {
-          const cleanupTimer = setTimeout(() => _blacklist.delete(decoded.jti), ttl);
-          cleanupTimer.unref?.();
-        } else {
-          // Already expired, no need to keep in blacklist
-          _blacklist.delete(decoded.jti);
-        }
-      }
-    }
+    revoke(jwt.decode(token));
   } catch {
     // Silently ignore decode failures – token was probably garbage
   }
@@ -96,7 +134,7 @@ function invalidateToken(token) {
 
 /**
  * Issue a fresh token carrying the same user payload.
- * The old token remains valid until it naturally expires (or is blacklisted).
+ * The old token is revoked after a short grace period.
  */
 function refreshToken(oldToken) {
   const payload = verifyToken(oldToken);
@@ -105,7 +143,9 @@ function refreshToken(oldToken) {
   delete rest.iat;
   delete rest.exp;
   delete rest.jti;
-  return generateToken(rest);
+  const newToken = generateToken(rest);
+  revoke(payload, REFRESH_GRACE_SECONDS);
+  return newToken;
 }
 
 /**
