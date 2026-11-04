@@ -1,5 +1,8 @@
 const Database = require('better-sqlite3');
 
+// In-memory DB has no data folder for the secret file; pin the secret so a
+// simulated restart keeps verifying signatures and only revocation is tested.
+process.env.SESSION_SECRET = 'session-hardening-test-secret';
 const mockDb = new Database(':memory:');
 
 jest.mock('../../electron/database/db', () => ({
@@ -14,6 +17,7 @@ describe('Security: token revocation', () => {
   });
 
   afterEach(() => jest.restoreAllMocks());
+  afterAll(() => { delete process.env.SESSION_SECRET; });
 
   test('a logged-out token stays rejected after an app restart', () => {
     let sessionService = require('../../electron/services/session.service');

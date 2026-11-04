@@ -2,6 +2,7 @@ const { dialog, BrowserWindow } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 const SettingsService = require('../services/settings.service');
+const { getDefaultBackupPath } = require('../services/backup.service');
 const authService = require('../services/auth.service');
 const { safeHandle } = require('./safeHandle');
 
@@ -19,20 +20,10 @@ function registerSettingsHandlers() {
   safeHandle('settings:backup', async (event) => {
     authService.requireAdmin();
     const win = BrowserWindow.fromWebContents(event.sender);
-    const now = new Date();
-    const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    const defaultFilename = `foxcloud_backup_${dateStr}.db`;
-
-    let defaultPath = defaultFilename;
-    try {
-      if (fs.existsSync('D:\\')) {
-        defaultPath = path.join('D:\\', defaultFilename);
-      }
-    } catch {}
-
     const result = await dialog.showSaveDialog(win, {
       title: 'حفظ نسخة احتياطية من قاعدة البيانات',
-      defaultPath,
+      // The user's own Documents folder; a drive root like D:\ is writable by every Windows account.
+      defaultPath: getDefaultBackupPath(),
       filters: [{ name: 'SQLite Database', extensions: ['db', 'sqlite'] }]
     });
 
@@ -50,13 +41,9 @@ function registerSettingsHandlers() {
     const openOptions = {
       title: 'اختر ملف النسخة الاحتياطية لاستعادتها',
       properties: ['openFile'],
-      filters: [{ name: 'SQLite Database', extensions: ['db', 'sqlite', 'bak'] }]
+      filters: [{ name: 'SQLite Database', extensions: ['db', 'sqlite', 'bak'] }],
+      defaultPath: path.dirname(getDefaultBackupPath()),
     };
-    try {
-      if (fs.existsSync('D:\\')) {
-        openOptions.defaultPath = 'D:\\';
-      }
-    } catch {}
 
     const result = await dialog.showOpenDialog(win, openOptions);
 

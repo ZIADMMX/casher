@@ -6,6 +6,10 @@ const mockDatabasePath = path.join(os.tmpdir(), `kashiear-backup-service-${proce
 const mockBackupRoot = path.join(os.tmpdir(), `kashiear-backup-dest-${process.pid}`);
 const mockManualBackupPath = path.join(mockBackupRoot, 'manual.db');
 let mockLiveDatabase;
+// Restore only accepts files that carry this app's core tables.
+const APP_CORE_TABLES = 'CREATE TABLE users (id INTEGER PRIMARY KEY); '
+  + 'CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT); '
+  + 'CREATE TABLE sales (id INTEGER PRIMARY KEY); ';
 
 jest.mock('electron', () => ({
   dialog: {
@@ -290,7 +294,7 @@ describe('backup.service.restoreFromBackup', () => {
     const { closeDatabase } = require('../../electron/database/db');
     const validBackupPath = path.join(os.tmpdir(), `valid-backup-atomic-${process.pid}.db`);
     const validDb = new Database(validBackupPath);
-    validDb.exec('CREATE TABLE atomic_restore (id INTEGER PRIMARY KEY, msg TEXT)');
+    validDb.exec(`${APP_CORE_TABLES}CREATE TABLE atomic_restore (id INTEGER PRIMARY KEY, msg TEXT)`);
     validDb.prepare('INSERT INTO atomic_restore (msg) VALUES (?)').run('restored atomically');
     validDb.close();
 
@@ -326,7 +330,7 @@ describe('backup.service.restoreFromBackup', () => {
     const { closeDatabase } = require('../../electron/database/db');
     const validBackupPath = path.join(os.tmpdir(), `valid-backup-${process.pid}.db`);
     const validDb = new Database(validBackupPath);
-    validDb.exec('CREATE TABLE test_table (id INTEGER PRIMARY KEY, msg TEXT)');
+    validDb.exec(`${APP_CORE_TABLES}CREATE TABLE test_table (id INTEGER PRIMARY KEY, msg TEXT)`);
     validDb.prepare('INSERT INTO test_table (msg) VALUES (?)').run('valid data');
     validDb.close();
 

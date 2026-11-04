@@ -3,34 +3,74 @@
 // Requires the `jsonwebtoken` package (npm install jsonwebtoken).
 
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 const jwt = require('jsonwebtoken');
 
-// Secret key – read from environment or persist in settings database
+// Used only for in-memory databases (tests), where there is no data folder.
 const _fallbackSecret = crypto.randomBytes(32).toString('hex');
 
-// Bump when the stored secret must be replaced on every installation
-// (v2: older builds exposed it through settings:getAll).
-const SECRET_GENERATION = '2';
+// The signing secret is kept in a file next to the database, never inside it:
+// backups copy only the .db file, so a backup cannot be used to forge tokens.
+const SECRET_FILE = 'session.key';
+// Older builds stored the secret in the settings table; those rows are discarded.
+const LEGACY_SETTING_KEYS = ['system_session_secret', 'system_session_secret_generation'];
+
+let cachedSecret = null;
+
+function getSecretFilePath() {
+  const { dbPath } = require('../database/db');
+  if (!dbPath || dbPath === ':memory:') return null;
+  return path.join(path.dirname(dbPath), SECRET_FILE);
+}
+
+function discardLegacySecret() {
+  try {
+    const { db } = require('../database/db');
+    const placeholders = LEGACY_SETTING_KEYS.map(() => '?').join(', ');
+    const removed = db.prepare(`DELETE FROM settings WHERE key IN (${placeholders})`).run(...LEGACY_SETTING_KEYS);
+    if (removed.changes) {
+      db.prepare("UPDATE settings SET value = '' WHERE key = 'last_active_session_token'").run();
+    }
+  } catch {
+    // No settings table yet (fresh or test database).
+  }
+}
+
+function readOrCreateSecretFile(filePath) {
+  try {
+    const saved = fs.readFileSync(filePath, 'utf8').trim();
+    if (/^[0-9a-f]{64}$/.test(saved)) return saved;
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+  const secret = crypto.randomBytes(32).toString('hex');
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  try {
+    fs.writeFileSync(filePath, secret, { encoding: 'utf8', mode: 0o600, flag: 'wx' });
+    return secret;
+  } catch (error) {
+    // Another process (e.g. api-server) created it first: use that one.
+    if (error.code === 'EEXIST') return fs.readFileSync(filePath, 'utf8').trim();
+    throw error;
+  }
+}
 
 function getSecret() {
   if (process.env.SESSION_SECRET) return process.env.SESSION_SECRET;
-  try {
-    const settingsRepo = require('../repositories/settings.repository');
-    let saved = settingsRepo.get('system_session_secret');
-    if (saved && settingsRepo.get('system_session_secret_generation') !== SECRET_GENERATION) {
-      // Discard the possibly leaked secret: every token signed with it becomes invalid.
-      saved = null;
-      settingsRepo.set('last_active_session_token', '');
-    }
-    if (!saved) {
-      saved = crypto.randomBytes(32).toString('hex');
-      settingsRepo.set('system_session_secret', saved);
-      settingsRepo.set('system_session_secret_generation', SECRET_GENERATION);
-    }
-    return saved;
-  } catch {
-    return _fallbackSecret;
-  }
+  if (cachedSecret) return cachedSecret;
+  const filePath = getSecretFilePath();
+  if (!filePath) return _fallbackSecret;
+  discardLegacySecret();
+  cachedSecret = readOrCreateSecretFile(filePath);
+  return cachedSecret;
+}
+
+/** Replace the signing secret: every token issued so far stops working. */
+function rotateSecret() {
+  cachedSecret = null;
+  const filePath = getSecretFilePath();
+  if (filePath) fs.rmSync(filePath, { force: true });
 }
 
 // Token expiry in seconds (default 8 hours for POS cashier shifts instead of 24h)
@@ -168,4 +208,5 @@ module.exports = {
   invalidateToken,
   refreshToken,
   getTokenTTL,
+  rotateSecret,
 };

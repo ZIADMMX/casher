@@ -17,6 +17,58 @@ function verifyDatabase(filePath) {
   }
 }
 
+// Tables every database written by this app has; a file without them is not ours.
+const REQUIRED_TABLES = ['users', 'settings', 'sales'];
+
+function quoteIdentifier(name) {
+  return `"${String(name).replace(/"/g, '""')}"`;
+}
+
+/**
+ * Make a restore candidate safe to load. A backup is a whole database, so a
+ * crafted one could carry triggers or views that act on every later write.
+ * Only triggers/views identical to the ones in the current database survive;
+ * migrations recreate any the older backup legitimately lacks.
+ */
+function sanitizeRestoreCandidate(candidatePath) {
+  const live = new Database(dbPath, { readonly: true, fileMustExist: true });
+  let liveVersion;
+  let knownObjects;
+  try {
+    liveVersion = live.pragma('user_version', { simple: true }) || 0;
+    knownObjects = new Map(live.prepare(
+      "SELECT type || ':' || name AS id, sql FROM sqlite_master WHERE type IN ('trigger', 'view')"
+    ).all().map((row) => [row.id, row.sql]));
+  } finally {
+    live.close();
+  }
+
+  const candidate = new Database(candidatePath, { fileMustExist: true });
+  try {
+    const tables = new Set(candidate.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map((r) => r.name));
+    if (REQUIRED_TABLES.some((table) => !tables.has(table))) {
+      throw new Error('هذا الملف ليس نسخة احتياطية من قاعدة بيانات البرنامج');
+    }
+    if ((candidate.pragma('user_version', { simple: true }) || 0) > liveVersion) {
+      throw new Error('هذه النسخة الاحتياطية من إصدار أحدث من البرنامج. حدّث البرنامج أولاً ثم أعد الاستعادة');
+    }
+
+    const objects = candidate.prepare("SELECT type, name, sql FROM sqlite_master WHERE type IN ('trigger', 'view')").all();
+    for (const { type, name, sql } of objects) {
+      if (knownObjects.get(`${type}:${name}`) !== sql) {
+        candidate.exec(`DROP ${type === 'view' ? 'VIEW' : 'TRIGGER'} IF EXISTS ${quoteIdentifier(name)}`);
+      }
+    }
+  } finally {
+    candidate.close();
+  }
+}
+
+/** Default manual-backup location: the user's own Documents folder, not a shared drive root. */
+function getDefaultBackupPath() {
+  return path.join(app.getPath('documents'), `foxcloud-backup-${new Date().toISOString().slice(0, 10)}.db`);
+}
+
 function makeTempPath(filePath, label) {
   return path.join(
     path.dirname(filePath),
@@ -86,16 +138,9 @@ async function backupToFile(filePath) {
  */
 async function backupNow(destFilePath) {
   try {
-    let defaultBackupPath = `foxcloud-backup-${new Date().toISOString().slice(0, 10)}.db`;
-    try {
-      if (fs.existsSync('D:\\')) {
-        defaultBackupPath = path.join('D:\\', defaultBackupPath);
-      }
-    } catch {}
-
     const savePath = destFilePath || dialog.showSaveDialogSync({
       title: 'حفظ نسخة احتياطية',
-      defaultPath: defaultBackupPath,
+      defaultPath: getDefaultBackupPath(),
       filters: [{ name: 'Database Backup', extensions: ['db'] }],
     });
 
@@ -153,6 +198,7 @@ async function restoreDatabase(sourceFilePath) {
     restoreTempPath = makeTempPath(dbPath, 'restore');
     copyAndSync(sourceFilePath, restoreTempPath);
     verifyDatabase(restoreTempPath);
+    sanitizeRestoreCandidate(restoreTempPath);
 
     if (!fs.existsSync(dbPath)) {
       throw new Error('ملف قاعدة البيانات الحالية غير موجود لإنشاء نسخة طوارئ');
@@ -167,6 +213,9 @@ async function restoreDatabase(sourceFilePath) {
     restoreTempPath = null;
     removeDatabaseSidecars();
     verifyDatabase(dbPath);
+    // The restored revoked_tokens table is older than the live one, so logged-out
+    // tokens could work again: rotate the secret so everyone signs in afresh.
+    require('./session.service').rotateSecret();
 
     app.relaunch();
     app.exit(0);
@@ -268,6 +317,7 @@ async function autoBackupDaily() {
 }
 
 module.exports = {
+  getDefaultBackupPath,
   backupNow,
   restoreFromBackup,
   restoreDatabase,
