@@ -17,3 +17,6 @@ data/
 coverage/
 undefined/
 D:*
+
+# graphify transient build lock
+graphify-out/.rebuild.lock

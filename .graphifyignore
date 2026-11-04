@@ -1,0 +1,13 @@
+# Vendored third-party code (not part of this app's source)
+boosthis-kit-node/
+lib/
+*.tar.gz
+
+# Generated or exported artifacts
+.archify/
+foxcloud-*.html
+build/
+kashiear/
+rules/
+.jest-cache/
+coverage/
