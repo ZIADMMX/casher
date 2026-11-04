@@ -1,7 +1,6 @@
 const { safeHandle } = require('./safeHandle');
 const lanServer = require('../services/lanServer.service');
-const https = require('node:https');
-const { configureSystemCertificateTrust } = require('../security/tlsTrust');
+const { probeServer } = require('../security/tlsPin');
 
 function getSecureHealthUrl(targetUrl) {
   const parsed = new URL(targetUrl);
@@ -57,45 +56,19 @@ function registerLanHandlers() {
     return await lanServer.openWindowsFirewallPort(port);
   });
 
-  safeHandle('lan:testConnection', (_event, targetUrl) => {
-    return new Promise((resolve) => {
-      try {
-        if (!targetUrl || typeof targetUrl !== 'string') {
-          return resolve({ success: false, message: 'عنوان الخادم غير صحيح' });
-        }
-
-        const pingEndpoint = getSecureHealthUrl(targetUrl);
-        configureSystemCertificateTrust();
-
-        const req = https.get(pingEndpoint, { timeout: 3000 }, (res) => {
-          let data = '';
-          res.on('data', (chunk) => { data += chunk; });
-          res.on('end', () => {
-            if (res.statusCode === 200) {
-              try {
-                const parsed = JSON.parse(data);
-                resolve({ success: true, serverInfo: parsed });
-              } catch {
-                resolve({ success: true, message: 'تم الاتصال بالخادم بنجاح' });
-              }
-            } else {
-              resolve({ success: false, message: `الخادم رد برمز خطأ: ${res.statusCode}` });
-            }
-          });
-        });
-
-        req.on('error', (err) => {
-          resolve({ success: false, message: `فشل الاتصال: ${err.message}` });
-        });
-
-        req.on('timeout', () => {
-          req.destroy();
-          resolve({ success: false, message: 'انتهت مهلة الاتصال بالخادم (Timeout)' });
-        });
-      } catch (err) {
-        resolve({ success: false, message: err.message });
+  // Discovery only: reads the server certificate and returns its fingerprint so the
+  // user can compare it with the server screen before pairing (central:configure).
+  safeHandle('lan:testConnection', async (_event, targetUrl) => {
+    try {
+      if (!targetUrl || typeof targetUrl !== 'string') {
+        return { success: false, message: 'عنوان الخادم غير صحيح' };
       }
-    });
+      const { origin } = getSecureHealthUrl(targetUrl);
+      const { serverInfo, fingerprint256 } = await probeServer(origin);
+      return { success: true, serverInfo, fingerprint256 };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
   });
 }
 

@@ -28,6 +28,8 @@ function LoginPage() {
   const [copiedIp, setCopiedIp] = useState(null);
   const [firewallConfiguring, setFirewallConfiguring] = useState(false);
   const [firewallMessage, setFirewallMessage] = useState('');
+  // { baseUrl, fingerprint256 } waiting for the user to compare with the server screen
+  const [pendingPairing, setPendingPairing] = useState(null);
 
   useEffect(() => {
     refreshNetworkInfo();
@@ -54,6 +56,10 @@ function LoginPage() {
         setConnectionMode('master');
       } else if (config.baseUrl) {
         setConnectionMode('remote');
+        if (!config.pinned) {
+          setServerMessageStatus('info');
+          setServerMessage('هذا الجهاز مربوط بالطريقة القديمة. اضغط "حفظ وربط" لتثبيت بصمة الخادم، ثم احذف شهادة الخادم من مخزن الشهادات الموثوقة في ويندوز.');
+        }
       } else {
         setConnectionMode('standalone');
       }
@@ -79,7 +85,7 @@ function LoginPage() {
       }
       setConnectionMode('master');
       setServerMessageStatus('success');
-      setServerMessage('تم تفعيل خادم HTTPS. انسخ شهادة الخادم العامة وثبّتها على أجهزة الكاشير قبل ربطها.');
+      setServerMessage('تم تفعيل خادم HTTPS. عند ربط كل جهاز كاشير، قارن البصمة التي تظهر عليه بالبصمة الظاهرة هنا.');
     } catch (serverError) {
       setServerMessageStatus('error');
       setServerMessage(normalizeErrorMessage(serverError));
@@ -153,14 +159,30 @@ function LoginPage() {
     }
 
     try {
-      const result = await window.electronAPI.configureCentralServer(formatted);
-      setServerAddress(result.baseUrl || formatted);
+      const { baseUrl, fingerprint256 } = await window.electronAPI.getCentralServerFingerprint(formatted);
+      setPendingPairing({ baseUrl, fingerprint256 });
+      setServerMessageStatus('info');
+      setServerMessage('قارن البصمة أدناه بالبصمة الظاهرة على شاشة الخادم قبل التأكيد.');
+    } catch (configError) {
+      setPendingPairing(null);
+      setServerMessageStatus('error');
+      setServerMessage(normalizeErrorMessage(configError));
+    }
+  }
+
+  async function confirmPairing() {
+    if (!pendingPairing) return;
+    try {
+      const result = await window.electronAPI.configureCentralServer(pendingPairing);
+      setServerAddress(result.baseUrl || pendingPairing.baseUrl);
       setConnectionMode('remote');
       setServerMessageStatus('success');
-      setServerMessage('تم حفظ إعدادات الاتصال بالخادم الرئيسي بنجاح!');
+      setServerMessage('تم ربط الجهاز بالخادم الرئيسي وتثبيت بصمته بنجاح!');
     } catch (configError) {
       setServerMessageStatus('error');
       setServerMessage(normalizeErrorMessage(configError));
+    } finally {
+      setPendingPairing(null);
     }
   }
 
@@ -194,7 +216,8 @@ function LoginPage() {
       if (res && res.success) {
         setServerAddress(formatted);
         setServerMessageStatus('success');
-        setServerMessage(`الاتصال ناجح ومستقر مع الخادم (${res.message || 'خادم FOX.CLOUD'}) · السرعة: ${elapsed}ms`);
+        const fingerprintNote = res.fingerprint256 ? ` · البصمة: ${res.fingerprint256}` : '';
+        setServerMessage(`الاتصال ناجح ومستقر مع الخادم (${res.message || 'خادم FOX.CLOUD'}) · السرعة: ${elapsed}ms${fingerprintNote}`);
       } else {
         setServerMessageStatus('error');
         setServerMessage(res?.message || 'تعذر الاتصال بهذا العنوان. تأكد من تشغيل السيرفر ووجود الجهازين على نفس الشبكة.');
@@ -560,10 +583,9 @@ function LoginPage() {
 
                       {lanServerStatus.certificatePath && (
                         <div style={{ marginTop: '8px', padding: '8px', borderRadius: '6px', background: 'rgba(245, 158, 11, 0.1)', color: '#FCD34D', fontSize: '11px', lineHeight: 1.7 }}>
-                          <div>انسخ شهادة الخادم العامة إلى الأجهزة الطرفية، وتحقق من بصمة SHA-256 قبل الوثوق بها:</div>
-                          <code dir="ltr" style={{ display: 'block', overflowWrap: 'anywhere' }}>{lanServerStatus.certificatePath}</code>
+                          <div>بصمة الخادم (SHA-256). عند ربط كل جهاز كاشير ستظهر له بصمة؛ اربطه فقط إذا كانت مطابقة لهذه:</div>
                           <code dir="ltr" style={{ display: 'block', overflowWrap: 'anywhere' }}>{lanServerStatus.certificateFingerprint}</code>
-                          <div>أضف <code>server.cert</code> إلى مخزن الشهادات الموثوقة للمستخدم على كل جهاز، ثم أعد تشغيل التطبيق. لا تشارك <code>server.key</code>.</div>
+                          <div>لا حاجة لنسخ الشهادة أو تثبيتها في ويندوز. لا تشارك ملف <code>server.key</code>.</div>
                         </div>
                       )}
 
@@ -655,7 +677,10 @@ function LoginPage() {
                       type="text"
                       className="network-text-input"
                       value={serverAddress}
-                      onChange={(event) => setServerAddress(event.target.value)}
+                      onChange={(event) => {
+                        setServerAddress(event.target.value);
+                        setPendingPairing(null);
+                      }}
                       placeholder="192.168.1.10:5443"
                       dir="ltr"
                     />
@@ -675,6 +700,24 @@ function LoginPage() {
                       حفظ وربط
                     </button>
                   </div>
+
+                  {pendingPairing && (
+                    <div style={{ marginTop: '10px', padding: '10px', borderRadius: '8px', background: 'rgba(245, 158, 11, 0.1)', color: '#FCD34D', fontSize: '12px', lineHeight: 1.7 }}>
+                      <div>بصمة الخادم <code dir="ltr">{pendingPairing.baseUrl}</code>:</div>
+                      <code dir="ltr" style={{ display: 'block', overflowWrap: 'anywhere', fontSize: '12.5px', color: '#FDE68A' }}>
+                        {pendingPairing.fingerprint256}
+                      </code>
+                      <div>هل تطابق البصمة الظاهرة على شاشة الخادم حرفًا بحرف؟ إذا اختلفت فلا تؤكد، فقد يكون جهاز آخر ينتحل الخادم.</div>
+                      <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                        <button type="button" className="network-action-btn primary" onClick={confirmPairing}>
+                          البصمة مطابقة، اربط الجهاز
+                        </button>
+                        <button type="button" className="network-action-btn secondary" onClick={() => setPendingPairing(null)}>
+                          إلغاء
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

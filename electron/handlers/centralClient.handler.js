@@ -31,6 +31,7 @@ function registerCentralClientHandlers() {
   safeHandle('central:changePassword', (_event, password) => centralClient.changePassword(password));
   safeHandle('central:logout', () => centralClient.logout());
   safeHandle('central:testConnection', (_event, baseUrl) => centralClient.testConnection(baseUrl));
+  safeHandle('central:getServerFingerprint', (_event, baseUrl) => centralClient.getServerFingerprint(baseUrl));
   safeHandle('central:request', (_event, data) => centralClient.invoke(data));
 }
 

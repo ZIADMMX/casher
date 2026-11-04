@@ -3,6 +3,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const { app } = require('electron');
 const { configureSystemCertificateTrust } = require('../security/tlsTrust');
+const tlsPin = require('../security/tlsPin');
 
 const configPath = path.join(app.getPath('userData'), 'central-server.json');
 let accessToken = null;
@@ -57,25 +58,36 @@ async function getCourtsData(cacheKey, route) {
   return cloneResponse(await requestPromise);
 }
 
-function getConfig() {
+function writeStoredConfig(config) {
+  fs.mkdirSync(path.dirname(configPath), { recursive: true });
+  fs.writeFileSync(configPath, JSON.stringify(config), { encoding: 'utf8', mode: 0o600 });
+}
+
+/** Full stored config, including the pinned server certificate (main process only). */
+function readStoredConfig() {
   try {
     const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
     const rawBaseUrl = config.baseUrl || '';
     const baseUrl = validateBaseUrl(upgradeHttpBaseUrl(rawBaseUrl));
-    if (baseUrl !== rawBaseUrl) {
-      fs.writeFileSync(configPath, JSON.stringify({
-        ...config,
-        baseUrl,
-      }), { encoding: 'utf8', mode: 0o600 });
-    }
+    if (baseUrl !== rawBaseUrl) writeStoredConfig({ ...config, baseUrl });
+    const pinned = Boolean(config.certPem) && tlsPin.isValidFingerprint(config.certFingerprint);
     return {
       baseUrl,
       warehouseId: Number.isSafeInteger(config.warehouseId) ? config.warehouseId : null,
+      certFingerprint: pinned ? config.certFingerprint : null,
+      certPem: pinned ? config.certPem : null,
     };
   } catch (error) {
-    if (error.code === 'ENOENT') return { baseUrl: '' };
+    if (error.code === 'ENOENT') return { baseUrl: '', warehouseId: null, certFingerprint: null, certPem: null };
     throw new Error(`تعذر قراءة إعداد الخادم المركزي: ${error.message}`);
   }
+}
+
+function getConfig() {
+  const { baseUrl, warehouseId, certFingerprint } = readStoredConfig();
+  // pinned=false on a configured device means it still relies on the legacy
+  // OS trust-store setup and should be re-paired.
+  return { baseUrl, warehouseId, certFingerprint, pinned: Boolean(certFingerprint) };
 }
 
 function upgradeHttpBaseUrl(value) {
@@ -110,8 +122,13 @@ function validateBaseUrl(value) {
   return baseUrl;
 }
 
-function configure(value) {
-  const oldConfig = getConfig();
+/**
+ * Pair this terminal with a server. value is '' (disconnect) or
+ * { baseUrl, fingerprint256 } where fingerprint256 is the fingerprint the user
+ * compared with the server screen; it must match the certificate served now.
+ */
+async function configure(value) {
+  const oldConfig = readStoredConfig();
   const baseUrl = validateBaseUrl(typeof value === 'string' ? value : value?.baseUrl);
   const warehouseId = typeof value === 'object' && value !== null
     ? value.warehouseId ?? oldConfig.warehouseId
@@ -119,29 +136,49 @@ function configure(value) {
   if (warehouseId != null && (!Number.isSafeInteger(Number(warehouseId)) || Number(warehouseId) <= 0)) {
     throw new Error('معرف مخزن الجهاز يجب أن يكون رقمًا صحيحًا موجبًا');
   }
-  fs.mkdirSync(path.dirname(configPath), { recursive: true });
-  const config = { baseUrl, warehouseId: baseUrl ? Number(warehouseId) || null : null };
-  fs.writeFileSync(configPath, JSON.stringify(config), { encoding: 'utf8', mode: 0o600 });
-  if (baseUrl !== oldConfig.baseUrl) {
+
+  let pin = { fingerprint256: null, pem: null };
+  if (baseUrl) {
+    const confirmed = tlsPin.normalizeFingerprint(value?.fingerprint256);
+    if (!confirmed) throw new Error('يجب تأكيد بصمة شهادة الخادم قبل الربط');
+    pin = await tlsPin.fetchServerCertificate(baseUrl);
+    if (pin.fingerprint256 !== confirmed) {
+      throw new Error('بصمة الخادم الحالية لا تطابق البصمة التي أكدتها. لا تربط الجهاز وتحقق من الشبكة');
+    }
+  }
+
+  const config = {
+    baseUrl,
+    warehouseId: baseUrl ? Number(warehouseId) || null : null,
+    certFingerprint: pin.fingerprint256,
+    certPem: pin.pem,
+  };
+  writeStoredConfig(config);
+  if (baseUrl !== oldConfig.baseUrl || pin.fingerprint256 !== oldConfig.certFingerprint) {
     accessToken = null;
     cachedSession = null;
     clearCourtsCache();
   }
-  return { ...config, enabled: Boolean(baseUrl) };
+  return { ...getConfig(), enabled: Boolean(baseUrl) };
+}
+
+/** Fingerprint of the certificate a server presents now, for the user to compare. */
+async function getServerFingerprint(value) {
+  const baseUrl = validateBaseUrl(value);
+  if (!baseUrl) throw new Error('أدخل عنوان الخادم أولاً');
+  const { fingerprint256 } = await tlsPin.fetchServerCertificate(baseUrl);
+  return { baseUrl, fingerprint256 };
 }
 
 function setWarehouse(warehouseId) {
-  const config = getConfig();
+  const config = readStoredConfig();
   if (!config.baseUrl) throw new Error('اتصال الخادم المركزي غير مفعّل على هذا الجهاز');
   const id = Number(warehouseId);
   if (!Number.isSafeInteger(id) || id <= 0) {
     throw new Error('اختر مخزنًا صالحًا لتخصيصه لهذا الجهاز');
   }
-  fs.writeFileSync(configPath, JSON.stringify({ ...config, warehouseId: id }), {
-    encoding: 'utf8',
-    mode: 0o600,
-  });
-  return { ...config, warehouseId: id };
+  writeStoredConfig({ ...config, warehouseId: id });
+  return getConfig();
 }
 
 function isConfigured() {
@@ -149,23 +186,34 @@ function isConfigured() {
 }
 
 async function request(method, route, body) {
-  const { baseUrl } = getConfig();
+  const { baseUrl, warehouseId, certFingerprint, certPem } = readStoredConfig();
   if (!baseUrl) throw new Error('لم يتم إعداد عنوان الخادم المركزي');
   const headers = { Accept: 'application/json' };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
-  const { warehouseId } = getConfig();
   if (warehouseId) headers['X-Branch-Warehouse-Id'] = String(warehouseId);
+  const payload = body === undefined ? undefined : JSON.stringify(body);
 
   let response;
   try {
-    configureSystemCertificateTrust();
-    response = await fetch(`${baseUrl}${route}`, {
-      method,
-      headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
-      signal: AbortSignal.timeout(5000),
-    });
+    if (certPem) {
+      response = await tlsPin.pinnedRequest(`${baseUrl}${route}`, {
+        method,
+        headers,
+        body: payload,
+        timeoutMs: 5000,
+        pin: { fingerprint256: certFingerprint, pem: certPem },
+      });
+    } else {
+      // Legacy pairing: server certificate installed in the OS trust store.
+      configureSystemCertificateTrust();
+      response = await fetch(`${baseUrl}${route}`, {
+        method,
+        headers,
+        body: payload,
+        signal: AbortSignal.timeout(5000),
+      });
+    }
   } catch (error) {
     throw new Error(`تعذر الاتصال بالخادم المركزي؛ البيع والعمليات تتطلب اتصالاً مباشراً. ${error.message}`);
   }
@@ -287,10 +335,8 @@ async function logout() {
 async function testConnection(value) {
   const baseUrl = validateBaseUrl(value);
   if (!baseUrl) throw new Error('أدخل عنوان الخادم المركزي أولاً');
-  configureSystemCertificateTrust();
-  const response = await fetch(`${baseUrl}/api/health`, { signal: AbortSignal.timeout(3000) });
-  if (!response.ok) throw new Error(`رد الخادم برمز ${response.status}`);
-  return response.json();
+  const { serverInfo, fingerprint256 } = await tlsPin.probeServer(baseUrl);
+  return { ...serverInfo, fingerprint256 };
 }
 
 function isAllowedRoute(method, route) {
@@ -383,6 +429,7 @@ module.exports = {
   changePassword,
   logout,
   testConnection,
+  getServerFingerprint,
   invoke,
   syncQueuedReviews,
 };

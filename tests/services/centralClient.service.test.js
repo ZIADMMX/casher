@@ -12,15 +12,33 @@ jest.mock('../../electron/security/tlsTrust', () => ({
   configureSystemCertificateTrust: jest.fn(),
 }));
 
+const mockFingerprint = Array(32).fill('AB').join(':');
+jest.mock('../../electron/security/tlsPin', () => ({
+  ...jest.requireActual('../../electron/security/tlsPin'),
+  fetchServerCertificate: jest.fn(),
+  probeServer: jest.fn(),
+  pinnedRequest: jest.fn(),
+}));
+
 const centralClient = require('../../electron/services/centralClient.service');
 const { configureSystemCertificateTrust } = require('../../electron/security/tlsTrust');
+const tlsPin = require('../../electron/security/tlsPin');
+
+// Devices paired before certificate pinning: no pinned certificate in the config.
+function pairLegacy(baseUrl) {
+  fs.mkdirSync(mockUserDataPath, { recursive: true });
+  fs.writeFileSync(path.join(mockUserDataPath, 'central-server.json'), JSON.stringify({ baseUrl }));
+}
 
 describe('centralClient.service', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     fs.rmSync(mockUserDataPath, { recursive: true, force: true });
     global.fetch = jest.fn();
     configureSystemCertificateTrust.mockClear();
-    centralClient.configure('');
+    tlsPin.fetchServerCertificate.mockReset();
+    tlsPin.probeServer.mockReset();
+    tlsPin.pinnedRequest.mockReset();
+    await centralClient.configure('');
   });
 
   afterAll(() => {
@@ -28,17 +46,44 @@ describe('centralClient.service', () => {
     delete global.fetch;
   });
 
-  test('validates and stores the central server URL', () => {
-    expect(centralClient.getConfig()).toEqual({ baseUrl: '', warehouseId: null });
-    expect(() => centralClient.configure('not a url')).toThrow('عنوان الخادم المركزي غير صالح');
-    expect(() => centralClient.configure('http://192.168.1.10:5000')).toThrow('يتطلب HTTPS');
+  test('validates the URL and pins the confirmed server certificate', async () => {
+    expect(centralClient.getConfig()).toEqual({ baseUrl: '', warehouseId: null, certFingerprint: null, pinned: false });
+    await expect(centralClient.configure('not a url')).rejects.toThrow('عنوان الخادم المركزي غير صالح');
+    await expect(centralClient.configure('http://192.168.1.10:5000')).rejects.toThrow('يتطلب HTTPS');
+    await expect(centralClient.configure('https://192.168.1.10:5443/')).rejects.toThrow('تأكيد بصمة');
 
-    expect(centralClient.configure('https://192.168.1.10:5443/')).toEqual({
-      baseUrl: 'https://192.168.1.10:5443',
-      warehouseId: null,
-      enabled: true,
-    });
+    tlsPin.fetchServerCertificate.mockResolvedValue({ fingerprint256: mockFingerprint, pem: 'PEM' });
+    await expect(centralClient.configure({ baseUrl: 'https://192.168.1.10:5443/', fingerprint256: mockFingerprint.toLowerCase() }))
+      .resolves.toEqual({
+        baseUrl: 'https://192.168.1.10:5443',
+        warehouseId: null,
+        certFingerprint: mockFingerprint,
+        pinned: true,
+        enabled: true,
+      });
     expect(centralClient.isConfigured()).toBe(true);
+  });
+
+  test('refuses to pair when the served certificate differs from the confirmed one', async () => {
+    tlsPin.fetchServerCertificate.mockResolvedValue({ fingerprint256: Array(32).fill('CD').join(':'), pem: 'PEM' });
+    await expect(centralClient.configure({ baseUrl: 'https://192.168.1.10:5443', fingerprint256: mockFingerprint }))
+      .rejects.toThrow('لا تطابق');
+    expect(centralClient.isConfigured()).toBe(false);
+  });
+
+  test('sends requests of a pinned device through the pinned HTTPS client', async () => {
+    tlsPin.fetchServerCertificate.mockResolvedValue({ fingerprint256: mockFingerprint, pem: 'PEM' });
+    await centralClient.configure({ baseUrl: 'https://central.test:5443', fingerprint256: mockFingerprint });
+    tlsPin.pinnedRequest.mockResolvedValue({ ok: true, json: async () => ({ token: 't', user: { id: 1 } }) });
+
+    await centralClient.login({ username: 'cash1', password: 'x' });
+
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(configureSystemCertificateTrust).not.toHaveBeenCalled();
+    expect(tlsPin.pinnedRequest).toHaveBeenCalledWith(
+      'https://central.test:5443/api/auth/login',
+      expect.objectContaining({ method: 'POST', pin: { fingerprint256: mockFingerprint, pem: 'PEM' } }),
+    );
   });
 
   test('migrates a previously saved HTTP URL to HTTPS', () => {
@@ -52,6 +97,8 @@ describe('centralClient.service', () => {
     expect(centralClient.getConfig()).toEqual({
       baseUrl: 'https://central.test:5443',
       warehouseId: 12,
+      certFingerprint: null,
+      pinned: false,
     });
     expect(JSON.parse(fs.readFileSync(configPath, 'utf8')).baseUrl)
       .toBe('https://central.test:5443');
@@ -66,26 +113,20 @@ describe('centralClient.service', () => {
     expect(() => centralClient.getConfig()).toThrow('منفذ الخادم القديم');
   });
 
-  test('tests central health only over HTTPS with system certificate validation', async () => {
-    global.fetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({ status: 'online' }),
-    });
+  test('tests central health only over HTTPS and reports the server fingerprint', async () => {
+    tlsPin.probeServer.mockResolvedValue({ serverInfo: { status: 'online' }, fingerprint256: mockFingerprint });
 
     await expect(centralClient.testConnection('http://central.test:5000'))
       .rejects.toThrow('يتطلب HTTPS');
     await expect(centralClient.testConnection('https://central.test:5443'))
-      .resolves.toEqual({ status: 'online' });
+      .resolves.toEqual({ status: 'online', fingerprint256: mockFingerprint });
 
-    expect(configureSystemCertificateTrust).toHaveBeenCalledTimes(1);
-    expect(global.fetch).toHaveBeenCalledWith(
-      'https://central.test:5443/api/health',
-      expect.objectContaining({ signal: expect.any(AbortSignal) }),
-    );
+    expect(tlsPin.probeServer).toHaveBeenCalledWith('https://central.test:5443');
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 
   test('keeps a selected warehouse and bearer token on central requests', async () => {
-    centralClient.configure('https://central.test:5443');
+    pairLegacy('https://central.test:5443');
     global.fetch
       .mockResolvedValueOnce({
         ok: true,
@@ -108,7 +149,7 @@ describe('centralClient.service', () => {
   });
 
   test('caches court reads and invalidates the cache after a court update', async () => {
-    centralClient.configure('https://central.test:5443');
+    pairLegacy('https://central.test:5443');
     global.fetch
       .mockResolvedValueOnce({
         ok: true,
@@ -147,7 +188,7 @@ describe('centralClient.service', () => {
   });
 
   test('shares one in-flight request between concurrent court reads', async () => {
-    centralClient.configure('https://central.test:5443');
+    pairLegacy('https://central.test:5443');
     let resolveCourtsRequest;
     global.fetch
       .mockResolvedValueOnce({
@@ -178,7 +219,7 @@ describe('centralClient.service', () => {
 
   test('refreshes court cache on the first request after four hours', async () => {
     const now = jest.spyOn(Date, 'now').mockReturnValue(1_000);
-    centralClient.configure('https://central.test:5443');
+    pairLegacy('https://central.test:5443');
     global.fetch
       .mockResolvedValueOnce({
         ok: true,
@@ -215,7 +256,7 @@ describe('centralClient.service', () => {
   });
 
   test('does not silently fall back to local operation when central connection fails', async () => {
-    centralClient.configure('https://central.test:5443');
+    pairLegacy('https://central.test:5443');
     global.fetch
       .mockResolvedValueOnce({
         ok: true,
