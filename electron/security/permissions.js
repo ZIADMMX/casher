@@ -7,6 +7,7 @@ const RESOURCE_PERMISSIONS = {
   'attendance': 'attendance',
   'leaves': 'leaves',
   'products': 'products',
+  'variants': 'products',
   'categories': 'products',
   'inventory': 'inventory',
   'branches': 'inventory',
@@ -41,6 +42,7 @@ const RESOURCE_PERMISSIONS = {
   'notifications': 'settings',
   'print': 'pos',
   'ui-config': 'settings',
+  'uiConfig': 'settings',
   'onboarding': 'settings',
   'system': 'settings',
 };
@@ -137,7 +139,7 @@ function getPermissionForChannel(channel, args = []) {
     if (/delete|remove|deactivate/i.test(action)) return 'cases.delete';
     return 'cases.manage';
   }
-  if (resource === 'products') {
+  if (resource === 'products' || resource === 'variants') {
     if (isReadAction(action)) return 'products.view';
     if (/delete|remove/i.test(action)) return 'products.delete';
     if (/add|create/i.test(action)) return 'products.create';
@@ -177,7 +179,7 @@ function getPermissionForChannel(channel, args = []) {
   if (resource === 'inventory' || resource === 'branches') {
     return `products.${isReadAction(action) ? 'view' : 'edit'}`;
   }
-  if (resource === 'settings' || resource === 'backup' || resource === 'notifications' || resource === 'ui-config' || resource === 'onboarding' || resource === 'license' || resource === 'lan') {
+  if (resource === 'settings' || resource === 'backup' || resource === 'notifications' || resource === 'ui-config' || resource === 'uiConfig' || resource === 'onboarding' || resource === 'license' || resource === 'lan') {
     return `settings.${isReadAction(action) ? 'view' : 'manage'}`;
   }
   if (resource === 'audit') return 'team.view';

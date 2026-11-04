@@ -37,6 +37,7 @@ const authService = require('../../electron/services/auth.service');
 const productsService = require('../../electron/services/products.service');
 const salesService = require('../../electron/services/sales.service');
 const shiftsService = require('../../electron/services/shifts.service');
+const attendanceService = require('../../electron/services/attendance.service');
 const returnsService = require('../../electron/services/returns.service');
 const customersService = require('../../electron/services/customers.service');
 const lanServer = require('../../electron/services/lanServer.service');
@@ -135,6 +136,10 @@ describe('Kashiear POS — Comprehensive E2E System Smoke Test (فحص النظ�
   // Phase 3: Open Shift 1
   // =========================================================================
   test('Phase 3: Shift Opening with initial drawer cash', () => {
+    // A shift is tied to today's attendance record: check in first.
+    expect(() => shiftsService.openShift({ openingCash: 500 })).toThrow('سجّل حضورك أولاً');
+    attendanceService.checkIn({ date: attendanceService.getTodayDate() });
+
     const shiftRes = shiftsService.openShift({ openingCash: 500 });
     expect(shiftRes.id).toBeDefined();
     expect(shiftRes.status).toBe('open');

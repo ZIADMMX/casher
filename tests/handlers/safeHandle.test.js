@@ -65,8 +65,10 @@ describe('safeHandle IPC session context', () => {
 
       await expect(mockRegisteredHandlers.get(channel)({ sender: { id: 42 } }))
         .resolves.toBe('handled');
-      expect(authService.getCurrentSession).not.toHaveBeenCalled();
+      // getCurrentSession may be read to key the login rate limit; what matters is
+      // that these channels never run inside the local session/permission wrapper.
       expect(authService.runWithSession).not.toHaveBeenCalled();
+      expect(authService.requirePermission).not.toHaveBeenCalled();
     }
   );
 });

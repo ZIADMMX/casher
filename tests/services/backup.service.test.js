@@ -247,7 +247,11 @@ describe('backup.service.autoBackupDaily', () => {
 
     expect(result).toMatchObject({ success: true, filePath: dailyBackupPath });
     expect(result.skipped).toBeUndefined();
-    expect(logError).toHaveBeenCalledWith('VerifyExistingDailyBackup', expect.any(Error));
+    // SqliteError comes from the native module's realm, so check the shape, not instanceof.
+    expect(logError).toHaveBeenCalledWith(
+      'VerifyExistingDailyBackup',
+      expect.objectContaining({ message: expect.stringContaining('not a database') })
+    );
     const repairedBackup = new Database(dailyBackupPath, { readonly: true });
     expect(repairedBackup.pragma('integrity_check', { simple: true })).toBe('ok');
     repairedBackup.close();

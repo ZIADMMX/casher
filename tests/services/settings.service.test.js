@@ -23,14 +23,32 @@ describe('settings.service.backupDatabase', () => {
   beforeEach(() => jest.clearAllMocks());
 
   test('returns both path keys on success', async () => {
+    const fs = require('node:fs');
+    const os = require('node:os');
+    const path = require('node:path');
+    const Database = require('better-sqlite3');
     const { db } = require('../../electron/database/db');
+    // backup.service writes to a temp file, verifies it, then moves it into place,
+    // so the mocked SQLite backup has to produce a real database file.
+    db.backup.mockImplementationOnce(async (tempPath) => {
+      const copy = new Database(tempPath);
+      copy.exec('CREATE TABLE t (x INTEGER)');
+      copy.close();
+    });
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'settings-backup-'));
+    const destination = path.join(dir, 'shop.db');
 
-    const result = await settingsService.backupDatabase('C:\\backup\\shop.db');
+    try {
+      const result = await settingsService.backupDatabase(destination);
 
-    expect(result.success).toBe(true);
-    expect(result.filePath).toBe('C:\\backup\\shop.db');
-    expect(result.path).toBe(result.filePath);
-    expect(db.backup).toHaveBeenCalledWith('C:\\backup\\shop.db');
+      expect(result.success).toBe(true);
+      expect(result.filePath).toBe(destination);
+      expect(result.path).toBe(result.filePath);
+      expect(fs.existsSync(destination)).toBe(true);
+      expect(fs.readdirSync(dir)).toEqual(['shop.db']); // no temp file left behind
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   test('returns a failure object and logs when backup fails', async () => {
