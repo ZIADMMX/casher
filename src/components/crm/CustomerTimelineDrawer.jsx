@@ -222,21 +222,16 @@ function CustomerTimelineDrawer({ customer, onClose, onCustomerUpdated, crmMode 
     event.preventDefault();
     try {
       await Promise.all([
-        window.electronAPI.updateCRMCustomerConsent({
-          id: customer.id,
+        window.electronAPI.setCRMCustomerConsent(customer.id, {
           email_consent: emailConsent,
           sms_consent: smsConsent,
         }),
-        window.electronAPI.replaceCRMRecordTags({
+        window.electronAPI.setCRMRecordTags({
           record_type: 'customer',
           record_id: customer.id,
           tags: tagDraft.split(',').map((t) => t.trim()).filter(Boolean),
         }),
-        window.electronAPI.saveCRMCustomFieldValues({
-          record_type: 'customer',
-          record_id: customer.id,
-          values: customFieldValues,
-        }),
+        window.electronAPI.setCRMCustomFieldValues('customer', customer.id, customFieldValues),
       ]);
       await fetchCRMDetails();
       if (onCustomerUpdated) onCustomerUpdated();
@@ -262,8 +257,8 @@ function CustomerTimelineDrawer({ customer, onClose, onCustomerUpdated, crmMode 
 
   const addAttachment = async () => {
     try {
-      const result = await window.electronAPI.addCRMAttachment('customer', customer.id);
-      if (result) await fetchCRMDetails();
+      const result = await window.electronAPI.selectCRMFileAttachment('customer', customer.id);
+      if (result && !result.canceled) await fetchCRMDetails();
     } catch (attachmentError) {
       setError(attachmentError.message || 'تعذر حفظ الملف المرفق');
     }

@@ -130,8 +130,8 @@ export default function CasesPage({
         if (requestId !== casesRequestId.current) return;
         setStats(s);
       }
-      if (window.electronAPI?.getAllCustomers) {
-        const custs = await window.electronAPI.getAllCustomers();
+      if (window.electronAPI?.getAllCustomersWithStats) {
+        const custs = await window.electronAPI.getAllCustomersWithStats();
         if (requestId !== casesRequestId.current) return;
         setCustomers(custs || []);
       }
