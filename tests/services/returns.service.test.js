@@ -16,6 +16,9 @@ jest.mock('../../electron/repositories/returns.repository', () => ({
   getRecent: jest.fn(),
 }));
 jest.mock('../../electron/repositories/sales.repository', () => ({
+  // Sale lines still come from the mocked db, so each test's db stub decides the line.
+  getSaleItem: jest.fn((saleId, variantId) => require('../../electron/database/db').db
+    .prepare('SELECT * FROM sale_items WHERE sale_id = ? AND variant_id = ?').get(saleId, variantId)),
   getById: jest.fn(() => ({
     id: 9,
     discount: 0,

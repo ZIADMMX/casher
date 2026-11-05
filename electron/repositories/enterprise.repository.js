@@ -434,7 +434,22 @@ function setRolePermissions(roleKey, permissionKeys = []) {
   return getRoles();
 }
 
+function hasSystemModulesTable() {
+  return Boolean(db.prepare(
+    "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'system_modules'"
+  ).get());
+}
+
+// Removes attributes and roles left behind by test runs.
+function purgeTestFixtures() {
+  db.prepare("DELETE FROM product_attribute_definitions WHERE attribute_key LIKE 'test_%' OR attribute_name LIKE '%الاختبارية%'").run();
+  db.prepare("DELETE FROM system_roles WHERE role_key LIKE 'supervisor_test_%'").run();
+  db.prepare("DELETE FROM role_permissions WHERE role_key LIKE 'supervisor_test_%'").run();
+}
+
 module.exports = {
+  hasSystemModulesTable,
+  purgeTestFixtures,
   getModules,
   setModuleEnabled,
   upsertModule,

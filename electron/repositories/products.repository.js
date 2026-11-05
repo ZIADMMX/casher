@@ -39,4 +39,22 @@ function archive(id) {
   return db.prepare('UPDATE products SET is_active = 0 WHERE id = ?').run(id);
 }
 
-module.exports = { create, getAll, getById, update, archive };
+let activeWithCategoryStmt = null;
+
+// Active products with their category name, newest first (the catalog base list).
+function getAllActiveWithCategory() {
+  if (!activeWithCategoryStmt) {
+    activeWithCategoryStmt = db.prepare(`
+      SELECT
+        p.id, p.name, p.description, p.category_id, p.image_path, p.is_service, p.created_at,
+        c.name AS category_name
+      FROM products p
+      LEFT JOIN categories c ON c.id = p.category_id
+      WHERE p.is_active = 1
+      ORDER BY p.created_at DESC
+    `);
+  }
+  return activeWithCategoryStmt.all();
+}
+
+module.exports = { create, getAll, getById, update, archive, getAllActiveWithCategory };

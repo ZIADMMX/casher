@@ -786,7 +786,55 @@ function getTipPoolSummary(startDate = null, endDate = null) {
   return db.prepare(query).get(...params);
 }
 
+// Active appointment on this chair that overlaps the given start time on the same day.
+function findChairConflict(chairId, date, startTime) {
+  return db.prepare(`
+    SELECT id, customer_name, start_time, end_time 
+    FROM salon_appointments 
+    WHERE chair_id = ? 
+      AND appointment_date = ? 
+      AND status IN ('booked', 'confirmed', 'in_service')
+      AND (
+        (start_time <= ? AND end_time > ?) OR
+        (start_time < ? AND end_time >= ?) OR
+        (start_time >= ? AND start_time < ?)
+      )
+  `).get(chairId, date, startTime, startTime, startTime, startTime, startTime, startTime);
+}
+
+// Active appointment for this stylist that overlaps the given start time on the same day.
+function findStylistConflict(stylistId, date, startTime) {
+  return db.prepare(`
+    SELECT id, customer_name, start_time, end_time 
+    FROM salon_appointments 
+    WHERE stylist_id = ? 
+      AND appointment_date = ? 
+      AND status IN ('booked', 'confirmed', 'in_service')
+      AND (
+        (start_time <= ? AND end_time > ?) OR
+        (start_time < ? AND end_time >= ?)
+      )
+  `).get(stylistId, date, startTime, startTime, startTime, startTime);
+}
+
+function countChairs() {
+  return db.prepare('SELECT COUNT(*) as count FROM salon_chairs').get();
+}
+
+function countServices() {
+  return db.prepare('SELECT COUNT(*) as count FROM salon_services').get();
+}
+
+function countPackages() {
+  return db.prepare('SELECT COUNT(*) as count FROM salon_packages').get();
+}
+
 module.exports = {
+  findChairConflict,
+  findStylistConflict,
+  countChairs,
+  countServices,
+  countPackages,
   getAllChairs,
   getChairById,
   createChair,

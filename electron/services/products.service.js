@@ -17,23 +17,6 @@ function getCurrentWarehouseId() {
     : inventoryRepo.getDefaultWarehouseId();
 }
 
-let getAllWithVariantsStmt = null;
-
-function getStmt() {
-  if (!getAllWithVariantsStmt) {
-    getAllWithVariantsStmt = db.prepare(`
-      SELECT
-        p.id, p.name, p.description, p.category_id, p.image_path, p.is_service, p.created_at,
-        c.name AS category_name
-      FROM products p
-      LEFT JOIN categories c ON c.id = p.category_id
-      WHERE p.is_active = 1
-      ORDER BY p.created_at DESC
-    `);
-  }
-  return getAllWithVariantsStmt;
-}
-
 function generateSku(productId, variantId, size) {
   const sizePart = size ? `-${size.trim().toUpperCase().replace(/\s+/g, '')}` : '';
   return `P${productId}-V${variantId}${sizePart}`;
@@ -261,7 +244,7 @@ function deleteVariant(variantId) {
 function getAllProductsWithVariants() {
   let catalog = productsCache.getCatalog();
   if (!catalog) {
-    const products = getStmt().all();
+    const products = productsRepo.getAllActiveWithCategory();
     const allVariants = variantsRepo.getAll();
 
     const variantsByProduct = new Map();

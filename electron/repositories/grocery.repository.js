@@ -17,6 +17,10 @@ function getUnitsByVariant(variantId) {
   `).all(variantId);
 }
 
+function getUnitById(id) {
+  return db.prepare('SELECT * FROM product_units WHERE id = ?').get(id);
+}
+
 function getUnitByBarcode(barcode) {
   if (!barcode) return null;
   return db.prepare(`
@@ -337,6 +341,7 @@ function deleteSpeedKey(id) {
 
 module.exports = {
   getUnitsByVariant,
+  getUnitById,
   getUnitByBarcode,
   createUnit,
   updateUnit,

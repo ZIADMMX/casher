@@ -1,5 +1,4 @@
 const payrollRepo = require('../repositories/payroll.repository');
-const { db } = require('../database/db');
 
 /**
  * Payroll Service
@@ -23,7 +22,7 @@ function generatePayrollPeriod({ month, year, createdBy, notes }) {
   const endDate = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 
   // التحقق من عدم وجود مسير سابق لنفس الشهر
-  const existing = db.prepare('SELECT id FROM payroll_periods WHERE month = ? AND year = ?').get(m, y);
+  const existing = payrollRepo.findPayrollPeriodByMonth(m, y);
   if (existing) {
     throw new Error(`يوجد مسير رواتب مسجل مسبقاً لشهر ${m}/${y}`);
   }
@@ -39,11 +38,7 @@ function generatePayrollPeriod({ month, year, createdBy, notes }) {
   });
 
   // جلب الموظفين النشطين
-  const activeUsers = db.prepare(`
-    SELECT id, username, full_name, pay_type, pay_amount, commission_rate
-    FROM users
-    WHERE is_active = 1
-  `).all();
+  const activeUsers = payrollRepo.getActiveEmployeesForPayroll();
 
   for (const user of activeUsers) {
     const basicSalary = Number(user.pay_amount) || 0;
@@ -51,13 +46,7 @@ function generatePayrollPeriod({ month, year, createdBy, notes }) {
     // 1. حساب العمولات لشهر المسير
     let commissionsAmount = 0;
     try {
-      const commRow = db.prepare(`
-        SELECT COALESCE(SUM(earned_amount), 0) as total_comm
-        FROM commission_earnings
-        WHERE user_id = ? 
-          AND DATE(created_at) >= ? 
-          AND DATE(created_at) <= ?
-      `).get(user.id, startDate, endDate);
+      const commRow = payrollRepo.sumCommissionsForPeriod(user.id, startDate, endDate);
       commissionsAmount = Number(commRow?.total_comm) || 0;
     } catch {}
 
@@ -65,13 +54,7 @@ function generatePayrollPeriod({ month, year, createdBy, notes }) {
     let absentDays = 0;
     let absentDeduction = 0;
     try {
-      const attendanceCount = db.prepare(`
-        SELECT COUNT(DISTINCT attendance_date) as attended
-        FROM attendance_records
-        WHERE user_id = ? 
-          AND attendance_date >= ? 
-          AND attendance_date <= ?
-      `).get(user.id, startDate, endDate);
+      const attendanceCount = payrollRepo.countAttendanceDays(user.id, startDate, endDate);
 
       // إذا كان الموظف مسجل براتب شهري، يحسب الغياب بناء على الأيام الرسمية
       const attended = Number(attendanceCount?.attended) || 0;
@@ -90,11 +73,7 @@ function generatePayrollPeriod({ month, year, createdBy, notes }) {
     // 3. احتساب السلف غير المسددة
     let advancesDeducted = 0;
     try {
-      const advRow = db.prepare(`
-        SELECT COALESCE(SUM(amount - repaid_amount), 0) as total_adv
-        FROM salary_advances
-        WHERE user_id = ? AND status = 'approved' AND (amount - repaid_amount) > 0
-      `).get(user.id);
+      const advRow = payrollRepo.sumOutstandingAdvances(user.id);
       advancesDeducted = Number(advRow?.total_adv) || 0;
       // لا نخصم سلفة تزيد عن 50% من الأساسي لتجنب تصفير الراتب
       if (advancesDeducted > basicSalary * 0.5 && basicSalary > 0) {
@@ -159,11 +138,7 @@ function payEmployeeSalary(itemId, { payment_method = 'cash', paid_amount, payme
   // إذا كان هناك سلف مخصومة، نسجل سدادها
   if (item.advances_deducted > 0) {
     try {
-      const openAdvances = db.prepare(`
-        SELECT id, amount, repaid_amount 
-        FROM salary_advances 
-        WHERE user_id = ? AND status = 'approved'
-      `).all(item.user_id);
+      const openAdvances = payrollRepo.getApprovedAdvances(item.user_id);
 
       let remainingToDeduct = item.advances_deducted;
       for (const adv of openAdvances) {
@@ -174,8 +149,7 @@ function payEmployeeSalary(itemId, { payment_method = 'cash', paid_amount, payme
         const newRepaid = adv.repaid_amount + deductNow;
         const newStatus = newRepaid >= adv.amount ? 'recovered' : 'approved';
 
-        db.prepare('UPDATE salary_advances SET repaid_amount = ?, status = ? WHERE id = ?')
-          .run(newRepaid, newStatus, adv.id);
+        payrollRepo.recordAdvanceRepayment(adv.id, newRepaid, newStatus);
 
         remainingToDeduct -= deductNow;
         if (remainingToDeduct <= 0) break;

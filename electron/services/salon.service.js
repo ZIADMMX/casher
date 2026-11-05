@@ -1,5 +1,4 @@
 const salonRepo = require('../repositories/salon.repository');
-const { db } = require('../database/db');
 const { getCurrentSession } = require('./auth.service');
 
 /**
@@ -96,27 +95,7 @@ function createAppointment(data) {
 
   // فحص عدم تعارض موعد الكرسي لو تم تحديده
   if (data.chair_id) {
-    const conflict = db.prepare(`
-      SELECT id, customer_name, start_time, end_time 
-      FROM salon_appointments 
-      WHERE chair_id = ? 
-        AND appointment_date = ? 
-        AND status IN ('booked', 'confirmed', 'in_service')
-        AND (
-          (start_time <= ? AND end_time > ?) OR
-          (start_time < ? AND end_time >= ?) OR
-          (start_time >= ? AND start_time < ?)
-        )
-    `).get(
-      data.chair_id,
-      data.appointment_date,
-      data.start_time,
-      data.start_time,
-      data.start_time,
-      data.start_time,
-      data.start_time,
-      data.start_time
-    );
+    const conflict = salonRepo.findChairConflict(data.chair_id, data.appointment_date, data.start_time);
 
     if (conflict) {
       throw new Error(`الكرسي محجوز بالفعل في هذا التوقيت للعميل (${conflict.customer_name})`);
@@ -125,17 +104,7 @@ function createAppointment(data) {
 
   // فحص عدم تعارض المصفف لو تم تحديده
   if (data.stylist_id) {
-    const conflictStylist = db.prepare(`
-      SELECT id, customer_name, start_time, end_time 
-      FROM salon_appointments 
-      WHERE stylist_id = ? 
-        AND appointment_date = ? 
-        AND status IN ('booked', 'confirmed', 'in_service')
-        AND (
-          (start_time <= ? AND end_time > ?) OR
-          (start_time < ? AND end_time >= ?)
-        )
-    `).get(data.stylist_id, data.appointment_date, data.start_time, data.start_time, data.start_time, data.start_time);
+    const conflictStylist = salonRepo.findStylistConflict(data.stylist_id, data.appointment_date, data.start_time);
 
     if (conflictStylist) {
       throw new Error(`المصفف مرتبط بحجز آخر في هذا الوقت للعميل (${conflictStylist.customer_name})`);
@@ -189,7 +158,7 @@ function getStylistCommissionsSummary(filters = {}) {
 
 // 6. تهيئة بيانات افتراضية لقطاع الصالونات إن لم تكن موجودة
 function seedSalonDefaultsIfEmpty() {
-  const chairCount = db.prepare('SELECT COUNT(*) as count FROM salon_chairs').get();
+  const chairCount = salonRepo.countChairs();
   if (chairCount.count === 0) {
     salonRepo.createChair({ name: 'كرسي 1 (حلاقة كلاسيك)', station_type: 'barber_chair' });
     salonRepo.createChair({ name: 'كرسي 2 (حلاقة وذقن VIP)', station_type: 'barber_chair' });
@@ -197,7 +166,7 @@ function seedSalonDefaultsIfEmpty() {
     salonRepo.createChair({ name: 'ركن تنظيف البشرة والسبا', station_type: 'skincare' });
   }
 
-  const serviceCount = db.prepare('SELECT COUNT(*) as count FROM salon_services').get();
+  const serviceCount = salonRepo.countServices();
   if (serviceCount.count === 0) {
     salonRepo.createService({
       name: 'قص شعر وتصفيف استشوار',
@@ -241,7 +210,7 @@ function seedSalonDefaultsIfEmpty() {
     });
   }
 
-  const pkgCount = db.prepare('SELECT COUNT(*) as count FROM salon_packages').get();
+  const pkgCount = salonRepo.countPackages();
   if (pkgCount.count === 0) {
     salonRepo.createPackage({
       name: 'كارت باقة 5 قصات شعر + 1 هدية',

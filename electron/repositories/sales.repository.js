@@ -84,4 +84,8 @@ function getById(saleId) {
   return { ...sale, items };
 }
 
-module.exports = { createSale, createSaleItem, getStatsByCustomer, getById };
+function getSaleItem(saleId, variantId) {
+  return db.prepare('SELECT * FROM sale_items WHERE sale_id = ? AND variant_id = ?').get(saleId, variantId);
+}
+
+module.exports = { createSale, createSaleItem, getStatsByCustomer, getById, getSaleItem };

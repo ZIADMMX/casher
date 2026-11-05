@@ -195,7 +195,67 @@ function updateAdvanceStatus(advanceId, status, deductedPayrollId = null) {
   `).run(status, deductedPayrollId, advanceId);
 }
 
+function findPayrollPeriodByMonth(month, year) {
+  return db.prepare('SELECT id FROM payroll_periods WHERE month = ? AND year = ?').get(month, year);
+}
+
+function getActiveEmployeesForPayroll() {
+  return db.prepare(`
+    SELECT id, username, full_name, pay_type, pay_amount, commission_rate
+    FROM users
+    WHERE is_active = 1
+  `).all();
+}
+
+function sumCommissionsForPeriod(userId, startDate, endDate) {
+  return db.prepare(`
+    SELECT COALESCE(SUM(earned_amount), 0) as total_comm
+    FROM commission_earnings
+    WHERE user_id = ?
+      AND DATE(created_at) >= ?
+      AND DATE(created_at) <= ?
+  `).get(userId, startDate, endDate);
+}
+
+function countAttendanceDays(userId, startDate, endDate) {
+  return db.prepare(`
+    SELECT COUNT(DISTINCT attendance_date) as attended
+    FROM attendance_records
+    WHERE user_id = ?
+      AND attendance_date >= ?
+      AND attendance_date <= ?
+  `).get(userId, startDate, endDate);
+}
+
+function sumOutstandingAdvances(userId) {
+  return db.prepare(`
+    SELECT COALESCE(SUM(amount - repaid_amount), 0) as total_adv
+    FROM salary_advances
+    WHERE user_id = ? AND status = 'approved' AND (amount - repaid_amount) > 0
+  `).get(userId);
+}
+
+function getApprovedAdvances(userId) {
+  return db.prepare(`
+    SELECT id, amount, repaid_amount
+    FROM salary_advances
+    WHERE user_id = ? AND status = 'approved'
+  `).all(userId);
+}
+
+function recordAdvanceRepayment(advanceId, repaidAmount, status) {
+  return db.prepare('UPDATE salary_advances SET repaid_amount = ?, status = ? WHERE id = ?')
+    .run(repaidAmount, status, advanceId);
+}
+
 module.exports = {
+  findPayrollPeriodByMonth,
+  getActiveEmployeesForPayroll,
+  sumCommissionsForPeriod,
+  countAttendanceDays,
+  sumOutstandingAdvances,
+  getApprovedAdvances,
+  recordAdvanceRepayment,
   getAllPayrollPeriods,
   getPayrollPeriodById,
   getPayrollItems,

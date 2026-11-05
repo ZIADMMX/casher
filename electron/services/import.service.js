@@ -9,6 +9,7 @@ const { requireAdmin, getCurrentSession } = require('./auth.service');
 const authService = require('./auth.service');
 const usersRepo = require('../repositories/users.repository');
 const enterpriseRepo = require('../repositories/enterprise.repository');
+const importRepo = require('../repositories/import.repository');
 
 /**
  * دالة لاستيراد المنتجات
@@ -24,18 +25,7 @@ function importProducts(rows) {
     const defaultWarehouseId = session?.centralRequest && session.warehouseId
       ? session.warehouseId
       : inventoryRepo.getDefaultWarehouseId();
-    const getCat = db.prepare('SELECT id FROM categories WHERE name = ?');
-    const insertCat = db.prepare('INSERT INTO categories (name) VALUES (?)');
-
-    const getProd = db.prepare('SELECT id FROM products WHERE name = ? AND category_id = ?');
-    const insertProd = db.prepare('INSERT INTO products (name, category_id) VALUES (?, ?)');
-
-    const checkVariant = db.prepare('SELECT id FROM product_variants WHERE barcode = ?');
-    const insertVariant = db.prepare(`
-      INSERT INTO product_variants 
-      (product_id, size, color, barcode, purchase_price, selling_price, stock_quantity) 
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `);
+    const stmts = importRepo.prepareProductImport();
 
     for (const item of items) {
       if (!item['اسم المنتج'] || item['سعر الشراء'] == null || item['سعر البيع'] == null) {
@@ -45,7 +35,7 @@ function importProducts(rows) {
 
       const barcode = item['الباركود'] ? String(item['الباركود']).trim() : null;
       if (barcode) {
-        const exists = checkVariant.get(barcode);
+        const exists = stmts.findVariantByBarcode(barcode);
         if (exists) {
           skipped++;
           continue; // تخطي لتجنب التكرار
@@ -54,16 +44,16 @@ function importProducts(rows) {
 
       // معالجة التصنيف
       const catName = item['التصنيف'] ? String(item['التصنيف']).trim() : 'عام';
-      let cat = getCat.get(catName);
-      let catId = cat ? cat.id : insertCat.run(catName).lastInsertRowid;
+      let cat = stmts.findCategory(catName);
+      let catId = cat ? cat.id : stmts.insertCategory(catName).lastInsertRowid;
 
       // معالجة المنتج الأب
       const prodName = String(item['اسم المنتج']).trim();
-      let prod = getProd.get(prodName, catId);
-      let prodId = prod ? prod.id : insertProd.run(prodName, catId).lastInsertRowid;
+      let prod = stmts.findProduct(prodName, catId);
+      let prodId = prod ? prod.id : stmts.insertProduct(prodName, catId).lastInsertRowid;
 
       // إدراج النسخة (Variant)
-      const result = insertVariant.run(
+      const result = stmts.insertVariant(
         prodId,
         item['المقاس'] ? String(item['المقاس']).trim() : null,
         item['اللون'] ? String(item['اللون']).trim() : null,
@@ -94,14 +84,14 @@ function importCustomers(rows) {
   let skipped = 0;
 
   const insertTransaction = db.transaction((items) => {
-    const insertCust = db.prepare('INSERT INTO customers (name, phone, email) VALUES (?, ?, ?)');
+    const insertCust = importRepo.prepareCustomerInsert();
     
     for (const item of items) {
       if (!item['الاسم']) {
         skipped++;
         continue;
       }
-      insertCust.run(
+      insertCust(
         String(item['الاسم']).trim(),
         item['رقم الهاتف'] ? String(item['رقم الهاتف']).trim() : null,
         item['البريد الإلكتروني'] ? String(item['البريد الإلكتروني']).trim() : null
@@ -122,14 +112,14 @@ function importSuppliers(rows) {
   let skipped = 0;
 
   const insertTransaction = db.transaction((items) => {
-    const insertSupp = db.prepare('INSERT INTO suppliers (name, phone, company, address, notes) VALUES (?, ?, ?, ?, ?)');
+    const insertSupp = importRepo.prepareSupplierInsert();
     
     for (const item of items) {
       if (!item['اسم المورد']) {
         skipped++;
         continue;
       }
-      insertSupp.run(
+      insertSupp(
         String(item['اسم المورد']).trim(),
         item['رقم الهاتف'] ? String(item['رقم الهاتف']).trim() : null,
         item['الشركة'] ? String(item['الشركة']).trim() : null,

@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const jwt = require('jsonwebtoken');
+const sessionStore = require('../repositories/sessionStore.repository');
 
 // Used only for in-memory databases (tests), where there is no data folder.
 const _fallbackSecret = crypto.randomBytes(32).toString('hex');
@@ -26,12 +27,7 @@ function getSecretFilePath() {
 
 function discardLegacySecret() {
   try {
-    const { db } = require('../database/db');
-    const placeholders = LEGACY_SETTING_KEYS.map(() => '?').join(', ');
-    const removed = db.prepare(`DELETE FROM settings WHERE key IN (${placeholders})`).run(...LEGACY_SETTING_KEYS);
-    if (removed.changes) {
-      db.prepare("UPDATE settings SET value = '' WHERE key = 'last_active_session_token'").run();
-    }
+    sessionStore.deleteLegacySecretSettings(LEGACY_SETTING_KEYS);
   } catch {
     // No settings table yet (fresh or test database).
   }
@@ -91,12 +87,7 @@ function nowSeconds() {
 
 function persistRevocation(jti, revokedFrom, expiresAt) {
   try {
-    const { db } = require('../database/db');
-    db.prepare('DELETE FROM revoked_tokens WHERE expires_at <= ?').run(nowSeconds());
-    db.prepare(`
-      INSERT INTO revoked_tokens (jti, revoked_from, expires_at) VALUES (?, ?, ?)
-      ON CONFLICT(jti) DO UPDATE SET revoked_from = MIN(revoked_from, excluded.revoked_from)
-    `).run(jti, revokedFrom, expiresAt);
+    sessionStore.saveRevocation(jti, revokedFrom, expiresAt, nowSeconds());
   } catch {
     // Database unavailable (unit tests): the in-memory blacklist still applies.
   }
@@ -104,8 +95,7 @@ function persistRevocation(jti, revokedFrom, expiresAt) {
 
 function getPersistedRevocation(jti) {
   try {
-    const { db } = require('../database/db');
-    return db.prepare('SELECT revoked_from FROM revoked_tokens WHERE jti = ?').get(jti)?.revoked_from ?? null;
+    return sessionStore.getRevokedFrom(jti);
   } catch {
     return null;
   }

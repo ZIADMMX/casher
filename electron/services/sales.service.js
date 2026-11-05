@@ -98,7 +98,7 @@ function createSale({
 
       if (item.unitId) {
         try {
-          const unit = db.prepare('SELECT * FROM product_units WHERE id = ?').get(item.unitId);
+          const unit = require('../repositories/grocery.repository').getUnitById(item.unitId);
           if (unit) {
             effectiveUnitPrice = Number(unit.selling_price);
             stockDeductionFactor = Number(unit.conversion_factor) || 1;

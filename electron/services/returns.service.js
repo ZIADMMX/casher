@@ -57,7 +57,7 @@ function processReturn({
   if (!sale) throw new Error('الفاتورة غير موجودة');
 
   // نتأكد إن الصنف ده فعلاً جزء من الفاتورة دي
-  const rawItem = db.prepare('SELECT * FROM sale_items WHERE sale_id = ? AND variant_id = ?').get(parsedSaleId, parsedVariantId);
+  const rawItem = salesRepo.getSaleItem(parsedSaleId, parsedVariantId);
   if (!rawItem) throw new Error('هذا الصنف غير موجود في الفاتورة المحددة');
 
   const alreadyReturned = returnsRepo.getReturnedQuantity(parsedSaleId, parsedVariantId);
