@@ -26,11 +26,13 @@ function setupUserDataDirectory() {
   const customUserDataDir = process.env.FOX_USER_DATA_DIR || process.env.FOX_E2E_USER_DATA_DIR;
   const isDev = !app.isPackaged;
   const defaultAppData = app.getPath('appData');
+  // In development, use the project's own data/ folder when it exists, wherever the project lives.
+  const devDataDir = path.join(__dirname, '..', 'data');
 
   const targetUserDataPath = customUserDataDir
     ? path.resolve(customUserDataDir)
-    : (isDev && fs.existsSync('D:\\my-electron-app\\data')
-        ? 'D:\\my-electron-app\\data'
+    : (isDev && fs.existsSync(devDataDir)
+        ? devDataDir
         : path.join(defaultAppData, 'kashiear'));
 
   try {

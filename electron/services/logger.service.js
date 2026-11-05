@@ -8,8 +8,8 @@ function getLogFile() {
   const isDev = !app?.isPackaged;
   const baseDir = app?.getPath
     ? app.getPath('userData')
-    : ((isDev && fs.existsSync('D:\\my-electron-app\\data'))
-        ? 'D:\\my-electron-app\\data'
+    : ((isDev && fs.existsSync(path.join(__dirname, '..', '..', 'data')))
+        ? path.join(__dirname, '..', '..', 'data')
         : path.join(process.env.APPDATA || __dirname, 'kashiear'));
   // Ensure the 'kashiear' subdirectory exists
   const appDir = path.join(baseDir, 'kashiear');

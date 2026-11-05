@@ -12,8 +12,10 @@ try {
 
 const isDev = !app?.isPackaged;
 const defaultAppData = process.env.APPDATA || (process.platform === 'darwin' ? path.join(process.env.HOME || '', 'Library', 'Application Support') : __dirname);
-const fallbackDataDir = (isDev && fs.existsSync('D:\\my-electron-app\\data'))
-  ? 'D:\\my-electron-app\\data'
+// The project's own data/ folder in development, wherever the project lives.
+const devDataDir = path.join(__dirname, '..', '..', 'data');
+const fallbackDataDir = (isDev && fs.existsSync(devDataDir))
+  ? devDataDir
   : path.join(defaultAppData, 'kashiear');
 
 const userDataDir = app?.getPath
