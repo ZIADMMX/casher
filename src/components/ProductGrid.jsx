@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { formatProductImageUrl } from '../utils/media.js';
 import { useBusinessProfile } from '../contexts/BusinessProfileContext.jsx';
+import { PlusIcon, ProductLineIcon, SearchIcon } from './icons/PosIcons.jsx';
 
 const EMPTY_PRODUCTS = [];
 const POS_PRODUCTS_PAGE_SIZE = 50;
@@ -85,7 +86,7 @@ function ProductImage({ product, sectorKey }) {
   if (hasError || !product?.image_path) {
     return (
       <span className="prod-emoji-fallback">
-        {getCategoryIcon(product?.categoryName, product?.name, sectorKey)}
+        <ProductLineIcon emoji={getCategoryIcon(product?.categoryName, product?.name, sectorKey)} size={40} />
       </span>
     );
   }
@@ -126,7 +127,7 @@ function ProductGrid({ products = EMPTY_PRODUCTS, selectedVariant = {}, pickVari
   if (productList.length === 0) {
     return (
       <div className="pos-no-products">
-        <div className="no-prod-icon">🔍</div>
+        <div className="no-prod-icon"><SearchIcon size={40} /></div>
         <h3>لا توجد عناصر مطابقة للبحث</h3>
         <p>جرب البحث بكلمة أخرى أو اختر تصنيفاً مختلفاً من الأعلى</p>
       </div>
@@ -152,34 +153,21 @@ function ProductGrid({ products = EMPTY_PRODUCTS, selectedVariant = {}, pickVari
 
         return (
           <div key={product.id} className={`pos-product-card ${isOutOfStock ? 'is-out-of-stock' : ''}`}>
-            {/* Top Badges Row */}
-            <div className="prod-card-top-tags">
+            {/* Visual tile: category tag, in-cart count, line icon / photo */}
+            <div className="pos-card-visual" onClick={() => !isOutOfStock && addToCart(product)}>
+              <ProductImage product={product} sectorKey={sectorKey} />
               {product.categoryName && (
                 <span className="prod-cat-tag">{product.categoryName}</span>
               )}
-
+              {inCartCount > 0 && (
+                <span className="prod-in-cart-indicator" title="الكمية في السلة الحالية">
+                  {inCartCount}
+                </span>
+              )}
               {badge && (
                 <span className={`prod-stock-badge badge-${badge.type}`}>
                   {badge.text}
                 </span>
-              )}
-
-              {inCartCount > 0 && (
-                <span className="prod-in-cart-indicator" title="الكمية في السلة الحالية">
-                  🛒 {inCartCount}
-                </span>
-              )}
-            </div>
-
-            {/* Visual Image / Hero Area */}
-            <div className="pos-card-visual" onClick={() => !isOutOfStock && addToCart(product)}>
-              <ProductImage product={product} sectorKey={sectorKey} />
-              
-              {/* Quick Hover Add Overlay */}
-              {!isOutOfStock && (
-                <div className="card-quick-add-overlay">
-                  <span>+ إضافة للسلة</span>
-                </div>
               )}
             </div>
 
@@ -190,12 +178,12 @@ function ProductGrid({ products = EMPTY_PRODUCTS, selectedVariant = {}, pickVari
               </h4>
 
               <div className="pos-prod-code-line">
-                <span className="pos-code-badge">
-                  {isService ? 'خدمة' : (activeVariant?.barcode || activeVariant?.sku || 'بدون باركود')}
-                </span>
-                <span className="pos-variant-stock-hint">
-                  {activeVariant ? (isService ? 'لا تحتاج مخزون' : `المتاح: ${activeVariant.stock_quantity}`) : ''}
-                </span>
+                {isService
+                  ? 'خدمة · لا تحتاج مخزون'
+                  : [
+                      activeVariant?.barcode || activeVariant?.sku ? `كود ${activeVariant.barcode || activeVariant.sku}` : null,
+                      activeVariant ? `المتاح ${activeVariant.stock_quantity}` : null,
+                    ].filter(Boolean).join(' · ')}
               </div>
 
               {/* Variant Chips Selector */}
@@ -218,6 +206,7 @@ function ProductGrid({ products = EMPTY_PRODUCTS, selectedVariant = {}, pickVari
                         key={v.id}
                         type="button"
                         className={`variant-chip ${isSelected ? 'active' : ''} ${disabled ? 'disabled' : ''}`}
+                        aria-pressed={isSelected}
                         onClick={(e) => {
                           e.stopPropagation();
                           pickVariant(product.id, v.id);
@@ -231,8 +220,8 @@ function ProductGrid({ products = EMPTY_PRODUCTS, selectedVariant = {}, pickVari
                   })}
                 </div>
               ) : (
-                <div className="pos-single-variant-tag">
-                  {[
+                (() => {
+                  const variantText = [
                     ...attributes.map((attribute) => {
                       const value = attribute.attribute_key === 'size'
                         ? activeVariant?.size
@@ -247,8 +236,9 @@ function ProductGrid({ products = EMPTY_PRODUCTS, selectedVariant = {}, pickVari
                     activeVariant?.color && !attributes.some((attribute) => attribute.attribute_key === 'color')
                       ? activeVariant.color
                       : null,
-                  ].filter(Boolean).join(' · ')}
-                </div>
+                  ].filter(Boolean).join(' · ');
+                  return variantText ? <div className="pos-single-variant-tag">{variantText}</div> : null;
+                })()
               )}
             </div>
 
@@ -264,9 +254,10 @@ function ProductGrid({ products = EMPTY_PRODUCTS, selectedVariant = {}, pickVari
                 className="pos-card-add-btn"
                 disabled={isOutOfStock}
                 onClick={() => addToCart(product)}
-                title="إضافة للسلة"
+                title={isOutOfStock ? 'نفذ من المخزون' : 'إضافة للسلة'}
+                aria-label={isOutOfStock ? `${product.name} نفذ من المخزون` : `إضافة ${product.name} للسلة`}
               >
-                {isOutOfStock ? 'نفذ' : '+ إضافة'}
+                {isOutOfStock ? 'نفذ' : <PlusIcon size={20} strokeWidth={2.4} />}
               </button>
             </div>
           </div>

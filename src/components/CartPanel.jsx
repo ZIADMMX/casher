@@ -1,8 +1,29 @@
 import CouponInput from './CouponInput.jsx';
 import PaymentSection from './PaymentSection.jsx';
-import { CartBagIcon } from './icons/SectorIcons.jsx';
+import { getCategoryIcon } from './ProductGrid.jsx';
+import {
+  AlertIcon,
+  BagIcon,
+  CheckIcon,
+  ChevronDownIcon,
+  CloseIcon,
+  LockIcon,
+  MinusIcon,
+  PauseIcon,
+  PlusIcon,
+  PrinterIcon,
+  ProductLineIcon,
+  ScaleIcon,
+  TagIcon,
+  TrashIcon,
+  UserIcon,
+} from './icons/PosIcons.jsx';
 
-const ALERT_ICONS = { error: '⚠️', warning: '⚠️', success: '✓' };
+const VAT_RATE = 0.14;
+
+function money(value) {
+  return Number(value || 0).toFixed(2);
+}
 
 function CartPanel({
   cart = [],
@@ -47,19 +68,26 @@ function CartPanel({
   isShiftOpen = true,
   shiftLoaded = true,
   shiftGate = null,
-  customerTerm = 'العملاء',
+  orderModeLabel = '',
+  discountOpen = false,
+  setDiscountOpen,
 }) {
-  const totalItemsCount = cart.reduce((sum, item) => sum + (item.isScaleItem ? 1 : (item.quantity || 1)), 0);
-  const orderTitle = sectorConfig?.orderTerm || 'سلة المبيعات';
-  const unitTerm = sectorConfig?.unitTerm || 'قطع';
+  const orderTitle = sectorConfig?.orderTerm || 'الطلب الحالي';
+  const unitTerm = sectorConfig?.unitTerm || 'قطعة';
+  const sectorKey = sectorConfig?.key || 'retail';
   const isEmpty = cart.length === 0;
   const saleLocked = !isShiftOpen;
   const canCompleteSale = !isEmpty && !saleLocked && !isCreditInvalid && !isCashInvalid;
+  const hasDiscount = Number(discount || 0) > 0;
+  const vatIncluded = Math.round((total - total / (1 + VAT_RATE)) * 100) / 100;
+  const subtitle = [orderModeLabel, isEmpty ? 'طلب جديد' : `${cart.length} أصناف`].filter(Boolean).join(' · ');
 
-  let completeLabel = 'إتمام عملية البيع وطباعة الفاتورة';
+  let completeText = `إتمام البيع · ${money(total)} ج.م`;
+  let completeLabel = `إتمام عملية البيع وطباعة الفاتورة — ${money(total)} ج.م`;
   let completeHint = null;
   if (saleLocked) {
-    completeLabel = shiftLoaded ? 'افتح الوردية أولاً لإتمام البيع' : 'جارٍ التحقق من الوردية...';
+    completeText = shiftLoaded ? 'افتح الوردية أولاً لإتمام البيع' : 'جارٍ التحقق من الوردية...';
+    completeLabel = completeText;
   } else if (isEmpty) {
     completeHint = 'أضف أصنافاً للسلة';
   } else if (isCreditInvalid) {
@@ -70,83 +98,69 @@ function CartPanel({
 
   return (
     <div className={`pos-cart-panel${saleLocked ? ' is-locked' : ''}`}>
-      {/* Cart Header */}
+      {/* Header */}
       <div className="pos-cart-header">
         <div className="pos-cart-title-wrap">
-          <div className="pos-cart-icon" aria-hidden="true">
-            <CartBagIcon size={20} />
-          </div>
-          <div>
-            <h3 className="pos-cart-title">{orderTitle}</h3>
-            <span className="pos-cart-subtitle">
-              {totalItemsCount > 0 ? `${totalItemsCount} ${unitTerm} مختارة` : 'طلب جديد'}
-            </span>
-          </div>
+          <h3 className="pos-cart-title">{orderTitle}</h3>
+          <span className="pos-cart-subtitle">{subtitle}</span>
         </div>
 
         <div className="pos-cart-header-actions">
           {heldOrdersCount > 0 && (
-            <button
-              type="button"
-              className="pos-held-btn"
-              onClick={onShowHeldOrders}
-              title="الفواتير المعلقة (F3)"
-            >
-              ⏸️ معلق ({heldOrdersCount})
+            <button type="button" className="pos-held-btn" onClick={onShowHeldOrders} title="الفواتير المعلقة (F3)">
+              <PauseIcon size={16} />
+              <span>معلق ({heldOrdersCount})</span>
             </button>
           )}
-
-          {!isEmpty && onHoldOrder && (
-            <button
-              type="button"
-              className="pos-icon-action-btn"
-              onClick={onHoldOrder}
-              title="تعليق الفاتورة الحالية (F2)"
-              aria-label="تعليق الفاتورة الحالية"
-            >
-              ⏸️
-            </button>
-          )}
-
-          {!isEmpty && (
-            <button
-              type="button"
-              className="pos-icon-action-btn clear-btn"
-              onClick={clearCart}
-              title="إفراغ السلة بالكامل"
-              aria-label="إفراغ السلة بالكامل"
-            >
-              🗑️
-            </button>
-          )}
+          <button
+            type="button"
+            className="pos-icon-action-btn"
+            onClick={onHoldOrder}
+            disabled={isEmpty || !onHoldOrder}
+            title="تعليق الفاتورة الحالية (F2)"
+            aria-label="تعليق الفاتورة الحالية"
+          >
+            <PauseIcon size={18} />
+          </button>
+          <button
+            type="button"
+            className="pos-icon-action-btn clear-btn"
+            onClick={clearCart}
+            disabled={isEmpty}
+            title="إفراغ السلة بالكامل"
+            aria-label="إفراغ السلة بالكامل"
+          >
+            <TrashIcon size={18} />
+          </button>
         </div>
       </div>
 
       {shiftGate}
 
-      {/* Customer Quick Select & Subscription Status */}
+      {/* Customer */}
       <div className="pos-customer-banner">
         <label className="pos-customer-select-row">
-          <span className="customer-avatar-mini-icon" aria-hidden="true">👤</span>
+          <UserIcon size={18} className="pos-customer-icon" />
           <span className="visually-hidden">اختيار العميل أو الباقة</span>
           <select
             className="pos-customer-select"
             value={selectedCustomerId || ''}
             onChange={(e) => setSelectedCustomerId && setSelectedCustomerId(e.target.value)}
           >
-            <option value="">{`-- ${customerTerm}: عميل نقدي بدون تسجيل --`}</option>
+            <option value="">عميل نقدي (بدون تسجيل)</option>
             {customers?.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name} {c.phone ? `(${c.phone})` : ''} {c.tier ? `[${c.tier}]` : ''}
               </option>
             ))}
           </select>
+          <ChevronDownIcon size={18} className="pos-customer-chevron" />
         </label>
 
         {activeSubscription && (
           <div className="pos-subscription-card">
             <div>
-              <strong>🎫 {activeSubscription.package_name}:</strong> {activeSubscription.remaining_credits} رصيد متبقي
+              <strong>{activeSubscription.package_name}:</strong> {activeSubscription.remaining_credits} رصيد متبقي
               {activeSubscription.discount_percentage > 0 && ` | خصم ${activeSubscription.discount_percentage}%`}
             </div>
             {activeSubscription.remaining_credits > 0 && setUseSubscriptionCredit && (
@@ -167,31 +181,44 @@ function CartPanel({
         )}
       </div>
 
-      {/* Alert Messages */}
+      {/* Messages */}
       {message && (
         <div
           className={`pos-cart-alert alert-${message.type === 'error' ? 'error' : message.type === 'warning' ? 'warning' : 'success'}`}
           role={message.type === 'error' ? 'alert' : 'status'}
         >
-          <span aria-hidden="true">{ALERT_ICONS[message.type] || '✓'}</span>
+          {message.type === 'error' || message.type === 'warning'
+            ? <AlertIcon size={18} />
+            : <CheckIcon size={18} />}
           <span>{message.text}</span>
         </div>
       )}
 
-      {/* Cart Items List */}
+      {/* Items */}
       <div className="pos-cart-items-scroll">
         {isEmpty ? (
           <div className="pos-cart-empty-state">
-            <div className="empty-cart-illustration" aria-hidden="true">🛍️</div>
+            <span className="empty-cart-illustration"><BagIcon size={32} /></span>
             <h4>السلة فارغة</h4>
-            <p>اختر من القائمة أو امسح الباركود لإضافة {sectorConfig?.itemTerm || 'الأصناف'} إلى {orderTitle}</p>
+            <p>اختر من القائمة أو امسح الباركود لإضافة {sectorConfig?.itemTerm || 'الأصناف'}</p>
           </div>
         ) : (
           <ul className="pos-cart-items-list">
-            {cart.map((item) => (
-              <li key={`${item.variantId}_${item.unitId || 'base'}`} className="pos-cart-item-card">
-                <div className="pos-cart-item-header">
-                  <div className="pos-cart-item-name">
+            {cart.map((item) => {
+              const atMinimum = !item.isScaleItem && item.quantity <= 1;
+              const variantText = [item.size, item.color].filter(Boolean).join(' · ');
+              return (
+                <li key={`${item.variantId}_${item.unitId || 'base'}`} className="pos-cart-item-card">
+                  <span className="pos-cart-item-icon" aria-hidden="true">
+                    <ProductLineIcon emoji={getCategoryIcon('', item.productName, sectorKey)} size={20} />
+                  </span>
+
+                  <div className="pos-cart-item-info">
+                    <span className="pos-item-title" title={item.productName}>{item.productName}</span>
+                    <span className="pos-item-unit-price">
+                      {`${money(item.unitPrice)} ج.م / ${item.unitName || unitTerm}`}
+                      {variantText ? ` · ${variantText}` : ''}
+                    </span>
                     {item.isScaleItem && (
                       <button
                         type="button"
@@ -199,120 +226,96 @@ function CartPanel({
                         onClick={() => onOpenScaleEdit?.(item)}
                         title="تعديل الوزن يدوياً"
                       >
-                        ⚖️ ميزان
+                        <ScaleIcon size={14} />
+                        {`${item.quantity} كجم`}
                       </button>
                     )}
-                    <span className="pos-item-title">{item.productName}</span>
                   </div>
-                  <button
-                    type="button"
-                    className="pos-item-remove-btn"
-                    onClick={() => removeFromCart(item.variantId, item.unitId)}
-                    title="حذف الصنف"
-                    aria-label={`حذف ${item.productName}`}
-                  >
-                    ×
-                  </button>
-                </div>
 
-                <div className="pos-item-meta-row">
-                  {(item.size || item.color || (item.unitName && !item.isScaleItem)) && (
-                    <span className="pos-item-variant-badge">
-                      {item.size ? `مقاس ${item.size}` : ''}
-                      {item.size && item.color ? ' · ' : ''}
-                      {item.color || ''}
-                      {item.unitName && !item.isScaleItem ? `${item.size || item.color ? ' · ' : ''}${item.unitName}` : ''}
-                    </span>
-                  )}
-                  <span className="pos-item-unit-price">
-                    {item.unitPrice.toFixed(2)} ج.م / {item.unitName || 'قطعة'}
-                  </span>
-                </div>
-
-                <div className="pos-cart-item-footer">
                   <div className="pos-item-stepper">
                     <button
                       type="button"
                       className="stepper-btn"
-                      onClick={() => changeQuantity(item.variantId, -1, item.unitId)}
-                      title="تقليل"
-                      aria-label="تقليل الكمية"
+                      onClick={() => changeQuantity(item.variantId, 1, item.unitId)}
+                      disabled={Boolean(item.maxStock && item.quantity >= item.maxStock)}
+                      title="زيادة"
+                      aria-label={`زيادة كمية ${item.productName}`}
                     >
-                      −
+                      <PlusIcon size={16} strokeWidth={2.2} />
                     </button>
-                    {item.isScaleItem ? (
-                      <button
-                        type="button"
-                        className="stepper-qty is-scale"
-                        onClick={() => onOpenScaleEdit?.(item)}
-                        title="اضغط لتعديل الوزن يدوياً"
-                      >
-                        {`${item.quantity} كجم`}
-                      </button>
-                    ) : (
-                      <span className="stepper-qty" title={`الكمية: ${item.quantity}`}>
-                        {item.quantity}
-                      </span>
-                    )}
+                    <span className="stepper-qty" aria-label={`الكمية ${item.quantity}`}>
+                      {item.quantity}
+                    </span>
                     <button
                       type="button"
-                      className="stepper-btn"
-                      disabled={item.maxStock && item.quantity >= item.maxStock}
-                      onClick={() => changeQuantity(item.variantId, 1, item.unitId)}
-                      title="زيادة"
-                      aria-label="زيادة الكمية"
+                      className={`stepper-btn${atMinimum ? ' is-remove' : ''}`}
+                      onClick={() => (atMinimum
+                        ? removeFromCart(item.variantId, item.unitId)
+                        : changeQuantity(item.variantId, -1, item.unitId))}
+                      title={atMinimum ? 'حذف الصنف' : 'تقليل'}
+                      aria-label={atMinimum ? `حذف ${item.productName}` : `تقليل كمية ${item.productName}`}
                     >
-                      +
+                      {atMinimum ? <TrashIcon size={15} /> : <MinusIcon size={16} strokeWidth={2.2} />}
                     </button>
                   </div>
 
-                  <span className="pos-item-total-price">
-                    {(item.unitPrice * item.quantity).toFixed(2)} <small>ج.م</small>
-                  </span>
-                </div>
-              </li>
-            ))}
+                  <span className="pos-item-total-price">{money(item.unitPrice * item.quantity)}</span>
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>
 
-      {/* Footer & Checkout Form (always visible) */}
+      {/* Checkout (sticky) */}
       <div className="pos-cart-checkout-section">
-        {!isEmpty && (
-          <CouponInput
-            value={couponCode}
-            onChange={setCouponCode}
-            onApply={applyCoupon}
-            message={couponMessage}
-          />
-        )}
-
-        {/* Invoice Summary */}
         <div className="pos-summary-card">
           <div className="summary-line">
-            <span className="summary-label">المجموع الفرعي ({cart.length} أصناف)</span>
-            <span className="summary-val">{subtotal.toFixed(2)} ج.م</span>
+            <span className="summary-label">المجموع الفرعي</span>
+            <span className="summary-val">{money(subtotal)} ج.م</span>
           </div>
 
-          {Number(discount || 0) > 0 && (
-            <div className="summary-line discount-line">
-              <span className="summary-label">الخصم المطبق</span>
-              <span className="summary-val">- {Number(discount).toFixed(2)} ج.م</span>
-            </div>
+          <div className="summary-line discount-line">
+            <button
+              type="button"
+              className="pos-discount-link"
+              onClick={() => setDiscountOpen?.(!discountOpen)}
+              aria-expanded={discountOpen}
+              disabled={isEmpty}
+              title="إضافة خصم (F4)"
+            >
+              {discountOpen ? <CloseIcon size={14} /> : <TagIcon size={14} />}
+              {hasDiscount ? 'تعديل الخصم' : '+ إضافة خصم'}
+            </button>
+            <span className="summary-val">{hasDiscount ? `- ${money(discount)}` : money(0)} ج.م</span>
+          </div>
+
+          {discountOpen && !isEmpty && (
+            <CouponInput
+              value={couponCode}
+              onChange={setCouponCode}
+              onApply={applyCoupon}
+              message={couponMessage}
+            />
+          )}
+          {!discountOpen && couponMessage && hasDiscount && (
+            <p className="pos-coupon-message success">{couponMessage}</p>
           )}
 
+          <div className="summary-line tax-hint-line">
+            <span>شامل ضريبة القيمة المضافة 14%</span>
+            <span className="summary-val">{money(vatIncluded)} ج.م</span>
+          </div>
+
           <div className="summary-grand-total">
-            <span className="total-title">
-              الإجمالي المستحق
-              <small className="tax-hint-line">شامل ضريبة القيمة المضافة (14%)</small>
-            </span>
+            <span className="total-title">الإجمالي</span>
             <span className="total-amount">
-              {total.toFixed(2)} <span className="currency-unit">ج.م</span>
+              {money(total)} <span className="currency-unit">ج.م</span>
             </span>
           </div>
         </div>
 
-        {/* Payment Methods & Inputs */}
+        {!saleLocked && (
         <PaymentSection
           total={total}
           paymentMethod={paymentMethod}
@@ -320,6 +323,7 @@ function CartPanel({
           cashReceived={cashReceived}
           setCashReceived={setCashReceived}
           changeDue={changeDue}
+          isCashInvalid={isCashInvalid}
           creditCustomerName={creditCustomerName}
           setCreditCustomerName={setCreditCustomerName}
           creditCustomerPhone={creditCustomerPhone}
@@ -329,20 +333,23 @@ function CartPanel({
           onNavigate={onNavigate}
           sectionRef={paymentSectionRef}
         />
+        )}
 
-        {/* Big Complete Sale Button */}
         <button
           type="button"
           className={`pos-complete-sale-btn${saleLocked ? ' is-locked' : ''}`}
           disabled={!canCompleteSale}
           onClick={handleCompleteSale}
+          aria-label={completeLabel}
         >
-          <span className="complete-btn-icon" aria-hidden="true">{saleLocked ? '🔒' : '🖨️'}</span>
+          <span className="complete-btn-icon" aria-hidden="true">
+            {saleLocked ? <LockIcon size={20} /> : <PrinterIcon size={20} />}
+          </span>
           <span className="complete-btn-text">
-            {completeLabel}
+            {completeText}
             {completeHint && <small className="complete-btn-hint">{completeHint}</small>}
           </span>
-          {canCompleteSale && <span className="complete-btn-shortcut">↵ Enter</span>}
+          {canCompleteSale && <kbd className="complete-btn-shortcut">Enter</kbd>}
         </button>
       </div>
     </div>

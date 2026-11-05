@@ -1,6 +1,6 @@
-import React from 'react';
 import * as groceryApi from '../../api/grocery.js';
 import * as productsApi from '../../api/products.js';
+import { CloseIcon, SearchIcon } from '../icons/PosIcons.jsx';
 
 /**
  * SearchBar component for POS page.
@@ -94,7 +94,7 @@ export default function SearchBar({
 
   return (
     <div className="pos-search-box">
-      <span className="search-lens-icon">🔍</span>
+      <span className="search-lens-icon"><SearchIcon size={20} /></span>
       <input
         ref={searchInputRef}
         type="text"
@@ -111,8 +111,9 @@ export default function SearchBar({
           className="pos-search-clear-btn"
           onClick={() => setSearch('')}
           title="مسح البحث"
+          aria-label="مسح البحث"
         >
-          ✕
+          <CloseIcon size={16} />
         </button>
       )}
       <span className="search-shortcut-badge" title="اختصار التركيز على البحث">F1</span>

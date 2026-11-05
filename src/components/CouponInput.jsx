@@ -1,3 +1,5 @@
+import { TagIcon } from './icons/PosIcons.jsx';
+
 function CouponInput({ value, onChange, onApply, message }) {
   const handleKeyDown = (e) => {
     if (e.key === 'Enter') {
@@ -9,7 +11,7 @@ function CouponInput({ value, onChange, onApply, message }) {
   return (
     <div className="pos-coupon-box">
       <div className="pos-coupon-input-group">
-        <span className="pos-coupon-icon">🏷️</span>
+        <span className="pos-coupon-icon"><TagIcon size={16} /></span>
         <input
           type="text"
           className="pos-coupon-input"
@@ -24,7 +26,7 @@ function CouponInput({ value, onChange, onApply, message }) {
       </div>
       {message && (
         <p className={`pos-coupon-message ${message.includes('تم') ? 'success' : 'info'}`}>
-          {message.includes('تم') ? '✓ ' : 'ℹ '} {message}
+          {message}
         </p>
       )}
     </div>

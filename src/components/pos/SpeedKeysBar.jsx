@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import * as groceryApi from '../../api/grocery.js';
+import { ProductLineIcon, TagIcon } from '../icons/PosIcons.jsx';
 
 // Speed-key colors are stored per key (user data), so they are values, not theme tokens.
 const SPEED_KEY_COLORS = ['#10B981', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
@@ -105,7 +106,7 @@ export default function SpeedKeysBar({
     <div className="pos-speed-keys-container">
       <div className="pos-speed-keys-header">
         <div className="speed-keys-title">
-          <span className="speed-keys-icon">⚡</span>
+          <span className="speed-keys-icon"><TagIcon size={16} /></span>
           <span className="speed-keys-heading">سلع سريعة بدون باركود (PLU)</span>
         </div>
 
@@ -140,7 +141,7 @@ export default function SpeedKeysBar({
               onClick={() => onSelectSpeedKey(key)}
             >
               <div className="speed-key-top">
-                <span className="speed-key-emoji">{key.icon || '🛒'}</span>
+                <span className="speed-key-emoji"><ProductLineIcon emoji={key.icon || '🛒'} size={18} /></span>
                 {key.shortcut_code && (
                   <span className="speed-key-shortcut" title={`اختصار: ${key.shortcut_code}`}>
                     {key.shortcut_code}

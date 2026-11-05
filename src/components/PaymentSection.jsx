@@ -1,3 +1,13 @@
+import { CardIcon, CashIcon, ClockIcon } from './icons/PosIcons.jsx';
+
+const PAYMENT_METHODS = [
+  { key: 'cash', label: 'كاش', Icon: CashIcon, title: 'نقدي (F9)' },
+  { key: 'card', label: 'فيزا / بطاقة', Icon: CardIcon, title: 'دفع بالبطاقة' },
+  { key: 'credit', label: 'آجل', Icon: ClockIcon, title: 'بيع آجل (F10)' },
+];
+
+const QUICK_CASH_AMOUNTS = [100, 200, 500];
+
 function PaymentSection({
   total = 0,
   paymentMethod,
@@ -5,6 +15,7 @@ function PaymentSection({
   cashReceived,
   setCashReceived,
   changeDue,
+  isCashInvalid = false,
   creditCustomerName,
   setCreditCustomerName,
   creditCustomerPhone,
@@ -14,113 +25,89 @@ function PaymentSection({
   onNavigate,
   sectionRef,
 }) {
-  // حساب الفئات السريعة بناءً على الإجمالي
-  const quickCashOptions = [
-    { label: 'المبلغ بالضبط', value: total },
-    { label: '50 ج.م', value: 50 },
-    { label: '100 ج.م', value: 100 },
-    { label: '200 ج.م', value: 200 },
-    { label: '500 ج.م', value: 500 },
-  ].filter((opt) => opt.value >= total || opt.label === 'المبلغ بالضبط');
+  const exactSelected = cashReceived !== '' && Number(cashReceived) === Number(total);
 
   return (
     <div className="pos-payment-section" ref={sectionRef} tabIndex={-1}>
       <div className="payment-method-tabs" role="group" aria-label="طريقة الدفع">
-        <button
-          type="button"
-          className={`pay-tab-btn ${paymentMethod === 'cash' ? 'active' : ''}`}
-          aria-pressed={paymentMethod === 'cash'}
-          onClick={() => {
-            setPaymentMethod('cash');
-          }}
-        >
-          <span className="pay-tab-icon">💵</span>
-          <span className="pay-tab-text">نقدي (كاش)</span>
-        </button>
-
-        <button
-          type="button"
-          className={`pay-tab-btn ${paymentMethod === 'card' ? 'active' : ''}`}
-          aria-pressed={paymentMethod === 'card'}
-          onClick={() => {
-            setPaymentMethod('card');
-            setCashReceived('');
-          }}
-        >
-          <span className="pay-tab-icon">💳</span>
-          <span className="pay-tab-text">فيزا / بطاقة</span>
-        </button>
-
-        <button
-          type="button"
-          className={`pay-tab-btn ${paymentMethod === 'credit' ? 'active' : ''}`}
-          aria-pressed={paymentMethod === 'credit'}
-          onClick={() => {
-            setPaymentMethod('credit');
-            setCashReceived('');
-          }}
-        >
-          <span className="pay-tab-icon">⏳</span>
-          <span className="pay-tab-text">استلام آجل</span>
-        </button>
+        {PAYMENT_METHODS.map(({ key, label, Icon, title }) => (
+          <button
+            key={key}
+            type="button"
+            className={`pay-tab-btn ${paymentMethod === key ? 'active' : ''}`}
+            aria-pressed={paymentMethod === key}
+            title={title}
+            onClick={() => {
+              setPaymentMethod(key);
+              if (key !== 'cash') setCashReceived('');
+            }}
+          >
+            <Icon size={20} />
+            <span className="pay-tab-text">{label}</span>
+          </button>
+        ))}
       </div>
 
       {paymentMethod === 'cash' && (
         <div className="cash-payment-details">
-          {total > 0 && (
-            <div className="quick-cash-presets">
-              {quickCashOptions.map((opt, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  className="quick-cash-chip"
-                  onClick={() => setCashReceived(opt.value.toString())}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          )}
+          <div className="quick-cash-presets">
+            <button
+              type="button"
+              className={`quick-cash-chip${exactSelected ? ' is-selected' : ''}`}
+              onClick={() => setCashReceived(total.toString())}
+              disabled={total <= 0}
+            >
+              بالضبط
+            </button>
+            {QUICK_CASH_AMOUNTS.map((amount) => (
+              <button
+                key={amount}
+                type="button"
+                className={`quick-cash-chip${!exactSelected && Number(cashReceived) === amount ? ' is-selected' : ''}`}
+                onClick={() => setCashReceived(amount.toString())}
+                disabled={total <= 0 || amount < total}
+              >
+                {amount}
+              </button>
+            ))}
+          </div>
 
-          <div className="cash-input-row">
-            <label className="cash-label" htmlFor="pos-cash-received">المبلغ المستلم:</label>
-            <div className="cash-input-wrap">
+          <div className={`cash-change-badge${isCashInvalid ? ' is-invalid' : ''}`}>
+            <label className="cash-input-row" htmlFor="pos-cash-received">
+              <span className="cash-label">المستلم</span>
               <input
+                id="pos-cash-received"
                 type="number"
                 min="0"
                 step="any"
-                id="pos-cash-received"
+                inputMode="decimal"
                 className="cash-input"
                 value={cashReceived}
                 onChange={(e) => setCashReceived(e.target.value)}
                 placeholder="0.00"
               />
-              <span className="cash-currency">ج.م</span>
+            </label>
+            <div className="change-info">
+              <span className="change-label">{isCashInvalid ? 'المبلغ أقل من الإجمالي' : 'الباقي للعميل'}</span>
+              <span className="change-value">{`${(changeDue ?? 0).toFixed(2)} ج.م`}</span>
             </div>
           </div>
-
-          {changeDue !== null && (
-            <div className="cash-change-badge">
-              <div className="change-info">
-                <span className="change-label">المتبقي للعميل (الفكة):</span>
-                <span className="change-value">{changeDue.toFixed(2)} ج.م</span>
-              </div>            </div>
-          )}
         </div>
       )}
 
       {paymentMethod === 'card' && (
         <div className="card-payment-info">
-          <span className="card-info-icon">💳</span>
-          <p>الدفع عبر ماكينة الـ POS الإلكترونية — لا يتطلب حساب مبالغ نقدية</p>
+          <CardIcon size={18} />
+          <p>الدفع عبر ماكينة الـ POS — لا يتطلب حساب مبالغ نقدية</p>
         </div>
       )}
 
       {paymentMethod === 'credit' && (
         <div className="credit-form-card">
           <div className="credit-field">
-            <label>اسم العميل <span>*</span></label>
+            <label htmlFor="pos-credit-name">اسم العميل <span>*</span></label>
             <input
+              id="pos-credit-name"
               type="text"
               className="credit-input"
               placeholder="الاسم الثلاثي أو اسم الشركة..."
@@ -130,8 +117,9 @@ function PaymentSection({
           </div>
 
           <div className="credit-field">
-            <label>رقم هاتف العميل</label>
+            <label htmlFor="pos-credit-phone">رقم هاتف العميل</label>
             <input
+              id="pos-credit-phone"
               type="text"
               className="credit-input"
               placeholder="01XXXXXXXXX"
@@ -141,8 +129,9 @@ function PaymentSection({
           </div>
 
           <div className="credit-field">
-            <label>تاريخ استحقاق السداد <span>*</span></label>
+            <label htmlFor="pos-credit-due">تاريخ استحقاق السداد <span>*</span></label>
             <input
+              id="pos-credit-due"
               type="date"
               className="credit-input"
               value={creditDueDate}

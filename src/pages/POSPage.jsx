@@ -10,7 +10,6 @@ import { normalizeErrorMessage } from '../utils/normalizeError.js';
 import { useSettings } from '../contexts/SettingsContext.jsx';
 import { useBusinessProfile } from '../contexts/BusinessProfileContext.jsx';
 import { getSectorConfig } from '../utils/sectorConfig.js';
-import SectorHeader from '../components/pos/SectorHeader.jsx';
 
 // Modular POS Subcomponents
 import HeldOrdersModal from '../components/pos/HeldOrdersModal.jsx';
@@ -18,7 +17,9 @@ import ShiftOpenModal from '../components/pos/ShiftOpenModal.jsx';
 import ShiftExpenseModal from '../components/pos/ShiftExpenseModal.jsx';
 import ShiftCloseModal from '../components/pos/ShiftCloseModal.jsx';
 import ShiftReportModal from '../components/pos/ShiftReportModal.jsx';
-import ShiftStatus from '../components/pos/ShiftStatus.jsx';
+import PosTopBar from '../components/pos/PosTopBar.jsx';
+import OrderModeToggle, { getOrderModeLabel } from '../components/pos/OrderModeToggle.jsx';
+import { BarcodeIcon } from '../components/icons/PosIcons.jsx';
 import SearchBar from '../components/pos/SearchBar.jsx';
 import SpeedKeysBar from '../components/pos/SpeedKeysBar.jsx';
 import ScaleWeightModal from '../components/pos/ScaleWeightModal.jsx';
@@ -36,7 +37,7 @@ import * as subscriptionsApi from '../api/subscriptions.js';
 
 function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
   const { settings } = useSettings();
-  const { configuration, getTerm } = useBusinessProfile();
+  const { configuration } = useBusinessProfile();
   const sectorKey = configuration?.profile?.key || 'retail';
   const sectorConfig = useMemo(() => getSectorConfig(sectorKey), [sectorKey]);
   const [activeOrderMode, setActiveOrderMode] = useState('takeaway');
@@ -831,29 +832,23 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
       {/* كومبوننت طباعة الفاتورة */}
       <ReceiptPrint sale={printableSale} />
 
-      {/* Catalog (start side in RTL): identity, status, search, categories, products */}
+      <PosTopBar
+        storeName={settings.store_name}
+        sectorConfig={sectorConfig}
+        activeShift={activeShift}
+        shiftLoaded={shiftLoaded}
+        posSessionUser={posSessionUser}
+        attendance={attendance}
+        onOpenExpenseModal={() => setShowShiftExpenseModal(true)}
+        onShowXReport={handlePOSShowXReport}
+        onCloseShiftModal={() => setShowShiftCloseModal(true)}
+        onOpenCashDrawer={handleManualOpenCashDrawer}
+        onOpenKitchen={() => onNavigate?.('kitchen')}
+        onOpenWorkOrders={() => onNavigate?.('orders')}
+      />
+
+      {/* Catalog (start side in RTL): search, categories, products */}
       <section className="pos-catalog-container" aria-label="قائمة الأصناف">
-        <SectorHeader
-          sectorConfig={sectorConfig}
-          activeOrderMode={activeOrderMode}
-          onSelectOrderMode={setActiveOrderMode}
-          onOpenWorkOrders={() => onNavigate?.('orders')}
-          onOpenKitchen={() => onNavigate?.('kitchen')}
-        />
-
-        <ShiftStatus
-          activeShift={activeShift}
-          shiftLoaded={shiftLoaded}
-          posSessionUser={posSessionUser}
-          attendance={attendance}
-          onOpenExpenseModal={() => setShowShiftExpenseModal(true)}
-          onShowXReport={handlePOSShowXReport}
-          onCloseShiftModal={() => setShowShiftCloseModal(true)}
-          onOpenCashDrawer={handleManualOpenCashDrawer}
-          playSuccessBeep={playSuccessBeep}
-          setMessage={setMessage}
-        />
-
         {workOrder && (
           <div className="pos-work-order-banner">
             <span>
@@ -865,18 +860,38 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
           </div>
         )}
 
-        <SearchBar
-          search={search}
-          setSearch={setSearch}
-          searchInputRef={searchInputRef}
-          filteredProducts={filteredProducts}
-          selectedVariant={selectedVariant}
-          addScannedVariantToCart={addScannedVariantToCart}
-          playErrorBeep={playErrorBeep}
-          setMessage={setMessage}
-          normalizeBarcodeText={normalizeBarcodeText}
-          sectorConfig={sectorConfig}
-        />
+        <div className="pos-search-row">
+          <SearchBar
+            search={search}
+            setSearch={setSearch}
+            searchInputRef={searchInputRef}
+            filteredProducts={filteredProducts}
+            selectedVariant={selectedVariant}
+            addScannedVariantToCart={addScannedVariantToCart}
+            playErrorBeep={playErrorBeep}
+            setMessage={setMessage}
+            normalizeBarcodeText={normalizeBarcodeText}
+            sectorConfig={sectorConfig}
+          />
+          <button
+            type="button"
+            className="pos-barcode-btn"
+            title="قارئ الباركود متصل وجاهز — اضغط ثم امسح"
+            onClick={() => {
+              searchInputRef.current?.focus();
+              playSuccessBeep();
+              setMessage({ type: 'success', text: 'قارئ الباركود جاهز! وجّه القارئ لأي باركود لمسحه فوراً إلى السلة.' });
+            }}
+          >
+            <BarcodeIcon size={20} />
+            <span>باركود</span>
+          </button>
+          <OrderModeToggle
+            sectorConfig={sectorConfig}
+            activeOrderMode={activeOrderMode}
+            onSelectOrderMode={setActiveOrderMode}
+          />
+        </div>
 
         {/* Speed Keys Bar (Supermarket Fast PLU Buttons) */}
         {sectorConfig.features?.speedKeys && (
@@ -975,7 +990,9 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
           paymentSectionRef={paymentSectionRef}
           isShiftOpen={Boolean(activeShift)}
           shiftLoaded={shiftLoaded}
-          customerTerm={getTerm?.('customer', 'العملاء') || 'العملاء'}
+          orderModeLabel={getOrderModeLabel(sectorConfig, activeOrderMode)}
+          discountOpen={showDiscountModal}
+          setDiscountOpen={setShowDiscountModal}
           shiftGate={shiftLoaded && !activeShift ? (
             <ShiftGateBanner attendance={attendance} onOpenStartShift={handleOpenStartShiftModal} />
           ) : null}
