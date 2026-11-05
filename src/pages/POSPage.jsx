@@ -35,6 +35,7 @@ import * as salesApi from '../api/sales.js';
 import * as shiftsApi from '../api/shifts.js';
 import * as subscriptionsApi from '../api/subscriptions.js';
 import { hasPermission } from '../utils/accessControl.js';
+import { computeCartTotals } from '../utils/cartTotals.js';
 
 function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
   const { settings } = useSettings();
@@ -544,19 +545,18 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
     }
   }
 
-  const subtotal = Math.round(cart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0) * 100) / 100;
-  const effectiveDiscount = Math.max(Number(discount || 0), bundlePromotion?.discount || 0);
+  const { subtotal, effectiveDiscount, total, changeDue, isCreditInvalid, isCashInvalid } = computeCartTotals({
+    cart,
+    discount,
+    bundlePromotion,
+    paymentMethod,
+    cashReceived,
+    creditCustomerName,
+    creditDueDate,
+  });
   const displayedCouponMessage = bundlePromotion?.discount > Number(discount || 0)
     ? `تم تطبيق عرض ${bundlePromotion.name} تلقائيًا (خصم ${bundlePromotion.discount.toFixed(2)} ج.م)`
     : couponMessage;
-  const total = Math.round(Math.max(subtotal - effectiveDiscount, 0) * 100) / 100;
-  const changeDue =
-    paymentMethod === 'cash' && cashReceived !== ''
-      ? Math.round(Math.max(Number(cashReceived) - total, 0) * 100) / 100
-      : null;
-
-  const isCreditInvalid = paymentMethod === 'credit' && (!creditCustomerName.trim() || !creditDueDate);
-  const isCashInvalid = paymentMethod === 'cash' && cashReceived !== '' && Number(cashReceived) < total;
 
   const handleCompleteSale = useCallback(async () => {
     if (cart.length === 0 || isCreditInvalid || isCashInvalid) return;
