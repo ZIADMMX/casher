@@ -1,15 +1,18 @@
-// tests/unit/productsSlice.test.js
-import { store } from '../../src/app/store.js';
-import { setProducts } from '../../src/features/products/productsSlice.js';
+import { configureStore } from '@reduxjs/toolkit';
+import productsReducer, { setProducts } from '../../src/features/products/productsSlice.js';
 
-test('initial state is empty array', () => {
-  const state = store.getState().products;
-  expect(state).toEqual([]);
+function makeStore() {
+  return configureStore({ reducer: { products: productsReducer } });
+}
+
+test('initial state is empty and idle', () => {
+  const state = makeStore().getState().products;
+  expect(state).toEqual({ items: [], status: 'idle', error: null });
 });
 
-test('setProducts updates state', () => {
+test('setProducts stores the items and marks them loaded', () => {
+  const store = makeStore();
   const sample = [{ id: 1, name: 'منتج' }];
   store.dispatch(setProducts(sample));
-  const state = store.getState().products;
-  expect(state).toEqual(sample);
+  expect(store.getState().products).toEqual({ items: sample, status: 'succeeded', error: null });
 });
