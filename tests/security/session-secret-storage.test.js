@@ -76,3 +76,12 @@ describe('Security: the session signing secret lives outside the database', () =
     expect(sessionService.verifyToken(sessionService.generateToken({ id: 3 })).id).toBe(3);
   });
 });
+
+test('rejects a token signed with another algorithm, even with the right secret', () => {
+  const sessionService = freshSessionService();
+  const token = sessionService.generateToken({ id: 1, role: 'admin' });
+  const secret = fs.readFileSync(path.join(mockDir, 'session.key'), 'utf8');
+  const hs512 = jwt.sign({ id: 1, role: 'admin' }, secret, { algorithm: 'HS512' });
+  expect(() => sessionService.verifyToken(token)).not.toThrow();
+  expect(() => sessionService.verifyToken(hs512)).toThrow();
+});

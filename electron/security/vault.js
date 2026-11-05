@@ -69,8 +69,9 @@ function encryptSecret(plainText) {
     const tag = cipher.getAuthTag().toString('hex');
     return `enc:gcm:${iv.toString('hex')}:${tag}:${ciphertext}`;
   } catch (err) {
-    console.warn('Vault encryption warning:', err.message);
-    return str;
+    // Never fall back to storing the secret in plain text.
+    console.warn('Vault encryption failed:', err.message);
+    throw new Error('تعذر تشفير البيانات السرية، لم يتم حفظها');
   }
 }
 
@@ -82,9 +83,9 @@ function decryptSecret(cipherText) {
   if (str.startsWith('enc:ss:')) {
     const base64Data = str.slice(7);
     try {
-      if (safeStorage) {
-        return safeStorage.decryptString(Buffer.from(base64Data, 'base64'));
-      }
+      // Without safeStorage the sealed value cannot be opened; it is not the secret itself.
+      if (!safeStorage) return null;
+      return safeStorage.decryptString(Buffer.from(base64Data, 'base64'));
     } catch (err) {
       console.warn('Failed to decrypt safeStorage secret:', err.message);
       return null;

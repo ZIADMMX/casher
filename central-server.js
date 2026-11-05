@@ -112,7 +112,7 @@ function authenticate(req) {
   const parts = authHeader.split(' ');
   if (parts.length !== 2 || parts[0] !== 'Bearer') return null;
   try {
-    return jwt.verify(parts[1], JWT_SECRET);
+    return jwt.verify(parts[1], JWT_SECRET, { algorithms: ['HS256'] });
   } catch {
     return null;
   }
@@ -335,7 +335,7 @@ const server = http.createServer(async (req, res) => {
       const token = jwt.sign(
         { id: user.id, username: user.username, role: user.role, branch_id: user.branch_id },
         JWT_SECRET,
-        { expiresIn: TOKEN_TTL }
+        { algorithm: 'HS256', expiresIn: TOKEN_TTL }
       );
 
       return sendJSON(res, 200, {
@@ -878,7 +878,7 @@ const server = http.createServer(async (req, res) => {
       const token = jwt.sign(
         { id: user.id, username: user.username, role: user.role, branch_id: user.branch_id },
         JWT_SECRET,
-        { expiresIn: TOKEN_TTL }
+        { algorithm: 'HS256', expiresIn: TOKEN_TTL }
       );
       return sendJSON(res, 200, {
         token,

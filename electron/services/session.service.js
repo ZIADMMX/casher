@@ -143,7 +143,7 @@ function generateToken(payload, expiresIn = DEFAULT_EXPIRE) {
     ...payload,
     jti: crypto.randomUUID(), // unique token ID used for blacklisting
   };
-  return jwt.sign(data, getSecret(), { expiresIn });
+  return jwt.sign(data, getSecret(), { algorithm: 'HS256', expiresIn });
 }
 
 /**
@@ -152,7 +152,7 @@ function generateToken(payload, expiresIn = DEFAULT_EXPIRE) {
  */
 function verifyToken(token) {
   if (!token) throw new Error('TokenMissing');
-  const decoded = jwt.verify(token, getSecret());
+  const decoded = jwt.verify(token, getSecret(), { algorithms: ['HS256'] });
   if (decoded.jti && isRevoked(decoded.jti)) {
     throw new Error('TokenRevoked');
   }

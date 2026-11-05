@@ -2,23 +2,25 @@ const centralClient = require('../services/centralClient.service');
 const { safeHandle } = require('./safeHandle');
 const authService = require('../services/auth.service');
 
-async function requireCentralAdmin() {
+// Checked against the calling window's session: central channels do not run
+// inside safeHandle's session wrapper, so the default caller would see nobody.
+async function requireCentralAdmin(event) {
   const remoteSession = await centralClient.getSession();
   if (remoteSession) {
     if (remoteSession.role !== 'admin') throw new Error('غير مصرح لك بتنفيذ هذا الإجراء');
     return;
   }
-  authService.requireAdmin();
+  authService.requireAdmin(event?.sender?.id);
 }
 
 function registerCentralClientHandlers() {
   safeHandle('central:getConfig', () => centralClient.getConfig());
-  safeHandle('central:configure', async (_event, baseUrl) => {
-    await requireCentralAdmin();
+  safeHandle('central:configure', async (event, baseUrl) => {
+    await requireCentralAdmin(event);
     return centralClient.configure(baseUrl);
   });
-  safeHandle('central:setWarehouse', async (_event, warehouseId) => {
-    await requireCentralAdmin();
+  safeHandle('central:setWarehouse', async (event, warehouseId) => {
+    await requireCentralAdmin(event);
     return centralClient.setWarehouse(warehouseId);
   });
   safeHandle('central:isConfigured', () => centralClient.isConfigured());
