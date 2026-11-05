@@ -19,7 +19,6 @@ module.exports = [
       'eslint.config.js',
       'e2e/**',
       'lib/**',
-      'boosthis-kit-node/**',
       'undefined/**',
     ],
   },

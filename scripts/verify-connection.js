@@ -1,4 +1,4 @@
-const { checkHealth, queryRead } = require('./electron/database/dbPool');
+const { checkHealth, queryRead } = require('../electron/database/dbPool');
 
 async function run() {
   console.log('🔄 جاري فحص الاتصال بقواعد البيانات (Master & Replica)...');

@@ -20,3 +20,7 @@ D:*
 
 # graphify transient build lock
 graphify-out/.rebuild.lock
+
+# Runtime logs
+*.log
+logs/

@@ -3,7 +3,7 @@
   "diagram_type": "architecture",
   "meta": {
     "title": "foxcloud POS Architecture",
-    "output": "foxcloud-architecture.html",
+    "output": "docs/architecture/foxcloud-architecture.html",
     "quality_profile": "showcase"
   },
   "components": [

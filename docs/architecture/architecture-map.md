@@ -40,8 +40,8 @@ my-electron-app/
 ├── start-cluster.js             تشغيل عقدتي API وموازن الأحمال
 ├── load-balancer.js             موازن أحمال Node.js
 ├── nginx.conf                   إعداد بديل لموازن Nginx
-├── test-db.js                   فحص قاعدة البيانات
-├── verify-connection.js         فحص اتصال قاعدة البيانات
+├── scripts/test-db.js           فحص قاعدة البيانات
+├── scripts/verify-connection.js فحص اتصال قاعدة البيانات
 ├── vite.config.js               إعداد بناء React
 ├── package.json                 الأوامر والاعتماديات
 └── README.md                    تعليمات التشغيل والتوثيق

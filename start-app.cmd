@@ -3,12 +3,12 @@ setlocal
 cd /d "%~dp0"
 
 if not exist "node_modules\.bin\vite.cmd" (
-  echo Project dependencies are missing. Run npm install after repairing Node.js/npm.
+  echo Project dependencies are missing. Run pnpm install after repairing Node.js/npm.
   exit /b 1
 )
 
 if not exist "node_modules\.bin\electron.cmd" (
-  echo Electron is missing. Run npm install after repairing Node.js/npm.
+  echo Electron is missing. Run pnpm install after repairing Node.js/npm.
   exit /b 1
 )
 
