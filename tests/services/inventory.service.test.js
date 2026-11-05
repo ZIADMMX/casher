@@ -388,6 +388,46 @@ describe('Inventory & Products Management (اختبارات المخزون وا�
       const check = variantsRepo.getById(p.variantId);
       expect(check.stock_quantity).toBe(2);
     });
+
+    test('سجل حركة المخزون للإضافة فقط: لا تعديل ولا حذف', () => {
+      const p = productsService.addProductWithVariant({
+        name: 'حزام جلد',
+        sellingPrice: 90,
+        stockQuantity: 4,
+      });
+      const movement = mockDb.prepare(
+        'SELECT id FROM inventory_movements WHERE variant_id = ? ORDER BY id DESC LIMIT 1'
+      ).get(p.variantId);
+
+      expect(() => mockDb.prepare('UPDATE inventory_movements SET quantity_change = 400 WHERE id = ?')
+        .run(movement.id)).toThrow('append-only');
+      expect(() => mockDb.prepare('DELETE FROM inventory_movements WHERE id = ?')
+        .run(movement.id)).toThrow('append-only');
+    });
+
+    test('التسوية اليدوية تقبل أسبابًا محددة فقط وتسجل السبب', () => {
+      const inventoryService = require('../../electron/services/inventory.service');
+      const p = productsService.addProductWithVariant({
+        name: 'محفظة',
+        sellingPrice: 120,
+        stockQuantity: 5,
+      });
+      const warehouseId = inventoryRepo.getDefaultWarehouseId();
+      const base = { warehouseId, variantId: p.variantId, delta: -1 };
+
+      expect(() => inventoryService.adjustStock({ ...base, reason: 'free-stock' }))
+        .toThrow('سبب التسوية غير صالح');
+      expect(() => inventoryService.adjustStock({ ...base, reason: 'other' }))
+        .toThrow('أخرى');
+      expect(() => inventoryService.adjustStock({ ...base, delta: 1000000, reason: 'damaged' }))
+        .toThrow('لا يمكن أن تتجاوز');
+
+      inventoryService.adjustStock({ ...base, reason: 'damaged' });
+      const last = mockDb.prepare(
+        'SELECT notes, quantity_after FROM inventory_movements WHERE variant_id = ? ORDER BY id DESC LIMIT 1'
+      ).get(p.variantId);
+      expect(last).toEqual({ notes: 'تالف', quantity_after: 4 });
+    });
   });
 
   // ── 6. قيود الصلاحيات (RBAC Permissions) ─────────────────────────────────

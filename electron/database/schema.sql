@@ -1793,3 +1793,77 @@ WHEN (SELECT foreign_keys FROM pragma_foreign_keys) = 1
 BEGIN
     SELECT RAISE(ABORT, 'Cannot delete a shift with expense history');
 END;
+
+-- سجل المخزون للإضافة فقط: لا يمكن تعديل أو حذف حركة أو تحويل أو جرد بعد تسجيله.
+-- التصحيح يتم دائماً بحركة تسوية جديدة يظهر فيها المستخدم والسبب.
+-- (user_id مستثنى من منع التعديل لأن حذف المستخدم يضبطه على NULL تلقائياً)
+CREATE TRIGGER IF NOT EXISTS trg_inventory_movements_no_delete
+BEFORE DELETE ON inventory_movements
+WHEN (SELECT foreign_keys FROM pragma_foreign_keys) = 1
+BEGIN
+    SELECT RAISE(ABORT, 'Inventory movements are append-only');
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_inventory_movements_no_update
+BEFORE UPDATE OF warehouse_id, variant_id, movement_type, quantity_change, quantity_after,
+  reference_type, reference_id, notes, created_at ON inventory_movements
+WHEN (SELECT foreign_keys FROM pragma_foreign_keys) = 1
+BEGIN
+    SELECT RAISE(ABORT, 'Inventory movements are append-only');
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_inventory_transfers_no_delete
+BEFORE DELETE ON inventory_transfers
+WHEN (SELECT foreign_keys FROM pragma_foreign_keys) = 1
+BEGIN
+    SELECT RAISE(ABORT, 'Inventory transfers are append-only');
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_inventory_transfers_no_update
+BEFORE UPDATE OF source_warehouse_id, destination_warehouse_id, notes, created_at ON inventory_transfers
+WHEN (SELECT foreign_keys FROM pragma_foreign_keys) = 1
+BEGIN
+    SELECT RAISE(ABORT, 'Inventory transfers are append-only');
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_inventory_transfer_items_no_change
+BEFORE UPDATE ON inventory_transfer_items
+WHEN (SELECT foreign_keys FROM pragma_foreign_keys) = 1
+BEGIN
+    SELECT RAISE(ABORT, 'Inventory transfers are append-only');
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_inventory_transfer_items_no_delete
+BEFORE DELETE ON inventory_transfer_items
+WHEN (SELECT foreign_keys FROM pragma_foreign_keys) = 1
+BEGIN
+    SELECT RAISE(ABORT, 'Inventory transfers are append-only');
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_inventory_counts_no_delete
+BEFORE DELETE ON inventory_counts
+WHEN (SELECT foreign_keys FROM pragma_foreign_keys) = 1
+BEGIN
+    SELECT RAISE(ABORT, 'Inventory counts are append-only');
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_inventory_counts_no_update
+BEFORE UPDATE OF warehouse_id, count_type, notes, created_at ON inventory_counts
+WHEN (SELECT foreign_keys FROM pragma_foreign_keys) = 1
+BEGIN
+    SELECT RAISE(ABORT, 'Inventory counts are append-only');
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_inventory_count_items_no_change
+BEFORE UPDATE ON inventory_count_items
+WHEN (SELECT foreign_keys FROM pragma_foreign_keys) = 1
+BEGIN
+    SELECT RAISE(ABORT, 'Inventory counts are append-only');
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_inventory_count_items_no_delete
+BEFORE DELETE ON inventory_count_items
+WHEN (SELECT foreign_keys FROM pragma_foreign_keys) = 1
+BEGIN
+    SELECT RAISE(ABORT, 'Inventory counts are append-only');
+END;

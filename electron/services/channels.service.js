@@ -1,5 +1,6 @@
 const channelsRepo = require('../repositories/channels.repository');
 const { logError } = require('./logger.service');
+const { getCurrentSession } = require('./auth.service');
 
 function getAllChannels() {
   return channelsRepo.getAllChannels();
@@ -45,14 +46,40 @@ function getSyncLogs(channelId, limit) {
   return channelsRepo.getSyncLogs(channelId, limit);
 }
 
-function processExternalChannelOrder(channelId, { orderNumber, items }) {
-  if (!items || !items.length) throw new Error('لا توجد أصناف في الطلب');
-  const results = [];
+const MAX_CHANNEL_ORDER_QUANTITY = 100000;
+
+function positiveInteger(value, message) {
+  const number = Number(value);
+  if (!Number.isSafeInteger(number) || number <= 0) throw new Error(message);
+  return number;
+}
+
+/**
+ * Validates an external order before it touches stock. A negative or fractional
+ * quantity used to *add* stock; duplicates are merged so one line can't be split
+ * to dodge the checks.
+ */
+function normalizeChannelOrderItems(items) {
+  if (!Array.isArray(items) || !items.length) throw new Error('لا توجد أصناف في الطلب');
+  const combined = new Map();
   for (const item of items) {
-    const res = channelsRepo.recordChannelSaleDeduction(channelId, item.variantId, item.quantity, orderNumber);
-    results.push(res);
+    const variantId = positiveInteger(item?.variantId, 'معرف الصنف في الطلب غير صالح');
+    const quantity = positiveInteger(item?.quantity, 'كمية الصنف في الطلب يجب أن تكون عددًا صحيحًا موجبًا');
+    const total = (combined.get(variantId) || 0) + quantity;
+    if (total > MAX_CHANNEL_ORDER_QUANTITY) {
+      throw new Error(`كمية الصنف في الطلب لا يمكن أن تتجاوز ${MAX_CHANNEL_ORDER_QUANTITY}`);
+    }
+    combined.set(variantId, total);
   }
-  return { success: true, processedItems: results.length };
+  return [...combined].map(([variantId, quantity]) => ({ variantId, quantity }));
+}
+
+function processExternalChannelOrder(channelId, { orderNumber, items } = {}) {
+  const id = positiveInteger(channelId, 'معرف القناة غير صالح');
+  const normalizedItems = normalizeChannelOrderItems(items);
+  const externalOrderId = String(orderNumber ?? '').trim().slice(0, 100);
+  const userId = getCurrentSession()?.id || null;
+  return channelsRepo.recordChannelOrderDeduction(id, normalizedItems, externalOrderId, userId);
 }
 
 module.exports = {

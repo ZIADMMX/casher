@@ -112,6 +112,17 @@ describe('Security: IPC channel permission coverage', () => {
     expect(getPermissionForChannel('variants:delete', [{}])).toBe('products.delete');
   });
 
+  test('stock changes need inventory permissions, not products.edit', () => {
+    expect(getPermissionForChannel('inventory:getStock', [{}])).toBe('inventory.view');
+    expect(getPermissionForChannel('inventory:getMovements', [{}])).toBe('inventory.view');
+    expect(getPermissionForChannel('inventory:transfer', [{}])).toBe('inventory.transfer');
+    expect(getPermissionForChannel('inventory:adjust', [{}])).toBe('inventory.adjust');
+    expect(getPermissionForChannel('inventory:count', [{}])).toBe('inventory.adjust');
+    expect(getPermissionForChannel('inventory:setReorderLevel', [{}])).toBe('inventory.manage');
+    expect(getPermissionForChannel('inventory:createWarehouse', [{}])).toBe('inventory.manage');
+    expect(getPermissionForChannel('inventory:updateBranch', [{}])).toBe('inventory.manage');
+  });
+
   test('nothing registers IPC handlers outside safeHandle except the pre-login wizard', () => {
     const bypasses = walk(ELECTRON_DIR)
       .filter((file) => !file.endsWith('safeHandle.js'))

@@ -280,7 +280,7 @@ function AppContent() {
       commissions: 'commissions.view',
       returns: 'pos.refund',
       products: 'products.view',
-      branches: 'products.view',
+      branches: 'inventory.view',
       customers: 'customers.view',
       crm: 'customers.view',
       suppliers: 'suppliers.view',

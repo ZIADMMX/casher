@@ -220,42 +220,61 @@ function getSyncLogs(channelId = null, limit = 50) {
   `).all(limit);
 }
 
-function recordChannelSaleDeduction(channelId, variantId, quantity, externalOrderId = '') {
+function isChannelOrderProcessed(channelId, externalOrderId) {
+  return Boolean(db.prepare(`
+    SELECT 1 FROM channel_sync_logs
+    WHERE channel_id = ? AND sync_action = 'channel_order_deduct' AND status = 'success'
+      AND json_extract(details_json, '$.externalOrderId') = ?
+    LIMIT 1
+  `).get(channelId, externalOrderId));
+}
+
+/**
+ * Deducts one external channel order atomically: every item succeeds or nothing changes.
+ * Warehouse stock goes through inventoryRepo.applyStockChange (the same path as POS sales),
+ * so it can never go negative and the ledger always matches the balance.
+ * Items must already be validated (positive integers, no duplicates).
+ */
+function recordChannelOrderDeduction(channelId, items, externalOrderId = '', userId = null) {
   const channel = getChannelById(channelId);
   if (!channel) throw new Error('القناة غير موجودة');
+  const inventoryRepo = require('./inventory.repository');
 
-  const runTx = db.transaction(() => {
-    // 1. خصم من جدول تخصيص القناة
-    db.prepare(`
+  return db.transaction(() => {
+    if (externalOrderId && isChannelOrderProcessed(channelId, externalOrderId)) {
+      throw new Error(`الطلب #${externalOrderId} اتسجل قبل كده على القناة دي`);
+    }
+    const reduceAllocation = db.prepare(`
       UPDATE channel_stock_allocations
       SET allocated_quantity = MAX(0, allocated_quantity - ?),
           last_synced_at = CURRENT_TIMESTAMP
       WHERE channel_id = ? AND variant_id = ?
-    `).run(quantity, channelId, variantId);
+    `);
+    const notes = `مبيعات قناة إلكترونية: ${channel.name}${externalOrderId ? ` #${externalOrderId}` : ''}`;
 
-    // 2. إذا تم تفعيل auto_deduct_stock، يتم الخصم من المخزن المرتبط
-    if (channel.auto_deduct_stock && channel.warehouse_id) {
-      const inventoryRepo = require('./inventory.repository');
-      const currentStock = inventoryRepo.getStockQuantity(channel.warehouse_id, variantId);
-      const newStock = Math.max(0, currentStock - quantity);
-      db.prepare(`
-        UPDATE warehouse_stock
-        SET quantity = ?, updated_at = CURRENT_TIMESTAMP
-        WHERE warehouse_id = ? AND variant_id = ?
-      `).run(newStock, channel.warehouse_id, variantId);
-
-      // تسجيل حركة مخزنية
-      db.prepare(`
-        INSERT INTO inventory_movements (warehouse_id, variant_id, movement_type, quantity_change, quantity_after, notes)
-        VALUES (?, ?, 'sale', ?, ?, ?)
-      `).run(channel.warehouse_id, variantId, -quantity, newStock, `مبيعات قناة إلكترونية: ${channel.name} ${externalOrderId ? '#' + externalOrderId : ''}`);
+    for (const { variantId, quantity } of items) {
+      reduceAllocation.run(quantity, channelId, variantId);
+      if (channel.auto_deduct_stock && channel.warehouse_id) {
+        try {
+          inventoryRepo.applyStockChange({
+            warehouseId: channel.warehouse_id,
+            variantId,
+            delta: -quantity,
+            movementType: 'sale',
+            referenceType: 'channel_order',
+            referenceId: channelId,
+            userId,
+            notes,
+          });
+        } catch (error) {
+          throw new Error(`رصيد الصنف رقم ${variantId} في مخزن القناة لا يكفي لطلب ${quantity} قطعة`, { cause: error });
+        }
+      }
     }
 
-    logSync(channelId, 'channel_order_deduct', 'success', 1, JSON.stringify({ variantId, quantity, externalOrderId }));
-  });
-
-  runTx();
-  return { success: true };
+    logSync(channelId, 'channel_order_deduct', 'success', items.length, JSON.stringify({ externalOrderId, items }));
+    return { success: true, processedItems: items.length };
+  })();
 }
 
 module.exports = {
@@ -270,5 +289,6 @@ module.exports = {
   bulkSyncAllStockToChannel,
   logSync,
   getSyncLogs,
-  recordChannelSaleDeduction
+  recordChannelOrderDeduction,
+  isChannelOrderProcessed
 };

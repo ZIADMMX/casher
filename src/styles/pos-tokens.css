@@ -21,7 +21,8 @@
   --color-on-primary: #FFFFFF;
 }
 
-.pos-page-wrapper {
+.pos-page-wrapper,
+.inv-page {
   /* ---- Palette (internal to this file) --------------------------------- */
   --ds-slate-0:   #FFFFFF;
   --ds-slate-50:  #F8FAFC;
@@ -139,12 +140,14 @@
   --pos-card-min: 180px;
 }
 
-[data-density="compact"] .pos-page-wrapper {
+[data-density="compact"] .pos-page-wrapper,
+[data-density="compact"] .inv-page {
   --touch-min: 36px;
   --control-px: var(--space-3);
 }
 
-[data-theme="dark"] .pos-page-wrapper {
+[data-theme="dark"] .pos-page-wrapper,
+[data-theme="dark"] .inv-page {
   --color-bg:            var(--ds-slate-900);
   --color-surface:       var(--ds-slate-800);
   --color-surface-muted: var(--ds-slate-700);
@@ -163,5 +166,52 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pos-page-wrapper { --duration-fast: 0ms; --duration-base: 0ms; }
+  .pos-page-wrapper, .inv-page { --duration-fast: 0ms; --duration-base: 0ms; }
+}
+
+/* --------------------------------------------------------------------------
+   Inventory screen (.inv-page): same scales, warm "paper" surfaces matching the
+   approved branches & warehouses mockup. Palette values stay in this file.
+   -------------------------------------------------------------------------- */
+.inv-page {
+  --ds-warm-0:   #FFFFFF;
+  --ds-warm-50:  #FFFBF6;
+  --ds-warm-100: #F8F3EE;
+  --ds-warm-200: #F1E7DC;
+  --ds-warm-300: #E6D8C9;
+  --ds-warm-600: #6B625B;
+  --ds-warm-900: #1F1A17;
+  --ds-gold-100: #FDF3DC;
+  --ds-gold-300: #F2D48A;
+  --ds-gold-500: #E0A21B;
+  --ds-gold-800: #7A4E00;
+
+  --color-bg:            var(--ds-warm-50);
+  --color-surface:       var(--ds-warm-0);
+  --color-surface-muted: var(--ds-warm-100);
+  --color-border:        var(--ds-warm-200);
+  --color-border-strong: var(--ds-warm-300);
+  --color-text:          var(--ds-warm-900);
+  --color-text-muted:    var(--ds-warm-600);
+
+  /* Secondary "gold" accent: title underline, default-warehouse chip, info banner. */
+  --color-accent:        var(--ds-gold-500);
+  --color-accent-soft:   var(--ds-gold-100);
+  --color-accent-line:   var(--ds-gold-300);
+  --color-accent-strong: var(--ds-gold-800);
+  --color-on-accent-strong: var(--ds-warm-0);
+}
+
+[data-theme="dark"] .inv-page {
+  --color-bg:            var(--ds-slate-900);
+  --color-surface:       var(--ds-slate-800);
+  --color-surface-muted: var(--ds-slate-700);
+  --color-border:        var(--ds-slate-700);
+  --color-border-strong: var(--ds-slate-600);
+  --color-text:          var(--ds-slate-50);
+  --color-text-muted:    var(--ds-slate-300);
+  --color-accent-soft:   color-mix(in srgb, var(--ds-gold-500) 18%, var(--ds-slate-800));
+  --color-accent-line:   color-mix(in srgb, var(--ds-gold-500) 40%, var(--ds-slate-800));
+  --color-accent-strong: var(--ds-gold-500);
+  --color-on-accent-strong: var(--ds-slate-900);
 }

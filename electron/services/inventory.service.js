@@ -164,16 +164,39 @@ function transferStock(data) {
   return { transferId };
 }
 
+const ADJUSTMENT_REASONS = {
+  damaged: 'تالف',
+  expired: 'منتهي الصلاحية',
+  sample: 'هدية / عينة',
+  entry_error: 'خطأ إدخال',
+  other: 'أخرى',
+};
+const MAX_ADJUSTMENT = 100000;
+
+function buildAdjustmentNotes(reason, rawNotes) {
+  const details = String(rawNotes || '').trim().slice(0, 500);
+  if (reason == null || reason === '') {
+    if (!details) throw new Error('سبب تسوية المخزون مطلوب');
+    return details;
+  }
+  const label = ADJUSTMENT_REASONS[reason];
+  if (!label) throw new Error('سبب التسوية غير صالح');
+  if (reason === 'other' && !details) throw new Error('اكتب سبب التسوية عند اختيار «أخرى»');
+  return details ? `${label} — ${details}` : label;
+}
+
 function adjustStock(data) {
   const session = requireAdmin();
   const warehouseId = positiveInteger(data?.warehouseId, 'معرف المخزن');
   const variantId = positiveInteger(data?.variantId, 'معرف الصنف');
   const delta = Number(data?.delta);
-  const notes = String(data?.notes || '').trim();
   if (!Number.isSafeInteger(delta) || delta === 0) {
     throw new Error('قيمة التسوية يجب أن تكون عددًا صحيحًا غير صفر');
   }
-  if (!notes) throw new Error('سبب تسوية المخزون مطلوب');
+  if (Math.abs(delta) > MAX_ADJUSTMENT) {
+    throw new Error(`قيمة التسوية لا يمكن أن تتجاوز ${MAX_ADJUSTMENT} قطعة في العملية الواحدة`);
+  }
+  const notes = buildAdjustmentNotes(data?.reason, data?.notes);
   requireActiveWarehouse(warehouseId);
   if (!variantsRepo.getById(variantId)) throw new Error('الصنف غير موجود');
   const quantityAfter = inventoryRepo.adjustStock({

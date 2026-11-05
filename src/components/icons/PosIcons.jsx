@@ -57,6 +57,20 @@ export const PlayIcon = make(<path d="M7 4v16l13-8z" />);
 export const LogoutIcon = make(<><path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4" /><path d="M10 17l-5-5 5-5M5 12h11" /></>);
 export const WalletIcon = make(<><path d="M3 7a2 2 0 0 1 2-2h13v4" /><rect x="3" y="7" width="18" height="13" rx="2" /><path d="M16 14h2" /></>);
 
+/* ---------- Inventory icons ---------- */
+export const StoreIcon = make(<><path d="M4 21V9l8-6 8 6v12" /><path d="M10 21v-6a2 2 0 0 1 4 0v6M4 21h16" /></>);
+export const WarehouseIcon = make(<><path d="M3 21V9l9-5 9 5v12" /><path d="M7 21v-8h10v8M7 17h10" /></>);
+export const PackageIcon = make(<><path d="M3 7l9-4 9 4v10l-9 4-9-4z" /><path d="M3 7l9 4 9-4M12 11v10M7.5 5l9 4" /></>);
+export const BarsIcon = make(<><path d="M4 20h16" /><path d="M7 16V9M12 16V5M17 16v-4" /></>);
+export const SwapIcon = make(<><path d="M4 8h14l-3-3M20 16H6l3 3" /></>);
+export const ClipboardCheckIcon = make(<><rect x="5" y="4" width="14" height="17" rx="2" /><path d="M9 4V3h6v1M9 13l2 2 4-4" /></>);
+export const PulseIcon = make(<path d="M3 12h4l2-6 4 12 2-6h6" />);
+export const RefreshIcon = make(<><path d="M20 12a8 8 0 0 1-14.3 4.9M4 12A8 8 0 0 1 18.3 7.1" /><path d="M18 3v4.5h-4.5M6 21v-4.5h4.5" /></>);
+export const StarIcon = make(<path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z" />);
+export const SlidersIcon = make(<><path d="M4 7h10M18 7h2M4 17h4M12 17h8" /><circle cx="16" cy="7" r="2" /><circle cx="10" cy="17" r="2" /></>);
+export const InfoIcon = make(<><circle cx="12" cy="12" r="9" /><path d="M12 8v5M12 16h.01" /></>);
+export const ChevronSideIcon = make(<path d="m15 6-6 6 6 6" />);
+
 /* ---------- Product icons ---------- */
 const BowlIcon = make(<><path d="M3 12h18a9 9 0 0 1-18 0z" /><path d="M8 4c0 2 1 2 1 4M12 3c0 2 1 2 1 4M16 4c0 2 1 2 1 4" /></>);
 const MeatIcon = make(<><path d="M4 14c-2-5 3-11 9-10s9 6 6 11-12 4-15-1z" /><circle cx="14" cy="10" r="2.5" /></>);

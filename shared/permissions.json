@@ -7,7 +7,7 @@
   {
     "moduleName": "إدارة المنتجات والمخزون",
     "moduleKey": "inventory",
-    "permissions": ["products.view", "products.create", "products.edit", "products.delete"]
+    "permissions": ["products.view", "products.create", "products.edit", "products.delete", "inventory.view", "inventory.transfer", "inventory.adjust", "inventory.manage"]
   },
   {
     "moduleName": "سجل الفواتير والمبيعات",

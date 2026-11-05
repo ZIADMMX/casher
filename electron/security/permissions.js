@@ -51,6 +51,17 @@ function isReadAction(action) {
   return /^(get|list|find|search|check|preview|current|status|diagnostics|history|summary|stats|kpis|by|select|analyze|predict|suggest|detect|ask|generate)/i.test(action);
 }
 
+/**
+ * Stock is money: viewing, moving, adjusting/counting and configuring stock each
+ * need their own permission, separate from editing product details (products.edit).
+ */
+function getInventoryPermission(action, isRead) {
+  if (isRead) return 'inventory.view';
+  if (/^transfer/i.test(action)) return 'inventory.transfer';
+  if (/^(adjust|count)/i.test(action)) return 'inventory.adjust';
+  return 'inventory.manage';
+}
+
 function getPermissionForChannel(channel, args = []) {
   if (channel.startsWith('auth:')) return null;
   if (channel === 'central:isConfigured') return null;
@@ -177,7 +188,7 @@ function getPermissionForChannel(channel, args = []) {
   if (resource === 'shifts') return `shifts.${isReadAction(action) ? 'view' : 'manage'}`;
   if (resource === 'appointments') return `appointments.${isReadAction(action) ? 'view' : 'manage'}`;
   if (resource === 'inventory' || resource === 'branches') {
-    return `products.${isReadAction(action) ? 'view' : 'edit'}`;
+    return getInventoryPermission(action, isReadAction(action));
   }
   if (resource === 'settings' || resource === 'backup' || resource === 'notifications' || resource === 'ui-config' || resource === 'uiConfig' || resource === 'onboarding' || resource === 'license' || resource === 'lan') {
     return `settings.${isReadAction(action) ? 'view' : 'manage'}`;
@@ -199,7 +210,7 @@ function getPermissionForApi(pathname, method) {
   if (pathname === '/api/attendance/me/today' || pathname === '/api/attendance/check-in'
     || pathname === '/api/attendance/check-out') return 'pos.sell';
   if (resource === 'inventory' || resource === 'branches') {
-    return `products.${method === 'GET' ? 'view' : 'edit'}`;
+    return getInventoryPermission(pathname.split('/')[3] || '', method === 'GET');
   }
   if (resource === 'sales' && action === 'manage') return 'pos.sell';
   if (resource === 'returns') return 'pos.refund';

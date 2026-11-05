@@ -22,6 +22,12 @@ describe('permission routing', () => {
 
   test('maps API requests and rejects unknown routes by default', () => {
     expect(getPermissionForApi('/api/products/add', 'POST')).toBe('products.create');
+    expect(getPermissionForApi('/api/inventory/stock', 'GET')).toBe('inventory.view');
+    expect(getPermissionForApi('/api/inventory/transfers', 'POST')).toBe('inventory.transfer');
+    expect(getPermissionForApi('/api/inventory/adjust', 'POST')).toBe('inventory.adjust');
+    expect(getPermissionForApi('/api/inventory/count', 'POST')).toBe('inventory.adjust');
+    expect(getPermissionForApi('/api/inventory/reorder-level', 'POST')).toBe('inventory.manage');
+    expect(getPermissionForApi('/api/inventory/branches/3', 'PUT')).toBe('inventory.manage');
     expect(getPermissionForApi('/api/users', 'GET')).toBe('team.view');
     expect(getPermissionForApi('/api/auth/session', 'GET')).toBeNull();
     expect(getPermissionForApi('/api/unknown/private', 'GET')).toBeNull();

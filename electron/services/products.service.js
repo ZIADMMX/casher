@@ -1,7 +1,7 @@
 const productsRepo = require('../repositories/products.repository');
 const variantsRepo = require('../repositories/productVariants.repository');
 const productsCache = require('./products.cache');
-const { requireAdmin, getCurrentSession } = require('./auth.service');
+const { requireAdmin, getCurrentSession, hasGrantedPermission } = require('./auth.service');
 const { findOrCreateByName } = require('./categories.service');
 const { db } = require('../database/db');
 const inventoryRepo = require('../repositories/inventory.repository');
@@ -193,6 +193,9 @@ function updateVariant(variantId, data) {
       : Number(variant.stock_quantity);
     const stockDelta = Number(data.stockQuantity) - currentStock;
     if (stockDelta !== 0) {
+      if (!hasGrantedPermission('inventory.adjust')) {
+        throw new Error('تعديل الرصيد يحتاج صلاحية تسوية المخزون. استخدم شاشة الفروع والمخازن');
+      }
       inventoryRepo.applyStockChange({
         warehouseId,
         variantId,

@@ -157,6 +157,18 @@ function runAllMigrations(dbInstance = db) {
     dbInstance.pragma('user_version = 12');
     console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 12 (حفظ الجلسات الملغاة).');
   }
+
+  if (currentVersion < 13) {
+    // Inventory got its own permissions (view/transfer/adjust/manage) instead of
+    // riding on products.edit. Existing roles keep read-only access to the screen;
+    // write access must be granted explicitly by the owner.
+    dbInstance.prepare(`
+      INSERT OR IGNORE INTO role_permissions (role_key, permission_key)
+      SELECT role_key, 'inventory.view' FROM role_permissions WHERE permission_key = 'products.view'
+    `).run();
+    dbInstance.pragma('user_version = 13');
+    console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 13 (صلاحيات المخزون المستقلة).');
+  }
 }
 
 module.exports = { runAllMigrations };

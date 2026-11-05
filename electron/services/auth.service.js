@@ -483,6 +483,20 @@ function requirePermission(permission, callerOrToken = 'default') {
   return session;
 }
 
+/**
+ * Secondary check inside an already-authorised action (e.g. a product edit that
+ * also changes stock). Unlike requirePermission it does not rely on the IPC
+ * permission context, so it can check a permission other than the channel's.
+ */
+function hasGrantedPermission(permission, callerOrToken = 'default') {
+  const session = getCurrentSession(callerOrToken);
+  if (!session) return false;
+  const user = usersRepo.getById(session.id);
+  if (!user) return false;
+  const permissions = getPermissionsForUser(user);
+  return permissions.includes('*') || permissions.includes(permission);
+}
+
 /** Guard: require admin role */
 function requireAdmin(callerOrToken = 'default') {
   const session = getCurrentSession(callerOrToken);
@@ -939,6 +953,7 @@ module.exports = {
   getSessionTTL,
   requireAuth,
   requirePermission,
+  hasGrantedPermission,
   requireAdmin,
   addCashier,
   getAllUsers,
