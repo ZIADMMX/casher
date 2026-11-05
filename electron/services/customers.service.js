@@ -83,7 +83,7 @@ function recordCustomerPayment({ customerId, amount, paymentMethod = 'cash', not
   if (!Number.isFinite(paymentAmount) || paymentAmount <= 0) {
     throw new Error('مبلغ السداد يجب أن يكون أكبر من الصفر');
   }
-  const balance = customersRepo.getBalances().find((row) => row.id === customerId)?.balance || 0;
+  const balance = customersRepo.getBalance(customerId) || 0;
   if (paymentAmount > balance) {
     throw new Error('مبلغ السداد لا يمكن أن يتجاوز مديونية العميل');
   }
@@ -103,7 +103,7 @@ function getCustomerLedger(customerId) {
   requireAuth();
   const customer = customersRepo.getById(customerId);
   if (!customer) throw new Error('العميل غير موجود');
-  const balance = customersRepo.getBalances().find((row) => row.id === customerId)?.balance || 0;
+  const balance = customersRepo.getBalance(customerId) || 0;
   return {
     customer,
     balance,

@@ -11,6 +11,13 @@ function getStmts() {
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `),
       getAll: db.prepare('SELECT * FROM product_variants'),
+      // Stock of every variant the POS catalog shows (active products only).
+      getActiveStock: db.prepare(`
+        SELECT pv.id, pv.stock_quantity
+        FROM product_variants pv
+        JOIN products p ON p.id = pv.product_id
+        WHERE p.is_active = 1
+      `),
       getByProductId: db.prepare('SELECT * FROM product_variants WHERE product_id = ?'),
       getById: db.prepare(`
         SELECT pv.*, p.is_service
@@ -60,6 +67,10 @@ function create(variant) {
 
 function getAll() {
   return getStmts().getAll.all();
+}
+
+function getActiveStock() {
+  return getStmts().getActiveStock.all();
 }
 
 function getByProductId(productId) {
@@ -124,6 +135,6 @@ function remove(id) {
 }
 
 module.exports = {
-  create, getAll, getByProductId, getById, getByBarcode, hasTransactionHistory,
+  create, getAll, getActiveStock, getByProductId, getById, getByBarcode, hasTransactionHistory,
   decreaseStock, updateSku, update, remove,
 };

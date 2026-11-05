@@ -249,7 +249,7 @@ function createSale({
     });
 
     const saleId = runTransaction();
-    productsCache.invalidate();
+    productsCache.refreshStockFromDatabase();
 
     // تسجيل حركة البيع في سجل تدقيق الكاشير
     try {

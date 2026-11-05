@@ -4,13 +4,43 @@ const { db } = require('../database/db');
 // Dates are local calendar days (YYYY-MM-DD); userId narrows to one staff member.
 // Reports only read; nothing here writes.
 
-const SALE_IN_RANGE = `date(s.created_at, 'localtime') >= date(@startDate)
+// The first two conditions are a coarse, index-friendly window: plain date
+// prefixes widened by a day on each side, so they hold for any timezone and
+// for both "YYYY-MM-DD HH:MM:SS" and ISO "YYYY-MM-DDTHH:MM:SSZ" timestamps.
+// They let SQLite use the created_at index instead of reading every sale.
+// The exact local-day conditions after them decide what is actually counted.
+const SALE_IN_RANGE = `s.created_at >= @rangeStart AND s.created_at < @rangeEnd
+  AND date(s.created_at, 'localtime') >= date(@startDate)
   AND date(s.created_at, 'localtime') <= date(@endDate)
   AND (@userId IS NULL OR s.user_id = @userId)`;
 
-const RETURN_IN_RANGE = `date(r.created_at, 'localtime') >= date(@startDate)
+const RETURN_IN_RANGE = `r.created_at >= @rangeStart AND r.created_at < @rangeEnd
+  AND date(r.created_at, 'localtime') >= date(@startDate)
   AND date(r.created_at, 'localtime') <= date(@endDate)
   AND (@userId IS NULL OR r.user_id = @userId)`;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// "YYYY-MM-DD" shifted by whole days, or null when the input is not a date.
+function shiftDate(value, days) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value ?? ''));
+  if (!match) return null;
+  const time = Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])) + days * DAY_MS;
+  return Number.isFinite(time) ? new Date(time).toISOString().slice(0, 10) : null;
+}
+
+// Bounds for the coarse window: one day before the start, and up to (not
+// including) two days after the end. Unparseable dates fall back to an open
+// window, leaving the exact conditions to decide.
+function rangeParams(filter) {
+  return {
+    startDate: filter.startDate,
+    endDate: filter.endDate,
+    userId: filter.userId ?? null,
+    rangeStart: shiftDate(filter.startDate, -1) || '0000',
+    rangeEnd: shiftDate(filter.endDate, 2) || '9999',
+  };
+}
 
 // Cost of one sold unit: the cost frozen on the sale line, or the current
 // purchase price for old lines that never had one.
@@ -22,13 +52,7 @@ const STAFF_NAME = `COALESCE(
   u.username
 )`;
 
-function params(filter) {
-  return {
-    startDate: filter.startDate,
-    endDate: filter.endDate,
-    userId: filter.userId ?? null,
-  };
-}
+const params = rangeParams;
 
 function getSalesSummary(filter) {
   return db.prepare(`
@@ -233,7 +257,7 @@ function getRecentInvoices(startDate, endDate, limit = 50, userId = null) {
     WHERE ${SALE_IN_RANGE}
     ORDER BY s.created_at DESC, s.id DESC
     LIMIT @limit
-  `).all({ startDate, endDate, userId, limit });
+  `).all({ ...params({ startDate, endDate, userId }), limit });
 }
 
 module.exports = {
@@ -249,4 +273,7 @@ module.exports = {
   staffExists,
   getLedgerPage,
   getRecentInvoices,
+  // Exposed for tests that check the query plan.
+  SALE_IN_RANGE,
+  rangeParams,
 };

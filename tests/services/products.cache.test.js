@@ -73,4 +73,51 @@ describe('ProductsCache Engine (Catalog, Barcodes & Penetration Defense)', () =>
     expect(productsCache.getByBarcode('BAR-99')).toBeNull();
     expect(productsCache.getByBarcode('INVALID-1')).toBeNull();
   });
+
+  describe('refreshStock (after a sale or return)', () => {
+    const catalog = () => [
+      {
+        id: 1,
+        name: 'Shirt',
+        variants: [
+          { id: 10, barcode: 'BAR-10', sku: 'SKU-10', stock_quantity: 5 },
+          { id: 11, barcode: 'BAR-11', sku: 'SKU-11', stock_quantity: 8 },
+        ],
+      },
+    ];
+
+    test('updates stock in the catalog and in barcode lookups without a rebuild', () => {
+      productsCache.setCatalog(catalog());
+
+      const applied = productsCache.refreshStock([
+        { id: 10, stock_quantity: 3 },
+        { id: 11, stock_quantity: 8 },
+      ]);
+
+      expect(applied).toBe(true);
+      expect(productsCache.getCatalog()[0].variants[0].stock_quantity).toBe(3);
+      expect(productsCache.getCatalog()[0].variants[1].stock_quantity).toBe(8);
+      expect(productsCache.getByBarcode('BAR-10').stock_quantity).toBe(3);
+      expect(productsCache.getByBarcode('SKU-10').stock_quantity).toBe(3);
+    });
+
+    test('drops the cache when the stock rows do not match the cached variants', () => {
+      productsCache.setCatalog(catalog());
+
+      // A variant the catalog has never seen means the catalog itself changed.
+      const applied = productsCache.refreshStock([
+        { id: 10, stock_quantity: 3 },
+        { id: 11, stock_quantity: 8 },
+        { id: 12, stock_quantity: 1 },
+      ]);
+
+      expect(applied).toBe(false);
+      expect(productsCache.getCatalog()).toBeNull();
+    });
+
+    test('does nothing when no catalog is cached', () => {
+      expect(productsCache.refreshStock([{ id: 10, stock_quantity: 3 }])).toBe(false);
+      expect(productsCache.getCatalog()).toBeNull();
+    });
+  });
 });

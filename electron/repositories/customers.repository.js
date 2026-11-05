@@ -103,15 +103,36 @@ function archive(id) {
   return db.prepare('UPDATE customers SET is_active = 0 WHERE id = ?').run(id);
 }
 
+// A customer's debt: credit sales minus payments. Credit sales and payments are
+// each summed once per customer, instead of joining every sale of every customer.
 function getBalances() {
   return db.prepare(`
     SELECT c.id,
-      ROUND(COALESCE(SUM(CASE WHEN s.payment_method = 'credit' THEN s.total_amount ELSE 0 END), 0)
-        - COALESCE((SELECT SUM(cp.amount) FROM customer_payments cp WHERE cp.customer_id = c.id), 0), 2) AS balance
+      ROUND(COALESCE(credit.total, 0) - COALESCE(paid.total, 0), 2) AS balance
     FROM customers c
-    LEFT JOIN sales s ON s.customer_id = c.id
-    GROUP BY c.id
+    LEFT JOIN (
+      SELECT customer_id, SUM(total_amount) AS total
+      FROM sales
+      WHERE payment_method = 'credit' AND customer_id IS NOT NULL
+      GROUP BY customer_id
+    ) credit ON credit.customer_id = c.id
+    LEFT JOIN (
+      SELECT customer_id, SUM(amount) AS total
+      FROM customer_payments
+      GROUP BY customer_id
+    ) paid ON paid.customer_id = c.id
   `).all();
+}
+
+function getBalance(customerId) {
+  const row = db.prepare(`
+    SELECT ROUND(
+      COALESCE((SELECT SUM(total_amount) FROM sales
+                WHERE customer_id = @id AND payment_method = 'credit'), 0)
+      - COALESCE((SELECT SUM(amount) FROM customer_payments WHERE customer_id = @id), 0),
+    2) AS balance
+  `).get({ id: customerId });
+  return row ? row.balance : 0;
 }
 
 function createPayment({ customerId, amount, paymentMethod, notes, userId, shiftId }) {
@@ -154,6 +175,7 @@ module.exports = {
   countAll,
   archive,
   getBalances,
+  getBalance,
   createPayment,
   getPayments,
   getCreditSales,

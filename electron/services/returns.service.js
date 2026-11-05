@@ -161,7 +161,7 @@ function processReturn({
 
   const result = runTransaction();
   const productsCache = require('./products.cache');
-  productsCache.invalidate();
+  productsCache.refreshStockFromDatabase();
 
   try {
     const isExchange = mode === 'exchange' && exchangeVariantId;

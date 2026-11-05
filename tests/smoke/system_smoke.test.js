@@ -240,6 +240,7 @@ describe('Kashiear POS — Comprehensive E2E System Smoke Test (فحص النظ�
   // =========================================================================
   test('Phase 6: Multi-Method Sales (Cash, Visa/Card, Credit/Debt)', () => {
     // 6.1 Cash Sale: 2 Shirts @ 150 = 300 - 30 (10% discount) = 270 Cash
+    productsService.getAllProductsWithVariants(); // POS screen open with the catalog cached
     const cashSale = salesService.createSale({
       items: [{ variantId: shirtVariantId, quantity: 2 }],
       discount: 30,
@@ -249,6 +250,13 @@ describe('Kashiear POS — Comprehensive E2E System Smoke Test (فحص النظ�
     expect(cashSale.totalAmount).toBe(270);
     cashSaleId = cashSale.saleId;
     expect(variantsRepo.getById(shirtVariantId).stock_quantity).toBe(18); // 20 - 2
+
+    // The POS catalog loaded before the sale stays cached and shows the new stock.
+    expect(productsCache.getCatalog()).not.toBeNull();
+    const cachedShirt = productsService.getAllProductsWithVariants()
+      .flatMap((p) => p.variants)
+      .find((v) => v.id === shirtVariantId);
+    expect(cachedShirt.stock_quantity).toBe(18);
 
     // 6.2 Visa / Card Sale: 1 Trousers @ 200 = 200 Card
     const cardSale = salesService.createSale({
