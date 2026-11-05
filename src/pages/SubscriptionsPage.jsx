@@ -1,6 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import Modal from '../components/Modal.jsx';
 import MembershipPlanModal from '../components/MembershipPlanModal.jsx';
+import { isBridgeAvailable } from '../api/bridge.js';
+import * as customersApi from '../api/customers.js';
+import * as inventoryApi from '../api/inventory.js';
+import * as productsApi from '../api/products.js';
+import * as subscriptionsApi from '../api/subscriptions.js';
 import '../styles/subscriptions.css';
 
 const PACKAGE_TYPES = [
@@ -44,16 +49,16 @@ export default function SubscriptionsPage() {
   });
 
   const loadData = useCallback(async () => {
-    if (!window.electronAPI) return;
+    if (!isBridgeAvailable()) return;
     try {
       setLoading(true);
       const [subsList, pkgsList, subStats, custsList, prodsList, branchesList] = await Promise.all([
-        window.electronAPI.getAllSubscriptions(),
-        window.electronAPI.getAllPackages(),
-        window.electronAPI.getSubscriptionStats(),
-        window.electronAPI.getAllCustomersWithStats ? window.electronAPI.getAllCustomersWithStats() : [],
-        window.electronAPI.getAllProductsWithVariants ? window.electronAPI.getAllProductsWithVariants() : [],
-        window.electronAPI.getInventoryBranches ? window.electronAPI.getInventoryBranches() : []
+        subscriptionsApi.getAllSubscriptions(),
+        subscriptionsApi.getAllPackages(),
+        subscriptionsApi.getSubscriptionStats(),
+        customersApi.getAllCustomersWithStats.isAvailable() ? customersApi.getAllCustomersWithStats() : [],
+        productsApi.getAllProductsWithVariants.isAvailable() ? productsApi.getAllProductsWithVariants() : [],
+        inventoryApi.getInventoryBranches.isAvailable() ? inventoryApi.getInventoryBranches() : []
       ]);
 
       setSubscriptions(subsList || []);
@@ -77,9 +82,9 @@ export default function SubscriptionsPage() {
   async function handleSavePackage(payload) {
     try {
       if (editingPackage) {
-        await window.electronAPI.updatePackage(editingPackage.id, payload);
+        await subscriptionsApi.updatePackage(editingPackage.id, payload);
       } else {
-        await window.electronAPI.createPackage(payload);
+        await subscriptionsApi.createPackage(payload);
       }
       setShowPkgModal(false);
       setEditingPackage(null);
@@ -93,7 +98,7 @@ export default function SubscriptionsPage() {
   async function handleDeletePackage(pkgId) {
     if (!window.confirm('هل أنت متأكد من حذف هذه الباقة؟')) return;
     try {
-      await window.electronAPI.deletePackage(pkgId);
+      await subscriptionsApi.deletePackage(pkgId);
       loadData();
     } catch (err) {
       alert('تعذر حذف الباقة: ' + err.message);
@@ -108,7 +113,7 @@ export default function SubscriptionsPage() {
     }
 
     try {
-      await window.electronAPI.subscribeCustomer({
+      await subscriptionsApi.subscribeCustomer({
         customer_id: Number(subForm.customer_id),
         package_id: Number(subForm.package_id),
         auto_renew: subForm.auto_renew,
@@ -128,7 +133,7 @@ export default function SubscriptionsPage() {
     if (!selectedSubForFreeze) return;
 
     try {
-      await window.electronAPI.freezeSubscription(selectedSubForFreeze.id, freezeReason);
+      await subscriptionsApi.freezeSubscription(selectedSubForFreeze.id, freezeReason);
       setShowFreezeModal(false);
       setSelectedSubForFreeze(null);
       setFreezeReason('');
@@ -141,7 +146,7 @@ export default function SubscriptionsPage() {
   // Unfreeze Action
   async function handleUnfreeze(subId) {
     try {
-      await window.electronAPI.unfreezeSubscription(subId);
+      await subscriptionsApi.unfreezeSubscription(subId);
       loadData();
     } catch (err) {
       alert('فشل إعادة التفعيل: ' + err.message);
@@ -152,7 +157,7 @@ export default function SubscriptionsPage() {
   async function handleRenew(subId) {
     if (!window.confirm('هل تريد تجديد هذا الاشتراك بنفس مدة ورصيد الباقة؟')) return;
     try {
-      await window.electronAPI.renewSubscription(subId);
+      await subscriptionsApi.renewSubscription(subId);
       loadData();
     } catch (err) {
       alert('فشل التجديد: ' + err.message);
@@ -162,7 +167,7 @@ export default function SubscriptionsPage() {
   // Consume Credit Action
   async function handleConsumeCredit(subId) {
     try {
-      await window.electronAPI.consumeSubscriptionCredit(subId, 1, null, 'خصم جلسة يدوي من شاشة الاشتراكات');
+      await subscriptionsApi.consumeSubscriptionCredit(subId, 1, null, 'خصم جلسة يدوي من شاشة الاشتراكات');
       loadData();
     } catch (err) {
       alert('فشل خصم الجلسة: ' + err.message);

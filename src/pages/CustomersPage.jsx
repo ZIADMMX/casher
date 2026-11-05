@@ -9,6 +9,8 @@ import { useBusinessProfile } from '../contexts/BusinessProfileContext.jsx';
 import { useSettings } from '../contexts/SettingsContext.jsx';
 import Toast from '../components/ui/Toast.jsx';
 import LegalClientDetailsModal from '../components/legal/LegalClientDetailsModal.jsx';
+import * as crmApi from '../api/crm.js';
+import * as importExportApi from '../api/importExport.js';
 
 function CustomersPage({ crmMode = false, onNavigate }) {
   const { getTerm, configuration } = useBusinessProfile();
@@ -164,8 +166,8 @@ function CustomersPage({ crmMode = false, onNavigate }) {
   async function handleExport() {
     try {
       const result = crmMode
-        ? await window.electronAPI.exportCRMRecords('customers')
-        : await window.electronAPI.exportCustomers();
+        ? await crmApi.exportCRMRecords('customers')
+        : await importExportApi.exportCustomers();
       if (!result.canceled) {
         setToast({
           id: Date.now(),
@@ -180,7 +182,7 @@ function CustomersPage({ crmMode = false, onNavigate }) {
 
   useEffect(() => {
     if (!crmMode) return;
-    window.electronAPI.getCRMCompanies()
+    crmApi.getCRMCompanies()
       .then((companies) => setCrmCompanies(companies || []))
       .catch((loadError) => {
         console.error('Failed to load CRM companies:', loadError);
@@ -212,7 +214,7 @@ function CustomersPage({ crmMode = false, onNavigate }) {
 
   useEffect(() => {
     if (activeView !== 'campaigns') return;
-    window.electronAPI.getCRMCampaigns()
+    crmApi.getCRMCampaigns()
       .then(setCampaigns)
       .catch((err) => {
         console.error('Failed to load CRM campaigns:', err);
@@ -225,7 +227,7 @@ function CustomersPage({ crmMode = false, onNavigate }) {
     setCampaignError('');
     setCampaignLoading(true);
     try {
-      const campaign = await window.electronAPI.createCRMCampaign(campaignForm);
+      const campaign = await crmApi.createCRMCampaign(campaignForm);
       setCampaignForm({
         name: '',
         product_keyword: '',
@@ -236,8 +238,8 @@ function CustomersPage({ crmMode = false, onNavigate }) {
         discount_percentage: 0
       });
       const [campaignList, audience] = await Promise.all([
-        window.electronAPI.getCRMCampaigns(),
-        window.electronAPI.getCRMCampaignAudience(campaign.id)
+        crmApi.getCRMCampaigns(),
+        crmApi.getCRMCampaignAudience(campaign.id)
       ]);
       setCampaigns(campaignList);
       setSelectedCampaign(campaign);
@@ -255,7 +257,7 @@ function CustomersPage({ crmMode = false, onNavigate }) {
     setCampaignError('');
     setCampaignLoading(true);
     try {
-      setCampaignAudience(await window.electronAPI.getCRMCampaignAudience(campaign.id));
+      setCampaignAudience(await crmApi.getCRMCampaignAudience(campaign.id));
     } catch (err) {
       console.error('Failed to load CRM campaign audience:', err);
       setCampaignError(err.message || 'تعذر تحميل العملاء المؤهلين');
@@ -269,9 +271,9 @@ function CustomersPage({ crmMode = false, onNavigate }) {
     setCampaignError('');
     setCampaignLoading(true);
     try {
-      const result = await window.electronAPI.createCRMCampaignReminders(selectedCampaign.id);
-      setCampaignAudience(await window.electronAPI.getCRMCampaignAudience(selectedCampaign.id));
-      setCampaigns(await window.electronAPI.getCRMCampaigns());
+      const result = await crmApi.createCRMCampaignReminders(selectedCampaign.id);
+      setCampaignAudience(await crmApi.getCRMCampaignAudience(selectedCampaign.id));
+      setCampaigns(await crmApi.getCRMCampaigns());
       setToast({
         id: Date.now(),
         type: 'success',

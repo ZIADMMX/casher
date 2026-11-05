@@ -22,6 +22,15 @@ import ShiftStatus from '../components/pos/ShiftStatus.jsx';
 import SearchBar from '../components/pos/SearchBar.jsx';
 import SpeedKeysBar from '../components/pos/SpeedKeysBar.jsx';
 import ScaleWeightModal from '../components/pos/ScaleWeightModal.jsx';
+import { isBridgeAvailable } from '../api/bridge.js';
+import * as authApi from '../api/auth.js';
+import * as customersApi from '../api/customers.js';
+import * as groceryApi from '../api/grocery.js';
+import * as printingApi from '../api/printing.js';
+import * as productsApi from '../api/products.js';
+import * as salesApi from '../api/sales.js';
+import * as shiftsApi from '../api/shifts.js';
+import * as subscriptionsApi from '../api/subscriptions.js';
 
 function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
   const { settings } = useSettings();
@@ -73,9 +82,9 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
 
   useEffect(() => {
     async function loadCustomers() {
-      if (window.electronAPI?.getAllCustomersWithStats) {
+      if (customersApi.getAllCustomersWithStats.isAvailable()) {
         try {
-          const list = await window.electronAPI.getAllCustomersWithStats();
+          const list = await customersApi.getAllCustomersWithStats();
           setPosCustomers(list || []);
         } catch (err) {
           console.error('Failed to load customers for POS:', err);
@@ -87,7 +96,8 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
 
   useEffect(() => {
     let mounted = true;
-    window.electronAPI?.getSession?.()
+    if (!authApi.getSession.isAvailable()) return undefined;
+    authApi.getSession()
       .then((session) => { if (mounted) setPosSessionUser(session || null); })
       .catch((error) => console.error('تعذر تحميل جلسة مستخدم نقطة البيع:', error));
     return () => { mounted = false; };
@@ -122,8 +132,8 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
         return;
       }
       try {
-        if (window.electronAPI?.getActiveSubscriptionByCustomer) {
-          const sub = await window.electronAPI.getActiveSubscriptionByCustomer(selectedCustomerId);
+        if (subscriptionsApi.getActiveSubscriptionByCustomer.isAvailable()) {
+          const sub = await subscriptionsApi.getActiveSubscriptionByCustomer(selectedCustomerId);
           setActiveSubscription(sub || null);
           if (sub && sub.discount_percentage > 0) {
             const subtotalVal = cart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
@@ -141,8 +151,8 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
 
   const refreshShift = useCallback(async () => {
     try {
-      if (window.electronAPI?.getCurrentShift) {
-        const current = await window.electronAPI.getCurrentShift();
+      if (shiftsApi.getCurrentShift.isAvailable()) {
+        const current = await shiftsApi.getCurrentShift();
         setActiveShift(current);
       }
     } catch (err) {
@@ -165,7 +175,7 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
       return undefined;
     }
 
-    window.electronAPI.previewBundlePromotions(cart.map((item) => ({
+    salesApi.previewBundlePromotions(cart.map((item) => ({
       variantId: item.variantId,
       quantity: item.quantity,
     })))
@@ -318,8 +328,8 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
       sectorConfig.features?.speedKeys
     );
     try {
-      if (allowGroceryBarcode && window.electronAPI?.resolveGroceryBarcode) {
-        const resolved = await window.electronAPI.resolveGroceryBarcode(cleanCode);
+      if (allowGroceryBarcode && groceryApi.resolveGroceryBarcode.isAvailable()) {
+        const resolved = await groceryApi.resolveGroceryBarcode(cleanCode);
         if (resolved && !resolved.resolved && resolved.error) {
           playErrorBeep();
           setMessage({
@@ -357,7 +367,7 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
         }
       }
 
-      const variant = await window.electronAPI.getProductByBarcode(cleanCode);
+      const variant = await productsApi.getProductByBarcode(cleanCode);
       if (!variant) {
         playErrorBeep();
         setMessage({
@@ -545,7 +555,7 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
     setMessage(null);
     try {
       const selectedCustomerObj = posCustomers.find(c => String(c.id) === String(selectedCustomerId));
-      const result = await window.electronAPI.createSale({
+      const result = await salesApi.createSale({
         items: cart.map((item) => ({
           variantId: item.variantId,
           quantity: item.quantity,
@@ -564,7 +574,7 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
         creditsDeducted: useSubscriptionCredit ? 1 : 0,
       });
 
-      const fullSale = await window.electronAPI.getSaleById(result.saleId);
+      const fullSale = await salesApi.getSaleById(result.saleId);
       if (fullSale) {
         const receiptSale = workOrder
           ? {
@@ -584,7 +594,7 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
 
         playSuccessBeep();
 
-        if (window.electronAPI?.printReceipt) {
+        if (printingApi.printReceipt.isAvailable()) {
           const printerOptions = settings.thermal_printer_name
             ? {
                 printerName: settings.thermal_printer_name,
@@ -594,7 +604,7 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
                 cutPaper: true,
               }
             : { openCashDrawer: paymentMethod === 'cash', cutPaper: true };
-          window.electronAPI.printReceipt(receiptSale, printerOptions).catch((err) => {
+          printingApi.printReceipt(receiptSale, printerOptions).catch((err) => {
             console.error('فشل إرسال الفاتورة للطباعة:', err);
             if (settings.thermal_printer_name) {
               printStatus.error = err;
@@ -661,10 +671,10 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
   // دوال إدارة الوردية من الـ POS
   const handleOpenStartShiftModal = async () => {
     try {
-      if (window.electronAPI) {
+      if (isBridgeAvailable()) {
         const [lastClosed, sess] = await Promise.all([
-          window.electronAPI.getLastClosedShift?.(),
-          window.electronAPI.getSession?.(),
+          shiftsApi.getLastClosedShift.ifAvailable(),
+          authApi.getSession.ifAvailable(),
         ]);
         setPosLastClosedShift(lastClosed || null);
         setPosSessionUser(sess || null);
@@ -676,19 +686,19 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
   };
 
   async function handlePOSOpenShift(shiftData) {
-    await window.electronAPI.openShift(shiftData);
+    await shiftsApi.openShift(shiftData);
     await refreshShift();
     setMessage({ type: 'success', text: 'تم استلام الدرج وبدء الوردية بنجاح 🟢' });
   }
 
   async function handlePOSAddExpense(expenseData) {
-    await window.electronAPI.addShiftExpense(expenseData);
+    await shiftsApi.addShiftExpense(expenseData);
     await refreshShift();
     setMessage({ type: 'success', text: 'تم تسجيل المصروف وخصمه من الدرج 💸' });
   }
 
   async function handlePOSCloseShift(closeData) {
-    const closed = await window.electronAPI.closeShift(closeData);
+    const closed = await shiftsApi.closeShift(closeData);
     await refreshShift();
     setShiftPreviewReport({ shift: closed, reportType: 'Z' });
     setMessage({ type: 'success', text: 'تم تقفيل الوردية وإصدار تقرير Z-Report 🔒' });
@@ -696,7 +706,7 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
 
   async function handlePOSShowXReport() {
     try {
-      const rep = await window.electronAPI.getShiftXReport();
+      const rep = await shiftsApi.getShiftXReport();
       if (rep) {
         setShiftPreviewReport({ shift: rep, reportType: 'X' });
       }
@@ -707,8 +717,8 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
 
   const handleManualOpenCashDrawer = useCallback(async () => {
     try {
-      if (window.electronAPI?.openCashDrawer) {
-        await window.electronAPI.openCashDrawer({
+      if (printingApi.openCashDrawer.isAvailable()) {
+        await printingApi.openCashDrawer({
           printerName: settings.thermal_printer_name || undefined,
           cashDrawerPin: Number(settings.cash_drawer_pin) === 5 ? 5 : 2,
         });

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { playSuccessBeep, playErrorBeep } from '../utils/beep';
 import { normalizeErrorMessage } from '../utils/normalizeError';
+import * as importExportApi from '../api/importExport.js';
 
 export default function ImportExcelModal({ isOpen, onClose, type, onSuccess }) {
   const [loading, setLoading] = useState(false);
@@ -13,7 +14,7 @@ export default function ImportExcelModal({ isOpen, onClose, type, onSuccess }) {
   // الحصول على مسار الملف
   const handleSelectFile = async () => {
     try {
-      const selected = await window.electronAPI.selectImportFile();
+      const selected = await importExportApi.selectImportFile();
       if (selected) setFilePath(selected);
     } catch (err) {
       console.error(err);
@@ -27,7 +28,7 @@ export default function ImportExcelModal({ isOpen, onClose, type, onSuccess }) {
       setLoading(true);
       setError(null);
       setMessage(null);
-      const res = await window.electronAPI.downloadImportTemplate(type);
+      const res = await importExportApi.downloadImportTemplate(type);
       if (res.success) {
         setMessage(res.message);
         playSuccessBeep();
@@ -52,7 +53,7 @@ export default function ImportExcelModal({ isOpen, onClose, type, onSuccess }) {
       setError(null);
       setMessage(null);
       
-      const res = await window.electronAPI.importExcel({ filePath, type });
+      const res = await importExportApi.importExcel({ filePath, type });
       
       if (res.success) {
         setMessage(res.message);

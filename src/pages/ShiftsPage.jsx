@@ -1,5 +1,8 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import ShiftReportPrint from '../components/ShiftReportPrint.jsx';
+import { isBridgeAvailable } from '../api/bridge.js';
+import * as authApi from '../api/auth.js';
+import * as shiftsApi from '../api/shifts.js';
 
 const EXPENSE_CATEGORIES = [
   'نثريات ومصروفات عامة',
@@ -74,13 +77,13 @@ export default function ShiftsPage() {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      if (window.electronAPI) {
+      if (isBridgeAvailable()) {
         const results = await Promise.allSettled([
-          window.electronAPI.getCurrentShift ? window.electronAPI.getCurrentShift() : Promise.resolve(null),
-          window.electronAPI.getAllShifts ? window.electronAPI.getAllShifts() : Promise.resolve([]),
-          window.electronAPI.getShiftsKPIs ? window.electronAPI.getShiftsKPIs() : Promise.resolve(null),
-          window.electronAPI.getLastClosedShift ? window.electronAPI.getLastClosedShift() : Promise.resolve(null),
-          window.electronAPI.getSession ? window.electronAPI.getSession() : Promise.resolve(null),
+          shiftsApi.getCurrentShift.isAvailable() ? shiftsApi.getCurrentShift() : Promise.resolve(null),
+          shiftsApi.getAllShifts.isAvailable() ? shiftsApi.getAllShifts() : Promise.resolve([]),
+          shiftsApi.getShiftsKPIs.isAvailable() ? shiftsApi.getShiftsKPIs() : Promise.resolve(null),
+          shiftsApi.getLastClosedShift.isAvailable() ? shiftsApi.getLastClosedShift() : Promise.resolve(null),
+          authApi.getSession.isAvailable() ? authApi.getSession() : Promise.resolve(null),
         ]);
 
         const current = results[0].status === 'fulfilled' ? results[0].value : null;
@@ -147,7 +150,7 @@ export default function ShiftsPage() {
         setFormError('الرجاء إدخال عهدة نقدية صحيحة');
         return;
       }
-      await window.electronAPI.openShift({
+      await shiftsApi.openShift({
         openingCash: amount,
         shiftType: openingShiftType,
         posStation: openingPosStation,
@@ -176,7 +179,7 @@ export default function ShiftsPage() {
         setFormError('الرجاء إدخال مبلغ مصروف صحيح أكبر من الصفر');
         return;
       }
-      await window.electronAPI.addShiftExpense({
+      await shiftsApi.addShiftExpense({
         amount: amt,
         category: expenseCategory,
         notes: expenseNotes,
@@ -202,7 +205,7 @@ export default function ShiftsPage() {
         return;
       }
 
-      const closed = await window.electronAPI.closeShift({
+      const closed = await shiftsApi.closeShift({
         actualCash: actual,
         cashBreakdown: useBreakdown ? cashBreakdown : null,
         notes: closeNotesInput,
@@ -226,7 +229,7 @@ export default function ShiftsPage() {
   // استعراض تقرير استطلاعي (X-Report)
   const handleShowXReport = async () => {
     try {
-      const rep = await window.electronAPI.getShiftXReport();
+      const rep = await shiftsApi.getShiftXReport();
       if (rep) {
         setPreviewReport({ shift: rep, reportType: 'X' });
       }
@@ -238,7 +241,7 @@ export default function ShiftsPage() {
   // استعراض تقرير وردية سابقة
   const handleViewShiftDetails = async (shiftId) => {
     try {
-      const rep = await window.electronAPI.getShiftById(shiftId);
+      const rep = await shiftsApi.getShiftById(shiftId);
       if (rep) {
         setPreviewReport({ shift: rep, reportType: 'Z' });
       }

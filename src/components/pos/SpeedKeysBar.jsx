@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import * as groceryApi from '../../api/grocery.js';
 
 /**
  * SpeedKeysBar Component
@@ -23,10 +24,10 @@ export default function SpeedKeysBar({
   const [errorMsg, setErrorMsg] = useState('');
 
   const loadKeys = async () => {
-    if (!window.electronAPI?.getGrocerySpeedKeys) return;
+    if (!groceryApi.getGrocerySpeedKeys.isAvailable()) return;
     try {
       setLoading(true);
-      const keys = await window.electronAPI.getGrocerySpeedKeys();
+      const keys = await groceryApi.getGrocerySpeedKeys();
       setSpeedKeys(keys || []);
     } catch (err) {
       console.error('Failed to load speed keys:', err);
@@ -52,7 +53,7 @@ export default function SpeedKeysBar({
     }
 
     try {
-      await window.electronAPI.createGrocerySpeedKey({
+      await groceryApi.createGrocerySpeedKey({
         variant_id: Number(newKeyForm.variant_id),
         label: newKeyForm.label.trim(),
         shortcut_code: newKeyForm.shortcut_code.trim() || null,
@@ -79,7 +80,7 @@ export default function SpeedKeysBar({
     e.stopPropagation();
     if (!window.confirm('هل تريد بالتأكيد حذف هذا الزر السريع؟')) return;
     try {
-      await window.electronAPI.deleteGrocerySpeedKey(keyId);
+      await groceryApi.deleteGrocerySpeedKey(keyId);
       loadKeys();
     } catch (err) {
       console.error('Failed to delete speed key:', err);

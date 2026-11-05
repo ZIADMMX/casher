@@ -1,5 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import ImportExcelModal from '../components/ImportExcelModal.jsx';
+import * as productsApi from '../api/products.js';
+import * as purchasesApi from '../api/purchases.js';
 
 function SuppliersPage() {
   const [activeTab, setActiveTab] = useState('suppliers'); // 'suppliers' | 'invoices' | 'payments'
@@ -75,11 +77,11 @@ function SuppliersPage() {
   const loadData = useCallback(async () => {
     try {
       const [sups, purs, pays, summary, prods] = await Promise.all([
-        window.electronAPI.getAllSuppliersWithStats(),
-        window.electronAPI.getAllPurchases(),
-        window.electronAPI.getAllSupplierPayments(100),
-        window.electronAPI.getPurchasesSummaryKPIs(),
-        window.electronAPI.getAllProductsWithVariants(),
+        purchasesApi.getAllSuppliersWithStats(),
+        purchasesApi.getAllPurchases(),
+        purchasesApi.getAllSupplierPayments(100),
+        purchasesApi.getPurchasesSummaryKPIs(),
+        productsApi.getAllProductsWithVariants(),
       ]);
       setSuppliers(sups || []);
       setPurchases(purs || []);
@@ -152,9 +154,9 @@ function SuppliersPage() {
     e.preventDefault();
     try {
       if (editingSupplier) {
-        await window.electronAPI.updateSupplier(editingSupplier.id, supplierForm);
+        await purchasesApi.updateSupplier(editingSupplier.id, supplierForm);
       } else {
-        await window.electronAPI.addSupplier(supplierForm);
+        await purchasesApi.addSupplier(supplierForm);
       }
       setShowAddSupplierModal(false);
       await loadData();
@@ -167,7 +169,7 @@ function SuppliersPage() {
   const handleDeleteSupplier = async (id, name) => {
     if (window.confirm(`هل أنت متأكد من حذف المورد (${name}) وجميع فواتيره ودفعاته المسجلة؟`)) {
       try {
-        await window.electronAPI.deleteSupplier(id);
+        await purchasesApi.deleteSupplier(id);
         await loadData();
       } catch (err) {
         alert(err.message);
@@ -178,7 +180,7 @@ function SuppliersPage() {
   // Open Ledger Modal
   const openSupplierLedger = async (supplierId) => {
     try {
-      const ledger = await window.electronAPI.getSupplierLedger(supplierId);
+      const ledger = await purchasesApi.getSupplierLedger(supplierId);
       setLedgerData(ledger);
       setShowLedgerModal(true);
     } catch (err) {
@@ -204,7 +206,7 @@ function SuppliersPage() {
   const handleSavePayment = async (e) => {
     e.preventDefault();
     try {
-      await window.electronAPI.recordSupplierPayment({
+      await purchasesApi.recordSupplierPayment({
         supplierId: paymentForm.supplierId,
         purchaseId: paymentForm.purchaseId || null,
         amount: Number(paymentForm.amount),
@@ -319,7 +321,7 @@ function SuppliersPage() {
         return;
       }
 
-      await window.electronAPI.createPurchase({
+      await purchasesApi.createPurchase({
         supplierId: purchaseForm.supplierId,
         invoiceNumber: purchaseForm.invoiceNumber,
         items: purchaseForm.items,
@@ -340,7 +342,7 @@ function SuppliersPage() {
   // Preview Invoice Details
   const handlePreviewInvoice = async (invoiceId) => {
     try {
-      const inv = await window.electronAPI.getPurchaseById(invoiceId);
+      const inv = await purchasesApi.getPurchaseById(invoiceId);
       setSelectedInvoicePreview(inv);
     } catch (err) {
       alert(err.message);

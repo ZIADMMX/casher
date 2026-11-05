@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import CustomersPage from './CustomersPage.jsx';
 import SalesPipelineBoard from '../components/crm/SalesPipelineBoard.jsx';
 import CRMOperations from '../components/crm/CRMOperations.jsx';
+import * as crmApi from '../api/crm.js';
+import * as customersApi from '../api/customers.js';
 import '../styles/crm.css';
 
 const VIEWS = [
@@ -33,10 +35,10 @@ function CRMPage() {
     setError('');
     try {
       const [customerList, opportunityList, leadList, stageList] = await Promise.all([
-        window.electronAPI.getAllCustomersWithStats(),
-        window.electronAPI.getAllCRMOpportunities(),
-        window.electronAPI.getCRMLeads({}),
-        window.electronAPI.getCRMPipelineStages(),
+        customersApi.getAllCustomersWithStats(),
+        crmApi.getAllCRMOpportunities(),
+        crmApi.getCRMLeads({}),
+        crmApi.getCRMPipelineStages(),
       ]);
       setCustomers(Array.isArray(customerList) ? customerList : []);
       setOpportunities(Array.isArray(opportunityList) ? opportunityList : []);

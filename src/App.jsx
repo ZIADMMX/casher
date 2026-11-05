@@ -19,6 +19,8 @@ import ThreeLoadingScreen from './components/ThreeLoadingScreen.jsx';
 import { isBusinessProfilePageEnabled } from './utils/businessProfilePages.js';
 import PageTutorial from './components/PageTutorial.jsx';
 import { hasPermission } from './utils/accessControl.js';
+import * as inventoryApi from './api/inventory.js';
+import * as licenseApi from './api/license.js';
 
 // التحميل الكسول للصفحات الإدارية لتسريع فتح البرنامج وتقليل حجم الحزمة الأولى
 const TodayPage = lazy(() => import('./pages/TodayPage.jsx'));
@@ -122,7 +124,7 @@ function AppContent() {
   const checkLicense = useCallback(async () => {
     setLicenseError('');
     try {
-      const status = await window.electronAPI.getLicenseStatus();
+      const status = await licenseApi.getLicenseStatus();
       setLicenseStatus(status);
     } catch (error) {
       setLicenseError(error.message || 'تعذر التحقق من وقت الترخيص');
@@ -131,11 +133,11 @@ function AppContent() {
 
   useEffect(() => {
     checkLicense();
-    const unsubscribeStatus = window.electronAPI.onLicenseStatusChanged?.((status) => {
+    const unsubscribeStatus = licenseApi.onLicenseStatusChanged.ifAvailable((status) => {
       setLicenseStatus(status);
       setLicenseError('');
     }) || (() => {});
-    const unsubscribeError = window.electronAPI.onLicenseVerificationFailed?.((error) => {
+    const unsubscribeError = licenseApi.onLicenseVerificationFailed.ifAvailable((error) => {
       setLicenseError(error?.message || 'تعذر التحقق من وقت الترخيص');
     }) || (() => {});
     return () => {
@@ -146,7 +148,7 @@ function AppContent() {
 
   useEffect(() => {
     if (!currentUser || profileKey === 'law_firm' || activePage !== 'pos') return;
-    window.electronAPI.getCentralServerConfig()
+    inventoryApi.getCentralServerConfig()
       .then((config) => {
         if (config.baseUrl && !config.warehouseId) setActivePage('branches');
       })
@@ -158,7 +160,7 @@ function AppContent() {
     let cancelled = false;
     const timer = window.setTimeout(async () => {
       try {
-        const status = await window.electronAPI.getReviewPromptStatus({ claim: true });
+        const status = await inventoryApi.getReviewPromptStatus({ claim: true });
         if (!cancelled && status.shouldPrompt) setShowReviewModal(true);
       } catch (error) {
         console.warn('تعذر التحقق من موعد طلب التقييم:', error);
@@ -175,9 +177,9 @@ function AppContent() {
     let cancelled = false;
     async function syncReviewsIfConfigured() {
       try {
-        const config = await window.electronAPI.getCentralServerConfig();
+        const config = await inventoryApi.getCentralServerConfig();
         if (!cancelled && config.baseUrl) {
-          const result = await window.electronAPI.syncReviews();
+          const result = await inventoryApi.syncReviews();
           if (result.error && result.pendingCount > 0) {
             console.warn('تقييمات بانتظار المزامنة:', result.error);
           }

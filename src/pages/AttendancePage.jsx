@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { formatProductImageUrl } from '../utils/media.js';
+import * as attendanceApi from '../api/attendance.js';
 import '../styles/attendance.css';
 
 function getLocalDate() {
@@ -145,7 +146,7 @@ export default function AttendancePage() {
     setLoading(true);
     setError('');
     try {
-      const rows = await window.electronAPI.getAttendanceByDate(selectedDate);
+      const rows = await attendanceApi.getAttendanceByDate(selectedDate);
       if (!Array.isArray(rows)) throw new Error('تعذر تحميل سجل الحضور.');
       setAttendance(rows);
     } catch (requestError) {
@@ -161,7 +162,7 @@ export default function AttendancePage() {
 
   useEffect(() => {
     let mounted = true;
-    window.electronAPI.getAttendanceSummary30Days()
+    attendanceApi.getAttendanceSummary30Days()
       .then((rows) => { if (mounted) setMonthlySummary(Array.isArray(rows) ? rows : []); })
       .catch((requestError) => { if (mounted) setError(requestError.message || 'تعذر تحميل ملخص آخر 30 يومًا.'); })
       .finally(() => { if (mounted) setSummaryLoading(false); });
@@ -199,8 +200,8 @@ export default function AttendancePage() {
     setNotice('');
     try {
       const payload = { userId, date: selectedDate };
-      if (action === 'checkOut') await window.electronAPI.checkOutEmployee(payload);
-      else await window.electronAPI.checkInEmployee(payload);
+      if (action === 'checkOut') await attendanceApi.checkOutEmployee(payload);
+      else await attendanceApi.checkInEmployee(payload);
       setNotice(action === 'checkOut' ? 'تم تسجيل الانصراف بنجاح.' : 'تم تسجيل الحضور بنجاح.');
       await loadAttendance();
     } catch (requestError) {
@@ -213,7 +214,7 @@ export default function AttendancePage() {
   async function handleSaveSchedule(userId, scheduledStart, scheduledEnd) {
     setError('');
     try {
-      await window.electronAPI.updateAttendanceSchedule({ userId, scheduledStart, scheduledEnd });
+      await attendanceApi.updateAttendanceSchedule({ userId, scheduledStart, scheduledEnd });
       setNotice('تم حفظ الوردية المجدولة.');
       await loadAttendance();
       return true;

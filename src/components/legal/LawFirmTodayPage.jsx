@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import * as legalApi from '../../api/legal.js';
 import '../../styles/lawFirmDashboard.css';
 
 function getLocalDateString(date = new Date()) {
@@ -157,7 +158,7 @@ export default function LawFirmTodayPage({ onNavigate }) {
     setLoading(true);
     setError('');
     try {
-      const result = await window.electronAPI.getLawFirmDashboard(selectedDate);
+      const result = await legalApi.getLawFirmDashboard(selectedDate);
       if (requestId === dashboardRequestId.current) setDashboard(result);
     } catch (loadError) {
       console.error('تعذر تحميل لوحة المحامي:', loadError);
@@ -222,7 +223,7 @@ export default function LawFirmTodayPage({ onNavigate }) {
     setSavingSessionId(session.id);
     setActionError('');
     try {
-      await window.electronAPI.updateCourtSession(session.id, { status: 'attended' });
+      await legalApi.updateCourtSession(session.id, { status: 'attended' });
       await loadDashboard();
     } catch (actionFailure) {
       setActionError(actionFailure instanceof Error ? actionFailure.message : 'تعذر تحديث حالة الجلسة');

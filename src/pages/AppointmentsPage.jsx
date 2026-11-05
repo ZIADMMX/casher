@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useBusinessProfile } from '../contexts/BusinessProfileContext.jsx';
+import * as customersApi from '../api/customers.js';
+import * as inventoryApi from '../api/inventory.js';
+import * as subscriptionsApi from '../api/subscriptions.js';
 import '../styles/appointments.css';
 
 const GYM_RESOURCE_TYPES = [
@@ -192,11 +195,11 @@ function AppointmentsPage() {
     setError('');
     try {
       const [resourceRows, serviceRows, holidayRows, appointmentRows, customerRows] = await Promise.all([
-        window.electronAPI.getAppointmentResources ? window.electronAPI.getAppointmentResources() : [],
-        window.electronAPI.getAppointmentServices ? window.electronAPI.getAppointmentServices() : [],
-        window.electronAPI.getAppointmentHolidays ? window.electronAPI.getAppointmentHolidays() : [],
-        window.electronAPI.getAppointments ? window.electronAPI.getAppointments() : [],
-        window.electronAPI.getAllCustomersWithStats ? window.electronAPI.getAllCustomersWithStats() : [],
+        inventoryApi.getAppointmentResources.isAvailable() ? inventoryApi.getAppointmentResources() : [],
+        inventoryApi.getAppointmentServices.isAvailable() ? inventoryApi.getAppointmentServices() : [],
+        inventoryApi.getAppointmentHolidays.isAvailable() ? inventoryApi.getAppointmentHolidays() : [],
+        inventoryApi.getAppointments.isAvailable() ? inventoryApi.getAppointments() : [],
+        customersApi.getAllCustomersWithStats.isAvailable() ? customersApi.getAllCustomersWithStats() : [],
       ]);
       setResources(Array.isArray(resourceRows) ? resourceRows : []);
       setServices(Array.isArray(serviceRows) ? serviceRows : []);
@@ -224,8 +227,8 @@ function AppointmentsPage() {
       }
       setLoadingSubscription(true);
       try {
-        if (window.electronAPI && window.electronAPI.getActiveSubscriptionByCustomer) {
-          const sub = await window.electronAPI.getActiveSubscriptionByCustomer(Number(appointmentForm.customerId));
+        if (subscriptionsApi.getActiveSubscriptionByCustomer.isAvailable()) {
+          const sub = await subscriptionsApi.getActiveSubscriptionByCustomer(Number(appointmentForm.customerId));
           setActiveSubscription(sub || null);
         }
       } catch (e) {
@@ -260,7 +263,7 @@ function AppointmentsPage() {
       .map(({ weekday, startTime, endTime }) => ({ weekday, startTime, endTime }));
     
     await runAction(
-      () => window.electronAPI.saveAppointmentResource({
+      () => inventoryApi.saveAppointmentResource({
         ...resourceForm,
         workingHours,
       }),
@@ -274,7 +277,7 @@ function AppointmentsPage() {
   async function submitService(event) {
     event.preventDefault();
     await runAction(
-      () => window.electronAPI.saveAppointmentService(serviceForm),
+      () => inventoryApi.saveAppointmentService(serviceForm),
       serviceForm.id
         ? text('تم تحديث الخدمة/الحصة بنجاح', 'تم تحديث الخدمة القانونية بنجاح')
         : text('تمت إضافة الحصة بنجاح', 'تمت إضافة الخدمة القانونية بنجاح')
@@ -285,7 +288,7 @@ function AppointmentsPage() {
   async function submitHoliday(event) {
     event.preventDefault();
     await runAction(
-      () => window.electronAPI.saveAppointmentHoliday(holidayForm),
+      () => inventoryApi.saveAppointmentHoliday(holidayForm),
       text('تم تسجيل إجازة الكابتن بنجاح', 'تم تسجيل وقت عدم التوفر بنجاح')
     );
     setHolidayForm(blankHoliday());
@@ -299,7 +302,7 @@ function AppointmentsPage() {
     await runAction(
       async () => {
         // Create appointment in database
-        const appt = await window.electronAPI.createAppointment({
+        const appt = await inventoryApi.createAppointment({
           ...appointmentForm,
           serviceId: Number(appointmentForm.serviceId),
           resourceId: Number(appointmentForm.resourceId),
@@ -311,7 +314,7 @@ function AppointmentsPage() {
         // Deduct 1 credit from customer active subscription if selected
         if (!isLawFirm && appointmentForm.deductSubscriptionCredit && activeSubscription && activeSubscription.remaining_credits > 0) {
           try {
-            await window.electronAPI.consumeSubscriptionCredit(
+            await subscriptionsApi.consumeSubscriptionCredit(
               activeSubscription.id,
               1,
               null,
@@ -331,7 +334,7 @@ function AppointmentsPage() {
   async function submitReschedule(event, appointmentId) {
     event.preventDefault();
     await runAction(
-      () => window.electronAPI.rescheduleAppointment(appointmentId, {
+      () => inventoryApi.rescheduleAppointment(appointmentId, {
         startAt: rescheduleForm.startAt,
         resourceId: Number(rescheduleForm.resourceId),
       }),
@@ -671,18 +674,18 @@ function AppointmentsPage() {
 
                         <div className="appointment-item-actions">
                           {appointment.status === 'booked' && (
-                            <button type="button" onClick={() => runAction(() => window.electronAPI.updateAppointmentStatus(appointment.id, 'confirmed'), text('تم تأكيد الحضور للحصة', 'تم تأكيد الموعد'))}>
+                            <button type="button" onClick={() => runAction(() => inventoryApi.updateAppointmentStatus(appointment.id, 'confirmed'), text('تم تأكيد الحضور للحصة', 'تم تأكيد الموعد'))}>
                               {text('تأكيد الحضور', 'تأكيد الموعد')}
                             </button>
                           )}
                           {['booked', 'confirmed'].includes(appointment.status) && (
-                            <button type="button" onClick={() => runAction(() => window.electronAPI.updateAppointmentStatus(appointment.id, 'completed'), text('تم إكمال الحصة', 'تم إكمال الجلسة'))}>
+                            <button type="button" onClick={() => runAction(() => inventoryApi.updateAppointmentStatus(appointment.id, 'completed'), text('تم إكمال الحصة', 'تم إكمال الجلسة'))}>
                               {text('إكمال الحصة', 'إكمال الجلسة')}
                             </button>
                           )}
                           {['booked', 'confirmed'].includes(appointment.status) && (
                             <button type="button" style={{ color: isLawFirm ? '#b42318' : '#f87171' }} onClick={() => runAction(
-                              () => window.electronAPI.updateAppointmentStatus(appointment.id, 'cancelled'),
+                              () => inventoryApi.updateAppointmentStatus(appointment.id, 'cancelled'),
                               text('تم إلغاء الحجز', 'تم إلغاء الموعد')
                             )}>
                               إلغاء
@@ -693,7 +696,7 @@ function AppointmentsPage() {
                               type="button"
                               className="convert"
                               onClick={() => runAction(
-                                () => window.electronAPI.convertAppointmentToServiceOrder(appointment.id),
+                                () => inventoryApi.convertAppointmentToServiceOrder(appointment.id),
                                 text('تم تحويل الحصة إلى أمر عمل وفاتورة بنجاح!', 'تم تحويل الموعد إلى فاتورة بنجاح!'),
                               )}
                             >
@@ -799,7 +802,7 @@ function AppointmentsPage() {
                         style={{ alignSelf: 'flex-start' }}
                         onClick={async () => {
                           try {
-                            const fullResource = await window.electronAPI.getAppointmentResource(resource.id);
+                            const fullResource = await inventoryApi.getAppointmentResource(resource.id);
                             editResource(fullResource);
                           } catch (resourceError) {
                             setError(resourceError instanceof Error
@@ -945,7 +948,7 @@ function AppointmentsPage() {
                         style={{ color: isLawFirm ? '#b42318' : '#f87171', alignSelf: 'flex-start' }}
                         className="appointment-button secondary"
                         onClick={() => runAction(
-                          () => window.electronAPI.removeAppointmentHoliday(holiday.id),
+                          () => inventoryApi.removeAppointmentHoliday(holiday.id),
                           text('تم حذف الإجازة بنجاح', 'تم حذف وقت عدم التوفر بنجاح'),
                         )}
                       >

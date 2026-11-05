@@ -3,6 +3,10 @@ import { useSettings } from '../contexts/SettingsContext.jsx';
 import { useBusinessProfile } from '../contexts/BusinessProfileContext.jsx';
 import CRMReportsPage from './CRMReportsPage.jsx';
 import LawFirmReportsPage from '../components/legal/LawFirmReportsPage.jsx';
+import * as importExportApi from '../api/importExport.js';
+import * as printingApi from '../api/printing.js';
+import * as reportsApi from '../api/reports.js';
+import * as salesApi from '../api/sales.js';
 
 function getLocalDateString(date = new Date()) {
   const year = date.getFullYear();
@@ -105,7 +109,7 @@ function InvoiceModal({ invoiceId, onClose }) {
 
   useEffect(() => {
     let cancelled = false;
-    window.electronAPI.getSaleById(invoiceId)
+    salesApi.getSaleById(invoiceId)
       .then((data) => {
         if (!cancelled) {
           setSale(data);
@@ -123,8 +127,8 @@ function InvoiceModal({ invoiceId, onClose }) {
     if (!sale) return;
     setPrinting(true);
     try {
-      if (window.electronAPI?.printReceipt) {
-        await window.electronAPI.printReceipt(sale);
+      if (printingApi.printReceipt.isAvailable()) {
+        await printingApi.printReceipt(sale);
       }
     } catch (err) {
       console.error('فشل طباعة الفاتورة:', err);
@@ -295,7 +299,7 @@ function SalesReportsPage() {
     setReportError('');
     setAnimateBars(false);
     try {
-      const data = await window.electronAPI.getReports(param);
+      const data = await reportsApi.getReports(param);
       setReport(data);
     } catch (err) {
       console.error('Failed to load reports:', err);
@@ -328,7 +332,7 @@ function SalesReportsPage() {
 
   async function handleExportInvoices() {
     try {
-      const result = await window.electronAPI.exportInvoices(activePeriodParam);
+      const result = await importExportApi.exportInvoices(activePeriodParam);
       if (!result.canceled) alert('تم تصدير الفواتير بنجاح');
     } catch (err) {
       alert(err.message);

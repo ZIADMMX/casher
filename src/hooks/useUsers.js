@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { normalizeErrorMessage } from '../utils/normalizeError.js';
+import * as usersApi from '../api/users.js';
 
 function useUsers() {
   const [users, setUsers] = useState([]);
@@ -10,7 +11,7 @@ function useUsers() {
     setLoading(true);
     setError('');
     try {
-      const data = await window.electronAPI.getAllUsers();
+      const data = await usersApi.getAllUsers();
       setUsers(data);
     } catch (err) {
       setError(normalizeErrorMessage(err, 'تعذر تحميل المستخدمين'));
@@ -22,7 +23,7 @@ function useUsers() {
   const addCashier = useCallback(async (data) => {
     setError('');
     try {
-      await window.electronAPI.addCashier(data);
+      await usersApi.addCashier(data);
       await fetchUsers();
       return true;
     } catch (err) {
@@ -34,7 +35,7 @@ function useUsers() {
   const removeUser = useCallback(async (userId) => {
     setError('');
     try {
-      await window.electronAPI.removeUser(userId);
+      await usersApi.removeUser(userId);
       await fetchUsers();
       return true;
     } catch (err) {
@@ -46,7 +47,7 @@ function useUsers() {
   const toggleActive = useCallback(async (userId) => {
     setError('');
     try {
-      await window.electronAPI.toggleUserActive(userId);
+      await usersApi.toggleUserActive(userId);
       await fetchUsers();
       return true;
     } catch (err) {
@@ -58,7 +59,7 @@ function useUsers() {
   const resetPassword = useCallback(async (data) => {
     setError('');
     try {
-      await window.electronAPI.resetUserPassword(data);
+      await usersApi.resetUserPassword(data);
       await fetchUsers();
       return true;
     } catch (err) {

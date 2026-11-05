@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import * as uiConfigApi from '../api/uiConfig.js';
 
 function RateLimitNotice() {
   const [expiresAt, setExpiresAt] = useState(null);
@@ -6,8 +7,8 @@ function RateLimitNotice() {
   const [reason, setReason] = useState('rate_limit');
 
   useEffect(() => {
-    if (!window.electronAPI?.onRateLimitBlocked) return undefined;
-    return window.electronAPI.onRateLimitBlocked(({ retryAfterMs, reason: noticeReason }) => {
+    if (!uiConfigApi.onRateLimitBlocked.isAvailable()) return undefined;
+    return uiConfigApi.onRateLimitBlocked(({ retryAfterMs, reason: noticeReason }) => {
       const currentTime = Date.now();
       setNow(currentTime);
       setExpiresAt((currentExpiry) => Math.max(currentExpiry || 0, currentTime + retryAfterMs));

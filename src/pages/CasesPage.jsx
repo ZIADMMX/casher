@@ -4,6 +4,8 @@ import '../styles/cases.css';
 import CaseDetailsModal from '../components/legal/CaseDetailsModal.jsx';
 import DailyDocketModal from '../components/legal/DailyDocketModal.jsx';
 import { useUser } from '../contexts/UserContext.jsx';
+import * as customersApi from '../api/customers.js';
+import * as legalApi from '../api/legal.js';
 
 const CASE_TYPES = [
   { key: 'all', label: 'جميع الأنواع' },
@@ -116,8 +118,8 @@ export default function CasesPage({
     setLoading(true);
     setLoadError('');
     try {
-      if (window.electronAPI?.getAllCases) {
-        const data = await window.electronAPI.getAllCases({
+      if (legalApi.getAllCases.isAvailable()) {
+        const data = await legalApi.getAllCases({
           search,
           status: statusFilter,
           case_type: typeFilter,
@@ -125,23 +127,23 @@ export default function CasesPage({
         if (requestId !== casesRequestId.current) return;
         setCases(data || []);
       }
-      if (window.electronAPI?.getCasesSummaryStats) {
-        const s = await window.electronAPI.getCasesSummaryStats();
+      if (legalApi.getCasesSummaryStats.isAvailable()) {
+        const s = await legalApi.getCasesSummaryStats();
         if (requestId !== casesRequestId.current) return;
         setStats(s);
       }
-      if (window.electronAPI?.getAllCustomersWithStats) {
-        const custs = await window.electronAPI.getAllCustomersWithStats();
+      if (customersApi.getAllCustomersWithStats.isAvailable()) {
+        const custs = await customersApi.getAllCustomersWithStats();
         if (requestId !== casesRequestId.current) return;
         setCustomers(custs || []);
       }
-      if (window.electronAPI?.getCaseLawyers) {
-        const team = await window.electronAPI.getCaseLawyers();
+      if (legalApi.getCaseLawyers.isAvailable()) {
+        const team = await legalApi.getCaseLawyers();
         if (requestId !== casesRequestId.current) return;
         setLawyers(team || []);
       }
-      if (window.electronAPI?.getCourts) {
-        const directory = await window.electronAPI.getCourts({ status: 'active', page: 1, pageSize: 100 });
+      if (legalApi.getCourts.isAvailable()) {
+        const directory = await legalApi.getCourts({ status: 'active', page: 1, pageSize: 100 });
         if (requestId !== casesRequestId.current) return;
         setCourts(directory.items || []);
       }
@@ -191,9 +193,9 @@ export default function CasesPage({
         assigned_lawyer_id: createForm.assigned_lawyer_id || null,
       };
       if (editingCaseId) {
-        await window.electronAPI.updateCase(editingCaseId, payload);
+        await legalApi.updateCase(editingCaseId, payload);
       } else {
-        await window.electronAPI.createCase(payload);
+        await legalApi.createCase(payload);
       }
       setShowCreateModal(false);
       setEditingCaseId(null);
@@ -206,7 +208,7 @@ export default function CasesPage({
 
   async function handleEditCase(id) {
     try {
-      const legalCase = await window.electronAPI.getCaseById(id);
+      const legalCase = await legalApi.getCaseById(id);
       if (!legalCase) throw new Error('ملف القضية غير موجود');
       setEditingCaseId(id);
       setCreateForm({
@@ -230,7 +232,7 @@ export default function CasesPage({
       return;
     }
     try {
-      await window.electronAPI.deleteCase(id);
+      await legalApi.deleteCase(id);
       await loadData();
     } catch (err) {
       alert('تعذر إغلاق القضية: ' + err.message);

@@ -5,6 +5,7 @@ import NotificationBell from './NotificationBell.jsx';
 import { isBusinessProfilePageEnabled } from '../utils/businessProfilePages.js';
 import foxLogo from '../assets/fox-logo.png';
 import { hasPermission } from '../utils/accessControl.js';
+import * as appApi from '../api/app.js';
 
 const PAGE_PERMISSIONS = {
   today: 'pos.view',
@@ -358,7 +359,7 @@ function Sidebar({ activePage, onNavigate, currentUser, onLogout, onOpenProfile,
 
     setIsRestarting(true);
     try {
-      await window.electronAPI.restartApp();
+      await appApi.restartApp();
     } catch (error) {
       setIsRestarting(false);
       console.error('تعذر إعادة تشغيل التطبيق:', error);

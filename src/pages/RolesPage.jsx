@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import permissionGroups from '../../shared/permissions.json';
+import * as enterpriseApi from '../api/enterprise.js';
 import '../styles/roles.css';
 
 function RolesPage() {
@@ -17,7 +18,7 @@ function RolesPage() {
     setLoading(true);
     setError('');
     try {
-      const result = await window.electronAPI.getSystemRoles();
+      const result = await enterpriseApi.getSystemRoles();
       if (!Array.isArray(result)) throw new Error('استجابة الأدوار غير صالحة');
       setRoles(result);
       const selected = result.find((role) => role.role_key === selectedRoleKey) || result[0];
@@ -64,7 +65,7 @@ function RolesPage() {
     setError('');
     setMessage('');
     try {
-      await window.electronAPI.createSystemRole({
+      await enterpriseApi.createSystemRole({
         roleKey: form.roleKey.trim().toLowerCase(),
         roleName: form.roleName.trim(),
         description: form.description.trim(),
@@ -87,7 +88,7 @@ function RolesPage() {
     setError('');
     setMessage('');
     try {
-      await window.electronAPI.setRolePermissions(selectedRoleKey, selectedPermissions);
+      await enterpriseApi.setRolePermissions(selectedRoleKey, selectedPermissions);
       setMessage('تم حفظ الصلاحيات وتطبيقها فورًا على الحسابات المرتبطة بالدور.');
       await loadRoles();
     } catch (saveError) {

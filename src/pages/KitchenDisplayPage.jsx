@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import * as salesApi from '../api/sales.js';
 
 const KITCHEN_COLUMNS = [
   { key: 'new', label: 'طلبات جديدة', color: '#f59e0b', next: 'preparing', action: 'بدء التحضير' },
@@ -28,10 +29,10 @@ export default function KitchenDisplayPage() {
 
   const loadOrders = useCallback(async () => {
     try {
-      if (!window.electronAPI?.getKitchenOrders) {
+      if (!salesApi.getKitchenOrders.isAvailable()) {
         throw new Error('شاشة المطبخ غير متاحة في هذا الإصدار');
       }
-      const result = await window.electronAPI.getKitchenOrders();
+      const result = await salesApi.getKitchenOrders();
       setOrders(Array.isArray(result) ? result : []);
       setError('');
     } catch (loadError) {
@@ -51,7 +52,7 @@ export default function KitchenDisplayPage() {
     setUpdatingId(order.id);
     setError('');
     try {
-      await window.electronAPI.updateKitchenOrderStatus(order.id, nextStatus);
+      await salesApi.updateKitchenOrderStatus(order.id, nextStatus);
       await loadOrders();
     } catch (updateError) {
       setError(updateError.message || 'تعذر تحديث حالة الطلب');

@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Input from '../ui/Input.jsx';
+import * as crmApi from '../../api/crm.js';
+import * as customersApi from '../../api/customers.js';
 import '../../styles/crm.css';
 
 const INTERACTION_TYPES = [
@@ -99,7 +101,7 @@ function CustomerTimelineDrawer({ customer, onClose, onCustomerUpdated, crmMode 
     if (!customer?.id) return;
     setLoading(true);
     try {
-      const data = await window.electronAPI.getUnifiedTimeline(customer.id);
+      const data = await crmApi.getUnifiedTimeline(customer.id);
       setTimeline(data || []);
     } catch (err) {
       console.error('Failed to fetch timeline:', err);
@@ -113,14 +115,14 @@ function CustomerTimelineDrawer({ customer, onClose, onCustomerUpdated, crmMode 
     if (!crmMode || !customerId) return;
     try {
       const [notes, tags, audit, attachments, relationships, customers, fields, fieldValues] = await Promise.all([
-        window.electronAPI.getCRMNotes('customer', customerId),
-        window.electronAPI.getCRMRecordTags('customer', customerId),
-        window.electronAPI.getCRMAuditLog('customer', customerId),
-        window.electronAPI.getCRMAttachments('customer', customerId),
-        window.electronAPI.getCRMCustomerRelationships(customerId),
-        window.electronAPI.getAllCustomersWithStats(),
-        window.electronAPI.getCRMCustomFields('customer'),
-        window.electronAPI.getCRMCustomFieldValues('customer', customerId),
+        crmApi.getCRMNotes('customer', customerId),
+        crmApi.getCRMRecordTags('customer', customerId),
+        crmApi.getCRMAuditLog('customer', customerId),
+        crmApi.getCRMAttachments('customer', customerId),
+        crmApi.getCRMCustomerRelationships(customerId),
+        customersApi.getAllCustomersWithStats(),
+        crmApi.getCRMCustomFields('customer'),
+        crmApi.getCRMCustomFieldValues('customer', customerId),
       ]);
       setCrmNotes(notes || []);
       setCrmAttachments(attachments || []);
@@ -139,7 +141,7 @@ function CustomerTimelineDrawer({ customer, onClose, onCustomerUpdated, crmMode 
   useEffect(() => {
     if (!customer?.id) return;
     setLoading(true);
-    window.electronAPI.getUnifiedTimeline(customer.id)
+    crmApi.getUnifiedTimeline(customer.id)
       .then(data => setTimeline(data || []))
       .catch(err => {
         console.error('Failed to fetch timeline:', err);
@@ -165,7 +167,7 @@ function CustomerTimelineDrawer({ customer, onClose, onCustomerUpdated, crmMode 
     e.preventDefault();
     if (!interactionForm.subject.trim()) return;
     try {
-      await window.electronAPI.addCRMInteraction({
+      await crmApi.addCRMInteraction({
         customer_id: customer.id,
         type: interactionForm.type,
         subject: interactionForm.subject,
@@ -185,7 +187,7 @@ function CustomerTimelineDrawer({ customer, onClose, onCustomerUpdated, crmMode 
     e.preventDefault();
     if (!oppForm.title.trim()) return;
     try {
-      await window.electronAPI.createCRMOpportunity({
+      await crmApi.createCRMOpportunity({
         customer_id: customer.id,
         title: oppForm.title,
         stage: oppForm.stage,
@@ -205,7 +207,7 @@ function CustomerTimelineDrawer({ customer, onClose, onCustomerUpdated, crmMode 
   const handleUpdateRatingAndTier = async (e) => {
     e.preventDefault();
     try {
-      await window.electronAPI.updateCustomerRatingAndTier({
+      await crmApi.updateCustomerRatingAndTier({
         customer_id: customer.id,
         rating,
         tier
@@ -222,16 +224,16 @@ function CustomerTimelineDrawer({ customer, onClose, onCustomerUpdated, crmMode 
     event.preventDefault();
     try {
       await Promise.all([
-        window.electronAPI.setCRMCustomerConsent(customer.id, {
+        crmApi.setCRMCustomerConsent(customer.id, {
           email_consent: emailConsent,
           sms_consent: smsConsent,
         }),
-        window.electronAPI.setCRMRecordTags({
+        crmApi.setCRMRecordTags({
           record_type: 'customer',
           record_id: customer.id,
           tags: tagDraft.split(',').map((t) => t.trim()).filter(Boolean),
         }),
-        window.electronAPI.setCRMCustomFieldValues('customer', customer.id, customFieldValues),
+        crmApi.setCRMCustomFieldValues('customer', customer.id, customFieldValues),
       ]);
       await fetchCRMDetails();
       if (onCustomerUpdated) onCustomerUpdated();
@@ -243,7 +245,7 @@ function CustomerTimelineDrawer({ customer, onClose, onCustomerUpdated, crmMode 
   const saveCRMNote = async (event) => {
     event.preventDefault();
     try {
-      await window.electronAPI.createCRMNote({
+      await crmApi.createCRMNote({
         record_type: 'customer',
         record_id: customer.id,
         body: noteDraft,
@@ -257,7 +259,7 @@ function CustomerTimelineDrawer({ customer, onClose, onCustomerUpdated, crmMode 
 
   const addAttachment = async () => {
     try {
-      const result = await window.electronAPI.selectCRMFileAttachment('customer', customer.id);
+      const result = await crmApi.selectCRMFileAttachment('customer', customer.id);
       if (result && !result.canceled) await fetchCRMDetails();
     } catch (attachmentError) {
       setError(attachmentError.message || 'تعذر حفظ الملف المرفق');
@@ -266,7 +268,7 @@ function CustomerTimelineDrawer({ customer, onClose, onCustomerUpdated, crmMode 
 
   const openAttachment = async (attachmentId) => {
     try {
-      await window.electronAPI.openCRMAttachment(attachmentId);
+      await crmApi.openCRMAttachment(attachmentId);
     } catch (attachmentError) {
       setError(attachmentError.message || 'تعذر فتح الملف المرفق');
     }
@@ -275,7 +277,7 @@ function CustomerTimelineDrawer({ customer, onClose, onCustomerUpdated, crmMode 
   const addRelationship = async (event) => {
     event.preventDefault();
     try {
-      await window.electronAPI.createCRMCustomerRelationship({
+      await crmApi.createCRMCustomerRelationship({
         from_customer_id: customer.id,
         to_customer_id: Number(relationshipForm.to_customer_id),
         relationship_type: relationshipForm.relationship_type,
@@ -289,7 +291,7 @@ function CustomerTimelineDrawer({ customer, onClose, onCustomerUpdated, crmMode 
 
   const anonymizeCustomer = async () => {
     try {
-      await window.electronAPI.anonymizeCRMCustomer(customer.id);
+      await crmApi.anonymizeCRMCustomer(customer.id);
       if (onCustomerUpdated) onCustomerUpdated();
       setConfirmAnonymize(false);
       onClose();

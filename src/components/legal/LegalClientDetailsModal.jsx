@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import * as legalApi from '../../api/legal.js';
 import '../../styles/legalClientDetails.css';
 
 const EMPTY_POWER = {
@@ -67,9 +68,9 @@ export default function LegalClientDetailsModal({ customer, onClose, onOpenCases
     setError('');
     try {
       const [clientCases, timeline, clientPowers] = await Promise.all([
-        window.electronAPI.getCasesByClientId(customer.id),
-        window.electronAPI.getLegalClientInteractions(customer.id),
-        window.electronAPI.getCustomerPowerOfAttorneys(customer.id),
+        legalApi.getCasesByClientId(customer.id),
+        legalApi.getLegalClientInteractions(customer.id),
+        legalApi.getCustomerPowerOfAttorneys(customer.id),
       ]);
       setCases(Array.isArray(clientCases) ? clientCases : []);
       setContacts(Array.isArray(timeline) ? timeline : []);
@@ -116,12 +117,12 @@ export default function LegalClientDetailsModal({ customer, onClose, onOpenCases
     const data = { ...powerForm, expires_at: powerForm.expires_at || null };
     try {
       if (editingPowerId) {
-        await window.electronAPI.updateCustomerPowerOfAttorney(editingPowerId, data);
+        await legalApi.updateCustomerPowerOfAttorney(editingPowerId, data);
       } else {
-        await window.electronAPI.createCustomerPowerOfAttorney(customer.id, data);
+        await legalApi.createCustomerPowerOfAttorney(customer.id, data);
       }
       resetPowerForm();
-      const updatedPowers = await window.electronAPI.getCustomerPowerOfAttorneys(customer.id);
+      const updatedPowers = await legalApi.getCustomerPowerOfAttorneys(customer.id);
       setPowers(updatedPowers || []);
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : 'تعذر حفظ التوكيل');
@@ -134,7 +135,7 @@ export default function LegalClientDetailsModal({ customer, onClose, onOpenCases
     if (!window.confirm(`هل تريد حذف التوكيل رقم "${power.number}"؟`)) return;
     setError('');
     try {
-      await window.electronAPI.deleteCustomerPowerOfAttorney(power.id);
+      await legalApi.deleteCustomerPowerOfAttorney(power.id);
       setPowers((current) => current.filter((item) => item.id !== power.id));
       if (editingPowerId === power.id) resetPowerForm();
     } catch (deleteError) {
@@ -148,7 +149,7 @@ export default function LegalClientDetailsModal({ customer, onClose, onOpenCases
     setSavingContact(true);
     setError('');
     try {
-      await window.electronAPI.addLegalClientInteraction({
+      await legalApi.addLegalClientInteraction({
         customer_id: customer.id,
         type: contactForm.type,
         subject: contactForm.subject.trim(),
@@ -156,7 +157,7 @@ export default function LegalClientDetailsModal({ customer, onClose, onOpenCases
         follow_up_date: contactForm.follow_up_date || null,
       });
       setContactForm({ type: 'call', subject: '', details: '', follow_up_date: '' });
-      const legalInteractions = await window.electronAPI.getLegalClientInteractions(customer.id);
+      const legalInteractions = await legalApi.getLegalClientInteractions(customer.id);
       setContacts(Array.isArray(legalInteractions) ? legalInteractions : []);
       setActiveTab('contacts');
     } catch (saveError) {

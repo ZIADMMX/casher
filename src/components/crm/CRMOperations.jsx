@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Input from '../ui/Input.jsx';
 import Badge from '../ui/Badge.jsx';
+import * as crmApi from '../../api/crm.js';
+import * as customersApi from '../../api/customers.js';
 
 const LEAD_STATUSES = [
   ['new', 'جديد', 'new'],
@@ -69,7 +71,7 @@ function CRMOperations({ section }) {
 
   const loadCompanies = useCallback(async () => {
     try {
-      const records = await window.electronAPI.getCRMCompanies();
+      const records = await crmApi.getCRMCompanies();
       setCompanies(records || []);
     } catch (err) {
       console.error(err);
@@ -78,7 +80,7 @@ function CRMOperations({ section }) {
 
   const loadLeads = useCallback(async () => {
     try {
-      const records = await window.electronAPI.getCRMLeads({ search, status });
+      const records = await crmApi.getCRMLeads({ search, status });
       setLeads(records || []);
     } catch (err) {
       console.error(err);
@@ -87,7 +89,7 @@ function CRMOperations({ section }) {
 
   const loadActivities = useCallback(async () => {
     try {
-      const records = await window.electronAPI.getCRMActivities({});
+      const records = await crmApi.getCRMActivities({});
       setActivities(records || []);
     } catch (err) {
       console.error(err);
@@ -99,14 +101,14 @@ function CRMOperations({ section }) {
     setLoading(true);
     setError('');
     Promise.all([
-      ['companies', 'leads'].includes(section) ? window.electronAPI.getCRMCompanies() : Promise.resolve([]),
-      section === 'leads' ? window.electronAPI.getCRMLeads({ search, status }) : Promise.resolve([]),
-      section === 'tasks' ? window.electronAPI.getCRMActivities({}) : Promise.resolve([]),
-      section === 'tasks' ? window.electronAPI.getAllCustomersWithStats() : Promise.resolve([]),
-      section === 'leads' ? window.electronAPI.getCRMSavedFilters('lead') : Promise.resolve([]),
-      section === 'fields' ? window.electronAPI.getCRMCustomFields(fieldEntity) : Promise.resolve([]),
-      section === 'automation' ? window.electronAPI.getCRMAutomationRules() : Promise.resolve([]),
-      ['companies', 'leads', 'tasks'].includes(section) ? window.electronAPI.getCRMAssignees() : Promise.resolve([]),
+      ['companies', 'leads'].includes(section) ? crmApi.getCRMCompanies() : Promise.resolve([]),
+      section === 'leads' ? crmApi.getCRMLeads({ search, status }) : Promise.resolve([]),
+      section === 'tasks' ? crmApi.getCRMActivities({}) : Promise.resolve([]),
+      section === 'tasks' ? customersApi.getAllCustomersWithStats() : Promise.resolve([]),
+      section === 'leads' ? crmApi.getCRMSavedFilters('lead') : Promise.resolve([]),
+      section === 'fields' ? crmApi.getCRMCustomFields(fieldEntity) : Promise.resolve([]),
+      section === 'automation' ? crmApi.getCRMAutomationRules() : Promise.resolve([]),
+      ['companies', 'leads', 'tasks'].includes(section) ? crmApi.getCRMAssignees() : Promise.resolve([]),
     ]).then(([companyRows, leadRows, activityRows, customerRows, filters, fields, rules, users]) => {
       if (!active) return;
       setCompanies(companyRows || []);
@@ -160,9 +162,9 @@ function CRMOperations({ section }) {
     setMessage('');
     try {
       if (form.id) {
-        await window.electronAPI.updateCRMCompany({ ...form, id: Number(form.id) });
+        await crmApi.updateCRMCompany({ ...form, id: Number(form.id) });
       } else {
-        await window.electronAPI.createCRMCompany(form);
+        await crmApi.createCRMCompany(form);
       }
       closeModal();
       await loadCompanies();
@@ -178,9 +180,9 @@ function CRMOperations({ section }) {
     setMessage('');
     try {
       if (form.id) {
-        await window.electronAPI.updateCRMLead({ ...form, id: Number(form.id) });
+        await crmApi.updateCRMLead({ ...form, id: Number(form.id) });
       } else {
-        await window.electronAPI.createCRMLead(form);
+        await crmApi.createCRMLead(form);
       }
       closeModal();
       await loadLeads();
@@ -195,7 +197,7 @@ function CRMOperations({ section }) {
     setError('');
     setMessage('');
     try {
-      await window.electronAPI.deleteCRMLead(leadToDelete.id);
+      await crmApi.deleteCRMLead(leadToDelete.id);
       setLeadToDelete(null);
       await loadLeads();
       setMessage('تم حذف العميل المحتمل.');
@@ -208,7 +210,7 @@ function CRMOperations({ section }) {
     setError('');
     setMessage('');
     try {
-      await window.electronAPI.convertCRMLead(leadId);
+      await crmApi.convertCRMLead(leadId);
       await loadLeads();
       setMessage('تم تحويل العميل المحتمل إلى جهة اتصال بنجاح.');
     } catch (convertError) {
@@ -218,7 +220,7 @@ function CRMOperations({ section }) {
 
   const updateLeadStatus = async (leadId, nextStatus) => {
     try {
-      await window.electronAPI.updateCRMLeadStatus(leadId, nextStatus);
+      await crmApi.updateCRMLeadStatus(leadId, nextStatus);
       await loadLeads();
     } catch (statusError) {
       setError(statusError.message || 'تعذر تحديث حالة العميل المحتمل');
@@ -230,7 +232,7 @@ function CRMOperations({ section }) {
     setError('');
     setMessage('');
     try {
-      await window.electronAPI.createCRMActivity({
+      await crmApi.createCRMActivity({
         record_type: form.record_type || 'customer',
         record_id: Number(form.record_id),
         activity_type: form.activity_type || 'task',
@@ -249,7 +251,7 @@ function CRMOperations({ section }) {
 
   const completeActivity = async (id) => {
     try {
-      await window.electronAPI.completeCRMActivity(id);
+      await crmApi.completeCRMActivity(id);
       await loadActivities();
     } catch (completeError) {
       setError(completeError.message || 'تعذر إكمال النشاط');
@@ -259,12 +261,12 @@ function CRMOperations({ section }) {
   const saveFilter = async () => {
     setError('');
     try {
-      await window.electronAPI.saveCRMSavedFilter({
+      await crmApi.saveCRMSavedFilter({
         name: filterName,
         entity_type: 'lead',
         filters: { search, status },
       });
-      setSavedFilters(await window.electronAPI.getCRMSavedFilters('lead'));
+      setSavedFilters(await crmApi.getCRMSavedFilters('lead'));
       setFilterName('');
     } catch (saveError) {
       setError(saveError.message || 'تعذر حفظ الفلتر');
@@ -274,13 +276,13 @@ function CRMOperations({ section }) {
   const createCustomField = async (event) => {
     event.preventDefault();
     try {
-      await window.electronAPI.createCRMCustomField({
+      await crmApi.createCRMCustomField({
         ...fieldForm,
         entity_type: fieldEntity,
       });
       setFieldForm({ label: '', field_key: '', field_type: 'text', is_required: false });
       closeModal();
-      setCustomFields(await window.electronAPI.getCRMCustomFields(fieldEntity));
+      setCustomFields(await crmApi.getCRMCustomFields(fieldEntity));
       setMessage('تم إضافة الحقل المخصص بنجاح.');
     } catch (fieldError) {
       setError(fieldError.message || 'تعذر إنشاء الحقل');
@@ -290,7 +292,7 @@ function CRMOperations({ section }) {
   const saveAutomationRule = async (event) => {
     event.preventDefault();
     try {
-      await window.electronAPI.saveCRMStaleOpportunityRule({
+      await crmApi.saveCRMStaleOpportunityRule({
         days: Number(automationRule.days),
         is_enabled: automationRule.is_enabled,
       });
@@ -303,7 +305,7 @@ function CRMOperations({ section }) {
   const exportRows = async (type) => {
     try {
       setError('');
-      await window.electronAPI.exportCRMRecords(type);
+      await crmApi.exportCRMRecords(type);
     } catch (exportError) {
       setError(exportError.message || 'تعذر تصدير البيانات');
     }
@@ -312,7 +314,7 @@ function CRMOperations({ section }) {
   const importLeads = async () => {
     try {
       setError('');
-      const result = await window.electronAPI.importCRMLeads();
+      const result = await crmApi.importCRMLeads();
       if (!result.canceled) {
         await loadLeads();
         setMessage(`تم استيراد ${result.imported} سجل وتخطي ${result.skipped} سجل.`);

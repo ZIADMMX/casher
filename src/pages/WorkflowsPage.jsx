@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useUser } from '../contexts/UserContext.jsx';
+import * as enterpriseApi from '../api/enterprise.js';
 import '../styles/workflows.css';
 
 const ENTITIES_MAP = [
@@ -109,8 +110,8 @@ function WorkflowsPage() {
   const loadWorkflows = useCallback(async () => {
     setLoading(true);
     try {
-      if (window.electronAPI?.getWorkflows) {
-        const list = await window.electronAPI.getWorkflows();
+      if (enterpriseApi.getWorkflows.isAvailable()) {
+        const list = await enterpriseApi.getWorkflows();
         const safeList = list || [];
         setWorkflows(safeList);
 
@@ -138,8 +139,8 @@ function WorkflowsPage() {
 
   async function loadTickets(wfId) {
     try {
-      if (window.electronAPI?.getWorkflowTickets) {
-        const res = await window.electronAPI.getWorkflowTickets(wfId);
+      if (enterpriseApi.getWorkflowTickets.isAvailable()) {
+        const res = await enterpriseApi.getWorkflowTickets(wfId);
         setTickets(res || []);
       }
     } catch (err) {
@@ -179,8 +180,8 @@ function WorkflowsPage() {
   async function handleResetPresets() {
     if (!window.confirm('هل أنت تأكد من إعادة ضبط سير العمل والقوالب الجاهزة إلى حالتها الافتراضية؟')) return;
     try {
-      if (window.electronAPI?.resetPresetWorkflows) {
-        const list = await window.electronAPI.resetPresetWorkflows();
+      if (enterpriseApi.resetPresetWorkflows.isAvailable()) {
+        const list = await enterpriseApi.resetPresetWorkflows();
         setWorkflows(list || []);
         if (list?.length) setSelectedWorkflowId(list[0].id);
         showToast('تمت إعادة ضبط القوالب الجاهزة بنجاح 🚀', 'success');
@@ -201,8 +202,8 @@ function WorkflowsPage() {
     }
 
     try {
-      if (window.electronAPI?.createWorkflowTicket) {
-        await window.electronAPI.createWorkflowTicket({
+      if (enterpriseApi.createWorkflowTicket.isAvailable()) {
+        await enterpriseApi.createWorkflowTicket({
           workflow_id: activeWorkflow.id,
           entity_type: activeWorkflow.entity_type,
           title: newTicketForm.title,
@@ -225,8 +226,8 @@ function WorkflowsPage() {
 
   async function handleMoveTicket(ticketId, targetStatusKey) {
     try {
-      if (window.electronAPI?.updateTicketStatus) {
-        await window.electronAPI.updateTicketStatus(ticketId, activeWorkflow.id, targetStatusKey, userRole);
+      if (enterpriseApi.updateTicketStatus.isAvailable()) {
+        await enterpriseApi.updateTicketStatus(ticketId, activeWorkflow.id, targetStatusKey, userRole);
         showToast(`تم تغيير حالة التذكرة بنجاح إلى (${targetStatusKey})`, 'success');
         setSelectedTicketForMove(null);
         loadTickets(activeWorkflow.id);
@@ -240,8 +241,8 @@ function WorkflowsPage() {
     e.preventDefault();
     if (!newWorkflowForm.name) return;
     try {
-      if (window.electronAPI?.createWorkflow) {
-        const created = await window.electronAPI.createWorkflow(newWorkflowForm);
+      if (enterpriseApi.createWorkflow.isAvailable()) {
+        const created = await enterpriseApi.createWorkflow(newWorkflowForm);
         showToast('تم إنشاء مسار سير العمل الجديد بنجاح', 'success');
         setShowNewWorkflowModal(false);
         setNewWorkflowForm({ name: '', entity_type: 'maintenance_ticket', module_key: 'orders', description: '' });
@@ -257,8 +258,8 @@ function WorkflowsPage() {
     e.preventDefault();
     if (!activeWorkflow || !newStatusForm.status_key || !newStatusForm.status_label) return;
     try {
-      if (window.electronAPI?.addWorkflowStatus) {
-        await window.electronAPI.addWorkflowStatus(activeWorkflow.id, newStatusForm);
+      if (enterpriseApi.addWorkflowStatus.isAvailable()) {
+        await enterpriseApi.addWorkflowStatus(activeWorkflow.id, newStatusForm);
         showToast('تمت إضافة الحالة بنجاح', 'success');
         setShowNewStatusModal(false);
         setNewStatusForm({ status_key: '', status_label: '', badge_color: '#3b82f6', step_order: 1, sla_hours: 24, is_initial: false, is_final: false });
@@ -318,8 +319,8 @@ function WorkflowsPage() {
     ];
 
     try {
-      if (window.electronAPI?.saveWorkflowTransitions) {
-        await window.electronAPI.saveWorkflowTransitions(activeWorkflow.id, updatedTransitions);
+      if (enterpriseApi.saveWorkflowTransitions.isAvailable()) {
+        await enterpriseApi.saveWorkflowTransitions(activeWorkflow.id, updatedTransitions);
         showToast('تم تحديث وانتقالات سير العمل والأتمتة بنجاح ⚡', 'success');
         setShowTransitionModal(false);
         loadWorkflows();

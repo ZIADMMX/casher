@@ -2,6 +2,14 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useBusinessProfile } from '../contexts/BusinessProfileContext.jsx';
 import { useSettings } from '../contexts/SettingsContext.jsx';
 import LawFirmTodayPage from '../components/legal/LawFirmTodayPage.jsx';
+import { isBridgeAvailable } from '../api/bridge.js';
+import * as customersApi from '../api/customers.js';
+import * as inventoryApi from '../api/inventory.js';
+import * as ordersApi from '../api/orders.js';
+import * as reportsApi from '../api/reports.js';
+import * as salonApi from '../api/salon.js';
+import * as shiftsApi from '../api/shifts.js';
+import * as subscriptionsApi from '../api/subscriptions.js';
 import '../styles/today.css';
 
 function SectorTodayPage({ onNavigate }) {
@@ -28,18 +36,17 @@ function SectorTodayPage({ onNavigate }) {
   const loadDailyData = useCallback(async () => {
     setLoading(true);
     try {
-      const api = window.electronAPI;
-      if (!api) return;
+      if (!isBridgeAvailable()) return;
 
       const todayStr = new Date().toISOString().split('T')[0];
 
       // 1. Parallel loading of core entities
       const [shift, ordersList, subsList, custsList, chairsList] = await Promise.all([
-        api.getCurrentShift ? api.getCurrentShift().catch(() => null) : null,
-        api.getAllOrders ? api.getAllOrders().catch(() => []) : [],
-        api.getAllSubscriptions ? api.getAllSubscriptions().catch(() => []) : [],
-        api.getAllCustomersWithStats ? api.getAllCustomersWithStats().catch(() => []) : [],
-        api.getAllSalonChairs ? api.getAllSalonChairs().catch(() => []) : [],
+        shiftsApi.getCurrentShift.isAvailable() ? shiftsApi.getCurrentShift().catch(() => null) : null,
+        ordersApi.getAllOrders.isAvailable() ? ordersApi.getAllOrders().catch(() => []) : [],
+        subscriptionsApi.getAllSubscriptions.isAvailable() ? subscriptionsApi.getAllSubscriptions().catch(() => []) : [],
+        customersApi.getAllCustomersWithStats.isAvailable() ? customersApi.getAllCustomersWithStats().catch(() => []) : [],
+        salonApi.getAllSalonChairs.isAvailable() ? salonApi.getAllSalonChairs().catch(() => []) : [],
       ]);
 
       setCurrentShift(shift);
@@ -50,15 +57,15 @@ function SectorTodayPage({ onNavigate }) {
 
       // 2. Load Appointments based on sector
       let appts = [];
-      if (profileKey === 'salon_barbershop' && api.getSalonAppointments) {
+      if (profileKey === 'salon_barbershop' && salonApi.getSalonAppointments.isAvailable()) {
         try {
-          appts = await api.getSalonAppointments({ date: todayStr });
+          appts = await salonApi.getSalonAppointments({ date: todayStr });
         } catch {
           appts = [];
         }
-      } else if (api.getAppointments) {
+      } else if (inventoryApi.getAppointments.isAvailable()) {
         try {
-          appts = await api.getAppointments();
+          appts = await inventoryApi.getAppointments();
         } catch {
           appts = [];
         }
@@ -69,17 +76,17 @@ function SectorTodayPage({ onNavigate }) {
       let shiftX = null;
       let expenses = [];
       if (shift?.id) {
-        if (api.getShiftXReport) {
+        if (shiftsApi.getShiftXReport.isAvailable()) {
           try {
-            shiftX = await api.getShiftXReport(shift.id);
+            shiftX = await shiftsApi.getShiftXReport(shift.id);
             setShiftXReport(shiftX);
           } catch {
             setShiftXReport(null);
           }
         }
-        if (api.getShiftExpenses) {
+        if (shiftsApi.getShiftExpenses.isAvailable()) {
           try {
-            expenses = await api.getShiftExpenses(shift.id);
+            expenses = await shiftsApi.getShiftExpenses(shift.id);
             setShiftExpenses(Array.isArray(expenses) ? expenses : []);
           } catch {
             setShiftExpenses([]);
@@ -88,9 +95,9 @@ function SectorTodayPage({ onNavigate }) {
       }
 
       // 4. Financial Report for Today (Recent Invoices & Totals)
-      if (api.getReports) {
+      if (reportsApi.getReports.isAvailable()) {
         try {
-          const report = await api.getReports('today');
+          const report = await reportsApi.getReports('today');
           if (report) {
             setTodaySummary({
               totalSales: Number(report.totalSales ?? shiftX?.totalSales ?? 0),

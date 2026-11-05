@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { normalizeErrorMessage } from '../utils/normalizeError';
+import * as licenseApi from '../api/license.js';
 
 function LicenseBanner({ status, onActivateSuccess }) {
   const [showModal, setShowModal] = useState(false);
@@ -23,8 +24,8 @@ function LicenseBanner({ status, onActivateSuccess }) {
 
     setLoading(true);
     try {
-      if (window.electronAPI?.activateSoftware) {
-        const result = await window.electronAPI.activateSoftware(serialKey.trim());
+      if (licenseApi.activateSoftware.isAvailable()) {
+        const result = await licenseApi.activateSoftware(serialKey.trim());
         if (result?.success) {
           onActivateSuccess(result.status);
           setShowModal(false);

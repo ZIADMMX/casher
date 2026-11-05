@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import * as crmApi from '../../api/crm.js';
+import * as customersApi from '../../api/customers.js';
 
 function formatCurrency(val) {
   return `${Number(val || 0).toLocaleString('ar-EG')} ج.م`;
@@ -28,9 +30,9 @@ function SalesPipelineBoard() {
     setError(null);
     try {
       const [list, stageList, users] = await Promise.all([
-        window.electronAPI.getAllCRMOpportunities(),
-        window.electronAPI.getCRMPipelineStages(),
-        window.electronAPI.getCRMAssignees(),
+        crmApi.getAllCRMOpportunities(),
+        crmApi.getCRMPipelineStages(),
+        crmApi.getCRMAssignees(),
       ]);
       setOpportunities(list || []);
       setStages(stageList || []);
@@ -49,14 +51,14 @@ function SalesPipelineBoard() {
 
   useEffect(() => {
     fetchOpportunities();
-    window.electronAPI.getAllCustomersWithStats()
+    customersApi.getAllCustomersWithStats()
       .then((list) => setCustomers(list || []))
       .catch((err) => setError(err.message || 'تعذر تحميل قائمة العملاء'));
   }, []);
 
   const handleStageChange = async (oppId, stageId) => {
     try {
-      await window.electronAPI.moveCRMOpportunity(Number(oppId), Number(stageId));
+      await crmApi.moveCRMOpportunity(Number(oppId), Number(stageId));
       await fetchOpportunities();
       setMessage('تم تحديث مرحلة الصفقة بنجاح.');
       setTimeout(() => setMessage(null), 3000);
@@ -68,7 +70,7 @@ function SalesPipelineBoard() {
 
   const handleOwnerChange = async (oppId, ownerUserId) => {
     try {
-      await window.electronAPI.assignCRMOpportunity(oppId, ownerUserId);
+      await crmApi.assignCRMOpportunity(oppId, ownerUserId);
       await fetchOpportunities();
       setMessage('تم تعيين المسؤول عن الصفقة.');
       setTimeout(() => setMessage(null), 3000);
@@ -92,7 +94,7 @@ function SalesPipelineBoard() {
   const createStage = async (event) => {
     event.preventDefault();
     try {
-      await window.electronAPI.createCRMPipelineStage({
+      await crmApi.createCRMPipelineStage({
         label: newStageLabel,
         probability: Number(newStageProbability),
         outcome: newStageOutcome,
@@ -109,7 +111,7 @@ function SalesPipelineBoard() {
   const saveStage = async (stage) => {
     try {
       const draft = stageDrafts[stage.id] || stage;
-      await window.electronAPI.updateCRMPipelineStage({
+      await crmApi.updateCRMPipelineStage({
         id: stage.id,
         label: draft.label,
         probability: Number(draft.probability),
@@ -132,7 +134,7 @@ function SalesPipelineBoard() {
       return;
     }
     try {
-      await window.electronAPI.createCRMAdvancedOpportunity({
+      await crmApi.createCRMAdvancedOpportunity({
         ...deal,
         customer_id: Number(deal.customer_id),
         expected_value: Number(deal.expected_value || 0),

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import * as onboardingApi from '../../api/onboarding.js';
 
 /**
  * SectorCardsStep.jsx
@@ -182,8 +183,8 @@ export default function SectorCardsStep({
       if (!selectedSector) return;
       setLoadingDetails(true);
       try {
-        if (window.electronAPI?.getOnboardingPreset) {
-          const res = await window.electronAPI.getOnboardingPreset(selectedSector);
+        if (onboardingApi.getOnboardingPreset.isAvailable()) {
+          const res = await onboardingApi.getOnboardingPreset(selectedSector);
           if (isMounted && res?.success && res.data) {
             setActivePresetDetails(res.data);
           }

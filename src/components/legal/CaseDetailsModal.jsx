@@ -1,4 +1,5 @@
 import { Fragment, useState, useEffect, useCallback } from 'react';
+import * as legalApi from '../../api/legal.js';
 
 const LEGAL_ICON_PATHS = {
   scale: <><path d="M12 3v18M5 7h14M5 7l-3 6h6L5 7Zm14 0-3 6h6l-3-6ZM8 21h8" /></>,
@@ -159,15 +160,15 @@ export default function CaseDetailsModal({ caseId, initialTab = 'details', onClo
     if (!caseId) return;
     setLoading(true);
     try {
-      if (window.electronAPI?.getCaseById) {
-        const data = await window.electronAPI.getCaseById(caseId);
+      if (legalApi.getCaseById.isAvailable()) {
+        const data = await legalApi.getCaseById(caseId);
         setCaseData(data);
         if (data?.hourly_rate) {
           setTimeForm((prev) => ({ ...prev, hourly_rate: data.hourly_rate }));
         }
       }
-      if (window.electronAPI?.getCaseFinancialBreakdown) {
-        const breakdown = await window.electronAPI.getCaseFinancialBreakdown(caseId);
+      if (legalApi.getCaseFinancialBreakdown.isAvailable()) {
+        const breakdown = await legalApi.getCaseFinancialBreakdown(caseId);
         setFinancialBreakdown(breakdown);
       }
     } catch (err) {
@@ -192,9 +193,9 @@ export default function CaseDetailsModal({ caseId, initialTab = 'details', onClo
         next_session_date: sessionForm.next_session_date || null,
       };
       if (editingSessionId) {
-        await window.electronAPI.updateCourtSession(editingSessionId, payload);
+        await legalApi.updateCourtSession(editingSessionId, payload);
       } else {
-        await window.electronAPI.createCourtSession({ ...payload, case_id: caseId });
+        await legalApi.createCourtSession({ ...payload, case_id: caseId });
       }
       setShowAddSession(false);
       setEditingSessionId(null);
@@ -233,7 +234,7 @@ export default function CaseDetailsModal({ caseId, initialTab = 'details', onClo
   async function handleDeleteSession(session) {
     if (!window.confirm('هل تريد حذف سجل هذه الجلسة؟')) return;
     try {
-      await window.electronAPI.deleteCourtSession(session.id);
+      await legalApi.deleteCourtSession(session.id);
       await loadCaseDetails();
       if (onRefreshList) onRefreshList();
     } catch (err) {
@@ -247,9 +248,9 @@ export default function CaseDetailsModal({ caseId, initialTab = 'details', onClo
     if (!editingDocId && !docForm.source_path) return alert('يرجى اختيار ملف المستند');
     try {
       if (editingDocId) {
-        await window.electronAPI.updateCaseDocument(editingDocId, docForm);
+        await legalApi.updateCaseDocument(editingDocId, docForm);
       } else {
-        await window.electronAPI.createCaseDocument({ ...docForm, case_id: caseId });
+        await legalApi.createCaseDocument({ ...docForm, case_id: caseId });
       }
       setShowAddDoc(false);
       setEditingDocId(null);
@@ -263,7 +264,7 @@ export default function CaseDetailsModal({ caseId, initialTab = 'details', onClo
 
   async function selectDocumentFile() {
     try {
-      const selected = await window.electronAPI.selectCaseDocumentFile();
+      const selected = await legalApi.selectCaseDocumentFile();
       if (!selected.canceled) {
         setDocForm({ ...docForm, source_path: selected.source_path, file_name: selected.file_name });
       }
@@ -280,7 +281,7 @@ export default function CaseDetailsModal({ caseId, initialTab = 'details', onClo
     }
     try {
       setDocumentActionError('');
-      const versions = await window.electronAPI.getCaseDocumentVersions(documentId);
+      const versions = await legalApi.getCaseDocumentVersions(documentId);
       setDocumentVersions(versions || []);
       setSelectedDocumentId(documentId);
     } catch (err) {
@@ -291,7 +292,7 @@ export default function CaseDetailsModal({ caseId, initialTab = 'details', onClo
   async function openDocument(documentId, version = undefined) {
     try {
       setDocumentActionError('');
-      await window.electronAPI.openCaseDocument(documentId, version);
+      await legalApi.openCaseDocument(documentId, version);
     } catch (err) {
       setDocumentActionError(`تعذر فتح المستند: ${err.message}`);
     }
@@ -301,7 +302,7 @@ export default function CaseDetailsModal({ caseId, initialTab = 'details', onClo
     try {
       setDocumentActionError('');
       const fileName = document.file_path.split(/[\\/]/).pop() || `${document.title}.pdf`;
-      await window.electronAPI.downloadCaseDocument(document.id, fileName, version);
+      await legalApi.downloadCaseDocument(document.id, fileName, version);
     } catch (err) {
       setDocumentActionError(`تعذر تنزيل المستند: ${err.message}`);
     }
@@ -311,7 +312,7 @@ export default function CaseDetailsModal({ caseId, initialTab = 'details', onClo
     if (!window.confirm(`استعادة النسخة ${version.version} كنسخة حالية جديدة؟`)) return;
     try {
       setDocumentActionError('');
-      await window.electronAPI.restoreCaseDocumentVersion(document.id, version.version);
+      await legalApi.restoreCaseDocumentVersion(document.id, version.version);
       await toggleDocumentVersions(document.id);
       await loadCaseDetails();
     } catch (err) {
@@ -322,7 +323,7 @@ export default function CaseDetailsModal({ caseId, initialTab = 'details', onClo
   async function handleDeleteDoc(doc) {
     if (!window.confirm(`هل تريد حذف المستند "${doc.title}" من سجل القضية؟`)) return;
     try {
-      await window.electronAPI.deleteCaseDocument(doc.id);
+      await legalApi.deleteCaseDocument(doc.id);
       await loadCaseDetails();
     } catch (err) {
       alert('تعذر حذف المستند: ' + err.message);
@@ -334,9 +335,9 @@ export default function CaseDetailsModal({ caseId, initialTab = 'details', onClo
     if (!finForm.amount || Number(finForm.amount) <= 0) return alert('يرجى إدخال مبلغ صحيح');
     try {
       if (editingFinId) {
-        await window.electronAPI.updateCaseFinancial(editingFinId, finForm);
+        await legalApi.updateCaseFinancial(editingFinId, finForm);
       } else {
-        await window.electronAPI.createCaseFinancial({ ...finForm, case_id: caseId });
+        await legalApi.createCaseFinancial({ ...finForm, case_id: caseId });
       }
       setShowAddFin(false);
       setEditingFinId(null);
@@ -351,7 +352,7 @@ export default function CaseDetailsModal({ caseId, initialTab = 'details', onClo
   async function handleDeleteFinancial(financial) {
     if (!window.confirm('هل تريد حذف هذه الحركة المالية؟ سيتم تحديث إجمالي الأتعاب تلقائيًا إذا كانت دفعة أتعاب.')) return;
     try {
-      await window.electronAPI.deleteCaseFinancial(financial.id);
+      await legalApi.deleteCaseFinancial(financial.id);
       await loadCaseDetails();
       if (onRefreshList) onRefreshList();
     } catch (err) {
@@ -393,7 +394,7 @@ export default function CaseDetailsModal({ caseId, initialTab = 'details', onClo
 
   async function printFinancialReceipt(financialId) {
     try {
-      await window.electronAPI.printCaseFinancialReceipt(financialId);
+      await legalApi.printCaseFinancialReceipt(financialId);
     } catch (error) {
       alert(`تعذرت طباعة الإيصال: ${error.message}`);
     }
@@ -405,9 +406,9 @@ export default function CaseDetailsModal({ caseId, initialTab = 'details', onClo
     if (!timeForm.lawyer_id) return alert('يرجى اختيار المحامي');
     try {
       if (editingTimeId) {
-        await window.electronAPI.updateCaseTimeLog(editingTimeId, timeForm);
+        await legalApi.updateCaseTimeLog(editingTimeId, timeForm);
       } else {
-        await window.electronAPI.createCaseTimeLog({ ...timeForm, case_id: caseId });
+        await legalApi.createCaseTimeLog({ ...timeForm, case_id: caseId });
       }
       setShowAddTime(false);
       setEditingTimeId(null);
@@ -422,7 +423,7 @@ export default function CaseDetailsModal({ caseId, initialTab = 'details', onClo
   async function handleDeleteTimeLog(timeLog) {
     if (!window.confirm('هل تريد حذف سجل ساعات العمل هذا؟')) return;
     try {
-      await window.electronAPI.deleteCaseTimeLog(timeLog.id);
+      await legalApi.deleteCaseTimeLog(timeLog.id);
       await loadCaseDetails();
     } catch (err) {
       alert('تعذر حذف سجل الوقت: ' + err.message);
@@ -485,9 +486,9 @@ export default function CaseDetailsModal({ caseId, initialTab = 'details', onClo
         reminder_at: taskForm.reminder_at || null,
       };
       if (editingTaskId) {
-        await window.electronAPI.updateCaseTask(editingTaskId, payload);
+        await legalApi.updateCaseTask(editingTaskId, payload);
       } else {
-        await window.electronAPI.createCaseTask(payload);
+        await legalApi.createCaseTask(payload);
       }
       setShowAddTask(false);
       setEditingTaskId(null);
@@ -510,7 +511,7 @@ export default function CaseDetailsModal({ caseId, initialTab = 'details', onClo
 
   async function updateTaskStatus(task, status) {
     try {
-      await window.electronAPI.updateCaseTask(task.id, { status });
+      await legalApi.updateCaseTask(task.id, { status });
       setTaskActionError('');
       await loadCaseDetails();
       if (onRefreshList) onRefreshList();
@@ -522,7 +523,7 @@ export default function CaseDetailsModal({ caseId, initialTab = 'details', onClo
   async function handleDeleteTask(task) {
     if (!window.confirm(`هل تريد حذف المهمة "${task.title}"؟`)) return;
     try {
-      await window.electronAPI.deleteCaseTask(task.id);
+      await legalApi.deleteCaseTask(task.id);
       setTaskActionError('');
       await loadCaseDetails();
       if (onRefreshList) onRefreshList();

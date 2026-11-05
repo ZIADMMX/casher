@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import * as groceryApi from '../../api/grocery.js';
 
 /**
  * ExpiryManagerModal Component
@@ -42,12 +43,12 @@ export default function ExpiryManagerModal({
     try {
       setLoading(true);
       setErrorMsg('');
-      if (window.electronAPI?.getGroceryExpirySummary) {
-        const sum = await window.electronAPI.getGroceryExpirySummary(30);
+      if (groceryApi.getGroceryExpirySummary.isAvailable()) {
+        const sum = await groceryApi.getGroceryExpirySummary(30);
         setSummaryData(sum);
       }
-      if (window.electronAPI?.getGroceryScaleConfig) {
-        const cfg = await window.electronAPI.getGroceryScaleConfig();
+      if (groceryApi.getGroceryScaleConfig.isAvailable()) {
+        const cfg = await groceryApi.getGroceryScaleConfig();
         if (cfg) {
           setScaleForm({
             name: cfg.name || 'ميزان الأجبان واللحوم',
@@ -88,7 +89,7 @@ export default function ExpiryManagerModal({
     }
 
     try {
-      await window.electronAPI.createGroceryBatch({
+      await groceryApi.createGroceryBatch({
         variant_id: Number(batchForm.variant_id),
         batch_number: batchForm.batch_number.trim() || null,
         expiry_date: batchForm.expiry_date,
@@ -120,7 +121,7 @@ export default function ExpiryManagerModal({
     setErrorMsg('');
     setSuccessMsg('');
     try {
-      const updated = await window.electronAPI.saveGroceryScaleConfig(scaleForm);
+      const updated = await groceryApi.saveGroceryScaleConfig(scaleForm);
       if (updated) {
         setScaleForm({
           name: updated.name || scaleForm.name,
@@ -138,8 +139,8 @@ export default function ExpiryManagerModal({
   const handleTestBarcode = async () => {
     if (!testBarcode) return;
     try {
-      if (window.electronAPI?.parseGroceryScaleBarcode) {
-        const parsed = await window.electronAPI.parseGroceryScaleBarcode(testBarcode.trim());
+      if (groceryApi.parseGroceryScaleBarcode.isAvailable()) {
+        const parsed = await groceryApi.parseGroceryScaleBarcode(testBarcode.trim());
         setTestResult(parsed || { error: 'الباركود لا يتطابق مع إعدادات الميزان الحالية' });
       }
     } catch (err) {

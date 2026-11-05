@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import * as salesApi from '../../api/sales.js';
 
 const emptyPromotion = {
   name: '',
@@ -23,7 +24,7 @@ function BundlePromotionsPanel({ products, onClose }) {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    window.electronAPI.getBundlePromotions()
+    salesApi.getBundlePromotions()
       .then((saved) => setPromotions(Array.isArray(saved) ? saved : []))
       .catch((loadError) => setError(`تعذر تحميل العروض: ${loadError.message}`))
       .finally(() => setLoading(false));
@@ -92,7 +93,7 @@ function BundlePromotionsPanel({ products, onClose }) {
       const next = editingId
         ? promotions.map((item) => item.id === editingId ? promotion : item)
         : [...promotions, promotion];
-      const saved = await window.electronAPI.saveBundlePromotions(next);
+      const saved = await salesApi.saveBundlePromotions(next);
       setPromotions(saved);
       resetForm();
     } catch (saveError) {
@@ -107,7 +108,7 @@ function BundlePromotionsPanel({ products, onClose }) {
     setSaving(true);
     setError('');
     try {
-      const saved = await window.electronAPI.saveBundlePromotions(
+      const saved = await salesApi.saveBundlePromotions(
         promotions.filter((promotion) => promotion.id !== id)
       );
       setPromotions(saved);

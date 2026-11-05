@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { useUser } from './UserContext.jsx';
+import * as notificationsApi from '../api/notifications.js';
 
 const NotificationsContext = createContext({
   notifications: [],
@@ -22,10 +23,10 @@ export function NotificationsProvider({ children }) {
 
   const refreshNotifications = useCallback(async () => {
     try {
-      if (window.electronAPI?.getNotifications) {
+      if (notificationsApi.getNotifications.isAvailable()) {
         setLoading(true);
-        const list = await window.electronAPI.getNotifications({ limit: 40 });
-        const count = await window.electronAPI.getUnreadNotificationsCount();
+        const list = await notificationsApi.getNotifications({ limit: 40 });
+        const count = await notificationsApi.getUnreadNotificationsCount();
         setNotifications(list || []);
         setUnreadCount(count || 0);
       }
@@ -42,8 +43,8 @@ export function NotificationsProvider({ children }) {
     }
 
     // الاستماع للإشعارات اللحظية القادمة من الباك اند
-    if (window.electronAPI?.onNotificationReceived) {
-      const unsubscribe = window.electronAPI.onNotificationReceived((newNotification) => {
+    if (notificationsApi.onNotificationReceived.isAvailable()) {
+      const unsubscribe = notificationsApi.onNotificationReceived((newNotification) => {
         if (newNotification) {
           if (newNotification.user_id != null
             && String(newNotification.user_id) !== String(currentUser?.id)) return;
@@ -66,8 +67,8 @@ export function NotificationsProvider({ children }) {
 
   const markAsRead = useCallback(async (id) => {
     try {
-      if (window.electronAPI?.markNotificationAsRead) {
-        await window.electronAPI.markNotificationAsRead(id);
+      if (notificationsApi.markNotificationAsRead.isAvailable()) {
+        await notificationsApi.markNotificationAsRead(id);
         setNotifications((prev) =>
           prev.map((n) => (n.id === id ? { ...n, is_read: 1 } : n))
         );
@@ -80,8 +81,8 @@ export function NotificationsProvider({ children }) {
 
   const markAllAsRead = useCallback(async () => {
     try {
-      if (window.electronAPI?.markAllNotificationsAsRead) {
-        await window.electronAPI.markAllNotificationsAsRead();
+      if (notificationsApi.markAllNotificationsAsRead.isAvailable()) {
+        await notificationsApi.markAllNotificationsAsRead();
         setNotifications((prev) => prev.map((n) => ({ ...n, is_read: 1 })));
         setUnreadCount(0);
       }
@@ -92,8 +93,8 @@ export function NotificationsProvider({ children }) {
 
   const clearAll = useCallback(async () => {
     try {
-      if (window.electronAPI?.clearAllNotifications) {
-        await window.electronAPI.clearAllNotifications();
+      if (notificationsApi.clearAllNotifications.isAvailable()) {
+        await notificationsApi.clearAllNotifications();
         setNotifications([]);
         setUnreadCount(0);
       }

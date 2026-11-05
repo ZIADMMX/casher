@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useUser } from './UserContext.jsx';
+import * as enterpriseApi from '../api/enterprise.js';
 
 const BusinessProfileContext = createContext(null);
 
@@ -15,8 +16,7 @@ export function BusinessProfileProvider({ children }) {
 
   const refreshConfiguration = useCallback(async () => {
     const requestId = ++requestSequence.current;
-    const api = window.electronAPI;
-    if (!api?.getActiveBusinessConfiguration) {
+    if (!enterpriseApi.getActiveBusinessConfiguration.isAvailable()) {
       if (requestId === requestSequence.current) {
         setConfiguration(null);
         setLoading(false);
@@ -27,7 +27,7 @@ export function BusinessProfileProvider({ children }) {
     setLoading(true);
     setError('');
     try {
-      const result = await api.getActiveBusinessConfiguration();
+      const result = await enterpriseApi.getActiveBusinessConfiguration();
       if (requestId === requestSequence.current) {
         setConfiguration(result);
         setRetryAttempt(0);

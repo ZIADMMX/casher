@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useUser } from '../contexts/UserContext.jsx';
+import * as authApi from '../api/auth.js';
 import '../styles/profile.css';
 
 const EMPTY_PROFILE = {
@@ -43,10 +44,10 @@ function ProfilePage({ onOpenAccountSettings }) {
     setLoading(true);
     setError('');
     try {
-      if (typeof window.electronAPI?.getMyProfile !== 'function') {
+      if (!authApi.getMyProfile.isAvailable()) {
         throw new Error('خدمة الملف الشخصي غير متاحة في هذا الإصدار');
       }
-      const result = await window.electronAPI.getMyProfile();
+      const result = await authApi.getMyProfile();
       if (!result || typeof result !== 'object') {
         throw new Error('لم يستلم التطبيق بيانات الملف الشخصي');
       }
@@ -99,13 +100,13 @@ function ProfilePage({ onOpenAccountSettings }) {
     setSuccess('');
 
     try {
-      if (typeof window.electronAPI?.saveMyProfile !== 'function') {
+      if (!authApi.saveMyProfile.isAvailable()) {
         throw new Error('خدمة حفظ الملف الشخصي غير متاحة في هذا الإصدار');
       }
       const payload = Object.fromEntries(
         Object.entries(form).map(([key, value]) => [key, value.trim() || null]),
       );
-      const updated = await window.electronAPI.saveMyProfile(payload);
+      const updated = await authApi.saveMyProfile(payload);
       if (!updated || typeof updated !== 'object') {
         throw new Error('لم يستلم التطبيق تأكيد تحديث الملف الشخصي');
       }

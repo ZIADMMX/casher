@@ -1,5 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import Modal from '../components/Modal.jsx';
+import { isBridgeAvailable } from '../api/bridge.js';
+import * as commissionsApi from '../api/commissions.js';
+import * as productsApi from '../api/products.js';
+import * as usersApi from '../api/users.js';
 import '../styles/commissions.css';
 
 const TARGET_TYPES = [
@@ -51,16 +55,16 @@ export default function CommissionsPage() {
   });
 
   const loadData = useCallback(async () => {
-    if (!window.electronAPI) return;
+    if (!isBridgeAvailable()) return;
     try {
       setLoading(true);
       const [rulesList, earningsList, summaryData, usersList, productsList, categoriesList] = await Promise.all([
-        window.electronAPI.getAllCommissionRules(),
-        window.electronAPI.getAllCommissionEarnings(),
-        window.electronAPI.getCommissionSummary(),
-        window.electronAPI.getAllUsers ? window.electronAPI.getAllUsers() : [],
-        window.electronAPI.getAllProductsWithVariants ? window.electronAPI.getAllProductsWithVariants() : [],
-        window.electronAPI.getAllCategories ? window.electronAPI.getAllCategories() : []
+        commissionsApi.getAllCommissionRules(),
+        commissionsApi.getAllCommissionEarnings(),
+        commissionsApi.getCommissionSummary(),
+        usersApi.getAllUsers.isAvailable() ? usersApi.getAllUsers() : [],
+        productsApi.getAllProductsWithVariants.isAvailable() ? productsApi.getAllProductsWithVariants() : [],
+        productsApi.getAllCategories.isAvailable() ? productsApi.getAllCategories() : []
       ]);
 
       setRules(rulesList || []);
@@ -86,7 +90,7 @@ export default function CommissionsPage() {
     if (!ruleForm.title.trim()) return alert('عنوان القاعدة مطلوب');
 
     try {
-      await window.electronAPI.createCommissionRule({
+      await commissionsApi.createCommissionRule({
         ...ruleForm,
         target_id: ruleForm.target_id ? Number(ruleForm.target_id) : null,
         rate_value: parseFloat(ruleForm.rate_value) || 0,
@@ -111,7 +115,7 @@ export default function CommissionsPage() {
   // Toggle Rule Status
   async function handleToggleRule(ruleId) {
     try {
-      await window.electronAPI.toggleCommissionRule(ruleId);
+      await commissionsApi.toggleCommissionRule(ruleId);
       loadData();
     } catch (err) {
       alert('فشل تغيير حالة القاعدة: ' + err.message);
@@ -122,7 +126,7 @@ export default function CommissionsPage() {
   async function handleDeleteRule(ruleId) {
     if (!window.confirm('هل تريد حذف هذه القاعدة؟')) return;
     try {
-      await window.electronAPI.deleteCommissionRule(ruleId);
+      await commissionsApi.deleteCommissionRule(ruleId);
       loadData();
     } catch (err) {
       alert('فشل حذف القاعدة: ' + err.message);
@@ -135,7 +139,7 @@ export default function CommissionsPage() {
     if (!selectedUserForPayout) return;
 
     try {
-      await window.electronAPI.payoutCommissionEarnings(
+      await commissionsApi.payoutCommissionEarnings(
         selectedUserForPayout.user_id,
         parseFloat(payoutForm.amount) || selectedUserForPayout.pending_amount,
         payoutForm.paymentMethod,

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { normalizeErrorMessage } from '../utils/normalizeError';
+import * as authApi from '../api/auth.js';
 
 function AdminRecoveryModal({ isOpen, onClose, onResetSuccess }) {
   const [activeTab, setActiveTab] = useState('rescue_key'); // 'rescue_key' | 'challenge_otp'
@@ -24,8 +25,8 @@ function AdminRecoveryModal({ isOpen, onClose, onResetSuccess }) {
 
   useEffect(() => {
     let cancelled = false;
-    if (isOpen && window.electronAPI?.getRecoveryChallenge) {
-      window.electronAPI.getRecoveryChallenge()
+    if (isOpen && authApi.getRecoveryChallenge.isAvailable()) {
+      authApi.getRecoveryChallenge()
         .then((code) => {
           if (!cancelled) setChallengeCode(code);
         })
@@ -70,8 +71,8 @@ function AdminRecoveryModal({ isOpen, onClose, onResetSuccess }) {
 
     setLoading(true);
     try {
-      if (window.electronAPI?.resetAdminPasswordWithRecoveryKey) {
-        const res = await window.electronAPI.resetAdminPasswordWithRecoveryKey({
+      if (authApi.resetAdminPasswordWithRecoveryKey.isAvailable()) {
+        const res = await authApi.resetAdminPasswordWithRecoveryKey({
           recoveryKey: rescueKey.trim(),
           newPassword: newPassword1,
         });
@@ -111,8 +112,8 @@ function AdminRecoveryModal({ isOpen, onClose, onResetSuccess }) {
 
     setLoading(true);
     try {
-      if (window.electronAPI?.resetAdminPasswordWithChallenge) {
-        const res = await window.electronAPI.resetAdminPasswordWithChallenge({
+      if (authApi.resetAdminPasswordWithChallenge.isAvailable()) {
+        const res = await authApi.resetAdminPasswordWithChallenge({
           challengeCode,
           responseOtp: responseOtp.trim(),
           newPassword: newPassword2,

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { normalizeErrorMessage } from '../utils/normalizeError';
+import * as licenseApi from '../api/license.js';
 
 function LicenseLockScreen({ hwid, error: verificationError, onRetry, onActivateSuccess }) {
   const [serialKey, setSerialKey] = useState('');
@@ -23,8 +24,8 @@ function LicenseLockScreen({ hwid, error: verificationError, onRetry, onActivate
 
     setLoading(true);
     try {
-      if (window.electronAPI?.activateSoftware) {
-        const result = await window.electronAPI.activateSoftware(serialKey.trim());
+      if (licenseApi.activateSoftware.isAvailable()) {
+        const result = await licenseApi.activateSoftware(serialKey.trim());
         if (result?.success) {
           onActivateSuccess(result.status);
         }

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import * as inventoryApi from '../api/inventory.js';
 import '../styles/reviews.css';
 
 const POSITIVE_TAGS = [
@@ -31,7 +32,7 @@ export default function ReviewModal({ onClose }) {
 
   useEffect(() => {
     let isMounted = true;
-    window.electronAPI.getMyReview()
+    inventoryApi.getMyReview()
       .then(({ review, syncPending: pending }) => {
         if (!isMounted) return;
         setRating(review?.rating || 0);
@@ -73,7 +74,7 @@ export default function ReviewModal({ onClose }) {
     setError('');
     setMessage('');
     try {
-      const result = await window.electronAPI.saveMyReview({
+      const result = await inventoryApi.saveMyReview({
         rating,
         tags,
         comment: comment.trim(),
@@ -94,7 +95,7 @@ export default function ReviewModal({ onClose }) {
   async function handleSync() {
     setError('');
     try {
-      const result = await window.electronAPI.syncReviews();
+      const result = await inventoryApi.syncReviews();
       setSyncPending(result.pendingCount > 0);
       if (result.error) setError(`لم تكتمل المزامنة: ${result.error}`);
       else setMessage(result.pendingCount

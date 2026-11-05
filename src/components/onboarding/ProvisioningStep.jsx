@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import Three3DLogo from '../Three3DLogo.jsx';
+import * as onboardingApi from '../../api/onboarding.js';
 
 /**
  * ProvisioningStep.jsx
@@ -54,7 +55,7 @@ export default function ProvisioningStep({
         }, 1600);
 
         // Actual Backend Call
-        const provisionApi = window.electronAPI?.provisionOnboarding;
+        const provisionApi = onboardingApi.provisionOnboarding.isAvailable() ? onboardingApi.provisionOnboarding : undefined;
         let result = null;
 
         if (provisionApi) {

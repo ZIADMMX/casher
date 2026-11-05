@@ -14,6 +14,10 @@ import ExpiryManagerModal from '../components/products/ExpiryManagerModal.jsx';
 import { getCategoryIcon } from '../components/ProductGrid.jsx';
 import { useDispatch } from 'react-redux';
 import { setProducts } from '../features/products/productsSlice';
+import * as enterpriseApi from '../api/enterprise.js';
+import * as groceryApi from '../api/grocery.js';
+import * as printingApi from '../api/printing.js';
+import * as productsApi from '../api/products.js';
 
 function ProductAttributeFields({ definitions, values, onChange }) {
   if (!definitions.length) return null;
@@ -122,7 +126,7 @@ function ProductVariantsModal({
       barcode: v.barcode || '',
     });
     try {
-      const savedValues = await window.electronAPI.getVariantAttributeValues(v.id);
+      const savedValues = await enterpriseApi.getVariantAttributeValues(v.id);
       setEditAttributeValues(Object.fromEntries(savedValues.map((item) => [item.attribute_id, item.value])));
     } catch (err) {
       setEditingVariantId(null);
@@ -500,9 +504,9 @@ useEffect(() => {
   const [selectedVariantForUnits, setSelectedVariantForUnits] = useState(null);
 
   const loadExpirySummary = useCallback(async () => {
-    if (window.electronAPI?.getGroceryExpirySummary) {
+    if (groceryApi.getGroceryExpirySummary.isAvailable()) {
       try {
-        const sum = await window.electronAPI.getGroceryExpirySummary(30);
+        const sum = await groceryApi.getGroceryExpirySummary(30);
         setExpirySummary(sum);
       } catch (err) {
         console.error('فشل جلب ملخص الصلاحيات:', err);
@@ -512,7 +516,7 @@ useEffect(() => {
 
   useEffect(() => {
     let cancelled = false;
-    window.electronAPI.getAllCategories()
+    productsApi.getAllCategories()
       .then((cats) => { if (!cancelled) setCategories(cats); })
       .catch((err) => console.error('فشل جلب التصنيفات:', err));
 
@@ -578,7 +582,7 @@ useEffect(() => {
   }
 
   async function handlePickImage() {
-    const path = await window.electronAPI.selectProductImage();
+    const path = await productsApi.selectProductImage();
     if (path) updateForm('imagePath', path);
   }
 
@@ -628,7 +632,7 @@ useEffect(() => {
 
   async function handlePrintBarcode(variant, productName) {
     try {
-      await window.electronAPI.printBarcodeLabel({ ...variant, productName, labelType: 'barcode' });
+      await printingApi.printBarcodeLabel({ ...variant, productName, labelType: 'barcode' });
     } catch (err) {
       alert('فشلت الطباعة: ' + err.message);
     }
@@ -636,7 +640,7 @@ useEffect(() => {
 
   async function handlePrintPriceTag(variant, productName) {
     try {
-      await window.electronAPI.printBarcodeLabel({ ...variant, productName, labelType: 'hangTag' });
+      await printingApi.printBarcodeLabel({ ...variant, productName, labelType: 'hangTag' });
     } catch (err) {
       alert('فشلت الطباعة: ' + err.message);
     }

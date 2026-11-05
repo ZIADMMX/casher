@@ -4,6 +4,7 @@ import WorkflowsPage from './WorkflowsPage.jsx';
 import ALL_PERMISSIONS_BY_MODULE from '../../shared/permissions.json';
 
 import PageTutorial from '../components/PageTutorial.jsx';
+import * as enterpriseApi from '../api/enterprise.js';
 
 function EnterpriseManagementPage({ onNavigate }) {
   const { refreshConfiguration } = useBusinessProfile();
@@ -44,20 +45,16 @@ function EnterpriseManagementPage({ onNavigate }) {
     role_name: '',
     description: ''
   });
-
-  const getApi = () => window.electronAPI || window.api || {};
-
   const loadData = useCallback(async () => {
-    const api = getApi();
     setLoading(true);
     try {
       const [modsList, profsList, activeProf, attrsList, autosList, rolesList] = await Promise.all([
-        api.getSystemModules?.() || [],
-        api.getBusinessProfiles?.() || [],
-        api.getActiveBusinessProfile?.() || null,
-        api.getAttributeDefinitions?.() || [],
-        api.getAutomationRules?.() || [],
-        api.getSystemRoles?.() || []
+        enterpriseApi.getSystemModules.ifAvailable() || [],
+        enterpriseApi.getBusinessProfiles.ifAvailable() || [],
+        enterpriseApi.getActiveBusinessProfile.ifAvailable() || null,
+        enterpriseApi.getAttributeDefinitions.ifAvailable() || [],
+        enterpriseApi.getAutomationRules.ifAvailable() || [],
+        enterpriseApi.getSystemRoles.ifAvailable() || []
       ]);
 
       const collections = [
@@ -98,10 +95,9 @@ function EnterpriseManagementPage({ onNavigate }) {
   }, [loadData]);
 
   const handleToggleModule = async (key, currentStatus) => {
-    const api = getApi();
     try {
-      if (api.setModuleEnabled) {
-        await api.setModuleEnabled(key, !currentStatus);
+      if (enterpriseApi.setModuleEnabled.isAvailable()) {
+        await enterpriseApi.setModuleEnabled(key, !currentStatus);
         setMessage({ type: 'success', text: `تم تحديث حالة القسم ${key}` });
         await loadData();
         await refreshConfiguration();
@@ -112,10 +108,9 @@ function EnterpriseManagementPage({ onNavigate }) {
   };
 
   const handleSelectProfile = async (profileKey) => {
-    const api = getApi();
     try {
-      if (api.setActiveBusinessProfile) {
-        await api.setActiveBusinessProfile(profileKey);
+      if (enterpriseApi.setActiveBusinessProfile.isAvailable()) {
+        await enterpriseApi.setActiveBusinessProfile(profileKey);
         setMessage({ type: 'success', text: `تم تفعيل القالب التجاري بنجاح!` });
         await loadData();
         await refreshConfiguration();
@@ -127,11 +122,10 @@ function EnterpriseManagementPage({ onNavigate }) {
 
   const handleCreateAttribute = async (e) => {
     e.preventDefault();
-    const api = getApi();
     if (!newAttrForm.attribute_name.trim() || !newAttrForm.attribute_key.trim()) return;
     try {
-      if (api.createAttributeDefinition) {
-        await api.createAttributeDefinition({
+      if (enterpriseApi.createAttributeDefinition.isAvailable()) {
+        await enterpriseApi.createAttributeDefinition({
           ...newAttrForm,
           business_profile_key: activeProfile?.key || null,
         });
@@ -146,12 +140,11 @@ function EnterpriseManagementPage({ onNavigate }) {
 
   const handleCreateAutomation = async (e) => {
     e.preventDefault();
-    const api = getApi();
     if (!newAutoForm.rule_name.trim()) return;
     try {
-      if (api.createAutomationRule) {
+      if (enterpriseApi.createAutomationRule.isAvailable()) {
         const condition = newAutoForm.threshold !== '' ? { threshold: Number(newAutoForm.threshold) } : {};
-        await api.createAutomationRule({
+        await enterpriseApi.createAutomationRule({
           rule_name: newAutoForm.rule_name,
           trigger_event: newAutoForm.trigger_event,
           condition_json: condition,
@@ -181,10 +174,9 @@ function EnterpriseManagementPage({ onNavigate }) {
   };
 
   const handleToggleAutomation = async (id, currentStatus) => {
-    const api = getApi();
     try {
-      if (api.setAutomationRuleEnabled) {
-        await api.setAutomationRuleEnabled(id, !currentStatus);
+      if (enterpriseApi.setAutomationRuleEnabled.isAvailable()) {
+        await enterpriseApi.setAutomationRuleEnabled(id, !currentStatus);
         await loadData();
       }
     } catch (err) {
@@ -220,11 +212,10 @@ function EnterpriseManagementPage({ onNavigate }) {
 
   const handleCreateRole = async (e) => {
     e.preventDefault();
-    const api = getApi();
     if (!newRoleForm.role_key.trim() || !newRoleForm.role_name.trim()) return;
     try {
-      if (api.createSystemRole) {
-        await api.createSystemRole({
+      if (enterpriseApi.createSystemRole.isAvailable()) {
+        await enterpriseApi.createSystemRole({
           roleKey: newRoleForm.role_key.trim().toLowerCase(),
           roleName: newRoleForm.role_name.trim(),
           description: newRoleForm.description.trim()
@@ -239,10 +230,9 @@ function EnterpriseManagementPage({ onNavigate }) {
   };
 
   const handleSaveRolePermissions = async () => {
-    const api = getApi();
     try {
-      if (api.setRolePermissions) {
-        await api.setRolePermissions(selectedRoleKey, selectedRolePermissions);
+      if (enterpriseApi.setRolePermissions.isAvailable()) {
+        await enterpriseApi.setRolePermissions(selectedRoleKey, selectedRolePermissions);
         setMessage({ type: 'success', text: `تمت تحديثات صلاحيات الدور ${selectedRoleKey} بنجاح` });
         await loadData();
       }

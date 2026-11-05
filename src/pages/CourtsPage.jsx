@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import * as legalApi from '../api/legal.js';
 import '../styles/courts.css';
 
 const COURT_TYPES = [
@@ -56,7 +57,7 @@ export default function CourtsPage() {
     setLoading(true);
     setError('');
     try {
-      const result = await window.electronAPI.getCourts({ search, status, page, pageSize });
+      const result = await legalApi.getCourts({ search, status, page, pageSize });
       setCourts(result.items || []);
       setTotal(Number(result.total) || 0);
       const lastPage = Math.max(1, Math.ceil((Number(result.total) || 0) / pageSize));
@@ -128,9 +129,9 @@ export default function CourtsPage() {
     setFormError('');
     try {
       if (editingCourt) {
-        await window.electronAPI.updateCourt(editingCourt.id, form);
+        await legalApi.updateCourt(editingCourt.id, form);
       } else {
-        await window.electronAPI.createCourt(form);
+        await legalApi.createCourt(form);
       }
       setShowWizard(false);
       setEditingCourt(null);
@@ -150,9 +151,9 @@ export default function CourtsPage() {
     }
     try {
       if (court.is_active) {
-        await window.electronAPI.deactivateCourt(court.id);
+        await legalApi.deactivateCourt(court.id);
       } else {
-        await window.electronAPI.updateCourt(court.id, { is_active: true });
+        await legalApi.updateCourt(court.id, { is_active: true });
       }
       await loadCourts();
     } catch (toggleError) {

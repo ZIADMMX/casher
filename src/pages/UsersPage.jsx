@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import useUsers from '../hooks/useUsers.js';
 import { formatProductImageUrl } from '../utils/media.js';
+import * as auditApi from '../api/audit.js';
+import * as importExportApi from '../api/importExport.js';
+import * as salesApi from '../api/sales.js';
+import * as shiftsApi from '../api/shifts.js';
+import * as usersApi from '../api/users.js';
 import '../styles/users.css';
 
 const EMPTY_CASHIER_FORM = {
@@ -69,12 +74,12 @@ function isMissingIpcHandler(error) {
 }
 
 async function loadLegacyUserDetails(user) {
-  if (typeof window.electronAPI.getAllShifts !== 'function') {
+  if (!shiftsApi.getAllShifts.isAvailable()) {
     throw new Error('نسخة التطبيق قديمة. أغلق البرنامج وثبّت آخر تحديث لعرض سجل المستخدم.');
   }
 
   // استدعاء IPC واحد فقط لتجنب تجمد الواجهة وحلقة N+1
-  const shifts = await window.electronAPI.getAllShifts({
+  const shifts = await shiftsApi.getAllShifts({
     userId: user.id,
     limit: 50,
     offset: 0,
@@ -212,9 +217,9 @@ function UsersPage({ currentUser }) {
     || permissions.includes('team.export');
 
   useEffect(() => {
-    if (!canManageEmployees || !window.electronAPI?.getEmployeeRoleOptions) return;
+    if (!canManageEmployees || !usersApi.getEmployeeRoleOptions.isAvailable()) return;
     let active = true;
-    window.electronAPI.getEmployeeRoleOptions()
+    usersApi.getEmployeeRoleOptions()
       .then((options) => {
         if (active && Array.isArray(options)) setRoleOptions(options.filter((role) => role.role_key !== 'admin'));
       })
@@ -307,7 +312,7 @@ function UsersPage({ currentUser }) {
 
   async function handlePickProfileImage() {
     try {
-      const imagePath = await window.electronAPI.selectUserImage();
+      const imagePath = await usersApi.selectUserImage();
       if (imagePath) updateForm('profileImage', imagePath);
     } catch (imageError) {
       setWizardError(imageError.message || 'تعذر اختيار صورة الموظف.');
@@ -349,8 +354,8 @@ function UsersPage({ currentUser }) {
   }
 
   async function fetchAuditData(userId, filter = 'all', offset = 0) {
-    if (!window.electronAPI?.getAuditLogs) return { items: [], hasMore: false, total: 0 };
-    return await window.electronAPI.getAuditLogs({
+    if (!auditApi.getAuditLogs.isAvailable()) return { items: [], hasMore: false, total: 0 };
+    return await auditApi.getAuditLogs({
       userId,
       actionType: filter === 'all' ? null : filter,
       limit: 30,
@@ -384,18 +389,18 @@ function UsersPage({ currentUser }) {
     setDetailsLoading(true);
 
     try {
-      const hasUserManagementApi = typeof window.electronAPI.getUserDetails === 'function'
-        && typeof window.electronAPI.getUserActivity === 'function';
+      const hasUserManagementApi = usersApi.getUserDetails.isAvailable()
+        && usersApi.getUserActivity.isAvailable();
       try {
         if (!hasUserManagementApi) {
           throw new Error('UserManagementApiUnavailable');
         }
         const [userDetails, sales, shifts, auditRes, summaryRes] = await Promise.all([
-          window.electronAPI.getUserDetails(user.id),
-          window.electronAPI.getUserActivity({ userId: user.id, type: 'sales', offset: 0 }),
-          window.electronAPI.getUserActivity({ userId: user.id, type: 'shifts', offset: 0 }),
+          usersApi.getUserDetails(user.id),
+          usersApi.getUserActivity({ userId: user.id, type: 'sales', offset: 0 }),
+          usersApi.getUserActivity({ userId: user.id, type: 'shifts', offset: 0 }),
           fetchAuditData(user.id, 'all', 0).catch(() => ({ items: [], hasMore: false })),
-          window.electronAPI?.getCashierAuditSummary ? window.electronAPI.getCashierAuditSummary(user.id).catch(() => null) : null,
+          auditApi.getCashierAuditSummary.isAvailable() ? auditApi.getCashierAuditSummary(user.id).catch(() => null) : null,
         ]);
         if (!userDetails?.user || !userDetails?.stats
           || !Array.isArray(sales?.items) || !Array.isArray(shifts?.items)) {
@@ -489,7 +494,7 @@ function UsersPage({ currentUser }) {
         }
         return;
       }
-      const result = await window.electronAPI.getUserActivity({
+      const result = await usersApi.getUserActivity({
         userId: selectedUser.id,
         type,
         offset,
@@ -553,7 +558,7 @@ function UsersPage({ currentUser }) {
     setRecordLoading(true);
     setDetailsError('');
     try {
-      const sale = await window.electronAPI.getSaleById(saleId);
+      const sale = await salesApi.getSaleById(saleId);
       if (!sale || !Array.isArray(sale.items)) {
         throw new Error('تعذر تحميل تفاصيل الفاتورة');
       }
@@ -571,7 +576,7 @@ function UsersPage({ currentUser }) {
     setRecordLoading(true);
     setDetailsError('');
     try {
-      const shift = await window.electronAPI.getShiftById(shiftId);
+      const shift = await shiftsApi.getShiftById(shiftId);
       if (!shift) throw new Error('تعذر تحميل تفاصيل الوردية');
       setSelectedShift(shift);
     } catch (requestError) {
@@ -595,7 +600,7 @@ function UsersPage({ currentUser }) {
     setTransferResult(null);
     setTransferFileName(fileName || filePath);
     try {
-      const result = await window.electronAPI.importExcel({ filePath, type: 'employees' });
+      const result = await importExportApi.importExcel({ filePath, type: 'employees' });
       setTransferResult(result);
       await fetchUsers();
     } catch (importError) {
@@ -608,7 +613,7 @@ function UsersPage({ currentUser }) {
   async function chooseEmployeeImportFile() {
     setTransferError('');
     try {
-      const filePath = await window.electronAPI.selectImportFile();
+      const filePath = await importExportApi.selectImportFile();
       if (filePath) await importEmployeeFile(filePath, filePath.split(/[\\/]/).pop());
     } catch (dialogError) {
       setTransferError(dialogError.message || 'تعذر اختيار ملف الاستيراد');
@@ -624,7 +629,7 @@ function UsersPage({ currentUser }) {
       return;
     }
     try {
-      const filePath = window.electronAPI.getDroppedImportFilePath(file);
+      const filePath = importExportApi.getDroppedImportFilePath(file);
       if (!filePath) throw new Error('تعذر قراءة مسار الملف المسحوب');
       await importEmployeeFile(filePath, file.name);
     } catch (dropError) {
@@ -635,7 +640,7 @@ function UsersPage({ currentUser }) {
   async function downloadEmployeesTemplate() {
     setTransferError('');
     try {
-      const result = await window.electronAPI.downloadImportTemplate('employees');
+      const result = await importExportApi.downloadImportTemplate('employees');
       setTransferError(result?.message || 'تم حفظ القالب في مجلد التنزيلات.');
     } catch (templateError) {
       setTransferError(templateError.message || 'تعذر إنشاء القالب');
@@ -646,7 +651,7 @@ function UsersPage({ currentUser }) {
     setTransferBusy(true);
     setTransferError('');
     try {
-      const result = await window.electronAPI.exportEmployees();
+      const result = await importExportApi.exportEmployees();
       if (!result?.canceled) setTransferError(`تم تصدير بيانات الموظفين إلى: ${result.path}`);
     } catch (exportError) {
       setTransferError(exportError.message || 'تعذر تصدير بيانات الموظفين');

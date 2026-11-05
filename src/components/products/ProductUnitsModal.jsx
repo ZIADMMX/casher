@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import * as groceryApi from '../../api/grocery.js';
 
 /**
  * ProductUnitsModal Component
@@ -26,11 +27,11 @@ export default function ProductUnitsModal({
   });
 
   const loadUnits = useCallback(async () => {
-    if (!productVariant?.id || !window.electronAPI?.getGroceryUnits) return;
+    if (!productVariant?.id || !groceryApi.getGroceryUnits.isAvailable()) return;
     try {
       setLoading(true);
       setErrorMsg('');
-      const list = await window.electronAPI.getGroceryUnits(productVariant.id);
+      const list = await groceryApi.getGroceryUnits(productVariant.id);
       setUnits(list || []);
     } catch (err) {
       setErrorMsg(err.message || 'تعذر تحميل وحدات القياس');
@@ -79,7 +80,7 @@ export default function ProductUnitsModal({
     }
 
     try {
-      await window.electronAPI.createGroceryUnit({
+      await groceryApi.createGroceryUnit({
         variant_id: productVariant.id,
         unit_name: newUnitForm.unit_name.trim(),
         conversion_factor: factor,
@@ -106,7 +107,7 @@ export default function ProductUnitsModal({
   const handleDeleteUnit = async (unitId, unitName) => {
     if (!window.confirm(`هل أنت متأكد من حذف وحدة "${unitName}"؟`)) return;
     try {
-      await window.electronAPI.deleteGroceryUnit(unitId);
+      await groceryApi.deleteGroceryUnit(unitId);
       setSuccessMsg(`تم حذف وحدة "${unitName}" بنجاح`);
       loadUnits();
     } catch (err) {

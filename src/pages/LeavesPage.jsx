@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { formatProductImageUrl } from '../utils/media.js';
+import * as attendanceApi from '../api/attendance.js';
+import * as usersApi from '../api/users.js';
 import '../styles/leaves.css';
 
 const EMPTY_FORM = {
@@ -69,8 +71,8 @@ export default function LeavesPage() {
     setError('');
     try {
       const [leaveData, userData] = await Promise.all([
-        window.electronAPI.getLeaveRequests(),
-        window.electronAPI.getAllUsers(),
+        attendanceApi.getLeaveRequests(),
+        usersApi.getAllUsers(),
       ]);
       if (!leaveData || !Array.isArray(leaveData.items) || !leaveData.stats || !Array.isArray(userData)) {
         throw new Error('استجابة بيانات الإجازات غير مكتملة.');
@@ -115,7 +117,7 @@ export default function LeavesPage() {
     setError('');
     setNotice('');
     try {
-      await window.electronAPI.createLeaveRequest({
+      await attendanceApi.createLeaveRequest({
         ...form,
         userId: Number(form.userId),
         reason: form.reason.trim(),
@@ -136,7 +138,7 @@ export default function LeavesPage() {
     setError('');
     setNotice('');
     try {
-      await window.electronAPI.decideLeaveRequest({ requestId, decision });
+      await attendanceApi.decideLeaveRequest({ requestId, decision });
       setNotice(decision === 'approved' ? 'تم قبول طلب الإجازة.' : 'تم رفض طلب الإجازة.');
       await loadData();
     } catch (requestError) {

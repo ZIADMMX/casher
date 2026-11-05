@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { normalizeErrorMessage } from '../utils/normalizeError.js';
+import * as authApi from '../api/auth.js';
 
 const UserContext = createContext(null);
 
@@ -17,8 +18,8 @@ export function UserProvider({ children }) {
     let mounted = true;
     async function checkSession() {
       try {
-        if (window.electronAPI?.getSession) {
-          const session = await window.electronAPI.getSession();
+        if (authApi.getSession.isAvailable()) {
+          const session = await authApi.getSession();
           if (mounted) {
             if (session) {
               setCurrentUser(session);
@@ -26,8 +27,8 @@ export function UserProvider({ children }) {
             } else {
               setCurrentUser(null);
               sessionStorage.removeItem('kashiear_user');
-              if (window.electronAPI?.isSetupRequired) {
-                setSetupRequired(await window.electronAPI.isSetupRequired());
+              if (authApi.isSetupRequired.isAvailable()) {
+                setSetupRequired(await authApi.isSetupRequired());
               }
             }
           }
@@ -53,11 +54,11 @@ export function UserProvider({ children }) {
   const isLoggedIn = !!currentUser;
 
   useEffect(() => {
-    if (!currentUserRef.current || !window.electronAPI?.refreshSession) return undefined;
+    if (!currentUserRef.current || !authApi.refreshSession.isAvailable()) return undefined;
 
     const refreshInterval = window.setInterval(async () => {
       try {
-        const result = await window.electronAPI.refreshSession();
+        const result = await authApi.refreshSession();
         if (result?.user) {
           setCurrentUser(result.user);
           sessionStorage.setItem('kashiear_user', JSON.stringify(result.user));
@@ -76,7 +77,7 @@ export function UserProvider({ children }) {
 
   const login = useCallback(async (username, password) => {
     try {
-      const res = await window.electronAPI.login({ username, password });
+      const res = await authApi.login({ username, password });
       const user = res?.user || res;
       setCurrentUser(user);
       try {
@@ -92,7 +93,7 @@ export function UserProvider({ children }) {
 
   const createInitialAdmin = useCallback(async (username, password, autoLogin = true, extra = {}) => {
     try {
-      const res = await window.electronAPI.createInitialAdmin({ username, password, ...extra });
+      const res = await authApi.createInitialAdmin({ username, password, ...extra });
       const user = res?.user || res;
       if (autoLogin) {
         setSetupRequired(false);
@@ -120,7 +121,7 @@ export function UserProvider({ children }) {
   }, []);
 
   const logout = useCallback(async () => {
-    await window.electronAPI.logout();
+    await authApi.logout();
     setCurrentUser(null);
     try {
       sessionStorage.removeItem('kashiear_user');
@@ -130,7 +131,7 @@ export function UserProvider({ children }) {
   }, []);
 
   const updateProfile = useCallback(async (data) => {
-    const res = await window.electronAPI.updateProfile(data);
+    const res = await authApi.updateProfile(data);
     if (res?.user) {
       setCurrentUser(res.user);
       try {
@@ -143,7 +144,7 @@ export function UserProvider({ children }) {
   }, []);
 
   const changePassword = useCallback(async (newPassword) => {
-    const res = await window.electronAPI.changePassword(newPassword);
+    const res = await authApi.changePassword(newPassword);
     if (res?.user) {
       setCurrentUser(res.user);
       try {

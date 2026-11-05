@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import * as reportsApi from '../../api/reports.js';
 import '../../styles/lawFirmDashboard.css';
 
 function getLocalDateString(date = new Date()) {
@@ -109,7 +110,7 @@ export default function LawFirmReportsPage() {
     setLoading(true);
     setError('');
     try {
-      const result = await window.electronAPI.getLegalCaseReport(selectedPeriod);
+      const result = await reportsApi.getLegalCaseReport(selectedPeriod);
       setReport(result);
       setMovementPage(0);
     } catch (loadError) {

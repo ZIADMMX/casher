@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import * as legalApi from '../../api/legal.js';
 
 function DocketIcon({ name, size = 20 }) {
   const paths = {
@@ -31,8 +32,8 @@ export default function DailyDocketModal({ onClose }) {
   async function loadDocket(date) {
     setLoading(true);
     try {
-      if (window.electronAPI?.getDailyCourtDocket) {
-        const data = await window.electronAPI.getDailyCourtDocket(date);
+      if (legalApi.getDailyCourtDocket.isAvailable()) {
+        const data = await legalApi.getDailyCourtDocket(date);
         setDocket(data || []);
       }
     } catch (err) {

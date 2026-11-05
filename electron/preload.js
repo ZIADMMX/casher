@@ -48,35 +48,42 @@ contextBridge.exposeInMainWorld('electronAPI', {
     invokeRemoteOrLocal('POST', '/api/products/delete-variant', 'variants:delete', { variantId }, variantId),
   selectProductImage: () => ipcRenderer.invoke('products:selectImage'),
 
+  // Returns
   findSaleForReturn: (saleId) => invokeRemoteOrLocal('GET', `/api/returns/find-sale/${saleId}`, 'returns:findSale', undefined, saleId),
   processReturn: (data) => invokeRemoteOrLocal('POST', '/api/returns/process', 'returns:process', data, data),
   getRecentReturns: () => invokeRemoteOrLocal('GET', '/api/returns/recent', 'returns:getRecent'),
 
+  // Backups
   backupNow: () => ipcRenderer.invoke('backup:now'),
 restoreBackup: () => ipcRenderer.invoke('backup:restore'),
 
+  // Categories
   getAllCategories: () => invokeRemoteOrLocal('GET', '/api/categories', 'categories:getAll'),
   
+  // Reports
   getReports: (period) => ipcRenderer.invoke('reports:get', period),
   getLegalCaseReport: (period) => ipcRenderer.invoke('reports:getLegalCases', period),
+  // Printing & cash drawer
   printReceipt: (sale, options) => ipcRenderer.invoke('print:receipt', { sale, options }),
   openCashDrawer: (options) => ipcRenderer.invoke('print:openCashDrawer', options),
   getPrinters: () => ipcRenderer.invoke('print:getPrinters'),
   printRaw: (rawBuffer, options) => ipcRenderer.invoke('print:raw', { rawBuffer, options }),
   cutPaper: (options) => ipcRenderer.invoke('print:cutPaper', options),
   printBarcodeLabel: (labelData) => ipcRenderer.invoke('print:barcodeLabel', labelData),
+  // Customers
   getAllCustomersWithStats: () => invokeRemoteOrLocal('GET', '/api/customers', 'customers:getAllWithStats'),
   addCustomer: (data) => invokeRemoteOrLocal('POST', '/api/customers/add', 'customers:add', data, data),
   addManualDebt: (data) => ipcRenderer.invoke('customers:addManualDebt', data),
   recordCustomerPayment: (data) => ipcRenderer.invoke('customers:recordPayment', data),
   getCustomerLedger: (customerId) => ipcRenderer.invoke('customers:getLedger', customerId),
 
-  // Sales
+  // Excel export
 
   exportCustomers: () => ipcRenderer.invoke('export:customers'),
 exportInvoices: (period) => ipcRenderer.invoke('export:invoices', period),
 exportEmployees: () => ipcRenderer.invoke('export:employees'),
 
+  // Sales
   createSale: (saleData) => invokeRemoteOrLocal('POST', '/api/sales/create', 'sales:create', saleData, saleData),
   getKitchenOrders: () => invokeRemoteOrLocal('GET', '/api/sales/kitchen-orders', 'sales:getKitchenOrders'),
   updateKitchenOrderStatus: (saleId, status) => invokeRemoteOrLocal(
@@ -130,6 +137,7 @@ exportEmployees: () => ipcRenderer.invoke('export:employees'),
   getRecoveryChallenge: () => ipcRenderer.invoke('auth:getRecoveryChallenge'),
   resetAdminPasswordWithRecoveryKey: (data) => ipcRenderer.invoke('auth:resetWithRecoveryKey', data),
   resetAdminPasswordWithChallenge: (data) => ipcRenderer.invoke('auth:resetWithChallenge', data),
+  // Users & employees
   addCashier: (data) => ipcRenderer.invoke('users:add', data),
   selectUserImage: () => ipcRenderer.invoke('users:selectImage'),
   getAllUsers: () => ipcRenderer.invoke('users:getAll'),
@@ -139,6 +147,7 @@ exportEmployees: () => ipcRenderer.invoke('export:employees'),
   resetUserPassword: (data) => ipcRenderer.invoke('users:resetPassword', data),
   toggleUserActive: (userId) => ipcRenderer.invoke('users:toggleActive', userId),
   removeUser: (userId) => ipcRenderer.invoke('users:remove', userId),
+  // Attendance & leave
   getAttendanceByDate: (date) =>
     invokeRemoteOrLocal('GET', `/api/attendance?date=${encodeURIComponent(date)}`, 'attendance:getByDate', undefined, date),
   getMyAttendanceStatus: () =>

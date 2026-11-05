@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import * as inventoryApi from '../api/inventory.js';
 import '../styles/inventory.css';
 
 const TABS = [
@@ -52,9 +53,9 @@ function InventoryManagementPage() {
     setError('');
     try {
       const [branchList, warehouseList, transferList] = await Promise.all([
-        window.electronAPI.getInventoryBranches(),
-        window.electronAPI.getInventoryWarehouses(),
-        window.electronAPI.getInventoryTransfers(),
+        inventoryApi.getInventoryBranches(),
+        inventoryApi.getInventoryWarehouses(),
+        inventoryApi.getInventoryTransfers(),
       ]);
       setBranches(branchList);
       setWarehouses(warehouseList);
@@ -72,8 +73,8 @@ function InventoryManagementPage() {
 
       if (nextWarehouse) {
         const [stockRows, movementRows] = await Promise.all([
-          window.electronAPI.getInventoryStock(),
-          window.electronAPI.getInventoryMovements({ warehouseId: Number(nextWarehouse), limit: 100 }),
+          inventoryApi.getInventoryStock(),
+          inventoryApi.getInventoryMovements({ warehouseId: Number(nextWarehouse), limit: 100 }),
         ]);
         setStock(stockRows);
         setMovements(movementRows);
@@ -94,7 +95,7 @@ function InventoryManagementPage() {
   }, [loadData]);
 
   useEffect(() => {
-    window.electronAPI.getCentralServerConfig()
+    inventoryApi.getCentralServerConfig()
       .then((config) => setCentralConfig(config))
       .catch((configError) => {
         console.error('تعذر قراءة إعداد الخادم المركزي:', configError);
@@ -117,7 +118,7 @@ function InventoryManagementPage() {
     event.preventDefault();
     await submitAction(
       async () => {
-        await window.electronAPI.createInventoryBranch(branchForm);
+        await inventoryApi.createInventoryBranch(branchForm);
         setBranchForm({ name: '', address: '', phone: '' });
       },
       'تم إنشاء الفرع ومخزنه الرئيسي',
@@ -127,7 +128,7 @@ function InventoryManagementPage() {
   async function handleCreateWarehouse(event) {
     event.preventDefault();
     await submitAction(async () => {
-      await window.electronAPI.createInventoryWarehouse({
+      await inventoryApi.createInventoryWarehouse({
         branchId: Number(selectedBranchId),
         name: warehouseForm.name,
       });
@@ -138,7 +139,7 @@ function InventoryManagementPage() {
   async function handleTransfer(event) {
     event.preventDefault();
     await submitAction(async () => {
-      await window.electronAPI.transferInventoryStock({
+      await inventoryApi.transferInventoryStock({
         sourceWarehouseId: Number(transferForm.sourceWarehouseId),
         destinationWarehouseId: Number(transferForm.destinationWarehouseId),
         items: [{ variantId: Number(transferForm.variantId), quantity: Number(transferForm.quantity) }],
@@ -152,7 +153,7 @@ function InventoryManagementPage() {
     event.preventDefault();
     if (!warehouseId) return;
     await submitAction(async () => {
-      await window.electronAPI.adjustInventoryStock({
+      await inventoryApi.adjustInventoryStock({
         warehouseId: Number(warehouseId),
         variantId: Number(adjustment.variantId),
         delta: Number(adjustment.delta),
@@ -172,7 +173,7 @@ function InventoryManagementPage() {
         }))
       : [{ variantId: Number(countVariantId), countedQuantity: Number(countedQuantity) }];
     await submitAction(async () => {
-      await window.electronAPI.countInventoryStock({
+      await inventoryApi.countInventoryStock({
         warehouseId: Number(warehouseId),
         countType,
         items: countItems,
@@ -185,7 +186,7 @@ function InventoryManagementPage() {
 
   async function handleSaveReorderLevel(row) {
     await submitAction(async () => {
-      await window.electronAPI.setInventoryReorderLevel({
+      await inventoryApi.setInventoryReorderLevel({
         warehouseId: row.warehouse_id,
         variantId: row.variant_id,
         reorderLevel: Number(reorderLevels[row.variant_id] ?? row.reorder_level),
@@ -232,7 +233,7 @@ function InventoryManagementPage() {
             className="inventory-btn inventory-btn-primary"
             onClick={() => submitAction(
               async () => {
-                const config = await window.electronAPI.setCentralWarehouse(selectedWarehouse.id);
+                const config = await inventoryApi.setCentralWarehouse(selectedWarehouse.id);
                 setCentralConfig(config);
               },
               'تم تخصيص المخزن لجهاز هذا الفرع. ستُرفض المبيعات إذا انقطع الاتصال بالخادم المركزي.',
@@ -286,7 +287,7 @@ function InventoryManagementPage() {
                       type="button"
                       className="inventory-btn inventory-btn-secondary"
                       onClick={() => submitAction(
-                        () => window.electronAPI.updateInventoryBranch(branch.id, { ...branch, isActive: !branch.is_active }),
+                        () => inventoryApi.updateInventoryBranch(branch.id, { ...branch, isActive: !branch.is_active }),
                         branch.is_active ? 'تم إيقاف الفرع' : 'تم تفعيل الفرع',
                       )}
                     >
@@ -322,7 +323,7 @@ function InventoryManagementPage() {
                       type="button"
                       className="inventory-btn inventory-btn-secondary"
                       onClick={() => submitAction(
-                        () => window.electronAPI.updateInventoryWarehouse(warehouse.id, {
+                        () => inventoryApi.updateInventoryWarehouse(warehouse.id, {
                           name: warehouse.name,
                           isActive: !warehouse.is_active,
                           isDefault: Boolean(warehouse.is_default),
@@ -337,7 +338,7 @@ function InventoryManagementPage() {
                         type="button"
                         className="inventory-btn inventory-btn-secondary"
                         onClick={() => submitAction(
-                          () => window.electronAPI.updateInventoryWarehouse(warehouse.id, {
+                          () => inventoryApi.updateInventoryWarehouse(warehouse.id, {
                             name: warehouse.name,
                             isActive: true,
                             isDefault: true,

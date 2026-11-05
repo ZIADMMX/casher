@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import * as attendanceApi from '../../api/attendance.js';
 
 /**
  * ShiftStatus component
@@ -31,10 +32,10 @@ export default function ShiftStatus({
   const ownsOpenShift = Boolean(activeShift && Number(activeShift.user_id) === Number(posSessionUser?.id));
 
   useEffect(() => {
-    if (!canManageOwnAttendance || !window.electronAPI?.getMyAttendanceStatus) return undefined;
+    if (!canManageOwnAttendance || !attendanceApi.getMyAttendanceStatus.isAvailable()) return undefined;
     let mounted = true;
     setAttendanceLoading(true);
-    window.electronAPI.getMyAttendanceStatus()
+    attendanceApi.getMyAttendanceStatus()
       .then((record) => { if (mounted) setAttendanceRecord(record); })
       .catch((error) => { if (mounted) setMessage({ type: 'error', text: error.message || 'تعذر تحميل حالة الحضور' }); })
       .finally(() => { if (mounted) setAttendanceLoading(false); });
@@ -52,12 +53,12 @@ export default function ShiftStatus({
       const today = new Date();
       const date = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
       if (attendanceRecord?.check_in) {
-        await window.electronAPI.checkOutEmployee({ date });
-        setAttendanceRecord(await window.electronAPI.getMyAttendanceStatus());
+        await attendanceApi.checkOutEmployee({ date });
+        setAttendanceRecord(await attendanceApi.getMyAttendanceStatus());
         setMessage({ type: 'success', text: 'تم تسجيل الانصراف.' });
       } else {
-        await window.electronAPI.checkInEmployee({ date });
-        setAttendanceRecord(await window.electronAPI.getMyAttendanceStatus());
+        await attendanceApi.checkInEmployee({ date });
+        setAttendanceRecord(await attendanceApi.getMyAttendanceStatus());
         setMessage({ type: 'success', text: 'تم تسجيل حضورك. يمكنك الآن فتح الوردية.' });
       }
     } catch (error) {

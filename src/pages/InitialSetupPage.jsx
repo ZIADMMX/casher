@@ -7,6 +7,8 @@ import SectorCardsStep from '../components/onboarding/SectorCardsStep.jsx';
 import CatalogPreviewStep from '../components/onboarding/CatalogPreviewStep.jsx';
 import ProvisioningStep from '../components/onboarding/ProvisioningStep.jsx';
 import LaunchSuccessStep from '../components/onboarding/LaunchSuccessStep.jsx';
+import * as authApi from '../api/auth.js';
+import * as settingsApi from '../api/settings.js';
 import '../components/onboarding/OnboardingWizard.css';
 import './InitialSetupPage.css';
 
@@ -58,9 +60,9 @@ export default function InitialSetupPage() {
     setLoading(true);
     try {
       // Save business / store name if API available
-      if (window.electronAPI?.saveSettings && businessName.trim()) {
+      if (settingsApi.saveSettings.isAvailable() && businessName.trim()) {
         try {
-          await window.electronAPI.saveSettings({ store_name: businessName.trim() });
+          await settingsApi.saveSettings({ store_name: businessName.trim() });
         } catch {
           // ignore if non-blocking
         }
@@ -73,9 +75,9 @@ export default function InitialSetupPage() {
       setCreatedUser(res.user);
 
       // If user profile updates exist
-      if (window.electronAPI?.updateProfile && (fullName.trim() || phone.trim())) {
+      if (authApi.updateProfile.isAvailable() && (fullName.trim() || phone.trim())) {
         try {
-          await window.electronAPI.updateProfile({
+          await authApi.updateProfile({
             fullName: fullName.trim() || undefined,
             phone: phone.trim() || undefined,
           });

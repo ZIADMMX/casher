@@ -1,4 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { isBridgeAvailable } from '../api/bridge.js';
+import * as payrollApi from '../api/payroll.js';
+import * as usersApi from '../api/users.js';
 import '../styles/salaries.css';
 
 const MONTHS = [
@@ -48,13 +51,12 @@ export default function SalariesPage() {
     setLoading(true);
     setError('');
     try {
-      const api = window.electronAPI;
-      if (!api) return;
+      if (!isBridgeAvailable()) return;
 
       const [periodList, advList, userList] = await Promise.all([
-        api.getAllPayrollPeriods ? api.getAllPayrollPeriods() : [],
-        api.getAllSalaryAdvances ? api.getAllSalaryAdvances() : [],
-        api.getAllUsers ? api.getAllUsers() : [],
+        payrollApi.getAllPayrollPeriods.isAvailable() ? payrollApi.getAllPayrollPeriods() : [],
+        payrollApi.getAllSalaryAdvances.isAvailable() ? payrollApi.getAllSalaryAdvances() : [],
+        usersApi.getAllUsers.isAvailable() ? usersApi.getAllUsers() : [],
       ]);
 
       const safePeriods = Array.isArray(periodList) ? periodList : [];
@@ -63,8 +65,8 @@ export default function SalariesPage() {
       setUsers(Array.isArray(userList) ? userList : []);
 
       const targetPeriodId = preferredPeriodId ?? safePeriods[0]?.id;
-      if (targetPeriodId && api.getPayrollDetails) {
-        const details = await api.getPayrollDetails(targetPeriodId);
+      if (targetPeriodId && payrollApi.getPayrollDetails.isAvailable()) {
+        const details = await payrollApi.getPayrollDetails(targetPeriodId);
         setSelectedPeriod(details || null);
       } else {
         setSelectedPeriod(null);
@@ -84,7 +86,7 @@ export default function SalariesPage() {
   const handleSelectPeriod = async (periodId) => {
     try {
       setLoading(true);
-      const details = await window.electronAPI.getPayrollDetails(periodId);
+      const details = await payrollApi.getPayrollDetails(periodId);
       setSelectedPeriod(details);
     } catch (err) {
       setError(err.message || 'تعذر تحميل تفاصيل المسير');
@@ -98,7 +100,7 @@ export default function SalariesPage() {
     try {
       setError('');
       setLoading(true);
-      const res = await window.electronAPI.generatePayrollPeriod({
+      const res = await payrollApi.generatePayrollPeriod({
         month: newPeriodMonth,
         year: newPeriodYear,
         notes: newPeriodNotes,
@@ -119,7 +121,7 @@ export default function SalariesPage() {
     if (!selectedItemToPay) return;
     try {
       setError('');
-      await window.electronAPI.payEmployeeSalary(selectedItemToPay.id, {
+      await payrollApi.payEmployeeSalary(selectedItemToPay.id, {
         payment_method: paymentMethod,
         paid_amount: selectedItemToPay.net_salary,
         payment_notes: paymentNotes,
@@ -138,7 +140,7 @@ export default function SalariesPage() {
     if (!advanceUserId || !advanceAmount) return;
     try {
       setError('');
-      await window.electronAPI.createSalaryAdvance({
+      await payrollApi.createSalaryAdvance({
         user_id: Number(advanceUserId),
         amount: Number(advanceAmount),
         reason: advanceReason,

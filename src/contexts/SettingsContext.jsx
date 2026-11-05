@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { useUser } from './UserContext.jsx';
+import * as settingsApi from '../api/settings.js';
 
 const defaultSettings = {
   store_name: 'بوتيك الفخامة',
@@ -80,8 +81,8 @@ export function SettingsProvider({ children }) {
   const refreshSettings = useCallback(async () => {
     setLoading(true);
     try {
-      if (window.electronAPI?.getSettings) {
-        const data = await window.electronAPI.getSettings();
+      if (settingsApi.getSettings.isAvailable()) {
+        const data = await settingsApi.getSettings();
         if (data && typeof data === 'object') {
           setSettings((prev) => ({ ...prev, ...data }));
         }
@@ -122,8 +123,8 @@ export function SettingsProvider({ children }) {
 
   const saveSettings = useCallback(async (newSettings) => {
     try {
-      if (window.electronAPI?.saveSettings) {
-        const updated = await window.electronAPI.saveSettings(newSettings);
+      if (settingsApi.saveSettings.isAvailable()) {
+        const updated = await settingsApi.saveSettings(newSettings);
         setSettings((prev) => ({ ...prev, ...updated }));
         return { success: true };
       }
@@ -137,8 +138,8 @@ export function SettingsProvider({ children }) {
 
   const uploadLogo = useCallback(async () => {
     try {
-      if (window.electronAPI?.uploadStoreLogo) {
-        const res = await window.electronAPI.uploadStoreLogo();
+      if (settingsApi.uploadStoreLogo.isAvailable()) {
+        const res = await settingsApi.uploadStoreLogo();
         if (res?.success && res?.dataUrl) {
           setSettings((prev) => ({ ...prev, store_logo: res.dataUrl }));
           return { success: true, dataUrl: res.dataUrl };
@@ -153,15 +154,15 @@ export function SettingsProvider({ children }) {
   }, []);
 
   const backupDatabase = useCallback(async () => {
-    if (window.electronAPI?.backupDatabase) {
-      return await window.electronAPI.backupDatabase();
+    if (settingsApi.backupDatabase.isAvailable()) {
+      return await settingsApi.backupDatabase();
     }
     throw new Error('electronAPI غير متوفر');
   }, []);
 
   const restoreDatabase = useCallback(async () => {
-    if (window.electronAPI?.restoreDatabase) {
-      const res = await window.electronAPI.restoreDatabase();
+    if (settingsApi.restoreDatabase.isAvailable()) {
+      const res = await settingsApi.restoreDatabase();
       if (res?.success) {
         await refreshSettings();
       }

@@ -1,6 +1,7 @@
 // src/hooks/useProducts.js
 import { useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import * as productsApi from '../api/products.js';
 
 // ---- Query Keys ----
 const PRODUCTS_QUERY_KEY = ['products'];
@@ -8,7 +9,7 @@ const PRODUCTS_QUERY_KEY = ['products'];
 // ---- API Helpers (electron API) ----
 const fetchProducts = async () => {
   // Returns array of products with variants
-  return await window.electronAPI.getAllProductsWithVariants();
+  return await productsApi.getAllProductsWithVariants();
 };
 
 export function useProducts() {
@@ -31,7 +32,7 @@ export function useProducts() {
   // ----- Mutations -----
   const addProductMutation = useMutation({
     mutationFn: async (newProduct) => {
-      await window.electronAPI.addProductWithVariant(newProduct);
+      await productsApi.addProductWithVariant(newProduct);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: PRODUCTS_QUERY_KEY });
@@ -40,7 +41,7 @@ export function useProducts() {
 
   const addVariantMutation = useMutation({
     mutationFn: async ({ productId, variant }) => {
-      await window.electronAPI.addVariantToProduct(productId, variant);
+      await productsApi.addVariantToProduct(productId, variant);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: PRODUCTS_QUERY_KEY });
@@ -49,7 +50,7 @@ export function useProducts() {
 
   const editProductMutation = useMutation({
     mutationFn: async ({ productId, data }) => {
-      await window.electronAPI.updateProduct(productId, data);
+      await productsApi.updateProduct(productId, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: PRODUCTS_QUERY_KEY });
@@ -58,7 +59,7 @@ export function useProducts() {
 
   const removeProductMutation = useMutation({
     mutationFn: async (productId) => {
-      await window.electronAPI.deleteProduct(productId);
+      await productsApi.deleteProduct(productId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: PRODUCTS_QUERY_KEY });
@@ -67,7 +68,7 @@ export function useProducts() {
 
   const editVariantMutation = useMutation({
     mutationFn: async ({ variantId, data }) => {
-      await window.electronAPI.updateVariant(variantId, data);
+      await productsApi.updateVariant(variantId, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: PRODUCTS_QUERY_KEY });
@@ -76,7 +77,7 @@ export function useProducts() {
 
   const removeVariantMutation = useMutation({
     mutationFn: async (variantId) => {
-      await window.electronAPI.deleteVariant(variantId);
+      await productsApi.deleteVariant(variantId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: PRODUCTS_QUERY_KEY });

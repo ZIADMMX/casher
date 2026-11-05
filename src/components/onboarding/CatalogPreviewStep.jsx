@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { getSectorIdentity } from '../../utils/sectorIdentity.js';
+import * as onboardingApi from '../../api/onboarding.js';
 
 /**
  * CatalogPreviewStep.jsx
@@ -62,7 +63,7 @@ export default function CatalogPreviewStep({
       setLoading(true);
       setError('');
       try {
-        const getPreset = window.electronAPI?.getOnboardingPreset;
+        const getPreset = onboardingApi.getOnboardingPreset.isAvailable() ? onboardingApi.getOnboardingPreset : undefined;
         let data = null;
         if (getPreset) {
           const res = await getPreset(sectorKey);

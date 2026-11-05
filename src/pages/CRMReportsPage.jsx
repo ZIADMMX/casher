@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import * as crmApi from '../api/crm.js';
+import * as customersApi from '../api/customers.js';
 import '../styles/crm-reports.css';
 
 function formatCurrency(value) {
@@ -18,10 +20,10 @@ function CRMReportsPage() {
     setError('');
     try {
       const [customerList, opportunityList, leadList, stageList] = await Promise.all([
-        window.electronAPI.getAllCustomersWithStats(),
-        window.electronAPI.getAllCRMOpportunities(),
-        window.electronAPI.getCRMLeads({}),
-        window.electronAPI.getCRMPipelineStages(),
+        customersApi.getAllCustomersWithStats(),
+        crmApi.getAllCRMOpportunities(),
+        crmApi.getCRMLeads({}),
+        crmApi.getCRMPipelineStages(),
       ]);
       setCustomers(Array.isArray(customerList) ? customerList : []);
       setOpportunities(Array.isArray(opportunityList) ? opportunityList : []);

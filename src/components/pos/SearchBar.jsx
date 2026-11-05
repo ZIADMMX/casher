@@ -1,4 +1,6 @@
 import React from 'react';
+import * as groceryApi from '../../api/grocery.js';
+import * as productsApi from '../../api/products.js';
 
 /**
  * SearchBar component for POS page.
@@ -36,8 +38,8 @@ export default function SearchBar({
       sectorConfig?.features?.speedKeys
     );
     try {
-      if (allowGroceryBarcode && window.electronAPI?.resolveGroceryBarcode) {
-        const res = await window.electronAPI.resolveGroceryBarcode(query);
+      if (allowGroceryBarcode && groceryApi.resolveGroceryBarcode.isAvailable()) {
+        const res = await groceryApi.resolveGroceryBarcode(query);
         if (res && res.resolved && res.variantId) {
           setSearch('');
           addScannedVariantToCart?.(
@@ -61,8 +63,8 @@ export default function SearchBar({
         }
       }
 
-      if (window.electronAPI?.getProductByBarcode) {
-        const variant = await window.electronAPI.getProductByBarcode(query);
+      if (productsApi.getProductByBarcode.isAvailable()) {
+        const variant = await productsApi.getProductByBarcode(query);
         if (variant) {
           setSearch('');
           addScannedVariantToCart?.(variant);

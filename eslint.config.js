@@ -43,7 +43,17 @@ module.exports = [
       // recommended React pattern. The rule produces false positives for it.
       'react-hooks/set-state-in-effect': 'off',
       'no-unused-vars': 'warn',
+      // All main-process calls go through src/api (generated from electron/preload.js).
+      'no-restricted-properties': ['error', {
+        object: 'window',
+        property: 'electronAPI',
+        message: "Import the call from src/api/<domain>.js instead (e.g. import * as crmApi from '../api/crm.js').",
+      }],
     },
+  },
+  {
+    files: ['src/api/bridge.js'],
+    rules: { 'no-restricted-properties': 'off' },
   },
   // ✅ بعد الإصلاح (إضافة routes/**/*.js لقائمة بيئة Node CommonJS):
   {

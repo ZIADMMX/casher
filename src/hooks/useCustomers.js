@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import * as customersApi from '../api/customers.js';
 
 function useCustomers() {
   const [customers, setCustomers] = useState([]);
@@ -7,7 +8,7 @@ function useCustomers() {
 
   const fetchCustomers = useCallback(async () => {
     setLoading(true);
-    const data = await window.electronAPI.getAllCustomersWithStats();
+    const data = await customersApi.getAllCustomersWithStats();
     setCustomers(data);
     setLoading(false);
   }, []);
@@ -15,7 +16,7 @@ function useCustomers() {
   async function addCustomer(data) {
     setError('');
     try {
-      const result = await window.electronAPI.addCustomer(data);
+      const result = await customersApi.addCustomer(data);
       await fetchCustomers();
       return result;
     } catch (err) {
@@ -27,7 +28,7 @@ function useCustomers() {
   async function addManualDebt(data) {
     setError('');
     try {
-      const result = await window.electronAPI.addManualDebt(data);
+      const result = await customersApi.addManualDebt(data);
       await fetchCustomers();
       return result;
     } catch (err) {
@@ -40,7 +41,7 @@ function useCustomers() {
   async function recordPayment(data) {
     setError('');
     try {
-      const result = await window.electronAPI.recordCustomerPayment(data);
+      const result = await customersApi.recordCustomerPayment(data);
       await fetchCustomers();
       return result;
     } catch (err) {

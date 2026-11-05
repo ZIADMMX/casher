@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import useBarcodeScanner from '../hooks/useBarcodeScanner.js';
+import * as productsApi from '../api/products.js';
+import * as salesApi from '../api/sales.js';
 
 function formatError(err) {
   if (!err) return '';
@@ -30,7 +32,7 @@ function ReturnsPage() {
 
   const loadRecent = useCallback(async () => {
     try {
-      const data = await window.electronAPI.getRecentReturns();
+      const data = await salesApi.getRecentReturns();
       setRecentReturns(data || []);
     } catch (err) {
       console.error('Failed to load recent returns:', err);
@@ -38,7 +40,7 @@ function ReturnsPage() {
   }, []);
 
   useEffect(() => {
-    window.electronAPI.getAllProductsWithVariants().then((res) => setProducts(res || []));
+    productsApi.getAllProductsWithVariants().then((res) => setProducts(res || []));
     loadRecent();
   }, [loadRecent]);
 
@@ -57,7 +59,7 @@ function ReturnsPage() {
     setSelectedItem(null);
     setLoading(true);
     try {
-      const data = await window.electronAPI.findSaleForReturn(parsedId);
+      const data = await salesApi.findSaleForReturn(parsedId);
       if (!data) {
         setError(`لم يتم العثور على أي بيانات للفاتورة رقم #${parsedId}`);
       } else {
@@ -128,7 +130,7 @@ function ReturnsPage() {
     }
 
     try {
-      const result = await window.electronAPI.processReturn({
+      const result = await salesApi.processReturn({
         saleId: Number(sale.id),
         variantId: vId,
         quantity: parseInt(returnQty, 10),
@@ -150,7 +152,7 @@ function ReturnsPage() {
       setMessage({ type: 'success', text });
 
       // نحدّث الفاتورة والقائمة الحديثة
-      const refreshed = await window.electronAPI.findSaleForReturn(sale.id);
+      const refreshed = await salesApi.findSaleForReturn(sale.id);
       setSale(refreshed);
       setSelectedItem(null);
       await loadRecent();

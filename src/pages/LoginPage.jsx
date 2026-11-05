@@ -3,6 +3,9 @@ import { useUser } from '../contexts/UserContext.jsx';
 import { normalizeErrorMessage } from '../utils/normalizeError.js';
 import AdminRecoveryModal from '../components/AdminRecoveryModal.jsx';
 import foxLogo from '../assets/fox-logo.png';
+import * as authApi from '../api/auth.js';
+import * as inventoryApi from '../api/inventory.js';
+import * as systemApi from '../api/system.js';
 import './LoginPage.css';
 
 function LoginPage() {
@@ -33,8 +36,8 @@ function LoginPage() {
 
   useEffect(() => {
     refreshNetworkInfo();
-    if (window.electronAPI?.isSetupRequired) {
-      window.electronAPI.isSetupRequired()
+    if (authApi.isSetupRequired.isAvailable()) {
+      authApi.isSetupRequired()
         .then((req) => setSetupAvailable(Boolean(req)))
         .catch(() => {});
     }
@@ -43,9 +46,9 @@ function LoginPage() {
   async function refreshNetworkInfo() {
     try {
       const [config, status, ips] = await Promise.all([
-        window.electronAPI.getCentralServerConfig(),
-        window.electronAPI.getLanStatus(),
-        window.electronAPI.getLanLocalIps(),
+        inventoryApi.getCentralServerConfig(),
+        systemApi.getLanStatus(),
+        systemApi.getLanLocalIps(),
       ]);
 
       setServerAddress(config.baseUrl || '');
@@ -74,10 +77,10 @@ function LoginPage() {
     try {
       if (!lanServerStatus.isRunning) {
         if (serverAddress) {
-          await window.electronAPI.configureCentralServer('');
+          await inventoryApi.configureCentralServer('');
           setServerAddress('');
         }
-        const status = await window.electronAPI.startLanServer(5000);
+        const status = await systemApi.startLanServer(5000);
         if (status && status.success === false) {
           throw new Error(status.message || 'تعذر تشغيل الخادم على المنفذ 5000');
         }
@@ -97,7 +100,7 @@ function LoginPage() {
     setServerMessage('');
     try {
       if (lanServerStatus.isRunning) {
-        await window.electronAPI.stopLanServer();
+        await systemApi.stopLanServer();
         setLanServerStatus({ isRunning: false, port: 5000, httpsPort: 5443 });
       }
       setConnectionMode('remote');
@@ -114,11 +117,11 @@ function LoginPage() {
     setServerMessage('');
     try {
       if (lanServerStatus.isRunning) {
-        await window.electronAPI.stopLanServer();
+        await systemApi.stopLanServer();
         setLanServerStatus({ isRunning: false, port: 5000, httpsPort: 5443 });
       }
       if (serverAddress) {
-        await window.electronAPI.configureCentralServer('');
+        await inventoryApi.configureCentralServer('');
         setServerAddress('');
       }
       setConnectionMode('standalone');
@@ -159,7 +162,7 @@ function LoginPage() {
     }
 
     try {
-      const { baseUrl, fingerprint256 } = await window.electronAPI.getCentralServerFingerprint(formatted);
+      const { baseUrl, fingerprint256 } = await inventoryApi.getCentralServerFingerprint(formatted);
       setPendingPairing({ baseUrl, fingerprint256 });
       setServerMessageStatus('info');
       setServerMessage('قارن البصمة أدناه بالبصمة الظاهرة على شاشة الخادم قبل التأكيد.');
@@ -173,7 +176,7 @@ function LoginPage() {
   async function confirmPairing() {
     if (!pendingPairing) return;
     try {
-      const result = await window.electronAPI.configureCentralServer(pendingPairing);
+      const result = await inventoryApi.configureCentralServer(pendingPairing);
       setServerAddress(result.baseUrl || pendingPairing.baseUrl);
       setConnectionMode('remote');
       setServerMessageStatus('success');
@@ -198,11 +201,11 @@ function LoginPage() {
     setTestingConnection(true);
     const start = Date.now();
     try {
-      let res = await window.electronAPI.testLanConnection(formatted);
+      let res = await systemApi.testLanConnection(formatted);
       
       if (!res || !res.success) {
         try {
-          const centralRes = await window.electronAPI.testCentralServerConnection(formatted);
+          const centralRes = await inventoryApi.testCentralServerConnection(formatted);
           if (centralRes && centralRes.name) {
             res = { success: true, message: `متصل بـ ${centralRes.name}` };
           }
@@ -251,7 +254,7 @@ function LoginPage() {
       const results = await Promise.all(
         candidateIps.map(async (url) => {
           try {
-            const testRes = await window.electronAPI.testLanConnection(url);
+            const testRes = await systemApi.testLanConnection(url);
             if (testRes && testRes.success) return url;
           } catch {
             return null;
@@ -288,8 +291,8 @@ function LoginPage() {
     setFirewallConfiguring(true);
     setFirewallMessage('');
     try {
-      if (window.electronAPI?.openLanFirewall) {
-        const res = await window.electronAPI.openLanFirewall(lanServerStatus.port || 5000);
+      if (systemApi.openLanFirewall.isAvailable()) {
+        const res = await systemApi.openLanFirewall(lanServerStatus.port || 5000);
         setFirewallMessage(res.message || 'تم ضبط جدار الحماية بنجاح.');
       } else {
         setFirewallMessage('الميزة غير متاحة في هذا الإصدار.');

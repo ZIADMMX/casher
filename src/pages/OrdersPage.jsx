@@ -1,6 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useBusinessProfile } from '../contexts/BusinessProfileContext.jsx';
 import Modal from '../components/Modal.jsx';
+import { isBridgeAvailable } from '../api/bridge.js';
+import * as ordersApi from '../api/orders.js';
+import * as productsApi from '../api/products.js';
+import * as usersApi from '../api/users.js';
 import '../styles/orders.css';
 
 const ORDER_TYPES = [
@@ -79,7 +83,7 @@ export default function OrdersPage({ onNavigate, onCheckoutOrder }) {
   });
 
   const loadData = useCallback(async () => {
-    if (!window.electronAPI) return;
+    if (!isBridgeAvailable()) return;
     try {
       setLoading(true);
       const filters = {};
@@ -89,9 +93,9 @@ export default function OrdersPage({ onNavigate, onCheckoutOrder }) {
       if (searchQuery.trim()) filters.search = searchQuery.trim();
 
       const [ordersList, orderStats, allUsers] = await Promise.all([
-        window.electronAPI.getAllOrders(filters),
-        window.electronAPI.getOrderStats(),
-        window.electronAPI.getAllUsers ? window.electronAPI.getAllUsers() : []
+        ordersApi.getAllOrders(filters),
+        ordersApi.getOrderStats(),
+        usersApi.getAllUsers.isAvailable() ? usersApi.getAllUsers() : []
       ]);
 
       setOrders(ordersList || []);
@@ -116,7 +120,7 @@ export default function OrdersPage({ onNavigate, onCheckoutOrder }) {
     );
 
     try {
-      await window.electronAPI.updateOrderStatus(orderId, newStatus, 'تغيير السحب والإفلات السريع');
+      await ordersApi.updateOrderStatus(orderId, newStatus, 'تغيير السحب والإفلات السريع');
       loadData();
     } catch (err) {
       console.error('فشل تحديث حالة الطلب:', err);
@@ -147,7 +151,7 @@ export default function OrdersPage({ onNavigate, onCheckoutOrder }) {
     }
 
     try {
-      await window.electronAPI.createOrder({
+      await ordersApi.createOrder({
         ...formData,
         order_type: isSpareParts ? 'online' : formData.order_type,
         requested_part: isSpareParts ? formData.requested_part : undefined,
@@ -190,7 +194,7 @@ export default function OrdersPage({ onNavigate, onCheckoutOrder }) {
     if (!commentText.trim() || !selectedOrder) return;
 
     try {
-      const updated = await window.electronAPI.addOrderComment(selectedOrder.id, commentText);
+      const updated = await ordersApi.addOrderComment(selectedOrder.id, commentText);
       setSelectedOrder(updated);
       setCommentText('');
       loadData();
@@ -202,13 +206,13 @@ export default function OrdersPage({ onNavigate, onCheckoutOrder }) {
   // Open Full Order Details
   async function handleOpenDetails(orderId) {
     try {
-      const fullOrder = await window.electronAPI.getOrderById(orderId);
+      const fullOrder = await ordersApi.getOrderById(orderId);
       setSelectedOrder(fullOrder);
       setSelectedVariantId('');
       setOrderItemQuantity(1);
       if (fullOrder?.order_type === 'maintenance') {
         try {
-          const products = await window.electronAPI.getAllProductsWithVariants();
+          const products = await productsApi.getAllProductsWithVariants();
           setOrderProductVariants((products || []).flatMap((product) => (
             (product.variants || []).map((variant) => ({
               ...variant,
@@ -231,7 +235,7 @@ export default function OrdersPage({ onNavigate, onCheckoutOrder }) {
     if (!selectedOrder || !selectedVariantId) return;
 
     try {
-      const updatedOrder = await window.electronAPI.addOrderItem(selectedOrder.id, {
+      const updatedOrder = await ordersApi.addOrderItem(selectedOrder.id, {
         variantId: Number(selectedVariantId),
         quantity: Number(orderItemQuantity),
       });
