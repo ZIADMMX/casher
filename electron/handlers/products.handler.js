@@ -3,6 +3,8 @@ const path = require('node:path');
 const fs = require('node:fs');
 const crypto = require('node:crypto');
 const productsService = require('../services/products.service');
+const productEditUnlock = require('../services/productEditUnlock.service');
+const authService = require('../services/auth.service');
 const { getAllCategories } = require('../services/categories.service');
 const { safeHandle } = require('./safeHandle');
 const {
@@ -11,6 +13,8 @@ const {
   updateProductSchema,
   updateVariantSchema,
   positiveIdSchema,
+  productChangeLogQuerySchema,
+  managerUnlockSchema,
 } = require('../validators/schema');
 
 // مجلد حفظ الصور داخل userData (آمن ولا يتأثر بحذف الملفات الأصلية)
@@ -66,6 +70,23 @@ function registerProductHandlers() {
   safeHandle('variants:delete', positiveIdSchema, (event, variantId) => {
     return productsService.deleteVariant(variantId);
   });
+
+  safeHandle('products:getChangeLog', productChangeLogQuerySchema, (event, query) => {
+    return productsService.getChangeLog(query || {});
+  });
+
+  safeHandle('products:getEditAccess', () => {
+    return productsService.getEditAccess();
+  });
+
+  // Any signed-in user may ask; the service checks the manager's own code and rights.
+  safeHandle('products:unlockWithManager', managerUnlockSchema, (event, credentials) => {
+    return productEditUnlock.unlock(credentials);
+  }, { authorize: (event) => authService.requireAuth(event?.sender?.id) });
+
+  safeHandle('products:lockEditing', () => {
+    return productEditUnlock.lockNow();
+  }, { authorize: (event) => authService.requireAuth(event?.sender?.id) });
 
   safeHandle('categories:getAll', () => {
     return getAllCategories();

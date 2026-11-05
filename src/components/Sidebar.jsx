@@ -19,7 +19,7 @@ const PAGE_PERMISSIONS = {
   commissions: 'commissions.view',
   returns: 'pos.refund',
   products: 'products.view',
-  branches: 'products.view',
+  branches: 'inventory.view',
   customers: 'customers.view',
   crm: 'customers.view',
   suppliers: 'suppliers.view',
@@ -190,7 +190,7 @@ function Sidebar({ activePage, onNavigate, currentUser, onLogout, onOpenProfile,
           <path d="M16 10a4 4 0 0 1-8 0" />
         </svg>
       ),
-      roles: ['admin'],
+      roles: ['admin', 'cashier'],
     },
     {
       key: 'branches',
@@ -319,10 +319,9 @@ function Sidebar({ activePage, onNavigate, currentUser, onLogout, onOpenProfile,
 
   function canAccess(page) {
     if (page === 'profile') return true;
-    if (!currentUser.systemRoleKey) {
-      return currentUser.role === 'admin'
-        || ['today', 'pos', 'kitchen', 'orders', 'appointments', 'subscriptions', 'returns', 'customers', 'crm', 'shifts', 'workflows'].includes(page);
-    }
+    // The owner sees everything; everyone else sees exactly what their permissions
+    // allow (the same rules the main process enforces), cashiers included.
+    if (currentUser.role === 'admin' && !currentUser.systemRoleKey) return true;
     const permission = profileKey === 'law_firm' && page === 'today'
       ? 'cases.view'
       : PAGE_PERMISSIONS[page];

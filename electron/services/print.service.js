@@ -7,6 +7,7 @@ const { execFile } = require('node:child_process');
 const { BrowserWindow } = require('electron');
 const { logError } = require('./logger.service');
 
+
 // ESC/POS Commands Set (RAW Thermal Printer Command Protocol)
 const ESC_POS = {
   INIT: Buffer.from([0x1B, 0x40]),                        // ESC @ (Initialize printer)
@@ -39,7 +40,10 @@ function generateEscPosReceiptBuffer(sale, options = {}) {
 
   // 2. Open Cash Drawer (RJ11 Pulse Signal) if enabled or Cash payment
   if (options.openCashDrawer !== false) {
-    buffers.push(ESC_POS.CASH_DRAWER_PULSE_PIN2);
+    // Honour the configured drawer pin (some drawers are wired to pin 5 instead of pin 2).
+    buffers.push(Number(options.cashDrawerPin) === 5
+      ? ESC_POS.CASH_DRAWER_PULSE_PIN5
+      : ESC_POS.CASH_DRAWER_PULSE_PIN2);
   }
 
   // 3. Header Section (Centered & Large Bold)
@@ -308,8 +312,31 @@ async function getDefaultWindowsPrinter() {
   });
 }
 
+let cachedUnixDefaultPrinter = null;
+let lastUnixDefaultPrinterCheck = 0;
+
+// Linux/macOS: ask CUPS for the system default queue ("system default destination: NAME").
+async function getDefaultUnixPrinter() {
+  const now = Date.now();
+  if (cachedUnixDefaultPrinter && (now - lastUnixDefaultPrinterCheck < 60000)) {
+    return cachedUnixDefaultPrinter;
+  }
+  return new Promise((resolve) => {
+    execFile('lpstat', ['-d'], { timeout: 2500, env: { ...process.env, LC_ALL: 'C' } }, (err, stdout) => {
+      const match = !err && stdout ? /destination:\s*(\S+)/.exec(stdout) : null;
+      if (match) {
+        cachedUnixDefaultPrinter = match[1];
+        lastUnixDefaultPrinterCheck = Date.now();
+        resolve(cachedUnixDefaultPrinter);
+      } else {
+        resolve(null);
+      }
+    });
+  });
+}
+
 /**
- * Helper to resolve printer name from options, DB settings, or Windows system default
+ * Helper to resolve printer name from options, DB settings, or the OS default printer
  */
 async function resolvePrinterName(explicitName) {
   let candidate = null;
@@ -326,6 +353,8 @@ async function resolvePrinterName(explicitName) {
 
     if (!candidate && os.platform() === 'win32') {
       candidate = await getDefaultWindowsPrinter();
+    } else if (!candidate && (os.platform() === 'linux' || os.platform() === 'darwin')) {
+      candidate = await getDefaultUnixPrinter();
     }
   }
 
@@ -352,7 +381,8 @@ async function openCashDrawer(options = {}) {
     ? ESC_POS.CASH_DRAWER_PULSE_PIN5
     : ESC_POS.CASH_DRAWER_PULSE_PIN2;
 
-  const printerName = await resolvePrinterName(options.printerName);
+  // Network printers (ip) are addressed directly — no OS printer lookup needed.
+  const printerName = options.ip ? options.printerName : await resolvePrinterName(options.printerName);
   const resolvedOpts = { ...options, printerName };
 
   return printRawEscPos(Buffer.concat([ESC_POS.INIT, pulse]), resolvedOpts).catch((err) => {
@@ -365,7 +395,8 @@ async function openCashDrawer(options = {}) {
  * Trigger Thermal Paper Auto-Cut Standalone Command
  */
 async function cutPaper(options = {}) {
-  const printerName = await resolvePrinterName(options.printerName);
+  // Network printers (ip) are addressed directly — no OS printer lookup needed.
+  const printerName = options.ip ? options.printerName : await resolvePrinterName(options.printerName);
   const resolvedOpts = { ...options, printerName };
   const cutBuffer = Buffer.concat([
     ESC_POS.FEED_3_LINES,

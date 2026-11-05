@@ -2,6 +2,7 @@ const Database = require('better-sqlite3');
 const fs = require('node:fs');
 const path = require('node:path');
 const bcrypt = require('bcryptjs');
+const { CASHIER_PERMISSIONS } = require('../../electron/services/enterprise/defaults');
 
 // 1. Setup In-Memory Database
 const mockDb = new Database(':memory:');
@@ -103,6 +104,11 @@ describe('End-to-End Sales Integration Test (من إضافة منتج للسلة
       role: 'cashier',
       forcePasswordChange: false,
     });
+    // This shop lets cashiers give manual discounts (owner granted pos.discount on the
+    // cashier role); without it the server refuses them.
+    mockDb.prepare("INSERT OR IGNORE INTO system_roles (role_key, role_name, is_system) VALUES ('cashier', 'كاشير', 1)").run();
+    const grantCashier = mockDb.prepare('INSERT OR IGNORE INTO role_permissions (role_key, permission_key) VALUES (?, ?)');
+    for (const permission of [...CASHIER_PERMISSIONS, 'pos.discount']) grantCashier.run('cashier', permission);
 
     // 2. Seed Products and Variants
     const prodId = productsRepo.create({

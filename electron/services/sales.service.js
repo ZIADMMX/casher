@@ -7,7 +7,7 @@ const variantsRepo = require('../repositories/productVariants.repository');
 const shiftsRepo = require('../repositories/shifts.repository');
 const productsCache = require('./products.cache');
 const NotificationsService = require('./notifications.service');
-const { requireAuth, getCurrentSession } = require('./auth.service');
+const { requireAuth, getCurrentSession, hasGrantedPermission } = require('./auth.service');
 const { logError } = require('../services/logger.service');
 const inventoryRepo = require('../repositories/inventory.repository');
 const bundlePromotionsService = require('./bundlePromotions.service');
@@ -143,7 +143,27 @@ function createSale({
       throw new Error('قيمة الخصم لا يمكن أن تتجاوز إجمالي الفاتورة');
     }
 
-    // قيود الكاشير على الخصم (30% كحد أقصى للخصم غير الإداري)
+    // A manual discount needs the discount right (branch manager by default; the owner
+    // can grant it to cashiers from the Roles screen). Bundle offers below are computed
+    // here on the server and need no right.
+    if (normalizedDiscount > 0 && !hasGrantedPermission('pos.discount')) {
+      // A member's own package discount is allowed, up to the rate the server looks up.
+      let memberAllowance = 0;
+      if (customerId) {
+        try {
+          const membership = require('../repositories/subscriptions.repository').getActiveSubscriptionByCustomer(customerId);
+          const rate = Number(membership?.discount_percentage) || 0;
+          if (rate > 0) memberAllowance = Math.round(subtotal * (rate / 100));
+        } catch {
+          memberAllowance = 0;
+        }
+      }
+      if (normalizedDiscount > memberAllowance) {
+        throw new Error('الخصم اليدوي يحتاج صلاحية الخصم. اطلب من المدير أو مدير الفرع');
+      }
+    }
+
+    // قيود الخصم لغير المالك (30% كحد أقصى)
     if (session.role !== 'admin' && subtotal > 0 && normalizedDiscount > 0) {
       const discountPercentage = (normalizedDiscount / subtotal) * 100;
       if (discountPercentage > 30) {

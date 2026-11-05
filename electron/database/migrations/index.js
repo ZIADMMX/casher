@@ -47,6 +47,7 @@ const {
 } = require('./platform');
 const { ensureSalesLedgerGuards, backfillSaleItemCosts } = require('./salesLedger');
 const { ensureKitchenLedger } = require('./kitchenLedger');
+const { ensureProductLedger } = require('./productLedger');
 
 function runAllMigrations(dbInstance = db) {
   const currentVersion = dbInstance.pragma('user_version', { simple: true }) || 0;
@@ -188,9 +189,40 @@ function runAllMigrations(dbInstance = db) {
     console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 15 (سجل حركة المطبخ).');
   }
 
+  if (currentVersion < 16) {
+    // Product changes get an append-only history and prices must be numbers.
+    // Cashiers can now open the catalog read-only (they already sell from it).
+    ensureProductLedger(dbInstance);
+    dbInstance.pragma('user_version = 16');
+    console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 16 (سجل تعديلات المنتجات).');
+  }
+
+  if (currentVersion < 17) {
+    // Cashier and branch-manager roles get what their daily work needs (cashiers
+    // could not open their own shift; managers could not edit products).
+    // Only adds rights; anything the owner granted or removed elsewhere stays.
+    const { CASHIER_PERMISSIONS, MANAGER_PERMISSIONS } = require('../../services/enterprise/defaults');
+    const hasRoles = dbInstance.prepare(
+      "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'role_permissions'"
+    ).get();
+    if (hasRoles) {
+      const grant = dbInstance.prepare(`
+        INSERT OR IGNORE INTO role_permissions (role_key, permission_key)
+        SELECT ?, ? WHERE EXISTS (SELECT 1 FROM system_roles WHERE role_key = ?)
+      `);
+      dbInstance.transaction(() => {
+        for (const permission of CASHIER_PERMISSIONS) grant.run('cashier', permission, 'cashier');
+        for (const permission of MANAGER_PERMISSIONS) grant.run('manager', permission, 'manager');
+      })();
+    }
+    dbInstance.pragma('user_version = 17');
+    console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 17 (صلاحيات الكاشير ومدير الفرع).');
+  }
+
   // Earlier steps may rebuild the sales tables; make sure the guards exist at the end.
   ensureSalesLedgerGuards(dbInstance);
   ensureKitchenLedger(dbInstance);
+  ensureProductLedger(dbInstance);
 }
 
 module.exports = { runAllMigrations };

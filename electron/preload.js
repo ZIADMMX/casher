@@ -48,6 +48,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   deleteVariant: (variantId) =>
     invokeRemoteOrLocal('POST', '/api/products/delete-variant', 'variants:delete', { variantId }, variantId),
   selectProductImage: () => ipcRenderer.invoke('products:selectImage'),
+  getProductChangeLog: (query) => ipcRenderer.invoke('products:getChangeLog', query),
+  getProductEditAccess: () => ipcRenderer.invoke('products:getEditAccess'),
+  unlockProductEditing: (credentials) => ipcRenderer.invoke('products:unlockWithManager', credentials),
+  lockProductEditing: () => ipcRenderer.invoke('products:lockEditing'),
 
   // Returns
   findSaleForReturn: (saleId) => invokeRemoteOrLocal('GET', `/api/returns/find-sale/${saleId}`, 'returns:findSale', undefined, saleId),

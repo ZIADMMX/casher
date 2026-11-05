@@ -84,65 +84,37 @@ export function useProducts() {
     },
   });
 
-  // ----- Helper wrappers preserving original API -----
+  // ----- Write helpers -----
+  // They throw the server message (e.g. "no permission", "reason required") so the
+  // screen can show it; a swallowed error looked like a save that silently failed.
   const addProduct = async (data) => {
-    try {
-      await addProductMutation.mutateAsync(data);
-      return true;
-    } catch (err) {
-      console.error(err);
-      return false;
-    }
+    await addProductMutation.mutateAsync(data);
+    return true;
   };
 
   const addVariant = async (productId, variant) => {
-    try {
-      await addVariantMutation.mutateAsync({ productId, variant });
-      return true;
-    } catch (err) {
-      console.error(err);
-      return false;
-    }
+    await addVariantMutation.mutateAsync({ productId, variant });
+    return true;
   };
 
   const editProduct = async (productId, data) => {
-    try {
-      await editProductMutation.mutateAsync({ productId, data });
-      return true;
-    } catch (err) {
-      console.error(err);
-      return false;
-    }
+    await editProductMutation.mutateAsync({ productId, data });
+    return true;
   };
 
   const removeProduct = async (productId) => {
-    try {
-      await removeProductMutation.mutateAsync(productId);
-      return true;
-    } catch (err) {
-      console.error(err);
-      return false;
-    }
+    await removeProductMutation.mutateAsync(productId);
+    return true;
   };
 
   const editVariant = async (variantId, data) => {
-    try {
-      await editVariantMutation.mutateAsync({ variantId, data });
-      return true;
-    } catch (err) {
-      console.error(err);
-      return false;
-    }
+    await editVariantMutation.mutateAsync({ variantId, data });
+    return true;
   };
 
   const removeVariant = async (variantId) => {
-    try {
-      await removeVariantMutation.mutateAsync(variantId);
-      return true;
-    } catch (err) {
-      console.error(err);
-      return false;
-    }
+    await removeVariantMutation.mutateAsync(variantId);
+    return true;
   };
 
   // ----- Stats (derived from products) -----

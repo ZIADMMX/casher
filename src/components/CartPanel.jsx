@@ -26,6 +26,7 @@ function money(value) {
 }
 
 function CartPanel({
+  canDiscount = true,
   cart = [],
   changeQuantity,
   removeFromCart,
@@ -276,21 +277,26 @@ function CartPanel({
           </div>
 
           <div className="summary-line discount-line">
-            <button
-              type="button"
-              className="pos-discount-link"
-              onClick={() => setDiscountOpen?.(!discountOpen)}
-              aria-expanded={discountOpen}
-              disabled={isEmpty}
-              title="إضافة خصم (F4)"
-            >
-              {discountOpen ? <CloseIcon size={14} /> : <TagIcon size={14} />}
-              {hasDiscount ? 'تعديل الخصم' : '+ إضافة خصم'}
-            </button>
+            {/* Manual discounts need pos.discount; the server refuses them otherwise. */}
+            {canDiscount ? (
+              <button
+                type="button"
+                className="pos-discount-link"
+                onClick={() => setDiscountOpen?.(!discountOpen)}
+                aria-expanded={discountOpen}
+                disabled={isEmpty}
+                title="إضافة خصم (F4)"
+              >
+                {discountOpen ? <CloseIcon size={14} /> : <TagIcon size={14} />}
+                {hasDiscount ? 'تعديل الخصم' : '+ إضافة خصم'}
+              </button>
+            ) : (
+              <span className="summary-label">الخصم</span>
+            )}
             <span className="summary-val">{hasDiscount ? `- ${money(discount)}` : money(0)} ج.م</span>
           </div>
 
-          {discountOpen && !isEmpty && (
+          {canDiscount && discountOpen && !isEmpty && (
             <CouponInput
               value={couponCode}
               onChange={setCouponCode}

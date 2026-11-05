@@ -244,9 +244,9 @@ function AppContent() {
       enterprise: 'enterprise.view',
       workflows: 'enterprise.view',
     };
-    const hasPageAccess = activePage === 'profile' || (!currentUser.systemRoleKey
-      ? currentUser.role === 'admin' || ['today', 'pos', 'kitchen', 'orders', 'appointments', 'subscriptions', 'returns', 'customers', 'crm', 'shifts', 'workflows'].includes(activePage)
-      : hasPermission(currentUser, pagePermissions[activePage]));
+    const hasPageAccess = activePage === 'profile'
+      || (currentUser.role === 'admin' && !currentUser.systemRoleKey)
+      || hasPermission(currentUser, pagePermissions[activePage]);
     if (!hasPageAccess) {
       return (
         <section className="page-loading-spinner" role="alert">
@@ -260,7 +260,7 @@ function AppContent() {
       case 'today':
         return <TodayPage onNavigate={navigateToPage} currentUser={currentUser} />;
       case 'products':
-        return <ProductsPage />;
+        return <ProductsPage onNavigate={setActivePage} />;
       case 'branches':
         return <InventoryManagementPage />;
       case 'appointments':

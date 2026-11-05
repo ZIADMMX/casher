@@ -227,6 +227,7 @@ exports[`System Snapshot Tests (اختبارات اللقطات والقوالب
   "product_attribute_definitions",
   "product_attribute_values",
   "product_batches",
+  "product_change_log",
   "product_units",
   "product_variants",
   "products",

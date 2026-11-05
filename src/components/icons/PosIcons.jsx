@@ -76,6 +76,11 @@ export const TrendUpIcon = make(<><path d="m3 17 6-6 4 4 8-8" /><path d="M15 7h6
 export const CurrencyIcon = make(<><path d="M12 3v18" /><path d="M17 7H9.5a3 3 0 0 0 0 6h5a3 3 0 0 1 0 6H6" /></>);
 export const FileTextIcon = make(<><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z" /><path d="M14 3v5h5M9 13h6M9 17h4" /></>);
 export const UndoIcon = make(<><path d="M4 8v5h5" /><path d="M4.5 13A8 8 0 1 0 7 6.6L4 9" /></>);
+export const KeyIcon = make(<><circle cx="7.5" cy="15.5" r="4.5" /><path d="m10.7 12.3 9.3-9.3M16 7l3 3M14 9l2 2" /></>);
+export const PencilIcon = make(<><path d="M4 20h4L19 9l-4-4L4 16z" /><path d="m13.5 6.5 4 4" /></>);
+export const ShieldIcon = make(<><path d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6z" /><path d="m9 12 2 2 4-4" /></>);
+export const GiftIcon = make(<><rect x="3" y="8" width="18" height="4" rx="1" /><path d="M5 12v8h14v-8M12 8v12M12 8c-1.5-3-5-3-5-1s3 1 5 1zM12 8c1.5-3 5-3 5-1s-3 1-5 1z" /></>);
+export const SheetIcon = make(<><rect x="4" y="3" width="16" height="18" rx="2" /><path d="M4 9h16M4 15h16M10 3v18" /></>);
 
 /* ---------- Product icons ---------- */
 const BowlIcon = make(<><path d="M3 12h18a9 9 0 0 1-18 0z" /><path d="M8 4c0 2 1 2 1 4M12 3c0 2 1 2 1 4M16 4c0 2 1 2 1 4" /></>);

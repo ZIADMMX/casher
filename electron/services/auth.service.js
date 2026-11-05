@@ -250,6 +250,10 @@ function logout(callerOrToken = 'default') {
     const session = getCurrentSession(callerOrToken);
     if (session) loggedOutUser = session;
   } catch {}
+  // A manager's unlock belongs to the session that got it.
+  if (loggedOutUser) {
+    try { require('./productEditUnlock.service').clearForUser(loggedOutUser.id); } catch {}
+  }
 
   if (!callerOrToken || callerOrToken === 'default') {
     const token = activeSessions.get('default') || fallbackToken || getPersistedSessionToken();
@@ -456,7 +460,16 @@ function requireAuth(callerOrToken = 'default') {
 function getPermissionsForUser(user) {
   if (user.role === 'admin' && !user.system_role_key) return ['*'];
   if (!user.system_role_key) {
-    return user.role === 'cashier' ? ['pos.view', 'pos.sell', 'orders.view'] : [];
+    if (user.role !== 'cashier') return [];
+    // A cashier without a job role follows the "cashier" role, so the owner edits
+    // cashier rights in one place (Roles screen). Defaults apply until it exists.
+    try {
+      const rolePermissions = require('../repositories/enterprise.repository').getRolePermissions('cashier');
+      if (rolePermissions.length) return rolePermissions.filter((permission) => permission !== '*');
+    } catch {
+      // Roles table not ready yet (first start).
+    }
+    return [...require('./enterprise/defaults').CASHIER_PERMISSIONS];
   }
   return require('../repositories/enterprise.repository').getRolePermissions(user.system_role_key);
 }
@@ -477,7 +490,20 @@ function requirePermission(permission, callerOrToken = 'default') {
       item.startsWith(`${permission.slice(0, -'.view'.length)}.`)
       && item !== permission
     )));
-  if (!granted) {
+  // A manager may have unlocked product editing on this device for a few minutes.
+  if (!granted && !require('./productEditUnlock.service').isGranted(session, permission)) {
+    if (/^products\.(create|edit|delete)$/.test(permission)) {
+      // Refused product changes show up in the products history.
+      try {
+        require('../repositories/productChangeLog.repository').record({
+          action: 'denied',
+          field: permission,
+          reason: 'بدون صلاحية',
+          userId: session.id,
+          username: session.username,
+        });
+      } catch {}
+    }
     throw new Error('غير مصرح لك بتنفيذ هذا الإجراء');
   }
   return session;
@@ -954,6 +980,7 @@ module.exports = {
   requireAuth,
   requirePermission,
   hasGrantedPermission,
+  getPermissionsForUser,
   requireAdmin,
   addCashier,
   getAllUsers,

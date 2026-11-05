@@ -138,6 +138,11 @@ function getPermissionForChannel(channel, args = []) {
   }
   if (resource === 'salon') {
     if (isReadAction(action)) return 'pos.view';
+    // The service list, packages and chairs are the salon's price list: same rule as products.
+    if (/^delete(Service|Chair)$/.test(action)) return 'products.delete';
+    if (/^(create|update)(Service|Package|Chair)$/.test(action)) return 'products.edit';
+    // Making or removing a coupon is a discount decision; applying one stays a sale.
+    if (/^(create|delete)Coupon$/.test(action)) return 'promotions.manage';
     return 'pos.sell';
   }
   if (resource === 'cases') {
@@ -151,6 +156,8 @@ function getPermissionForChannel(channel, args = []) {
     return 'cases.manage';
   }
   if (resource === 'products' || resource === 'variants') {
+    // Opens a file picker and copies the file into app storage: not a read.
+    if (action === 'selectImage') return 'products.create';
     if (isReadAction(action)) return 'products.view';
     if (/delete|remove/i.test(action)) return 'products.delete';
     if (/add|create/i.test(action)) return 'products.create';
@@ -158,6 +165,8 @@ function getPermissionForChannel(channel, args = []) {
   }
   if (resource === 'sales') {
     if (action === 'getKitchenOrders') return 'pos.view';
+    // The POS asks for this on every cart change; it only reads promotion rules.
+    if (action === 'previewBundlePromotion') return 'pos.view';
     if (action === 'updateKitchenOrderStatus') return 'pos.sell';
     if (isReadAction(action)) return 'sales.view';
     if (/refund|return/i.test(action)) return 'pos.refund';

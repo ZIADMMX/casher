@@ -264,6 +264,7 @@ describe('Inventory & Products Management (اختبارات المخزون وا�
         sellingPrice: 220,
         stockQuantity: 12,
         lowStockThreshold: 3,
+        reason: 'تحديث قائمة الأسعار',
       });
 
       const updated = variantsRepo.getById(p.variantId);

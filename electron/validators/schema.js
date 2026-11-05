@@ -338,54 +338,84 @@ const shiftOpenSchema = v.object({
   openingCashBreakdown: v.any(),
 });
 
+// Product inputs. Caps stop typos (an extra zero) and oversized payloads; the
+// products service validates again so LAN/API calls get the same rules.
+const MAX_PRICE = 10000000;
+const productText = (max) => v.string().max(max).optional().nullable();
+const sellingPriceField = () => v.number('سعر البيع غير صحيح')
+  .positive('سعر البيع يجب أن يكون أكبر من الصفر')
+  .max(MAX_PRICE, 'سعر البيع كبير جداً');
+const purchasePriceField = () => v.number('سعر الشراء غير صحيح')
+  .nonnegative('سعر الشراء لا يمكن أن يكون سالباً')
+  .max(MAX_PRICE, 'سعر الشراء كبير جداً')
+  .optional().nullable();
+const stockField = () => v.number('كمية المخزون غير صحيحة')
+  .int('الكمية يجب أن تكون عدداً صحيحاً')
+  .nonnegative('المخزون لا يمكن أن يكون سالباً')
+  .max(MAX_PRICE, 'الكمية كبيرة جداً');
+
 const addProductVariantSchema = v.object({
-  productId: v.any(),
+  productId: v.number('معرف المنتج غير صحيح').int().positive('معرف المنتج غير صالح'),
   variant: v.object({
-    size: v.string().optional().nullable(),
-    color: v.string().optional().nullable(),
-    sellingPrice: v.number('سعر البيع غير صحيح').positive('سعر البيع يجب أن يكون أكبر من الصفر'),
-    purchasePrice: v.number('سعر الشراء غير صحيح').nonnegative('سعر الشراء لا يمكن أن يكون سالباً').optional().nullable(),
-    stockQuantity: v.number('كمية المخزون غير صحيحة').int('الكمية يجب أن تكون عدداً صحيحاً').nonnegative('المخزون لا يمكن أن يكون سالباً'),
-    barcode: v.string().optional().nullable(),
+    size: productText(60),
+    color: productText(60),
+    sellingPrice: sellingPriceField(),
+    purchasePrice: purchasePriceField(),
+    stockQuantity: stockField(),
+    barcode: productText(100),
     attributeValues: v.any().optional(),
   }),
 });
 
 const addProductWithVariantSchema = v.object({
-  name: v.string('اسم المنتج مطلوب').min(1, 'اسم المنتج لا يمكن أن يكون فارغاً'),
-  description: v.string().optional().nullable(),
-  categoryName: v.string().optional().nullable(),
-  imagePath: v.string().optional().nullable(),
-  size: v.string().optional().nullable(),
-  color: v.string().optional().nullable(),
-  purchasePrice: v.number('سعر الشراء غير صحيح').nonnegative('سعر الشراء لا يمكن أن يكون سالباً').optional().nullable(),
-  sellingPrice: v.number('سعر البيع غير صحيح').positive('سعر البيع يجب أن يكون أكبر من الصفر'),
-  stockQuantity: v.number('الكمية غير صحيحة').int('الكمية يجب أن تكون عدداً صحيحاً').nonnegative('الكمية لا يمكن أن تكون سالبة'),
+  name: v.string('اسم المنتج مطلوب').min(1, 'اسم المنتج لا يمكن أن يكون فارغاً').max(120, 'اسم المنتج طويل جداً'),
+  description: productText(1000),
+  categoryName: productText(60),
+  imagePath: productText(500),
+  size: productText(60),
+  color: productText(60),
+  purchasePrice: purchasePriceField(),
+  sellingPrice: sellingPriceField(),
+  stockQuantity: stockField(),
+  barcode: productText(100),
   attributeValues: v.any().optional(),
 });
 
 const updateProductSchema = v.object({
-  productId: v.number('معرف المنتج غير صحيح').positive('معرف المنتج غير صالح'),
+  productId: v.number('معرف المنتج غير صحيح').int().positive('معرف المنتج غير صالح'),
   data: v.object({
-    name: v.string('اسم المنتج مطلوب').min(1, 'اسم المنتج لا يمكن أن يكون فارغاً'),
-    description: v.string().optional().nullable(),
-    categoryName: v.string().optional().nullable(),
-    imagePath: v.string().optional().nullable(),
+    name: v.string('اسم المنتج مطلوب').min(1, 'اسم المنتج لا يمكن أن يكون فارغاً').max(120, 'اسم المنتج طويل جداً'),
+    description: productText(1000),
+    categoryName: productText(60),
+    imagePath: productText(500),
+    reason: productText(200),
   }),
 });
 
 const updateVariantSchema = v.object({
-  variantId: v.number('معرف المتغير غير صحيح').positive('معرف المتغير غير صالح'),
+  variantId: v.number('معرف المتغير غير صحيح').int().positive('معرف المتغير غير صالح'),
   data: v.object({
-    size: v.string().optional().nullable(),
-    color: v.string().optional().nullable(),
-    purchasePrice: v.number('سعر الشراء غير صحيح').nonnegative('سعر الشراء لا يمكن أن يكون سالباً').optional().nullable(),
-    sellingPrice: v.number('سعر البيع غير صحيح').positive('سعر البيع يجب أن يكون أكبر من الصفر'),
-    stockQuantity: v.number('الكمية غير صحيحة').int('الكمية يجب أن تكون عدداً صحيحاً').nonnegative('الكمية لا يمكن أن تكون سالبة'),
-    lowStockThreshold: v.number('حد التنبيه غير صحيح').int().nonnegative().optional().nullable(),
-    barcode: v.string().optional().nullable(),
+    size: productText(60),
+    color: productText(60),
+    purchasePrice: purchasePriceField(),
+    sellingPrice: sellingPriceField(),
+    // Optional: the products screen no longer edits stock (the service keeps the current value).
+    stockQuantity: stockField().optional().nullable(),
+    lowStockThreshold: v.number('حد التنبيه غير صحيح').int().nonnegative().max(MAX_PRICE).optional().nullable(),
+    barcode: productText(100),
+    reason: productText(200),
     attributeValues: v.any().optional(),
   }),
+});
+
+const productChangeLogQuerySchema = v.object({
+  productId: v.number().int().positive().optional().nullable(),
+  limit: v.number().int().positive().max(200).optional().nullable(),
+}).optional().nullable();
+
+const managerUnlockSchema = v.object({
+  username: v.string('اسم المدير مطلوب').min(1, 'اسم المدير مطلوب').max(100),
+  password: v.string('الكود مطلوب').min(1, 'الكود مطلوب').max(200),
 });
 
 const addCustomerSchema = v.object({
@@ -701,6 +731,8 @@ module.exports = {
   addProductWithVariantSchema,
   updateProductSchema,
   updateVariantSchema,
+  productChangeLogQuerySchema,
+  managerUnlockSchema,
   addCustomerSchema,
   addManualDebtSchema,
   customerPaymentSchema,

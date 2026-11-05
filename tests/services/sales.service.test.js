@@ -33,6 +33,8 @@ jest.mock('../../electron/services/bundlePromotions.service', () => ({
 }));
 jest.mock('../../electron/services/auth.service', () => ({
   getCurrentSession: jest.fn(() => ({ id: 7, username: 'cashier' })),
+  // Discount right granted by default so the cap tests below keep their meaning.
+  hasGrantedPermission: jest.fn(() => true),
 }));
 
 const salesRepo = require('../../electron/repositories/sales.repository');
@@ -214,6 +216,21 @@ describe('sales.service.createSale', () => {
       paymentMethod: 'cash',
     })).toThrow('يجب تخصيص مخزن هذا الفرع');
     expect(salesRepo.createSale).not.toHaveBeenCalled();
+  });
+
+  test('a manual discount without the discount right is refused', () => {
+    const { hasGrantedPermission } = require('../../electron/services/auth.service');
+    hasGrantedPermission.mockImplementation((permission) => permission !== 'pos.discount');
+    try {
+      expect(() => createSale({
+        items: [{ variantId: 1, quantity: 1 }],
+        discount: 1,
+        paymentMethod: 'cash',
+      })).toThrow('الخصم اليدوي يحتاج صلاحية الخصم');
+      expect(salesRepo.createSale).not.toHaveBeenCalled();
+    } finally {
+      hasGrantedPermission.mockImplementation(() => true);
+    }
   });
 
   test('never allows a discount to exceed subtotal and enforces cashier discount cap', () => {

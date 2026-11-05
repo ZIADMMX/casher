@@ -34,6 +34,7 @@ import * as productsApi from '../api/products.js';
 import * as salesApi from '../api/sales.js';
 import * as shiftsApi from '../api/shifts.js';
 import * as subscriptionsApi from '../api/subscriptions.js';
+import { hasPermission } from '../utils/accessControl.js';
 
 function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
   const { settings } = useSettings();
@@ -949,6 +950,7 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
       {/* Cart & Payment (end side in RTL) */}
       <aside className="pos-cart-container" aria-label={sectorConfig.orderTerm || 'السلة'}>
         <CartPanel
+          canDiscount={hasPermission(posSessionUser, 'pos.discount')}
           cart={cart}
           changeQuantity={changeQuantity}
           removeFromCart={removeFromCart}

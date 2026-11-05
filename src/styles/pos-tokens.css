@@ -25,7 +25,8 @@
 .inv-page,
 .rep-page,
 .err-screen,
-.kds-page {
+.kds-page,
+.prd-page {
   /* ---- Palette (internal to this file) --------------------------------- */
   --ds-slate-0:   #FFFFFF;
   --ds-slate-50:  #F8FAFC;
@@ -151,7 +152,8 @@
 [data-density="compact"] .inv-page,
 [data-density="compact"] .rep-page,
 [data-density="compact"] .err-screen,
-[data-density="compact"] .kds-page {
+[data-density="compact"] .kds-page,
+[data-density="compact"] .prd-page {
   --touch-min: 36px;
   --control-px: var(--space-3);
 }
@@ -160,7 +162,8 @@
 [data-theme="dark"] .inv-page,
 [data-theme="dark"] .rep-page,
 [data-theme="dark"] .err-screen,
-[data-theme="dark"] .kds-page {
+[data-theme="dark"] .kds-page,
+[data-theme="dark"] .prd-page {
   --color-bg:            var(--ds-slate-900);
   --color-surface:       var(--ds-slate-800);
   --color-surface-muted: var(--ds-slate-700);
@@ -179,7 +182,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pos-page-wrapper, .inv-page, .rep-page, .err-screen, .kds-page { --duration-fast: 0ms; --duration-base: 0ms; }
+  .pos-page-wrapper, .inv-page, .rep-page, .err-screen, .kds-page, .prd-page { --duration-fast: 0ms; --duration-base: 0ms; }
 }
 
 /* --------------------------------------------------------------------------
@@ -187,7 +190,8 @@
    approved branches & warehouses mockup. Palette values stay in this file.
    -------------------------------------------------------------------------- */
 .inv-page,
-.kds-page {
+.kds-page,
+.prd-page {
   --ds-warm-0:   #FFFFFF;
   --ds-warm-50:  #FFFBF6;
   --ds-warm-100: #F8F3EE;
@@ -217,7 +221,8 @@
 }
 
 [data-theme="dark"] .inv-page,
-[data-theme="dark"] .kds-page {
+[data-theme="dark"] .kds-page,
+[data-theme="dark"] .prd-page {
   --color-bg:            var(--ds-slate-900);
   --color-surface:       var(--ds-slate-800);
   --color-surface-muted: var(--ds-slate-700);

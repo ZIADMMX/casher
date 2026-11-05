@@ -19,7 +19,7 @@ describe('fresh install migrations', () => {
   });
 
   it('reaches the latest schema version', () => {
-    expect(db.pragma('user_version', { simple: true })).toBe(15);
+    expect(db.pragma('user_version', { simple: true })).toBe(17);
   });
 
   it('seeds one onboarding preset per sector', () => {

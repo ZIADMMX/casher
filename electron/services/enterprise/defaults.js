@@ -167,6 +167,33 @@ const PRESET_ATTRIBUTE_KEYS = new Set([
 ]);
 
 // Initial Roles Seed
+// Cashier: sells, runs their own shift (shifts.service limits it to their own),
+// takes orders and adds customers. No returns, discounts, prices, stock or reports.
+const CASHIER_PERMISSIONS = [
+  'pos.view', 'pos.sell',
+  'shifts.view', 'shifts.manage',
+  'orders.view', 'orders.manage',
+  'products.view',
+  'customers.view', 'customers.create',
+];
+
+// Branch manager: everything a cashier does, plus products (prices, options,
+// archive), returns, discounts, the sales log and the team. Stock changes,
+// settings and roles stay with the owner.
+const MANAGER_PERMISSIONS = [
+  ...CASHIER_PERMISSIONS,
+  'pos.discount', 'pos.refund',
+  'sales.view',
+  'products.create', 'products.edit', 'products.delete',
+  'inventory.view',
+  'promotions.view',
+  'customers.edit',
+  'subscriptions.view', 'subscriptions.manage',
+  'reports.view',
+  'team.view', 'team.manage',
+  'attendance.view', 'attendance.manage', 'leaves.view', 'leaves.manage',
+];
+
 const DEFAULT_ROLES = [
   {
     role_key: 'admin',
@@ -180,19 +207,14 @@ const DEFAULT_ROLES = [
     role_name: 'مدير فرع / تشغيل (Manager)',
     description: 'إدارة العمليات، التقارير، الاشتراكات والعملاء مع تقييد الإعدادات الحساسة',
     is_system: 1,
-    permissions: [
-      'pos.view', 'pos.sell', 'orders.manage', 'subscriptions.manage',
-      'customers.view', 'customers.create', 'customers.edit',
-      'products.view', 'reports.view', 'team.view', 'team.manage',
-      'attendance.view', 'attendance.manage', 'leaves.view', 'leaves.manage',
-    ]
+    permissions: MANAGER_PERMISSIONS
   },
   {
     role_key: 'cashier',
     role_name: 'كاشير مبيعات (Cashier)',
     description: 'إصدار الفواتير وتحصيل المبيعات واسترجاع الفواتير المعلقة فقط',
     is_system: 1,
-    permissions: ['pos.view', 'pos.sell', 'orders.view']
+    permissions: CASHIER_PERMISSIONS
   }
 ];
 
@@ -203,4 +225,6 @@ module.exports = {
   PROFILE_BASELINE_MODULES,
   PRESET_ATTRIBUTE_KEYS,
   DEFAULT_ROLES,
+  CASHIER_PERMISSIONS,
+  MANAGER_PERMISSIONS,
 };
