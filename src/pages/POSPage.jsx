@@ -22,6 +22,8 @@ import ShiftStatus from '../components/pos/ShiftStatus.jsx';
 import SearchBar from '../components/pos/SearchBar.jsx';
 import SpeedKeysBar from '../components/pos/SpeedKeysBar.jsx';
 import ScaleWeightModal from '../components/pos/ScaleWeightModal.jsx';
+import ShiftGateBanner from '../components/pos/ShiftGateBanner.jsx';
+import usePosAttendance from '../hooks/usePosAttendance.js';
 import { isBridgeAvailable } from '../api/bridge.js';
 import * as authApi from '../api/auth.js';
 import * as customersApi from '../api/customers.js';
@@ -34,7 +36,7 @@ import * as subscriptionsApi from '../api/subscriptions.js';
 
 function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
   const { settings } = useSettings();
-  const { configuration } = useBusinessProfile();
+  const { configuration, getTerm } = useBusinessProfile();
   const sectorKey = configuration?.profile?.key || 'retail';
   const sectorConfig = useMemo(() => getSectorConfig(sectorKey), [sectorKey]);
   const [activeOrderMode, setActiveOrderMode] = useState('takeaway');
@@ -63,6 +65,7 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
 
   // نظام الورديات (Shift Management)
   const [activeShift, setActiveShift] = useState(null);
+  const [shiftLoaded, setShiftLoaded] = useState(false);
   const [showShiftOpenModal, setShowShiftOpenModal] = useState(false);
   const [showShiftExpenseModal, setShowShiftExpenseModal] = useState(false);
   const [showShiftCloseModal, setShowShiftCloseModal] = useState(false);
@@ -157,12 +160,16 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
       }
     } catch (err) {
       console.error('خطأ في جلب بيانات الوردية:', err);
+    } finally {
+      setShiftLoaded(true);
     }
   }, []);
 
   useEffect(() => {
     refreshShift();
   }, [refreshShift]);
+
+  const attendance = usePosAttendance({ sessionUser: posSessionUser, activeShift, setMessage });
 
   const searchInputRef = useRef(null);
   const paymentSectionRef = useRef(null);
@@ -551,6 +558,11 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
 
   const handleCompleteSale = useCallback(async () => {
     if (cart.length === 0 || isCreditInvalid || isCashInvalid) return;
+    if (!activeShift) {
+      playErrorBeep();
+      setMessage({ type: 'warning', text: 'افتح الوردية أولاً لإتمام البيع.' });
+      return;
+    }
     const printStatus = { error: null };
     setMessage(null);
     try {
@@ -657,7 +669,7 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
       playErrorBeep();
       setMessage({ type: 'error', text: err.message });
     }
-  }, [cart, isCreditInvalid, isCashInvalid, discount, paymentMethod, activeOrderMode, sectorConfig.key, creditCustomerName, creditCustomerPhone, creditDueDate, cashReceived, changeDue, clearCart, loadProducts, refreshShift, onNavigate, activeSubscription, posCustomers, selectedCustomerId, useSubscriptionCredit, settings.thermal_printer_name, settings.receipt_paper_size, settings.cash_drawer_pin, workOrder, onWorkOrderCheckoutComplete]);
+  }, [cart, isCreditInvalid, isCashInvalid, activeShift, discount, paymentMethod, activeOrderMode, sectorConfig.key, creditCustomerName, creditCustomerPhone, creditDueDate, cashReceived, changeDue, clearCart, loadProducts, refreshShift, onNavigate, activeSubscription, posCustomers, selectedCustomerId, useSubscriptionCredit, settings.thermal_printer_name, settings.receipt_paper_size, settings.cash_drawer_pin, workOrder, onWorkOrderCheckoutComplete]);
 
   function handleExitWorkOrderCheckout() {
     if (cart.length && !window.confirm('هل تريد إلغاء تجهيز فاتورة أمر الشغل والعودة للبيع العادي؟ سيبقى أمر الشغل محفوظًا.')) {
@@ -811,12 +823,116 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
   }
 
   return (
-    <div className="pos-page-wrapper">
+    <div
+      className="pos-page-wrapper"
+      data-sector={sectorConfig.key}
+      style={{ '--pos-sector-accent': sectorConfig.color }}
+    >
       {/* كومبوننت طباعة الفاتورة */}
       <ReceiptPrint sale={printableSale} />
 
-      {/* Main Left: Cart & Payment */}
-      <div className="pos-cart-container">
+      {/* Catalog (start side in RTL): identity, status, search, categories, products */}
+      <section className="pos-catalog-container" aria-label="قائمة الأصناف">
+        <SectorHeader
+          sectorConfig={sectorConfig}
+          activeOrderMode={activeOrderMode}
+          onSelectOrderMode={setActiveOrderMode}
+          onOpenWorkOrders={() => onNavigate?.('orders')}
+          onOpenKitchen={() => onNavigate?.('kitchen')}
+        />
+
+        <ShiftStatus
+          activeShift={activeShift}
+          shiftLoaded={shiftLoaded}
+          posSessionUser={posSessionUser}
+          attendance={attendance}
+          onOpenExpenseModal={() => setShowShiftExpenseModal(true)}
+          onShowXReport={handlePOSShowXReport}
+          onCloseShiftModal={() => setShowShiftCloseModal(true)}
+          onOpenCashDrawer={handleManualOpenCashDrawer}
+          playSuccessBeep={playSuccessBeep}
+          setMessage={setMessage}
+        />
+
+        {workOrder && (
+          <div className="pos-work-order-banner">
+            <span>
+              أمر شغل <strong>{workOrder.order_number}</strong>
+              {workOrder.vehicle_plate ? ` — السيارة ${workOrder.vehicle_plate}` : ''}
+              {' '} | أضف قطع الغيار والمصنعية ثم أصدر فاتورة التسليم.
+            </span>
+            <button type="button" onClick={handleExitWorkOrderCheckout}>العودة للبيع العادي</button>
+          </div>
+        )}
+
+        <SearchBar
+          search={search}
+          setSearch={setSearch}
+          searchInputRef={searchInputRef}
+          filteredProducts={filteredProducts}
+          selectedVariant={selectedVariant}
+          addScannedVariantToCart={addScannedVariantToCart}
+          playErrorBeep={playErrorBeep}
+          setMessage={setMessage}
+          normalizeBarcodeText={normalizeBarcodeText}
+          sectorConfig={sectorConfig}
+        />
+
+        {/* Speed Keys Bar (Supermarket Fast PLU Buttons) */}
+        {sectorConfig.features?.speedKeys && (
+          <SpeedKeysBar
+            onSelectSpeedKey={handleSelectSpeedKey}
+            onOpenScaleModal={(v) => setScaleModalItem(v)}
+            products={products}
+          />
+        )}
+
+        {/* Category Pills Navigation */}
+        <nav className="pos-category-nav" aria-label="التصنيفات">
+          {categoriesWithCounts.map((cat) => (
+            <button
+              key={cat.name}
+              type="button"
+              className={`pos-category-chip ${activeCategory === cat.name ? 'active' : ''}`}
+              aria-pressed={activeCategory === cat.name}
+              onClick={() => setActiveCategory(cat.name)}
+            >
+              <span className="chip-name">{cat.name}</span>
+              <span className="chip-count">{cat.count}</span>
+            </button>
+          ))}
+        </nav>
+
+        {/* Products Grid Area */}
+        <div className="pos-products-scroll-area">
+          {productsError && (
+            <div className="pos-products-error-card" role="alert">
+              <span aria-hidden="true">⚠️</span>
+              <span>{productsError}</span>
+            </div>
+          )}
+
+          {loading ? (
+            <div className="pos-catalog-loading">
+              <div className="catalog-spinner"></div>
+              <span>جاري تحميل قائمة المنتجات...</span>
+            </div>
+          ) : (
+            <ProductGrid
+              products={filteredProducts}
+              selectedVariant={selectedVariant}
+              pickVariant={pickVariant}
+              addToCart={addToCart}
+              getStockBadge={getStockBadge}
+              cart={cart}
+              sectorConfig={sectorConfig}
+            />
+          )}
+        </div>
+      </section>
+
+      {/* Cart & Payment (end side in RTL) */}
+      <aside className="pos-cart-container" aria-label={sectorConfig.orderTerm || 'السلة'}>
         <CartPanel
           cart={cart}
           changeQuantity={changeQuantity}
@@ -857,137 +973,14 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
           setUseSubscriptionCredit={setUseSubscriptionCredit}
           sectorConfig={sectorConfig}
           paymentSectionRef={paymentSectionRef}
+          isShiftOpen={Boolean(activeShift)}
+          shiftLoaded={shiftLoaded}
+          customerTerm={getTerm?.('customer', 'العملاء') || 'العملاء'}
+          shiftGate={shiftLoaded && !activeShift ? (
+            <ShiftGateBanner attendance={attendance} onOpenStartShift={handleOpenStartShiftModal} />
+          ) : null}
         />
-      </div>
-
-      {/* Main Right: Catalog & Search */}
-      <div className="pos-catalog-container">
-        {/* شريط هوية القطاع النشط */}
-        <SectorHeader
-          sectorConfig={sectorConfig}
-          activeOrderMode={activeOrderMode}
-          onSelectOrderMode={setActiveOrderMode}
-          onOpenWorkOrders={() => onNavigate?.('orders')}
-          onOpenKitchen={() => onNavigate?.('kitchen')}
-        />
-        {workOrder && (
-          <div className="pos-work-order-banner">
-            <span>
-              أمر شغل <strong>{workOrder.order_number}</strong>
-              {workOrder.vehicle_plate ? ` — السيارة ${workOrder.vehicle_plate}` : ''}
-              {' '} | أضف قطع الغيار والمصنعية ثم أصدر فاتورة التسليم.
-            </span>
-            <button type="button" onClick={handleExitWorkOrderCheckout}>العودة للبيع العادي</button>
-          </div>
-        )}
-
-        {/* Top Control Bar */}
-        <div className="pos-top-control-bar">
-          <SearchBar
-            search={search}
-            setSearch={setSearch}
-            searchInputRef={searchInputRef}
-            filteredProducts={filteredProducts}
-            selectedVariant={selectedVariant}
-            addScannedVariantToCart={addScannedVariantToCart}
-            playErrorBeep={playErrorBeep}
-            setMessage={setMessage}
-            normalizeBarcodeText={normalizeBarcodeText}
-            sectorConfig={sectorConfig}
-          />
-
-          <ShiftStatus
-            activeShift={activeShift}
-            posSessionUser={posSessionUser}
-            onOpenShiftModal={() => setShowShiftExpenseModal(true)}
-            onOpenExpenseModal={() => setShowShiftOpenModal(true)}
-            onShowXReport={handlePOSShowXReport}
-            onCloseShiftModal={() => setShowShiftCloseModal(true)}
-            onOpenStartShiftModal={handleOpenStartShiftModal}
-            playSuccessBeep={playSuccessBeep}
-            setMessage={setMessage}
-          />
-
-            <button
-              type="button"
-              className="pos-drawer-btn"
-              onClick={handleManualOpenCashDrawer}
-              title="فتح درج النقود (اختصار F7)"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '6px 12px',
-                background: 'var(--surface-color, #ffffff)',
-                border: '1px solid var(--border-color, #e2e8f0)',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                fontWeight: '600',
-                fontSize: '13px',
-                color: 'var(--text-color, #1e293b)',
-              }}
-            >
-              <span>💵</span>
-              <span>فتح الدرج (F7)</span>
-            </button>
-
-            <div className="scanner-status-chip" title="الماسح الضوئي متصل وجاهز للاستخدام">
-              <span className="scanner-dot"></span>
-              <span>الماسح متصل</span>
-            </div>
-          </div>
-
-        {/* Speed Keys Bar (Supermarket Fast PLU Buttons) */}
-        {sectorConfig.features?.speedKeys && (
-          <SpeedKeysBar
-            onSelectSpeedKey={handleSelectSpeedKey}
-            onOpenScaleModal={(v) => setScaleModalItem(v)}
-            products={products}
-          />
-        )}
-
-        {/* Category Pills Navigation */}
-        <div className="pos-category-nav">
-          {categoriesWithCounts.map((cat) => (
-            <button
-              key={cat.name}
-              type="button"
-              className={`pos-category-chip ${activeCategory === cat.name ? 'active' : ''}`}
-              onClick={() => setActiveCategory(cat.name)}
-            >
-              <span className="chip-name">{cat.name}</span>
-              <span className="chip-count">{cat.count}</span>
-            </button>
-          ))}
-        </div>
-
-        {/* Products Grid Area */}
-        <div className="pos-products-scroll-area">
-          {productsError && (
-            <div className="pos-products-error-card">
-              <span>⚠️</span>
-              <span>{productsError}</span>
-            </div>
-          )}
-
-          {loading ? (
-            <div className="pos-catalog-loading">
-              <div className="catalog-spinner"></div>
-              <span>جاري تحميل قائمة المنتجات...</span>
-            </div>
-          ) : (
-            <ProductGrid
-              products={filteredProducts}
-              selectedVariant={selectedVariant}
-              pickVariant={pickVariant}
-              addToCart={addToCart}
-              getStockBadge={getStockBadge}
-              cart={cart}
-              sectorConfig={sectorConfig}
-            />
-          )}
-        </div>
-      </div>
+      </aside>
 
       {/* Held Orders Modal */}
       <HeldOrdersModal

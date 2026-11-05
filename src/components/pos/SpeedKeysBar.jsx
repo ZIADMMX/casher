@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react';
 import * as groceryApi from '../../api/grocery.js';
 
+// Speed-key colors are stored per key (user data), so they are values, not theme tokens.
+const SPEED_KEY_COLORS = ['#10B981', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
+const DEFAULT_SPEED_KEY_COLOR = SPEED_KEY_COLORS[0];
+
 /**
  * SpeedKeysBar Component
  * شريط أزرار السلع السريعة بدون باركود (العيش، الخضار، البيض، الأكياس...)
@@ -17,7 +21,7 @@ export default function SpeedKeysBar({
     variant_id: '',
     label: '',
     shortcut_code: '',
-    color: '#10B981',
+    color: DEFAULT_SPEED_KEY_COLOR,
     icon: '🛒',
     display_order: 0,
   });
@@ -66,7 +70,7 @@ export default function SpeedKeysBar({
         variant_id: '',
         label: '',
         shortcut_code: '',
-        color: '#10B981',
+        color: DEFAULT_SPEED_KEY_COLOR,
         icon: '🛒',
         display_order: 0,
       });
@@ -102,7 +106,7 @@ export default function SpeedKeysBar({
       <div className="pos-speed-keys-header">
         <div className="speed-keys-title">
           <span className="speed-keys-icon">⚡</span>
-          <span className="speed-keys-heading">سلع سريعة بدون باركود (PLU):</span>
+          <span className="speed-keys-heading">سلع سريعة بدون باركود (PLU)</span>
         </div>
 
         <div className="speed-keys-actions">
@@ -132,7 +136,7 @@ export default function SpeedKeysBar({
               key={key.id}
               type="button"
               className="pos-speed-key-btn"
-              style={{ '--btn-accent': key.color || '#10B981' }}
+              style={{ '--btn-accent': key.color || DEFAULT_SPEED_KEY_COLOR }}
               onClick={() => onSelectSpeedKey(key)}
             >
               <div className="speed-key-top">
@@ -160,7 +164,7 @@ export default function SpeedKeysBar({
       {/* مودال إنشاء زر سريع جديد */}
       {showAddModal && (
         <div className="fox-modal-overlay" onClick={() => setShowAddModal(false)}>
-          <div className="fox-modal-card" style={{ maxWidth: '460px' }} onClick={(e) => e.stopPropagation()}>
+          <div className="fox-modal-card speed-key-modal" onClick={(e) => e.stopPropagation()}>
             <div className="fox-modal-header">
               <div className="fox-modal-title">
                 <span>⚡</span>
@@ -173,7 +177,7 @@ export default function SpeedKeysBar({
 
             <form onSubmit={handleCreateKey} className="fox-modal-body">
               {errorMsg && (
-                <div className="fox-alert-error" style={{ marginBottom: '12px' }}>
+                <div className="fox-alert-error speed-key-form-error">
                   {errorMsg}
                 </div>
               )}
@@ -215,7 +219,7 @@ export default function SpeedKeysBar({
                 />
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div className="speed-key-form-grid">
                 <div className="form-field-group">
                   <label className="form-label">كود اختصار سريع (Shortcut):</label>
                   <input
@@ -247,26 +251,22 @@ export default function SpeedKeysBar({
 
               <div className="form-field-group">
                 <label className="form-label">لون تمييز الزر:</label>
-                <div style={{ display: 'flex', gap: '10px', marginTop: '6px' }}>
-                  {['#10B981', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'].map((c) => (
+                <div className="speed-key-swatches" role="group" aria-label="لون تمييز الزر">
+                  {SPEED_KEY_COLORS.map((c) => (
                     <button
                       type="button"
                       key={c}
+                      className="speed-key-swatch"
+                      aria-pressed={newKeyForm.color === c}
+                      aria-label={`اللون ${c}`}
                       onClick={() => setNewKeyForm({ ...newKeyForm, color: c })}
-                      style={{
-                        width: '32px',
-                        height: '32px',
-                        borderRadius: '8px',
-                        backgroundColor: c,
-                        border: newKeyForm.color === c ? '3px solid #1E293B' : '2px solid transparent',
-                        cursor: 'pointer',
-                      }}
+                      style={{ '--swatch': c }}
                     />
                   ))}
                 </div>
               </div>
 
-              <div className="fox-modal-actions" style={{ marginTop: '20px' }}>
+              <div className="fox-modal-actions speed-key-form-actions">
                 <button type="button" className="fox-btn-secondary" onClick={() => setShowAddModal(false)}>
                   إلغاء
                 </button>

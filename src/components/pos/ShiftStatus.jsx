@@ -1,138 +1,49 @@
-import React, { useEffect, useState } from 'react';
-import * as attendanceApi from '../../api/attendance.js';
-
 /**
- * ShiftStatus component
- * Displays the barcode ready indicator and shift status pill with actions.
+ * ShiftStatus — the POS status strip.
+ * One row with the cashier's attendance, the shift (with expense / X / Z actions),
+ * the cash drawer and the scanner.
+ *
+ * When the shift is closed, the step-by-step actions (attendance + open shift) live in
+ * ShiftGateBanner inside the cart, so this strip only shows the closed state and
+ * never repeats those buttons.
+ *
  * Props:
- *  - activeShift: current shift object or null
- *  - posSessionUser: user info for the POS session
- *  - onOpenShiftModal: callback to open the Shift Open modal
- *  - onOpenExpenseModal: callback to open the Shift Expense modal
- *  - onShowXReport: callback to trigger X‑Report
- *  - onCloseShiftModal: callback to open the Shift Close modal
- *  - onOpenStartShiftModal: callback to open start‑shift flow (used when shift is closed)
- *  - playSuccessBeep: function to play success beep (used for barcode ready click)
- *  - setMessage: function to display temporary UI messages
+ *  - activeShift: current shift or null
+ *  - shiftLoaded: true once the current shift has been fetched
+ *  - posSessionUser: signed-in user
+ *  - attendance: result of usePosAttendance
+ *  - onOpenExpenseModal, onShowXReport, onCloseShiftModal: shift actions
+ *  - onOpenCashDrawer: opens the drawer (F7)
+ *  - playSuccessBeep, setMessage: feedback helpers
  */
 export default function ShiftStatus({
   activeShift,
+  shiftLoaded = true,
   posSessionUser,
+  attendance,
   onOpenExpenseModal,
   onShowXReport,
   onCloseShiftModal,
-  onOpenStartShiftModal,
+  onOpenCashDrawer,
   playSuccessBeep,
   setMessage,
 }) {
-  const [attendanceRecord, setAttendanceRecord] = useState(null);
-  const [attendanceLoading, setAttendanceLoading] = useState(false);
-  const [attendanceSaving, setAttendanceSaving] = useState(false);
-  const canManageOwnAttendance = Boolean(posSessionUser);
-  const ownsOpenShift = Boolean(activeShift && Number(activeShift.user_id) === Number(posSessionUser?.id));
-
-  useEffect(() => {
-    if (!canManageOwnAttendance || !attendanceApi.getMyAttendanceStatus.isAvailable()) return undefined;
-    let mounted = true;
-    setAttendanceLoading(true);
-    attendanceApi.getMyAttendanceStatus()
-      .then((record) => { if (mounted) setAttendanceRecord(record); })
-      .catch((error) => { if (mounted) setMessage({ type: 'error', text: error.message || 'تعذر تحميل حالة الحضور' }); })
-      .finally(() => { if (mounted) setAttendanceLoading(false); });
-    return () => { mounted = false; };
-  }, [canManageOwnAttendance, posSessionUser?.id, activeShift?.id, setMessage]);
-
-  async function handleAttendanceAction() {
-    if (!canManageOwnAttendance || attendanceSaving) return;
-    if (attendanceRecord?.check_in && ownsOpenShift) {
-      setMessage({ type: 'warning', text: 'أغلق الوردية أولاً قبل تسجيل الانصراف.' });
-      return;
-    }
-    setAttendanceSaving(true);
-    try {
-      const today = new Date();
-      const date = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-      if (attendanceRecord?.check_in) {
-        await attendanceApi.checkOutEmployee({ date });
-        setAttendanceRecord(await attendanceApi.getMyAttendanceStatus());
-        setMessage({ type: 'success', text: 'تم تسجيل الانصراف.' });
-      } else {
-        await attendanceApi.checkInEmployee({ date });
-        setAttendanceRecord(await attendanceApi.getMyAttendanceStatus());
-        setMessage({ type: 'success', text: 'تم تسجيل حضورك. يمكنك الآن فتح الوردية.' });
-      }
-    } catch (error) {
-      setMessage({ type: 'error', text: error.message || 'تعذر تسجيل الحضور.' });
-    } finally {
-      setAttendanceSaving(false);
-    }
-  }
-
-  const attendanceButtonText = attendanceLoading || attendanceSaving
-    ? 'جارٍ التسجيل...'
-    : attendanceRecord?.check_out
-      ? 'اكتمل حضور اليوم'
-      : attendanceRecord?.check_in
-        ? ownsOpenShift ? 'أغلق الوردية للانصراف' : 'تسجيل الانصراف'
-        : 'تسجيل الحضور';
+  // While the shift is closed and the cashier has not checked in, the banner owns the attendance step.
+  const showAttendance = Boolean(attendance?.canManage) && (Boolean(activeShift) || attendance.isCheckedIn);
 
   return (
-    <div className="pos-status-pills">
-      {canManageOwnAttendance && (
-        <div className={`attendance-clock-pill${attendanceRecord?.check_in && !attendanceRecord?.check_out ? ' is-present' : ''}`}>
-          <span>{attendanceRecord?.check_in ? 'حالة اليوم' : 'قبل فتح الوردية'}</span>
-          <button
-            type="button"
-            onClick={handleAttendanceAction}
-            disabled={attendanceLoading || attendanceSaving || Boolean(attendanceRecord?.check_out) || (ownsOpenShift && Boolean(attendanceRecord?.check_in))}
-            title={ownsOpenShift ? 'يمكن تسجيل الانصراف بعد إغلاق الوردية' : 'تسجيل حضورك أو انصرافك'}
-          >
-            {attendanceButtonText}
-          </button>
-        </div>
-      )}
-      <div
-        className="shift-pos-pill"
-        style={{
-          background: '#0F172A',
-          borderColor: '#10B981',
-          color: '#10B981',
-          cursor: 'pointer',
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '6px',
-          padding: '4px 10px',
-        }}
-        title="قارئ الباركود متصل وجاهز للاستخدام - اضغط للتأكيد"
-        onClick={() => {
-          playSuccessBeep();
-          setMessage({
-            type: 'success',
-            text: 'قارئ الباركود متصل وجاهز! وجّه القارئ لأي باركود لمسحه فوراً إلى السلة.',
-          });
-        }}
-      >
-        <span
-          style={{
-            width: '8px',
-            height: '8px',
-            borderRadius: '50%',
-            background: '#10B981',
-            boxShadow: '0 0 8px #10B981',
-          }}
-        ></span>
-        <span style={{ fontSize: '11px', fontWeight: 'bold' }}>الباركود: جاهز للطلب</span>
-      </div>
+    <div className="pos-status-strip" role="group" aria-label="حالة الوردية والأجهزة">
       {activeShift ? (
         <div className="shift-pos-pill active" title="الوردية الحالية نشطة ومفتوحة">
-          <span className="shift-live-dot"></span>
+          <span className="pos-status-dot is-live" aria-hidden="true" />
           <span className="shift-pill-title">
-            وردية #{activeShift.id} ({activeShift.cashier_username || activeShift.opened_by_name})
+            <strong>وردية #{activeShift.id}</strong>
+            <span className="shift-pill-cashier">{activeShift.cashier_username || activeShift.opened_by_name}</span>
           </span>
           <div className="shift-pill-actions">
             <button
               type="button"
-              className="shift-action-btn btn-warn"
+              className="shift-action-btn"
               onClick={onOpenExpenseModal}
               title="تسجيل مصروف من الدرج"
             >
@@ -141,7 +52,7 @@ export default function ShiftStatus({
             {posSessionUser?.role === 'admin' && (
               <button
                 type="button"
-                className="shift-action-btn btn-info"
+                className="shift-action-btn"
                 onClick={onShowXReport}
                 title="تقرير استطلاعي X-Report"
               >
@@ -150,7 +61,7 @@ export default function ShiftStatus({
             )}
             <button
               type="button"
-              className="shift-action-btn btn-close-shift"
+              className="shift-action-btn is-danger"
               onClick={onCloseShiftModal}
               title="إغلاق الوردية وإصدار Z-Report"
             >
@@ -159,18 +70,57 @@ export default function ShiftStatus({
           </div>
         </div>
       ) : (
-        <div className="shift-pos-pill closed">
-          <span className="shift-closed-dot"></span>
-          <span className="shift-pill-title">الوردية مغلقة</span>
+        <div className="shift-pos-pill closed" role="status">
+          <span className="pos-status-dot is-off" aria-hidden="true" />
+          <span className="shift-pill-title">
+            <strong>{shiftLoaded ? 'الوردية مغلقة' : 'جارٍ التحقق من الوردية...'}</strong>
+            {shiftLoaded && <span className="shift-pill-cashier">البيع متوقف حتى تفتح وردية</span>}
+          </span>
+        </div>
+      )}
+
+      {showAttendance && (
+        <div className={`attendance-clock-pill${attendance.isPresent ? ' is-present' : ''}`}>
+          <span>{attendance.isCheckedIn ? 'الحضور' : 'لم تسجّل حضورك'}</span>
           <button
             type="button"
-            className="shift-action-btn btn-start-shift"
-            onClick={onOpenStartShiftModal}
+            onClick={attendance.toggle}
+            disabled={attendance.buttonDisabled}
+            title={attendance.ownsOpenShift ? 'يمكن تسجيل الانصراف بعد إغلاق الوردية' : 'تسجيل حضورك أو انصرافك'}
           >
-            🟢 فتح وردية
+            {attendance.buttonText}
           </button>
         </div>
       )}
+
+      <div className="pos-status-strip-end">
+        <button
+          type="button"
+          className="pos-status-chip"
+          onClick={onOpenCashDrawer}
+          title="فتح درج النقود (اختصار F7)"
+        >
+          <span aria-hidden="true">💵</span>
+          <span>فتح الدرج</span>
+          <kbd>F7</kbd>
+        </button>
+
+        <button
+          type="button"
+          className="pos-status-chip is-ok scanner-status-chip"
+          title="قارئ الباركود متصل وجاهز للاستخدام - اضغط للتأكيد"
+          onClick={() => {
+            playSuccessBeep?.();
+            setMessage?.({
+              type: 'success',
+              text: 'قارئ الباركود متصل وجاهز! وجّه القارئ لأي باركود لمسحه فوراً إلى السلة.',
+            });
+          }}
+        >
+          <span className="pos-status-dot is-live" aria-hidden="true" />
+          <span>الماسح جاهز</span>
+        </button>
+      </div>
     </div>
   );
 }

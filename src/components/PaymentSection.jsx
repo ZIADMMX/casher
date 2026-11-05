@@ -25,10 +25,11 @@ function PaymentSection({
 
   return (
     <div className="pos-payment-section" ref={sectionRef} tabIndex={-1}>
-      <div className="payment-method-tabs">
+      <div className="payment-method-tabs" role="group" aria-label="طريقة الدفع">
         <button
           type="button"
           className={`pay-tab-btn ${paymentMethod === 'cash' ? 'active' : ''}`}
+          aria-pressed={paymentMethod === 'cash'}
           onClick={() => {
             setPaymentMethod('cash');
           }}
@@ -40,6 +41,7 @@ function PaymentSection({
         <button
           type="button"
           className={`pay-tab-btn ${paymentMethod === 'card' ? 'active' : ''}`}
+          aria-pressed={paymentMethod === 'card'}
           onClick={() => {
             setPaymentMethod('card');
             setCashReceived('');
@@ -52,6 +54,7 @@ function PaymentSection({
         <button
           type="button"
           className={`pay-tab-btn ${paymentMethod === 'credit' ? 'active' : ''}`}
+          aria-pressed={paymentMethod === 'credit'}
           onClick={() => {
             setPaymentMethod('credit');
             setCashReceived('');
@@ -80,12 +83,13 @@ function PaymentSection({
           )}
 
           <div className="cash-input-row">
-            <label className="cash-label">المبلغ المستلم من الزبون:</label>
+            <label className="cash-label" htmlFor="pos-cash-received">المبلغ المستلم:</label>
             <div className="cash-input-wrap">
               <input
                 type="number"
                 min="0"
                 step="any"
+                id="pos-cash-received"
                 className="cash-input"
                 value={cashReceived}
                 onChange={(e) => setCashReceived(e.target.value)}
@@ -100,9 +104,7 @@ function PaymentSection({
               <div className="change-info">
                 <span className="change-label">المتبقي للعميل (الفكة):</span>
                 <span className="change-value">{changeDue.toFixed(2)} ج.م</span>
-              </div>
-              <span className="change-icon">🪙</span>
-            </div>
+              </div>            </div>
           )}
         </div>
       )}
@@ -150,8 +152,7 @@ function PaymentSection({
 
           <button
             type="button"
-            className="secondary-btn"
-            style={{ width: '100%', marginTop: '10px' }}
+            className="pos-credit-add-customer-btn"
             onClick={() => {
               const payload = {
                 name: creditCustomerName?.trim() || '',

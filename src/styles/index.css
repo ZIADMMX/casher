@@ -2624,16 +2624,7 @@
 
 
 /* ===== Responsive ===== */
-@media (max-width: 1050px) {
-  .pos-page-wrapper {
-    grid-template-columns: 360px minmax(0, 1fr);
-    gap: 12px;
-  }
-
-  .pos-grid-container {
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  }
-}
+/* POS responsive rules live in pos.css. */
 
 @media (max-width: 900px) {
   .stats-row {
@@ -2698,28 +2689,6 @@
     height: auto;
     overflow: visible;
     padding: 16px;
-  }
-
-  .pos-page-wrapper {
-    display: flex;
-    flex-direction: column;
-    height: auto;
-  }
-
-  .pos-catalog-container,
-  .pos-cart-container {
-    width: 100%;
-    height: auto;
-  }
-
-  .pos-catalog-container {
-    order: 1;
-  }
-
-  .pos-cart-container {
-    order: 2;
-    padding: 0;
-    border: 0;
   }
 }
 

@@ -1,0 +1,167 @@
+/* ==========================================================================
+   Fox Design System — tokens for the POS screen.
+   Source: fox-design-system skill (assets/tokens.css).
+
+   The rest of the app still uses variables.css, whose scales differ
+   (--space-5 is 20px there, --z-modal is 50). To avoid shifting every other
+   page, the semantic tokens below are scoped to the POS screen. Pages can opt
+   in later by moving to these names; then this scope can become :root.
+
+   - Palette values (--ds-brand-*, --ds-slate-*, ...) are used only in this file.
+   - --color-primary / --color-on-primary are set on <html> by applyBrandColor()
+     from the store's brand color (SettingsContext); the defaults below apply
+     until settings load.
+   - --pos-sector-accent is set by POSPage from the business sector and is used
+     for identity accents only (header strip, icon, active chip), never for the
+     primary action.
+   ========================================================================== */
+
+:root {
+  --color-primary: #C2410C;
+  --color-on-primary: #FFFFFF;
+}
+
+.pos-page-wrapper {
+  /* ---- Palette (internal to this file) --------------------------------- */
+  --ds-slate-0:   #FFFFFF;
+  --ds-slate-50:  #F8FAFC;
+  --ds-slate-100: #F1F5F9;
+  --ds-slate-200: #E2E8F0;
+  --ds-slate-300: #CBD5E1;
+  --ds-slate-400: #94A3B8;
+  --ds-slate-500: #64748B;
+  --ds-slate-600: #475569;
+  --ds-slate-700: #334155;
+  --ds-slate-800: #1E293B;
+  --ds-slate-900: #0F172A;
+  --ds-green-600: #16A34A;
+  --ds-green-700: #15803D;
+  --ds-red-600:   #DC2626;
+  --ds-red-700:   #B91C1C;
+  --ds-amber-500: #F59E0B;
+  --ds-amber-700: #B45309;
+  --ds-blue-600:  #2563EB;
+  --ds-blue-700:  #1D4ED8;
+
+  /* ---- Semantic colors -------------------------------------------------- */
+  --color-primary-hover:  color-mix(in srgb, var(--color-primary) 85%, black);
+  --color-primary-active: color-mix(in srgb, var(--color-primary) 70%, black);
+  --color-primary-soft:   color-mix(in srgb, var(--color-primary) 12%, var(--color-surface));
+
+  --color-bg:             var(--ds-slate-50);
+  --color-surface:        var(--ds-slate-0);
+  --color-surface-muted:  var(--ds-slate-100);
+  --color-border:         var(--ds-slate-200);
+  --color-border-strong:  var(--ds-slate-300);
+  --color-text:           var(--ds-slate-900);
+  --color-text-muted:     var(--ds-slate-600);
+  --color-text-disabled:  var(--ds-slate-400);
+  --color-focus-ring:     var(--ds-blue-600);
+  --color-overlay:        rgb(15 23 42 / 0.5);
+  --color-inverse:        var(--ds-slate-900);
+  --color-on-inverse:     var(--ds-slate-50);
+
+  --color-success:        var(--ds-green-600);
+  --color-success-text:   var(--ds-green-700);
+  --color-success-soft:   color-mix(in srgb, var(--color-success) 12%, var(--color-surface));
+  --color-danger:         var(--ds-red-600);
+  --color-danger-text:    var(--ds-red-700);
+  --color-danger-soft:    color-mix(in srgb, var(--color-danger) 10%, var(--color-surface));
+  --color-warning:        var(--ds-amber-500);
+  --color-warning-text:   var(--ds-amber-700);
+  --color-warning-soft:   color-mix(in srgb, var(--color-warning) 14%, var(--color-surface));
+  --color-info:           var(--ds-blue-600);
+  --color-info-text:      var(--ds-blue-700);
+  --color-info-soft:      color-mix(in srgb, var(--color-info) 12%, var(--color-surface));
+
+  /* Sector identity accent (set inline from sectorConfig.color). */
+  --pos-sector-accent:      var(--color-primary);
+  --pos-sector-accent-soft: color-mix(in srgb, var(--pos-sector-accent) 12%, var(--color-surface));
+  --pos-sector-accent-line: color-mix(in srgb, var(--pos-sector-accent) 35%, var(--color-surface));
+
+  /* ---- Typography ------------------------------------------------------- */
+  --font-sans: "Cairo", "Tajawal", "Segoe UI", Tahoma, system-ui, sans-serif;
+  --font-numeric: "Space Grotesk", "Cairo", sans-serif;
+  --text-xs:  0.75rem;
+  --text-sm:  0.875rem;
+  --text-md:  1rem;
+  --text-lg:  1.125rem;
+  --text-xl:  1.375rem;
+  --text-2xl: 1.75rem;
+  --text-3xl: 2.25rem;
+  --weight-regular: 400;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+  --weight-heavy: 800;
+  --leading-tight: 1.35;
+  --leading-normal: 1.6;
+
+  /* ---- Spacing / radius / shadow --------------------------------------- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-pill: 999px;
+
+  --shadow-sm: 0 1px 2px rgb(15 23 42 / 0.08);
+  --shadow-md: 0 4px 12px rgb(15 23 42 / 0.12);
+  --shadow-lg: 0 12px 32px rgb(15 23 42 / 0.18);
+
+  /* ---- Layers ----------------------------------------------------------- */
+  --z-base: 0;
+  --z-raised: 10;
+  --z-sticky: 100;
+  --z-dropdown: 200;
+  --z-overlay: 300;
+  --z-modal: 400;
+  --z-toast: 500;
+
+  /* ---- Controls & touch ------------------------------------------------- */
+  --touch-min: 44px;
+  --control-h: var(--touch-min);
+  --control-px: var(--space-4);
+
+  /* ---- Motion ----------------------------------------------------------- */
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+
+  /* ---- POS layout ------------------------------------------------------- */
+  --pos-cart-width: 400px;
+  --pos-card-min: 180px;
+}
+
+[data-density="compact"] .pos-page-wrapper {
+  --touch-min: 36px;
+  --control-px: var(--space-3);
+}
+
+[data-theme="dark"] .pos-page-wrapper {
+  --color-bg:            var(--ds-slate-900);
+  --color-surface:       var(--ds-slate-800);
+  --color-surface-muted: var(--ds-slate-700);
+  --color-border:        var(--ds-slate-700);
+  --color-border-strong: var(--ds-slate-600);
+  --color-text:          var(--ds-slate-50);
+  --color-text-muted:    var(--ds-slate-300);
+  --color-text-disabled: var(--ds-slate-500);
+  --color-overlay:       rgb(0 0 0 / 0.65);
+  --color-inverse:       var(--ds-slate-50);
+  --color-on-inverse:    var(--ds-slate-900);
+  --color-success-text:  var(--ds-green-600);
+  --color-danger-text:   var(--ds-red-600);
+  --color-warning-text:  var(--ds-amber-500);
+  --color-info-text:     var(--ds-blue-600);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pos-page-wrapper { --duration-fast: 0ms; --duration-base: 0ms; }
+}

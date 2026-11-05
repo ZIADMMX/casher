@@ -404,35 +404,7 @@
   align-items: center;
 }
 
-/* POS Shift Pill */
-.shift-pos-pill {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 10px;
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 600;
-  transition: all 0.2s ease;
-}
-
-.shift-pos-pill.active {
-  background: rgba(16, 185, 129, 0.12);
-  border: 1px solid rgba(16, 185, 129, 0.3);
-  color: #10B981;
-}
-
-.shift-pos-pill.closed {
-  background: #FEF2F2;
-  border: 1px solid #FECACA;
-  color: #991B1B;
-}
-
-.shift-pos-pill.closed .shift-pill-title {
-  color: #991B1B;
-  font-weight: 800;
-}
-
+/* Live indicator dot (Shifts page). The POS shift pill is styled in pos.css. */
 .shift-live-dot {
   width: 8px;
   height: 8px;
@@ -440,80 +412,6 @@
   background: #10B981;
   box-shadow: 0 0 8px #10B981;
   animation: pulse-dot 2s infinite ease-in-out;
-}
-
-.shift-closed-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #EF4444;
-}
-
-@keyframes pulse-dot {
-  0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.3); opacity: 0.6; }
-}
-
-.shift-pill-title {
-  color: #F1F5F9;
-  font-weight: 600;
-}
-
-.shift-pill-actions {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  margin-right: 4px;
-}
-
-.shift-action-btn {
-  padding: 3px 7px;
-  border-radius: 5px;
-  font-size: 11px;
-  font-weight: 700;
-  cursor: pointer;
-  border: 1px solid transparent;
-  transition: all 0.15s ease;
-  font-family: inherit;
-}
-
-.shift-action-btn.btn-warn {
-  background: rgba(245, 158, 11, 0.15);
-  color: #FBBF24;
-  border-color: rgba(245, 158, 11, 0.3);
-}
-.shift-action-btn.btn-warn:hover {
-  background: #F59E0B;
-  color: #111827;
-}
-
-.shift-action-btn.btn-info {
-  background: rgba(56, 189, 248, 0.15);
-  color: #38BDF8;
-  border-color: rgba(56, 189, 248, 0.3);
-}
-.shift-action-btn.btn-info:hover {
-  background: #0284C7;
-  color: #FFFFFF;
-}
-
-.shift-action-btn.btn-close-shift {
-  background: rgba(239, 68, 68, 0.15);
-  color: #F87171;
-  border-color: rgba(239, 68, 68, 0.3);
-}
-.shift-action-btn.btn-close-shift:hover {
-  background: #EF4444;
-  color: #FFFFFF;
-}
-
-.shift-action-btn.btn-start-shift {
-  background: #10B981;
-  color: #FFFFFF;
-  border: none;
-}
-.shift-action-btn.btn-start-shift:hover {
-  background: #059669;
 }
 
 /* Shift Report Print Styles */

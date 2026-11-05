@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { useUser } from './UserContext.jsx';
 import * as settingsApi from '../api/settings.js';
+import { applyBrandColor } from '../lib/theme.js';
 
 const defaultSettings = {
   store_name: 'بوتيك الفخامة',
@@ -119,7 +120,9 @@ export function SettingsProvider({ children }) {
     root.style.setProperty('--primary-rgb', `${rgb.r}, ${rgb.g}, ${rgb.b}`);
     root.style.setProperty('--primary-light', light);
     root.style.setProperty('--primary-shadow', `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.3)`);
-  }, [settings.primary_color, settings.secondary_color]);
+    // Design-system tokens (--color-primary / --color-on-primary) used by the POS screen.
+    applyBrandColor(primary, root);
+  },[settings.primary_color, settings.secondary_color]);
 
   const saveSettings = useCallback(async (newSettings) => {
     try {
