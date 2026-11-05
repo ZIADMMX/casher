@@ -503,17 +503,39 @@ const notificationOptionsSchema = v.object({
   onlyUnread: v.boolean().optional(),
 }).optional();
 
-const reportPeriodSchema = v.any().refine((value) => {
+const REPORT_PRESETS = ['today', 'yesterday', 'week', 'month', 'last_month'];
+const REPORT_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+// A preset name, or { startDate, endDate } / { period }, each with an optional userId.
+function isReportPeriod(value) {
   if (value === undefined || value === null) return true;
-  if (typeof value === 'string') {
-    return ['today', 'yesterday', 'week', 'month'].includes(value);
+  if (typeof value === 'string') return REPORT_PRESETS.includes(value);
+  if (typeof value !== 'object' || Array.isArray(value)) return false;
+  const userIdOk = value.userId === undefined || value.userId === null
+    || (Number.isInteger(value.userId) && value.userId > 0);
+  if (!userIdOk) return false;
+  if (value.period !== undefined) {
+    return REPORT_PRESETS.includes(value.period)
+      && value.startDate === undefined
+      && value.endDate === undefined;
   }
-  return typeof value === 'object'
-    && typeof value.startDate === 'string'
+  return typeof value.startDate === 'string'
     && typeof value.endDate === 'string'
-    && /^\d{4}-\d{2}-\d{2}$/.test(value.startDate)
-    && /^\d{4}-\d{2}-\d{2}$/.test(value.endDate);
-}, 'الفترة الزمنية للتقرير غير صالحة');
+    && REPORT_DATE.test(value.startDate)
+    && REPORT_DATE.test(value.endDate);
+}
+
+const reportPeriodSchema = v.any().refine(isReportPeriod, 'الفترة الزمنية للتقرير غير صالحة');
+
+const reportLedgerQuerySchema = v.any().refine((value) => {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  if (!isReportPeriod(value.period)) return false;
+  if (value.method !== undefined && !['all', 'cash', 'card', 'credit', 'return'].includes(value.method)) return false;
+  if (value.search !== undefined && (typeof value.search !== 'string' || value.search.length > 60)) return false;
+  if (value.page !== undefined && (!Number.isInteger(value.page) || value.page < 1 || value.page > 100000)) return false;
+  if (value.pageSize !== undefined && (!Number.isInteger(value.pageSize) || value.pageSize < 1 || value.pageSize > 100)) return false;
+  return true;
+}, 'طلب قائمة الفواتير غير صالح');
 
 const positiveIdSchema = v.number('المعرف غير صحيح').int('المعرف يجب أن يكون عدداً صحيحاً').positive('المعرف غير صالح');
 const positiveLimitSchema = v.number('الحد غير صحيح').int('الحد يجب أن يكون عدداً صحيحاً').min(1).max(100);
@@ -686,6 +708,7 @@ module.exports = {
   shiftFiltersSchema,
   notificationOptionsSchema,
   reportPeriodSchema,
+  reportLedgerQuerySchema,
   positiveIdSchema,
   positiveLimitSchema,
   processReturnSchema,

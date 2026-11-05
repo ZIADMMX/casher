@@ -22,7 +22,8 @@
 }
 
 .pos-page-wrapper,
-.inv-page {
+.inv-page,
+.rep-page {
   /* ---- Palette (internal to this file) --------------------------------- */
   --ds-slate-0:   #FFFFFF;
   --ds-slate-50:  #F8FAFC;
@@ -43,6 +44,7 @@
   --ds-amber-700: #B45309;
   --ds-blue-600:  #2563EB;
   --ds-blue-700:  #1D4ED8;
+  --ds-violet-600: #7C3AED;
 
   /* ---- Semantic colors -------------------------------------------------- */
   --color-primary-hover:  color-mix(in srgb, var(--color-primary) 85%, black);
@@ -74,6 +76,9 @@
   --color-info:           var(--ds-blue-600);
   --color-info-text:      var(--ds-blue-700);
   --color-info-soft:      color-mix(in srgb, var(--color-info) 12%, var(--color-surface));
+  /* Extra category color for charts and icon chips (not a status). */
+  --color-highlight:      var(--ds-violet-600);
+  --color-highlight-soft: color-mix(in srgb, var(--color-highlight) 12%, var(--color-surface));
 
   /* Sector identity accent (set inline from sectorConfig.color). */
   --pos-sector-accent:      var(--color-primary);
@@ -141,13 +146,15 @@
 }
 
 [data-density="compact"] .pos-page-wrapper,
-[data-density="compact"] .inv-page {
+[data-density="compact"] .inv-page,
+[data-density="compact"] .rep-page {
   --touch-min: 36px;
   --control-px: var(--space-3);
 }
 
 [data-theme="dark"] .pos-page-wrapper,
-[data-theme="dark"] .inv-page {
+[data-theme="dark"] .inv-page,
+[data-theme="dark"] .rep-page {
   --color-bg:            var(--ds-slate-900);
   --color-surface:       var(--ds-slate-800);
   --color-surface-muted: var(--ds-slate-700);
@@ -166,7 +173,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pos-page-wrapper, .inv-page { --duration-fast: 0ms; --duration-base: 0ms; }
+  .pos-page-wrapper, .inv-page, .rep-page { --duration-fast: 0ms; --duration-base: 0ms; }
 }
 
 /* --------------------------------------------------------------------------

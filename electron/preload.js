@@ -62,6 +62,7 @@ restoreBackup: () => ipcRenderer.invoke('backup:restore'),
   
   // Reports
   getReports: (period) => ipcRenderer.invoke('reports:get', period),
+  getReportInvoices: (query) => ipcRenderer.invoke('reports:getInvoices', query),
   getLegalCaseReport: (period) => ipcRenderer.invoke('reports:getLegalCases', period),
   // Printing & cash drawer
   printReceipt: (sale, options) => ipcRenderer.invoke('print:receipt', { sale, options }),

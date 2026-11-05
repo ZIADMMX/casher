@@ -46,10 +46,17 @@ jest.mock('../../electron/repositories/categories.repository', () => ({
 }));
 
 jest.mock('../../electron/repositories/reports.repository', () => ({
-  getSummary: jest.fn(() => ({ totalSales: 1000, invoiceCount: 10 })),
-  getProfitEstimate: jest.fn(() => 300),
-  getTopSelling: jest.fn(() => []),
+  getSalesSummary: jest.fn(() => ({ grossSales: 1000, invoiceCount: 10, discounts: 0 })),
+  getCostOfSales: jest.fn(() => 700),
+  getReturnsSummary: jest.fn(() => ({ returnCount: 0, refundTotal: 0, returnedCost: 0 })),
+  getPaymentBreakdown: jest.fn(() => []),
+  getCreditCustomerCount: jest.fn(() => 0),
   getDailyTrend: jest.fn(() => []),
+  getTopProducts: jest.fn(() => []),
+  getStaffPerformance: jest.fn(() => []),
+  listSellingStaff: jest.fn(() => []),
+  staffExists: jest.fn(() => true),
+  getLedgerPage: jest.fn(() => ({ rows: [], total: 0, amountTotal: 0 })),
   getRecentInvoices: jest.fn(() => []),
 }));
 

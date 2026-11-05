@@ -228,9 +228,13 @@ describe('Security: SQL Injection Immunity & Parameterized Queries', () => {
     dangerousDates.forEach((payload) => {
       test(`safely neutralizes date parameters in reports summary: ${payload}`, () => {
         expect(() => {
-          const summary = reportsRepo.getSummary(payload, '2026-12-31');
+          const summary = reportsRepo.getSalesSummary({ startDate: payload, endDate: '2026-12-31' });
           expect(summary).toBeDefined();
         }).not.toThrow();
+        expect(() => reportsRepo.getLedgerPage(
+          { startDate: '2026-01-01', endDate: '2026-12-31' },
+          { search: payload }
+        )).not.toThrow();
 
         // Ensure sales table is still intact
         expect(() => reportsRepo.getRecentInvoices('2026-01-01', payload, 10)).not.toThrow();

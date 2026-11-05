@@ -56,7 +56,7 @@ jest.mock('../../electron/services/customers.service', () => ({
 }));
 
 jest.mock('../../electron/services/reports.service', () => ({
-  getReports: jest.fn(() => ({ totalSales: 1000 })),
+  getFullReport: jest.fn(() => ({ totalSales: 1000 })),
 }));
 
 jest.mock('../../electron/services/notifications.service', () => ({

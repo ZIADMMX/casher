@@ -580,7 +580,7 @@ async function handleApiRequest(req, res) {
     // -------------------------------------------------------------
     if (pathname === '/api/reports' && method === 'GET') {
       const period = query.period || 'today';
-      const report = reportsService.getReports(period);
+      const report = reportsService.getFullReport(period);
       return sendJSON(res, 200, report);
     }
 

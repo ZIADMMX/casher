@@ -45,6 +45,7 @@ const {
   migrateOnboardingTables,
   migrateCloudSyncV3,
 } = require('./platform');
+const { ensureSalesLedgerGuards, backfillSaleItemCosts } = require('./salesLedger');
 
 function runAllMigrations(dbInstance = db) {
   const currentVersion = dbInstance.pragma('user_version', { simple: true }) || 0;
@@ -169,6 +170,18 @@ function runAllMigrations(dbInstance = db) {
     dbInstance.pragma('user_version = 13');
     console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 13 (صلاحيات المخزون المستقلة).');
   }
+
+  if (currentVersion < 14) {
+    // Sales, sale lines and returns become append-only, and each sale line keeps
+    // its own unit cost so past profit no longer follows today's purchase price.
+    ensureSalesLedgerGuards(dbInstance);
+    backfillSaleItemCosts(dbInstance);
+    dbInstance.pragma('user_version = 14');
+    console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 14 (قفل سجل المبيعات وتثبيت التكلفة).');
+  }
+
+  // Earlier steps may rebuild the sales tables; make sure the guards exist at the end.
+  ensureSalesLedgerGuards(dbInstance);
 }
 
 module.exports = { runAllMigrations };

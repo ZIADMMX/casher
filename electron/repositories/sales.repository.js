@@ -40,12 +40,17 @@ function createSale({
   return result.lastInsertRowid;
 }
 
+// unit_cost is the cost of one sold unit at sale time (purchase price times the
+// unit's conversion factor), so reports keep the real profit of this sale.
 function createSaleItem(saleId, item) {
+  const quantity = Number(item.quantity) || 0;
+  const baseQuantity = Number(item.baseQuantityDeduction) || quantity;
+  const factor = quantity > 0 ? baseQuantity / quantity : 1;
   const stmt = db.prepare(`
-    INSERT INTO sale_items (sale_id, variant_id, quantity, unit_price)
-    VALUES (?, ?, ?, ?)
+    INSERT INTO sale_items (sale_id, variant_id, quantity, unit_price, unit_cost)
+    VALUES (?, ?, ?, ?, (SELECT purchase_price * ? FROM product_variants WHERE id = ?))
   `);
-  stmt.run(saleId, item.variantId, item.quantity, item.unitPrice);
+  stmt.run(saleId, item.variantId, item.quantity, item.unitPrice, factor, item.variantId);
 }
 
 function getStatsByCustomer() {

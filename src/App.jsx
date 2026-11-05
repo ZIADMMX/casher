@@ -346,7 +346,7 @@ function AppContent() {
       case 'shifts':
         return <ShiftsPage />;
       case 'reports':
-        return <ReportsPage />;
+        return <ReportsPage onNavigate={setActivePage} />;
       case 'customers':
         return <CustomersPage onNavigate={setActivePage} />;
       case 'crm':

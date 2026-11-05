@@ -3,6 +3,8 @@ const customersService = require('../services/customers.service');
 const reportsService = require('../services/reports.service');
 const authService = require('../services/auth.service');
 const { safeHandle } = require('./safeHandle');
+const auditService = require('../services/audit.service');
+const { reportPeriodSchema } = require('../validators/schema');
 const usersRepo = require('../repositories/users.repository');
 const enterpriseRepo = require('../repositories/enterprise.repository');
 
@@ -21,19 +23,31 @@ function registerExportHandlers() {
     return exportToExcel(rows, 'العملاء', 'عملاء-المحل.xlsx');
   });
 
-  safeHandle('export:invoices', (event, period) => {
+  safeHandle('export:invoices', reportPeriodSchema, async (event, period) => {
     authService.requireAdmin();
-    const report = reportsService.getFullReport(period);
-    const rows = report.recentInvoices.map((inv) => ({
-      'رقم الفاتورة': `INV-${String(inv.id).padStart(4, '0')}`,
-      'العميل': inv.customerName,
-      'عدد الأصناف': inv.itemCount,
-      'الإجمالي': inv.total_amount,
-      'طريقة الدفع': inv.payment_method === 'cash' ? 'نقدي' : inv.payment_method === 'card' ? 'بطاقة' : 'آجل',
-      'التاريخ': inv.created_at,
+    // The whole period, sales and returns, straight from the ledger.
+    const ledger = reportsService.getLedgerForExport(period);
+    const methodLabels = { cash: 'نقدي', card: 'بطاقة', credit: 'آجل', return: 'مرتجع' };
+    const rows = ledger.rows.map((row) => ({
+      'رقم المستند': row.code,
+      'النوع': row.kind === 'return' ? 'مرتجع' : 'فاتورة',
+      'العميل': row.customerName,
+      'الموظف': row.staffName,
+      'عدد الأصناف': row.itemCount,
+      'طريقة الدفع': methodLabels[row.method] || row.method,
+      'المبلغ': row.amount,
+      'التاريخ': row.created_at,
     }));
-    const fileName = `فواتير-${report.startDate}-إلى-${report.endDate}.xlsx`;
-    return exportToExcel(rows, 'الفواتير', fileName);
+    const fileName = `فواتير-${ledger.startDate}-إلى-${ledger.endDate}.xlsx`;
+    const result = await exportToExcel(rows, 'الفواتير', fileName);
+    if (!result?.canceled) {
+      auditService.logAction({
+        actionType: 'report_export',
+        title: 'تصدير تقرير الفواتير',
+        details: `${ledger.startDate} → ${ledger.endDate} (${rows.length} مستند)`,
+      });
+    }
+    return result;
   });
 
   safeHandle('export:employees', () => {

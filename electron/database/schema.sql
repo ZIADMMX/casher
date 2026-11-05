@@ -382,6 +382,7 @@ CREATE TABLE IF NOT EXISTS sale_items (
     variant_id INTEGER,                  -- أي variant بالظبط اتباع
     quantity REAL NOT NULL CHECK(quantity > 0),
     unit_price REAL NOT NULL CHECK(unit_price >= 0),            -- السعر وقت البيع (يتسجل هنا عشان لو السعر اتغير بعدين)
+    unit_cost REAL CHECK(unit_cost IS NULL OR unit_cost >= 0),  -- تكلفة الوحدة وقت البيع (الأرباح القديمة لا تتغير لو سعر الشراء اتغير)
     FOREIGN KEY (sale_id) REFERENCES sales(id) ON DELETE CASCADE,
     FOREIGN KEY (variant_id) REFERENCES product_variants(id) ON DELETE SET NULL
 );

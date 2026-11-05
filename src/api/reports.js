@@ -3,4 +3,5 @@
 import { bridgeMethod } from './bridge.js';
 
 export const getReports = bridgeMethod('getReports');
+export const getReportInvoices = bridgeMethod('getReportInvoices');
 export const getLegalCaseReport = bridgeMethod('getLegalCaseReport');
