@@ -39,4 +39,32 @@ describe('Security: internal secrets are not exposed through settings', () => {
     expect(settingsRepo.get('system_session_secret')).toBe('jwt-signing-secret');
     expect(settingsRepo.get('store_name')).toBe('Fox');
   });
+
+  describe('license and trial state', () => {
+    const LICENSE_KEYS = [
+      'trial_start_date',
+      'last_known_server_clock',
+      'clock_rollback_detected',
+      'license_key',
+      'license_activated_at',
+      'license_trial_purged',
+      'license_time_anchor_server',
+      'license_time_anchor_wall',
+      'license_time_last_seen_wall',
+    ];
+
+    test.each(LICENSE_KEYS)('settings screen cannot overwrite %s', (key) => {
+      settingsRepo.set(key, 'original');
+
+      expect(() => settingsRepo.setMany({ [key]: 'attacker-value' })).toThrow();
+      expect(settingsRepo.get(key)).toBe('original');
+    });
+
+    test('getAll does not expose license and trial state', () => {
+      for (const key of LICENSE_KEYS) settingsRepo.set(key, '1');
+
+      const all = settingsRepo.getAll();
+      for (const key of LICENSE_KEYS) expect(all).not.toHaveProperty(key);
+    });
+  });
 });

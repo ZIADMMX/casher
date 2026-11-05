@@ -6,6 +6,18 @@ const PROTECTED_KEYS = new Set([
   'system_session_secret',
   'system_session_secret_generation',
   'last_active_session_token',
+  // License and trial state (electron/services/license.service.js). Writable
+  // from the settings screen, these would let anyone reset or extend the trial.
+  'trial_start_date',
+  'last_known_server_clock',
+  'clock_rollback_detected',
+  'license_key',
+  'license_activated_at',
+  'license_trial_purged',
+  // Offline license time anchor (electron/services/licenseClock.service.js).
+  'license_time_anchor_server',
+  'license_time_anchor_wall',
+  'license_time_last_seen_wall',
 ]);
 
 const SettingsRepository = {

@@ -62,4 +62,101 @@ describe('licenseClock.service', () => {
     jest.dontMock('node:fs');
     packagedClock.resetForTesting();
   });
+
+  describe('offline fallback', () => {
+    const DAY = 24 * 60 * 60 * 1000;
+    const SERVER_TIME = Date.parse('2030-01-02T03:04:05.000Z');
+    const WALL_AT_SYNC = 1_900_000_000_000;
+    let store;
+    let wallNow;
+    let dateSpy;
+
+    function makeStore(initial = {}) {
+      const data = new Map(Object.entries(initial));
+      return {
+        data,
+        get: jest.fn((key) => (data.has(key) ? data.get(key) : null)),
+        set: jest.fn((key, value) => data.set(key, String(value))),
+      };
+    }
+
+    function anchoredStore(lastSeen = WALL_AT_SYNC) {
+      return makeStore({
+        license_time_anchor_server: String(SERVER_TIME),
+        license_time_anchor_wall: String(WALL_AT_SYNC),
+        license_time_last_seen_wall: String(lastSeen),
+      });
+    }
+
+    beforeEach(() => {
+      wallNow = WALL_AT_SYNC;
+      dateSpy = jest.spyOn(Date, 'now').mockImplementation(() => wallNow);
+      store = makeStore();
+      licenseClock.setAnchorStoreForTesting(store);
+    });
+
+    afterEach(() => {
+      dateSpy.mockRestore();
+    });
+
+    test('a successful check saves an anchor for later offline use', async () => {
+      await licenseClock.getTrustedNow();
+
+      expect(Number(store.data.get('license_time_anchor_server'))).toBeGreaterThanOrEqual(SERVER_TIME);
+      expect(store.data.get('license_time_anchor_wall')).toBe(String(WALL_AT_SYNC));
+      expect(store.data.get('license_time_last_seen_wall')).toBe(String(WALL_AT_SYNC));
+    });
+
+    test('keeps working offline after a restart within the grace period', async () => {
+      store = anchoredStore();
+      licenseClock.setAnchorStoreForTesting(store);
+      global.fetch.mockRejectedValue(new Error('getaddrinfo ENOTFOUND'));
+      wallNow = WALL_AT_SYNC + 3 * DAY;
+
+      await expect(licenseClock.getTrustedNow()).resolves.toBe(SERVER_TIME + 3 * DAY);
+      expect(store.data.get('license_time_last_seen_wall')).toBe(String(wallNow));
+    });
+
+    test('also falls back when the time server answers with an error', async () => {
+      store = anchoredStore();
+      licenseClock.setAnchorStoreForTesting(store);
+      global.fetch.mockResolvedValue({ ok: false, status: 503 });
+      wallNow = WALL_AT_SYNC + DAY;
+
+      await expect(licenseClock.getTrustedNow()).resolves.toBe(SERVER_TIME + DAY);
+    });
+
+    test('blocks once the offline grace period is used up', async () => {
+      store = anchoredStore();
+      licenseClock.setAnchorStoreForTesting(store);
+      global.fetch.mockRejectedValue(new Error('offline'));
+      wallNow = WALL_AT_SYNC + 8 * DAY;
+
+      await expect(licenseClock.getTrustedNow()).rejects.toThrow('اتصل بالإنترنت');
+    });
+
+    test('blocks when the device clock was turned back while offline', async () => {
+      store = anchoredStore(WALL_AT_SYNC + 5 * DAY);
+      licenseClock.setAnchorStoreForTesting(store);
+      global.fetch.mockRejectedValue(new Error('offline'));
+      wallNow = WALL_AT_SYNC + DAY;
+
+      await expect(licenseClock.getTrustedNow()).rejects.toThrow('ساعة الجهاز');
+    });
+
+    test('still needs the internet when no check ever succeeded', async () => {
+      global.fetch.mockRejectedValue(new Error('offline'));
+
+      await expect(licenseClock.getTrustedNow()).rejects.toThrow('تعذر التحقق من وقت الترخيص');
+    });
+
+    test('a later successful check clears a corrected clock', async () => {
+      store = anchoredStore(WALL_AT_SYNC + 5 * DAY);
+      licenseClock.setAnchorStoreForTesting(store);
+      wallNow = WALL_AT_SYNC + DAY;
+
+      await expect(licenseClock.getTrustedNow()).resolves.toBeGreaterThanOrEqual(SERVER_TIME);
+      expect(store.data.get('license_time_last_seen_wall')).toBe(String(wallNow));
+    });
+  });
 });

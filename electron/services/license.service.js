@@ -118,12 +118,12 @@ function verifyLicenseKey(keyString, targetHwid = getMachineHardwareId(), now = 
  */
 function getLicenseStatus(now = Date.now(), { updateClock = true } = {}) {
   const hwid = getMachineHardwareId();
-  const settings = dbRepo.getAll();
-
-  const savedKey = settings.license_key || '';
-  const trialStartStr = settings.trial_start_date;
-  const lastKnownClockStr = settings.last_known_server_clock;
-  const clockRollbackDetected = settings.clock_rollback_detected === '1';
+  // These keys are protected: getAll() hides them and setMany() rejects them,
+  // so they are read and written one by one from the main process.
+  const savedKey = dbRepo.get('license_key') || '';
+  const trialStartStr = dbRepo.get('trial_start_date');
+  const lastKnownClockStr = dbRepo.get('last_known_server_clock');
+  const clockRollbackDetected = dbRepo.get('clock_rollback_detected') === '1';
 
   // Anti-Clock Rollback Check
   const parsedLastKnownClock = Number(lastKnownClockStr);
@@ -133,10 +133,10 @@ function getLicenseStatus(now = Date.now(), { updateClock = true } = {}) {
     // Clock was set back by more than 1 minute
     console.warn('تنبيه: تم اكتشاف تلاعب في ساعة النظام!');
     if (!clockRollbackDetected) {
-      dbRepo.setMany({ clock_rollback_detected: '1' });
+      dbRepo.set('clock_rollback_detected', '1');
     }
   } else if (updateClock && (!hasLastKnownClock || now - lastKnownClock >= 60_000)) {
-    dbRepo.setMany({ last_known_server_clock: String(now) });
+    dbRepo.set('last_known_server_clock', String(now));
   }
 
   // 1. If Activated with a valid license key
@@ -158,7 +158,7 @@ function getLicenseStatus(now = Date.now(), { updateClock = true } = {}) {
   let trialStart = Number(trialStartStr);
   if (!trialStart || isNaN(trialStart)) {
     trialStart = now;
-    dbRepo.setMany({ trial_start_date: String(now) });
+    dbRepo.set('trial_start_date', String(now));
   }
 
   const trialEnd = trialStart + TRIAL_DURATION_DAYS * 24 * 60 * 60 * 1000;
@@ -191,11 +191,10 @@ function activateSoftware(keyInput, now = Date.now()) {
     throw new Error(verification.reason || 'مفتاح التفعيل غير صحيح');
   }
 
-  dbRepo.setMany({
-    license_key: keyInput.trim().toUpperCase(),
-    license_activated_at: String(now),
-    license_trial_purged: '0',
-  });
+  // license_key is written last: it is the value that marks the copy as activated.
+  dbRepo.set('license_activated_at', String(now));
+  dbRepo.set('license_trial_purged', '0');
+  dbRepo.set('license_key', keyInput.trim().toUpperCase());
 
   return {
     success: true,
