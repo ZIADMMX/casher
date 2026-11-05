@@ -14,14 +14,22 @@ import { store } from './app/store';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from './queryClient';
 
-import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+// Developer-only cache inspector (the floating palm-tree button). Loaded only by the
+// Vite dev server, so it never ships in the built app users run.
+const ReactQueryDevtools = import.meta.env.DEV
+  ? React.lazy(() => import('@tanstack/react-query-devtools').then((m) => ({ default: m.ReactQueryDevtools })))
+  : null;
 
 ReactDOM.createRoot(document.getElementById('app')).render(
   <React.StrictMode>
     <Provider store={store}>
       <QueryClientProvider client={queryClient}>
         <App />
-        <ReactQueryDevtools initialIsOpen={false} />
+        {ReactQueryDevtools && (
+          <React.Suspense fallback={null}>
+            <ReactQueryDevtools initialIsOpen={false} />
+          </React.Suspense>
+        )}
       </QueryClientProvider>
     </Provider>
   </React.StrictMode>
