@@ -105,7 +105,7 @@ function migrateOnboardingTables() {
 
   // تغذية القوالب الافتراضية
   try {
-    const { SECTOR_PRESETS } = require('./onboardingPresets.data');
+    const { SECTOR_PRESETS } = require('../onboardingPresets.data');
     const insertPreset = db.prepare(`
       INSERT INTO onboarding_presets (
         sector_key, sector_name, sector_tagline, icon,
