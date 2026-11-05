@@ -68,7 +68,7 @@ function LicenseBanner({ status, onActivateSuccess }) {
                 <span>🔑</span>
               </div>
               <div className="license-modal-title-wrap">
-                <h3 className="license-modal-title">تفعيل كاشير POS</h3>
+                <h3 className="license-modal-title">تفعيل foxcloud POS</h3>
                 <p className="license-modal-subtitle">أدخل مفتاح التفعيل لفتح البرنامج بشكل دائم وموثق</p>
               </div>
               <button

@@ -7,6 +7,19 @@ const { execFile } = require('node:child_process');
 const { BrowserWindow } = require('electron');
 const { logError } = require('./logger.service');
 
+// Receipt header when the shop has not set its own name in settings.
+const DEFAULT_RECEIPT_TITLE = 'foxcloud POS';
+
+function resolveStoreName(options = {}) {
+  if (options.storeName && String(options.storeName).trim()) return String(options.storeName).trim();
+  try {
+    const configured = require('../repositories/settings.repository').get('store_name');
+    if (configured && String(configured).trim()) return String(configured).trim();
+  } catch (error) {
+    logError('ResolveStoreName', error);
+  }
+  return DEFAULT_RECEIPT_TITLE;
+}
 
 // ESC/POS Commands Set (RAW Thermal Printer Command Protocol)
 const ESC_POS = {
@@ -50,7 +63,7 @@ function generateEscPosReceiptBuffer(sale, options = {}) {
   buffers.push(ESC_POS.ALIGN_CENTER);
   buffers.push(ESC_POS.TXT_LARGE);
   buffers.push(ESC_POS.BOLD_ON);
-  buffers.push(Buffer.from(`${options.storeName || 'kashiear'}\n`, 'utf-8'));
+  buffers.push(Buffer.from(`${options.storeName || DEFAULT_RECEIPT_TITLE}\n`, 'utf-8'));
   buffers.push(ESC_POS.TXT_NORMAL);
   buffers.push(ESC_POS.BOLD_OFF);
 
@@ -441,7 +454,7 @@ function buildReceiptHtml(sale, options = {}) {
     </style>
   </head>
   <body>
-    <h2>kashiear</h2>
+    <h2>${escapeHtml(options.storeName || DEFAULT_RECEIPT_TITLE)}</h2>
     <div class="sub">فاتورة مبيعات — رقم ${escapeHtml(sale.saleId)}</div>
     <div class="sub">${escapeHtml(sale.customerName || 'عميل نقدي سريع')} · ${new Date().toLocaleString('ar-EG')}</div>
     ${sale.workOrderNumber ? `<div class="sub">أمر الشغل: ${escapeHtml(sale.workOrderNumber)}</div>` : ''}
@@ -529,7 +542,8 @@ function buildBarcodeLabelHtml(variant) {
 </html>`;
 }
 
-async function printReceipt(sale, options = {}) {
+async function printReceipt(sale, receiptOptions = {}) {
+  const options = { ...receiptOptions, storeName: resolveStoreName(receiptOptions) };
   // RAW mode remains available for printers that need the application-generated ESC/POS receipt.
   if (options.useRawMode || options.ip) {
     const rawBuffer = generateEscPosReceiptBuffer(sale, options);
@@ -568,6 +582,7 @@ async function printReceipt(sale, options = {}) {
     return printReceiptWithDialog(sale, {
       printerName,
       paperSize: options.paperSize,
+      storeName: options.storeName,
     }).then(async (printed) => {
       if (printed && options.cutPaper !== false && supportsRawCommands) {
         try {

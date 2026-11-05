@@ -16,7 +16,22 @@ const {
   printBarcodeLabel,
   printRawEscPos,
   printReceipt,
+  buildReceiptHtml,
 } = require('../../electron/services/print.service');
+
+describe('receipt header', () => {
+  const sale = { saleId: 7, items: [{ productName: 'قميص', quantity: 1, unitPrice: 50 }], total: 50 };
+
+  test('shows the shop name, escaped', () => {
+    const html = buildReceiptHtml(sale, { storeName: 'محل <النور>' });
+    expect(html).toContain('<h2>محل &lt;النور&gt;</h2>');
+  });
+
+  test('falls back to the product name when the shop has no name', () => {
+    expect(buildReceiptHtml(sale)).toContain('<h2>foxcloud POS</h2>');
+    expect(generateEscPosReceiptBuffer(sale).includes(Buffer.from('foxcloud POS\n', 'utf-8'))).toBe(true);
+  });
+});
 
 describe('print.service ESC/POS', () => {
   afterEach(() => {

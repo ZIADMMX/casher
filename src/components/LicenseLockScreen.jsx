@@ -121,7 +121,7 @@ function LicenseLockScreen({ hwid, error: verificationError, onRetry, onActivate
           </form>
 
           <div style={{ textAlign: 'center', marginTop: '16px', fontSize: '11.5px', color: '#94a3b8' }}>
-            Kashiear POS · نظام إدارة نقاط البيع والمخزون المعتمد
+            foxcloud POS · نظام ERP متكامل متعدد القطاعات
           </div>
         </div>
       </div>

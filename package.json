@@ -1,7 +1,7 @@
 {
   "name": "foxcloud",
   "version": "1.0.1",
-  "description": "نظام الكاشير الذكي لمحلات الملابس",
+  "description": "نظام ERP متكامل متعدد القطاعات: نقاط البيع والمخزون والمشتريات وCRM والموارد البشرية والتقارير",
   "main": "electron-entry.js",
   "scripts": {
     "dev": "vite",

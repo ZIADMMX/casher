@@ -544,8 +544,8 @@ function SettingsPage() {
 
             {/* Note on FOX.CLOUD Engine */}
             <div style={{ marginTop: '16px', textAlign: 'center', fontSize: '11.5px', color: '#94A3B8' }}>
-              <span>⚡ مدعوم بمحرك نقاط البيع الذكي </span>
-              <strong style={{ color: '#60A5FA' }}>FOX.CLOUD POS Engine</strong>
+              <span>⚡ نظام ERP متكامل متعدد القطاعات · </span>
+              <strong style={{ color: '#60A5FA' }}>foxcloud POS</strong>
             </div>
           </div>
         </div>}

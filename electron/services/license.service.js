@@ -198,7 +198,7 @@ function activateSoftware(keyInput, now = Date.now()) {
 
   return {
     success: true,
-    message: 'تم تفعيل البرنامج بنجاح! شكراً لاستخدامك Kashiear POS 🎉',
+    message: 'تم تفعيل البرنامج بنجاح! شكراً لاستخدامك foxcloud POS 🎉',
     status: getLicenseStatus(now),
   };
 }

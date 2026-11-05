@@ -43,7 +43,7 @@ async function askClaude(prompt, context = {}) {
 
   const systemMessage = {
     role: 'system',
-    content: `أنت المستشار الذكي لتحليلات الأعمال وإدارة المخزون والمبيعات في نظام (Kashiear / Fox POS & Enterprise Engine).
+    content: `أنت المستشار الذكي لتحليلات الأعمال وإدارة المخزون والمبيعات في نظام (foxcloud POS).
 إجاباتك دقيقة، احترافية، ومباشرة وباللغة العربية الفصحى. تستخدم التنسيق الجميل (Markdown) والجداول والقوائم النقطية عند الحاجة.
 السياق والبيانات الحية المتاحة من قاعدة البيانات:
 ${JSON.stringify(context, null, 2)}`,
