@@ -23,7 +23,8 @@
 
 .pos-page-wrapper,
 .inv-page,
-.rep-page {
+.rep-page,
+.err-screen {
   /* ---- Palette (internal to this file) --------------------------------- */
   --ds-slate-0:   #FFFFFF;
   --ds-slate-50:  #F8FAFC;
@@ -147,14 +148,16 @@
 
 [data-density="compact"] .pos-page-wrapper,
 [data-density="compact"] .inv-page,
-[data-density="compact"] .rep-page {
+[data-density="compact"] .rep-page,
+[data-density="compact"] .err-screen {
   --touch-min: 36px;
   --control-px: var(--space-3);
 }
 
 [data-theme="dark"] .pos-page-wrapper,
 [data-theme="dark"] .inv-page,
-[data-theme="dark"] .rep-page {
+[data-theme="dark"] .rep-page,
+[data-theme="dark"] .err-screen {
   --color-bg:            var(--ds-slate-900);
   --color-surface:       var(--ds-slate-800);
   --color-surface-muted: var(--ds-slate-700);
@@ -173,7 +176,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pos-page-wrapper, .inv-page, .rep-page { --duration-fast: 0ms; --duration-base: 0ms; }
+  .pos-page-wrapper, .inv-page, .rep-page, .err-screen { --duration-fast: 0ms; --duration-base: 0ms; }
 }
 
 /* --------------------------------------------------------------------------

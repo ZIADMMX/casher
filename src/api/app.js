@@ -3,3 +3,4 @@
 import { bridgeMethod } from './bridge.js';
 
 export const restartApp = bridgeMethod('restartApp');
+export const relaunchAfterError = bridgeMethod('relaunchAfterError');

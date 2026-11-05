@@ -1,4 +1,4 @@
-import { Component, useState, useEffect, useCallback, lazy, Suspense } from 'react';
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import LoginPage from './pages/LoginPage.jsx';
 import InitialSetupPage from './pages/InitialSetupPage.jsx';
 import ForcePasswordChangePage from './pages/ForcePasswordChangePage.jsx';
@@ -21,6 +21,7 @@ import PageTutorial from './components/PageTutorial.jsx';
 import { hasPermission } from './utils/accessControl.js';
 import * as inventoryApi from './api/inventory.js';
 import * as licenseApi from './api/license.js';
+import PageErrorBoundary from './components/system/PageErrorBoundary.jsx';
 
 // التحميل الكسول للصفحات الإدارية لتسريع فتح البرنامج وتقليل حجم الحزمة الأولى
 const TodayPage = lazy(() => import('./pages/TodayPage.jsx'));
@@ -47,59 +48,6 @@ const SalariesPage = lazy(() => import('./pages/SalariesPage.jsx'));
 const WorkflowsPage = lazy(() => import('./pages/WorkflowsPage.jsx'));
 const CasesPage = lazy(() => import('./pages/CasesPage.jsx'));
 const CourtsPage = lazy(() => import('./pages/CourtsPage.jsx'));
-
-class UsersPageErrorBoundary extends Component {
-  state = { error: null };
-
-  static getDerivedStateFromError(error) {
-    return { error };
-  }
-
-  componentDidCatch(error, errorInfo) {
-    console.error('تعذر عرض صفحة إدارة المستخدمين:', error, errorInfo);
-  }
-
-  render() {
-    if (this.state.error) {
-      return (
-        <div className="page-loading-spinner" role="alert">
-          <p>حصل خطأ أثناء عرض صفحة المستخدمين: {this.state.error.message || 'خطأ غير معروف'}</p>
-          <button type="button" className="primary-btn" onClick={() => this.setState({ error: null })}>
-            إعادة المحاولة
-          </button>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
-
-class ApplicationPageErrorBoundary extends Component {
-  state = { error: null };
-
-  static getDerivedStateFromError(error) {
-    return { error };
-  }
-
-  componentDidCatch(error, errorInfo) {
-    console.error(`تعذر عرض الصفحة ${this.props.pageName}:`, error, errorInfo);
-  }
-
-  render() {
-    if (this.state.error) {
-      return (
-        <div className="page-loading-spinner" role="alert">
-          <h2>تعذر عرض الصفحة: {this.props.pageName}</h2>
-          <p>{this.state.error.message || 'حدث خطأ غير معروف أثناء عرض الصفحة.'}</p>
-          <button type="button" className="primary-btn" onClick={() => window.location.reload()}>
-            إعادة تحميل التطبيق
-          </button>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
 
 function AppContent() {
   const { currentUser, setCurrentUser, logout, setupRequired, loadingSession } = useUser();
@@ -355,9 +303,9 @@ function AppContent() {
         return <SuppliersPage />;
       case 'users':
         return (
-          <UsersPageErrorBoundary key={activePage}>
+          <PageErrorBoundary key={activePage} pageName="users">
             <UsersPage currentUser={currentUser} />
-          </UsersPageErrorBoundary>
+          </PageErrorBoundary>
         );
       case 'attendance':
         return <AttendancePage />;
@@ -396,7 +344,7 @@ function AppContent() {
   }
 
   return (
-    <ApplicationPageErrorBoundary key={activePage} pageName={activePage}>
+    <PageErrorBoundary key={activePage} pageName={activePage}>
       <div className="app-layout">
         <Sidebar
           activePage={activePage}
@@ -442,7 +390,7 @@ function AppContent() {
 
         <PageTutorial activePage={activePage} onNavigate={setActivePage} />
       </div>
-    </ApplicationPageErrorBoundary>
+    </PageErrorBoundary>
   );
 }
 

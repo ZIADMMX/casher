@@ -9,11 +9,14 @@ const { logError } = require('./services/logger.service');
 process.on('uncaughtException', (err) => {
   logError('MainProcessUncaughtException', err);
   try {
-    dialog.showErrorBox(
-      'حدث خطأ غير متوقع',
-      `واجه البرنامج خطأ غير متوقع في العمليات الخلفية:\n${err?.message || String(err)}\n\nيرجى حفظ العمل وإعادة تشغيل التطبيق.`
+    // Offer a real restart instead of leaving a half-working app behind.
+    require('./services/recovery.service').askToRestart(
+      null,
+      `واجه البرنامج خطأ غير متوقع في العمليات الخلفية:\n${err?.message || String(err)}`
     );
-  } catch {}
+  } catch {
+    try { dialog.showErrorBox('حدث خطأ غير متوقع', err?.message || String(err)); } catch {}
+  }
 });
 
 process.on('unhandledRejection', (reason) => {
@@ -137,6 +140,8 @@ const { registerCasesHandlers } = require('./handlers/cases.handler');
 const { registerCourtsHandlers } = require('./handlers/courts.handler');
 const { registerGroceryHandlers } = require('./handlers/grocery.handler');
 const { registerAppHandlers } = require('./handlers/app.handler');
+const { registerRecoveryHandlers } = require('./handlers/recovery.handler');
+const recoveryService = require('./services/recovery.service');
 const salonService = require('./services/salon.service');
 const { configureUpdater } = require('./updater');
 
@@ -255,6 +260,7 @@ function createWindow() {
   });
 
   mainWindow = win;
+  recoveryService.watchWindow(win);
   win.on('closed', () => {
     if (mainWindow === win) mainWindow = null;
   });
@@ -373,6 +379,7 @@ app.whenReady().then(async () => {
   registerCourtsHandlers();
   registerGroceryHandlers();
   registerAppHandlers();
+  registerRecoveryHandlers({ isAppUrl });
   registerReturnsHandlers();
   registerExportHandlers();
   try {

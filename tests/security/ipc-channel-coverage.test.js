@@ -27,7 +27,9 @@ const READ_ONLY_DESPITE_NAME = new Set([
 ]);
 
 // Registered with ipcMain directly because they run before anyone can log in.
-const DIRECT_IPC_FILES = new Set(['onboarding.handler.js']);
+// recovery.handler.js restarts the app from the error screen, even when overloaded or logged out;
+// it only accepts calls from the app's own page.
+const DIRECT_IPC_FILES = new Set(['onboarding.handler.js', 'recovery.handler.js']);
 
 function readChannels() {
   const channels = [];

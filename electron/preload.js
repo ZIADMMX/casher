@@ -26,6 +26,7 @@ async function invokeAuth(localChannel, credentials) {
 // Keep this object as the single, documented renderer-to-main API.
 contextBridge.exposeInMainWorld('electronAPI', {
   restartApp: () => ipcRenderer.invoke('app:restart'),
+  relaunchAfterError: () => ipcRenderer.invoke('recovery:relaunch'), // error screen; works when overloaded or logged out
 
   // Products and variants
   addProductWithVariant: (data) =>
