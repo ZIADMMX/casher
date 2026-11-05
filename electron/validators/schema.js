@@ -527,6 +527,12 @@ function isReportPeriod(value) {
 
 const reportPeriodSchema = v.any().refine(isReportPeriod, 'الفترة الزمنية للتقرير غير صالحة');
 
+const kitchenStatusSchema = v.any().refine((value) => (
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+  && Number.isSafeInteger(value.saleId) && value.saleId > 0
+  && ['new', 'preparing', 'ready', 'served'].includes(value.status)
+), 'طلب تحديث المطبخ غير صالح');
+
 const reportLedgerQuerySchema = v.any().refine((value) => {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
   if (!isReportPeriod(value.period)) return false;
@@ -709,6 +715,7 @@ module.exports = {
   notificationOptionsSchema,
   reportPeriodSchema,
   reportLedgerQuerySchema,
+  kitchenStatusSchema,
   positiveIdSchema,
   positiveLimitSchema,
   processReturnSchema,

@@ -1868,3 +1868,33 @@ WHEN (SELECT foreign_keys FROM pragma_foreign_keys) = 1
 BEGIN
     SELECT RAISE(ABORT, 'Inventory counts are append-only');
 END;
+
+-- سجل حركة المطبخ: كل نقل للطلب يتسجل (مين ومن فين لفين وإمتى) ولا يمكن تعديله أو حذفه.
+-- والطلب يتنقل خطوة واحدة بس (أو يرجع خطوة)، فمحدش يقدر يقفز أو يرجّع التاريخ.
+CREATE TABLE IF NOT EXISTS kitchen_status_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sale_id INTEGER NOT NULL,
+    from_status TEXT NOT NULL CHECK(from_status IN ('new', 'preparing', 'ready', 'served')),
+    to_status TEXT NOT NULL CHECK(to_status IN ('new', 'preparing', 'ready', 'served')),
+    user_id INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (sale_id) REFERENCES sales(id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_kitchen_events_sale ON kitchen_status_events(sale_id, id);
+
+CREATE TRIGGER IF NOT EXISTS trg_kitchen_events_no_delete
+BEFORE DELETE ON kitchen_status_events
+WHEN (SELECT foreign_keys FROM pragma_foreign_keys) = 1
+BEGIN
+    SELECT RAISE(ABORT, 'Kitchen history is append-only');
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_kitchen_events_no_update
+BEFORE UPDATE OF sale_id, from_status, to_status, created_at ON kitchen_status_events
+WHEN (SELECT foreign_keys FROM pragma_foreign_keys) = 1
+BEGIN
+    SELECT RAISE(ABORT, 'Kitchen history is append-only');
+END;
+-- (trg_sales_kitchen_one_step يتعمل في migrations/kitchenLedger.js بعد التأكد من وجود عمود kitchen_status)

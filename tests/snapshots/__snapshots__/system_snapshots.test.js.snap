@@ -207,6 +207,7 @@ exports[`System Snapshot Tests (اختبارات اللقطات والقوالب
   "inventory_movements",
   "inventory_transfer_items",
   "inventory_transfers",
+  "kitchen_status_events",
   "lawyer_time_logs",
   "leave_requests",
   "legal_case_tasks",

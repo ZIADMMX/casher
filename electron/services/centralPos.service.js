@@ -1,4 +1,5 @@
 const { writePool } = require('../database/dbPool');
+const { NEXT: KITCHEN_NEXT } = require('./kitchenFlow');
 
 class PosError extends Error {
   constructor(message, statusCode = 400) {
@@ -245,15 +246,32 @@ async function updateCentralKitchenOrderStatus({ userId, saleId, status, pool = 
   const user = userResult.rows[0];
   if (!user || !user.is_active) throw new PosError('حساب المستخدم غير نشط أو غير موجود', 401);
 
+  // Same flow as the local app, forward only: the central schema keeps no
+  // change history yet, so there is no safe undo window to check against.
+  const current = await pool.query(
+    `SELECT COALESCE(kitchen_status, 'new') AS kitchen_status FROM sales
+     WHERE id = $1 AND order_mode IS NOT NULL
+       AND (branch_id = $2 OR $2::INTEGER IS NULL)`,
+    [Number(saleId), user.branch_id]
+  );
+  if (!current.rows.length) throw new PosError('طلب المطبخ غير موجود', 404);
+  const from = current.rows[0].kitchen_status;
+  if (KITCHEN_NEXT[from] !== status) {
+    throw new PosError(from === status
+      ? 'الطلب اتحدث بالفعل من شاشة تانية'
+      : 'لا يمكن نقل الطلب لهذه المرحلة مباشرة');
+  }
+
   const result = await pool.query(
     `UPDATE sales
      SET kitchen_status = $1
      WHERE id = $2 AND order_mode IS NOT NULL
        AND (branch_id = $3 OR $3::INTEGER IS NULL)
+       AND COALESCE(kitchen_status, 'new') = $4
      RETURNING id, order_mode, kitchen_status`,
-    [status, Number(saleId), user.branch_id]
+    [status, Number(saleId), user.branch_id, from]
   );
-  if (!result.rows.length) throw new PosError('طلب المطبخ غير موجود', 404);
+  if (!result.rows.length) throw new PosError('الطلب اتحدث بالفعل من شاشة تانية', 409);
   return result.rows[0];
 }
 

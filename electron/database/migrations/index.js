@@ -46,6 +46,7 @@ const {
   migrateCloudSyncV3,
 } = require('./platform');
 const { ensureSalesLedgerGuards, backfillSaleItemCosts } = require('./salesLedger');
+const { ensureKitchenLedger } = require('./kitchenLedger');
 
 function runAllMigrations(dbInstance = db) {
   const currentVersion = dbInstance.pragma('user_version', { simple: true }) || 0;
@@ -180,8 +181,16 @@ function runAllMigrations(dbInstance = db) {
     console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 14 (قفل سجل المبيعات وتثبيت التكلفة).');
   }
 
+  if (currentVersion < 15) {
+    // Kitchen status changes are recorded and can only move one step at a time.
+    ensureKitchenLedger(dbInstance);
+    dbInstance.pragma('user_version = 15');
+    console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 15 (سجل حركة المطبخ).');
+  }
+
   // Earlier steps may rebuild the sales tables; make sure the guards exist at the end.
   ensureSalesLedgerGuards(dbInstance);
+  ensureKitchenLedger(dbInstance);
 }
 
 module.exports = { runAllMigrations };
