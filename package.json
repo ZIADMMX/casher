@@ -12,7 +12,7 @@
     "build:main": "node scripts/obfuscate-electron.js",
     "verify:license-time": "node scripts/verify-license-time.js",
     "build": "vite build",
-    "test": "jest --runInBand --cacheDirectory=\"./.jest-cache\" --testPathIgnorePatterns=\"/e2e/|/tests/frontend/\"",
+    "test": "jest --runInBand --cacheDirectory=\"./.jest-cache\"",
     "test:unit": "vitest run --node",
     "test:watch": "jest --watch",
     "test:e2e": "playwright test e2e",
@@ -24,6 +24,13 @@
     "package:dir": "npm run verify:license-time && npm run build && npm run rebuild && electron-builder --win --x64 --dir",
     "package:linux": "npm run verify:license-time && npm run build && npm run rebuild && electron-builder --linux --x64 --publish never",
     "package:mac": "npm run verify:license-time && npm run build && npm run rebuild && electron-builder --mac --publish never"
+  },
+  "jest": {
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "<rootDir>/e2e/",
+      "<rootDir>/tests/frontend/"
+    ]
   },
   "keywords": [],
   "author": "",

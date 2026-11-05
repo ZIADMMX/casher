@@ -136,7 +136,10 @@ describe('Appointments service', () => {
   });
 
   test('reminds once and converts a booking to a linked service order atomically', () => {
-    const slot = futureSlot(2);
+    // A fixed 10:00 slot keeps the booking inside one day whatever time the
+    // suite runs; the reminder check then runs one hour before that slot.
+    const slot = futureSlot();
+    const oneHourBefore = new Date(slot.getTime() - 60 * 60_000);
     const appointment = appointmentsService.createAppointment({
       serviceId,
       resourceId,
@@ -147,8 +150,8 @@ describe('Appointments service', () => {
     });
 
     jest.clearAllMocks();
-    appointmentsService.checkDueReminders(new Date());
-    appointmentsService.checkDueReminders(new Date());
+    appointmentsService.checkDueReminders(oneHourBefore);
+    appointmentsService.checkDueReminders(oneHourBefore);
     expect(NotificationsService.notify).toHaveBeenCalledTimes(1);
 
     const converted = appointmentsService.convertToServiceOrder(appointment.id);
