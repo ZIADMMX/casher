@@ -183,7 +183,8 @@ function migrateSubscriptionsTables() {
       db.prepare("ALTER TABLE packages ADD COLUMN branch_ids TEXT DEFAULT '[]'").run();
     }
   } catch (err) {
-    console.warn('تنبيه أثناء ترقية أعمدة جدول الباقات (packages):', err.message);
+    err.message = `فشل ترقية أعمدة جدول الباقات (packages): ${err.message}`;
+    throw err;
   }
 
   console.log('تم التحقق من جداول الاشتراكات والباقات (subscriptions)');

@@ -403,6 +403,12 @@ CREATE TABLE IF NOT EXISTS returns (
     user_id INTEGER,
     shift_id INTEGER,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    -- Sync metadata (see migrations/syncMetadata.js). returns is append-only,
+    -- so returns.repository writes uuid and updated_at in the INSERT itself.
+    uuid TEXT,
+    is_synced INTEGER NOT NULL DEFAULT 0,
+    synced_at DATETIME,
+    updated_at DATETIME,
     FOREIGN KEY (sale_id) REFERENCES sales(id),
     FOREIGN KEY (variant_id) REFERENCES product_variants(id),
     FOREIGN KEY (exchange_variant_id) REFERENCES product_variants(id),

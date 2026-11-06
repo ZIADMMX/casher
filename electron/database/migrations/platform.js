@@ -1,5 +1,6 @@
 const crypto = require('node:crypto');
 const { db } = require('../connection');
+const { addColumnIfMissing } = require('./helpers');
 
 function migrateUIConfigTables() {
   db.exec(`
@@ -87,15 +88,8 @@ function migrateOnboardingTables() {
   `);
 
   // التحقق من وجود الأعمدة الجديدة
-  try {
-    const cols = db.prepare('PRAGMA table_info(onboarding_presets)').all().map((c) => c.name);
-    if (!cols.includes('starter_working_hours_json')) {
-      db.exec("ALTER TABLE onboarding_presets ADD COLUMN starter_working_hours_json TEXT DEFAULT '{}';");
-    }
-    if (!cols.includes('starter_addons_json')) {
-      db.exec("ALTER TABLE onboarding_presets ADD COLUMN starter_addons_json TEXT DEFAULT '[]';");
-    }
-  } catch {}
+  addColumnIfMissing('onboarding_presets', 'starter_working_hours_json', "TEXT DEFAULT '{}'");
+  addColumnIfMissing('onboarding_presets', 'starter_addons_json', "TEXT DEFAULT '[]'");
 
   // تهيئة حالة الـ Onboarding الأولية إذا لم تكن موجودة
   db.prepare(`
@@ -187,76 +181,38 @@ function migrateCloudSyncV3(dbInstance = db) {
         .all()
         .map((c) => c.name);
 
-      if (!columns.includes('uuid')) {
-        try {
-          dbInstance.exec(`ALTER TABLE ${table} ADD COLUMN uuid TEXT;`);
-        } catch (e) {
-          if (!e.message.includes('duplicate column')) {
-            console.warn(`[SyncMigration] تنبيه إضافة عمود uuid إلى ${table}:`, e.message);
-          }
-        }
-      }
-
-      if (!columns.includes('is_synced')) {
-        try {
-          dbInstance.exec(`ALTER TABLE ${table} ADD COLUMN is_synced INTEGER NOT NULL DEFAULT 0;`);
-        } catch (e) {
-          if (!e.message.includes('duplicate column')) {
-            console.warn(`[SyncMigration] تنبيه إضافة عمود is_synced إلى ${table}:`, e.message);
-          }
-        }
-      }
-
-      if (!columns.includes('synced_at')) {
-        try {
-          dbInstance.exec(`ALTER TABLE ${table} ADD COLUMN synced_at DATETIME;`);
-        } catch (e) {
-          if (!e.message.includes('duplicate column')) {
-            console.warn(`[SyncMigration] تنبيه إضافة عمود synced_at إلى ${table}:`, e.message);
-          }
-        }
-      }
-
-      if (!columns.includes('updated_at')) {
-        try {
-          dbInstance.exec(`ALTER TABLE ${table} ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP;`);
-        } catch (e) {
-          if (!e.message.includes('duplicate column')) {
-            console.warn(`[SyncMigration] تنبيه إضافة عمود updated_at إلى ${table}:`, e.message);
-          }
-        }
+      addColumnIfMissing(table, 'uuid', 'TEXT', dbInstance);
+      addColumnIfMissing(table, 'is_synced', 'INTEGER NOT NULL DEFAULT 0', dbInstance);
+      addColumnIfMissing(table, 'synced_at', 'DATETIME', dbInstance);
+      // SQLite refuses a CURRENT_TIMESTAMP default on ADD COLUMN once a table has
+      // rows, so add it plain and fill it in (insert/update triggers keep it current).
+      if (addColumnIfMissing(table, 'updated_at', 'DATETIME', dbInstance)) {
+        const fill = columns.includes('created_at') ? 'COALESCE(created_at, CURRENT_TIMESTAMP)' : 'CURRENT_TIMESTAMP';
+        dbInstance.exec(`UPDATE ${table} SET updated_at = ${fill} WHERE updated_at IS NULL`);
       }
 
       // فهارس تسريع الاستعلامات والمزامنة
-      try {
-        dbInstance.exec(`
-          CREATE INDEX IF NOT EXISTS idx_${table}_sync ON ${table}(is_synced);
-          CREATE UNIQUE INDEX IF NOT EXISTS idx_${table}_uuid ON ${table}(uuid) WHERE uuid IS NOT NULL;
-        `);
-      } catch {}
+      dbInstance.exec(`
+        CREATE INDEX IF NOT EXISTS idx_${table}_sync ON ${table}(is_synced);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_${table}_uuid ON ${table}(uuid) WHERE uuid IS NOT NULL;
+      `);
 
-      // توليد UUID فوري للسجلات الحالية التي لا تملك UUID
-      try {
-        const rowsWithoutUuid = dbInstance
-          .prepare(`SELECT id FROM ${table} WHERE uuid IS NULL OR uuid = '' LIMIT 5000`)
-          .all();
-        if (rowsWithoutUuid.length > 0) {
-          const updateStmt = dbInstance.prepare(`UPDATE ${table} SET uuid = ? WHERE id = ?`);
-          for (const row of rowsWithoutUuid) {
-            updateStmt.run(crypto.randomUUID(), row.id);
-          }
-        }
-      } catch {}
+      // توليد UUID لكل السجلات الحالية التي لا تملك UUID
+      const rowsWithoutUuid = dbInstance
+        .prepare(`SELECT id FROM ${table} WHERE uuid IS NULL OR uuid = ''`)
+        .all();
+      const updateStmt = dbInstance.prepare(`UPDATE ${table} SET uuid = ? WHERE id = ?`);
+      for (const row of rowsWithoutUuid) {
+        updateStmt.run(crypto.randomUUID(), row.id);
+      }
     }
   })();
 
   // فحص سلامة وتكامل المفاتيح الأجنبية
-  try {
-    const fkIssues = dbInstance.prepare('PRAGMA foreign_key_check').all();
-    if (fkIssues.length > 0) {
-      console.warn('[DB] تنبيه تكامل المفاتيح الأجنبية:', fkIssues);
-    }
-  } catch {}
+  const fkIssues = dbInstance.prepare('PRAGMA foreign_key_check').all();
+  if (fkIssues.length > 0) {
+    console.warn('[DB] تنبيه تكامل المفاتيح الأجنبية:', fkIssues);
+  }
 }
 
 module.exports = {

@@ -48,6 +48,7 @@ const {
 const { ensureSalesLedgerGuards, backfillSaleItemCosts } = require('./salesLedger');
 const { ensureKitchenLedger } = require('./kitchenLedger');
 const { ensureProductLedger } = require('./productLedger');
+const { ensureSyncMetadata } = require('./syncMetadata');
 
 function runAllMigrations(dbInstance = db) {
   const currentVersion = dbInstance.pragma('user_version', { simple: true }) || 0;
@@ -217,6 +218,14 @@ function runAllMigrations(dbInstance = db) {
     }
     dbInstance.pragma('user_version = 17');
     console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 17 (صلاحيات الكاشير ومدير الفرع).');
+  }
+
+  if (currentVersion < 18) {
+    // Every syncable row gets a cross-device uuid and an updated_at that the
+    // database keeps current by itself (the v3 columns were never filled).
+    ensureSyncMetadata(dbInstance);
+    dbInstance.pragma('user_version = 18');
+    console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 18 (معرفات المزامنة وتاريخ آخر تعديل).');
   }
 
   // Earlier steps may rebuild the sales tables; make sure the guards exist at the end.

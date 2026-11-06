@@ -1,4 +1,5 @@
 const { db } = require('../connection');
+const { foreignKeyViolationCounts, assertNoNewForeignKeyViolations } = require('./helpers');
 
 function migrateCasesTables(dbInstance = db) {
   const hasLawyerTimeLogs = dbInstance.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='lawyer_time_logs'").get();
@@ -6,10 +7,13 @@ function migrateCasesTables(dbInstance = db) {
     const fks = dbInstance.prepare('PRAGMA foreign_key_list(lawyer_time_logs)').all();
     const userFk = fks.find((f) => f.from === 'lawyer_id' && f.table === 'users');
     if (userFk && userFk.on_delete === 'SET NULL') {
+      // Rebuilt with foreign keys off; violations are compared before and after
+      // inside the transaction, so a rebuild that breaks links rolls back.
+      const fkBefore = foreignKeyViolationCounts(dbInstance);
       dbInstance.pragma('foreign_keys = OFF');
       try {
-        dbInstance.exec(`
-          BEGIN TRANSACTION;
+        dbInstance.transaction(() => {
+          dbInstance.exec(`
           DROP TRIGGER IF EXISTS trg_restrict_case_delete_with_history;
           CREATE TABLE lawyer_time_logs_migrated (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -44,11 +48,9 @@ function migrateCasesTables(dbInstance = db) {
           BEGIN
               SELECT RAISE(ABORT, 'Close cases instead of deleting case and financial history');
           END;
-          COMMIT;
         `);
-      } catch (err) {
-        try { dbInstance.exec('ROLLBACK;'); } catch {}
-        throw err;
+          assertNoNewForeignKeyViolations(fkBefore, 'lawyer_time_logs', dbInstance);
+        })();
       } finally {
         dbInstance.pragma('foreign_keys = ON');
       }

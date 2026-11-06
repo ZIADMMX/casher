@@ -1,4 +1,5 @@
 const { db } = require('../connection');
+const { addColumnIfMissing } = require('./helpers');
 
 function migrateReviewsTables() {
   db.exec(`
@@ -122,43 +123,22 @@ function migrateShiftsTable() {
     CREATE INDEX IF NOT EXISTS idx_shift_expenses_shift ON shift_expenses(shift_id);
   `);
 
-  const shiftCols = db.prepare("PRAGMA table_info(shifts)").all();
-  const addShiftCol = (name, typeDef) => {
-    if (!shiftCols.some((c) => c.name === name)) {
-      try {
-        db.exec(`ALTER TABLE shifts ADD COLUMN ${name} ${typeDef}`);
-      } catch (e) {
-        console.warn(`تنبيه أثناء إضافة عمود ${name} لجدول shifts:`, e.message);
-      }
-    }
-  };
-  addShiftCol('shift_type', "TEXT DEFAULT 'morning'");
-  addShiftCol('pos_station', "TEXT DEFAULT 'الدرج الرئيسي - POS 1'");
-  addShiftCol('opening_notes', 'TEXT');
-  addShiftCol('opening_cash_breakdown', 'TEXT');
-  addShiftCol('branch_id', 'INTEGER REFERENCES branches(id)');
-  addShiftCol('warehouse_id', 'INTEGER REFERENCES warehouses(id)');
-  addShiftCol('attendance_record_id', 'INTEGER REFERENCES attendance_records(id)');
-  try {
-    db.exec(`
-      CREATE INDEX IF NOT EXISTS idx_shifts_branch ON shifts(branch_id);
-      CREATE INDEX IF NOT EXISTS idx_shifts_warehouse ON shifts(warehouse_id);
-    `);
-  } catch {}
+  addColumnIfMissing('shifts', 'shift_type', "TEXT DEFAULT 'morning'");
+  addColumnIfMissing('shifts', 'pos_station', "TEXT DEFAULT 'الدرج الرئيسي - POS 1'");
+  addColumnIfMissing('shifts', 'opening_notes', 'TEXT');
+  addColumnIfMissing('shifts', 'opening_cash_breakdown', 'TEXT');
+  addColumnIfMissing('shifts', 'branch_id', 'INTEGER REFERENCES branches(id)');
+  addColumnIfMissing('shifts', 'warehouse_id', 'INTEGER REFERENCES warehouses(id)');
+  addColumnIfMissing('shifts', 'attendance_record_id', 'INTEGER REFERENCES attendance_records(id)');
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_shifts_branch ON shifts(branch_id);
+    CREATE INDEX IF NOT EXISTS idx_shifts_warehouse ON shifts(warehouse_id);
+  `);
 
-  const salesColumns = db.prepare("PRAGMA table_info(sales)").all();
-  const hasShiftId = salesColumns.some((c) => c.name === 'shift_id');
-  if (!hasShiftId) {
-    try {
-      db.exec(`
-        ALTER TABLE sales ADD COLUMN shift_id INTEGER REFERENCES shifts(id);
-        CREATE INDEX IF NOT EXISTS idx_sales_shift ON sales(shift_id);
-      `);
-      console.log('تم إضافة عمود shift_id لجدول sales');
-    } catch (e) {
-      console.warn('تنبيه أثناء إضافة shift_id لجدول sales:', e.message);
-    }
+  if (addColumnIfMissing('sales', 'shift_id', 'INTEGER REFERENCES shifts(id)')) {
+    console.log('تم إضافة عمود shift_id لجدول sales');
   }
+  db.exec('CREATE INDEX IF NOT EXISTS idx_sales_shift ON sales(shift_id);');
 
   console.log('تم التحقق من جداول الورديات ومصروفات الدرج');
 }

@@ -1,4 +1,5 @@
 const { db, SALES_SCHEMA_VERSION } = require('../connection');
+const { foreignKeyViolationCounts, assertNoNewForeignKeyViolations } = require('./helpers');
 
 function migrateSalesTable() {
   const currentVersion = db.pragma('user_version', { simple: true });
@@ -19,6 +20,10 @@ function migrateSalesTable() {
     && salesColumnNames.has('warehouse_id')
     && hasCreditConstraint
   );
+
+  // The rebuild below runs with foreign keys off; compare violations before and
+  // after it, inside the transaction, so a rebuild that breaks links rolls back.
+  const fkBefore = foreignKeyViolationCounts(db);
 
   try {
     db.pragma('foreign_keys = OFF');
@@ -137,6 +142,7 @@ function migrateSalesTable() {
         }
       }
 
+      assertNoNewForeignKeyViolations(fkBefore, 'sales / sale_items', db);
       db.pragma(`user_version = ${SALES_SCHEMA_VERSION}`);
     });
 

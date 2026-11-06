@@ -74,17 +74,10 @@ function migrateReturnsTable() {
     console.log('تم تحديث جدول returns لدعم المرتجعات والاستبدال');
   }
 
-  if (!columns.some((c) => c.name === 'shift_id')) {
-    try {
-      db.exec(`
-        ALTER TABLE returns ADD COLUMN shift_id INTEGER REFERENCES shifts(id);
-        CREATE INDEX IF NOT EXISTS idx_returns_shift ON returns(shift_id);
-      `);
-      console.log('تم إضافة عمود shift_id لجدول returns');
-    } catch (e) {
-      console.warn('تنبيه أثناء إضافة shift_id لجدول returns:', e.message);
-    }
+  if (addColumnIfMissing('returns', 'shift_id', 'INTEGER REFERENCES shifts(id)')) {
+    console.log('تم إضافة عمود shift_id لجدول returns');
   }
+  db.exec('CREATE INDEX IF NOT EXISTS idx_returns_shift ON returns(shift_id);');
 
   if (!columns.some((c) => c.name === 'exchange_price_difference')) {
     db.exec('ALTER TABLE returns ADD COLUMN exchange_price_difference REAL NOT NULL DEFAULT 0');
@@ -110,18 +103,10 @@ function migrateCustomersTable() {
     CREATE INDEX IF NOT EXISTS idx_customer_payments_customer ON customer_payments(customer_id);
   `);
 
-  const custPayCols = db.prepare("PRAGMA table_info(customer_payments)").all();
-  if (!custPayCols.some((c) => c.name === 'shift_id')) {
-    try {
-      db.exec(`
-        ALTER TABLE customer_payments ADD COLUMN shift_id INTEGER REFERENCES shifts(id);
-        CREATE INDEX IF NOT EXISTS idx_customer_payments_shift ON customer_payments(shift_id);
-      `);
-      console.log('تم إضافة عمود shift_id لجدول customer_payments');
-    } catch (e) {
-      console.warn('تنبيه أثناء إضافة shift_id لجدول customer_payments:', e.message);
-    }
+  if (addColumnIfMissing('customer_payments', 'shift_id', 'INTEGER REFERENCES shifts(id)')) {
+    console.log('تم إضافة عمود shift_id لجدول customer_payments');
   }
+  db.exec('CREATE INDEX IF NOT EXISTS idx_customer_payments_shift ON customer_payments(shift_id);');
 }
 
 function migrateOrdersTables() {
@@ -447,7 +432,10 @@ function migrateChannelsTables() {
       insertChannel.run('نقطة البيع الكاشير (POS)', 'pos', whId, 'auto');
       insertChannel.run('المتجر الإلكتروني (Online Store)', 'online_store', whId, 'auto');
       insertChannel.run('متجر سلة (Salla)', 'salla', whId, 'auto');
-    } catch {}
+    } catch (err) {
+      // Default channels are seed data, not schema: log it and keep starting up.
+      console.warn('تعذر إضافة قنوات البيع الافتراضية:', err.message);
+    }
   }
 }
 
@@ -513,13 +501,8 @@ function migrateGroceryTables() {
     CREATE INDEX IF NOT EXISTS idx_grocery_speed_keys_order ON grocery_speed_keys(display_order);
   `);
 
-  try {
-    const batchCols = db.prepare("PRAGMA table_info(product_batches)").all().map((c) => c.name);
-    if (!batchCols.includes('warehouse_id')) {
-      db.exec("ALTER TABLE product_batches ADD COLUMN warehouse_id INTEGER REFERENCES warehouses(id) ON DELETE SET NULL;");
-    }
-    db.exec("CREATE INDEX IF NOT EXISTS idx_product_batches_warehouse ON product_batches(warehouse_id);");
-  } catch {}
+  addColumnIfMissing('product_batches', 'warehouse_id', 'INTEGER REFERENCES warehouses(id) ON DELETE SET NULL');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_product_batches_warehouse ON product_batches(warehouse_id);');
 }
 
 function migrateKitchenOrdersV5(database = db) {

@@ -1,3 +1,4 @@
+const crypto = require('node:crypto');
 const { db } = require('../database/db');
 
 function create({
@@ -12,12 +13,15 @@ function create({
   userId,
   shiftId,
 }) {
+  // returns is append-only, so no trigger can fill uuid/updated_at after the
+  // insert: they are written here (see migrations/syncMetadata.js).
   const stmt = db.prepare(`
     INSERT INTO returns (
       sale_id, variant_id, quantity, reason, refund_amount, exchange_variant_id,
-      exchange_price_difference, exchange_payment_method, user_id, shift_id
+      exchange_price_difference, exchange_payment_method, user_id, shift_id,
+      uuid, updated_at
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
   `);
   const result = stmt.run(
     saleId,
@@ -29,7 +33,8 @@ function create({
     Number(exchangePriceDifference || 0),
     exchangePaymentMethod || null,
     userId,
-    shiftId || null
+    shiftId || null,
+    crypto.randomUUID()
   );
   return result.lastInsertRowid;
 }
