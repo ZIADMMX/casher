@@ -161,7 +161,30 @@ function verifyRecoveryResponse(challengeCode, responseCode) {
   return verifySignature(RECOVERY_DOMAIN, Buffer.from(normalize(challengeCode)), signature);
 }
 
+const TIME_DOMAIN = 'foxcloud-time-v1:';
+
+function loadTimeServerKey() {
+  const override = process.env.NODE_ENV === 'test' ? process.env.FOX_TIME_PUBLIC_KEY : '';
+  const encoded = override || require('./time-server-public-key').TIME_SERVER_PUBLIC_KEY;
+  if (!encoded) return null;
+  return crypto.createPublicKey({ key: Buffer.from(encoded, 'base64'), format: 'der', type: 'spki' });
+}
+
+/** App side: check a time-server answer (license-server/src/index.js) for this request's nonce. */
+function verifyTimeResponse({ utc, trialStart, sig }, device, nonce) {
+  const publicKey = loadTimeServerKey();
+  if (!publicKey || typeof utc !== 'string' || typeof sig !== 'string' || !Number.isFinite(trialStart)) return false;
+  try {
+    const message = Buffer.from(`${TIME_DOMAIN}${utc}|${device}|${nonce}|${trialStart}`);
+    return crypto.verify(null, message, publicKey, Buffer.from(sig, 'base64'));
+  } catch {
+    return false;
+  }
+}
+
 module.exports = {
+  TIME_DOMAIN,
+  verifyTimeResponse,
   KEY_PREFIX,
   LIFETIME_TIMESTAMP_MS,
   base32Encode,

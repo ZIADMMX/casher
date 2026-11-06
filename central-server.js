@@ -280,13 +280,6 @@ const server = http.createServer(async (req, res) => {
   const method = req.method.toUpperCase();
 
   try {
-    if (pathname === '/api/license/time' && method === 'GET') {
-      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-      res.setHeader('Pragma', 'no-cache');
-      res.setHeader('Expires', '0');
-      return sendJSON(res, 200, { utc: new Date().toISOString() });
-    }
-
     // -------------------------------------------------------------
     // 1. Health & Server Info
     // -------------------------------------------------------------

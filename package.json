@@ -31,10 +31,8 @@
     "testPathIgnorePatterns": [
       "/node_modules/",
       "<rootDir>/e2e/",
-      "<rootDir>/tests/frontend/"
-    ],
-    "setupFiles": [
-      "<rootDir>/tests/setupEnv.js"
+      "<rootDir>/tests/frontend/",
+      "<rootDir>/license-server/"
     ]
   },
   "keywords": [],

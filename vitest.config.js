@@ -6,7 +6,7 @@ const react = require('@vitejs/plugin-react');
 module.exports = defineConfig({
   plugins: [react()],
   test: {
-    include: ['tests/frontend/**/*.test.{js,jsx}'],
+    include: ['tests/frontend/**/*.test.{js,jsx}', 'license-server/test/**/*.test.js'],
     environment: 'jsdom',
     globals: true,
     setupFiles: ['tests/frontend/setup/jest-dom.js'],

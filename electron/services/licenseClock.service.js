@@ -1,9 +1,14 @@
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const { performance } = require('node:perf_hooks');
+const { verifyTimeResponse } = require('../security/licenseSigning');
+const { getDeviceId } = require('../security/deviceId');
 
 const CONFIG_PATH = path.resolve(__dirname, '..', '..', 'license-time.config.json');
-const CACHE_DURATION_MS = 30_000;
+// Within one run the monotonic clock is trusted, so the server is asked only
+// every 15 minutes (keeps each cashier at ~100 requests a day).
+const CACHE_DURATION_MS = 15 * 60_000;
 // How long the shop may keep selling without reaching the time server,
 // counted from the last successful check.
 const OFFLINE_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -19,6 +24,8 @@ const LAST_SEEN_WALL_KEY = 'license_time_last_seen_wall';
 // from the monotonic clock, so holding the wall clock still (setting it back a
 // few seconds at a time, below the rollback tolerance) cannot stop time.
 const RUNTIME_KEY = 'license_time_offline_runtime';
+// This machine's first run as recorded by the license server (see license.service).
+const SERVER_TRIAL_START_KEY = 'license_server_trial_start';
 
 let cachedTime = null;
 let runtimeMark = null;
@@ -106,8 +113,13 @@ function offlineTrustedNow(networkError) {
 
 async function fetchTrustedTimeOrFallback(endpoint) {
   try {
-    const serverTime = await fetchTrustedTime(endpoint);
+    const { serverTime, trialStart } = await fetchTrustedTime(endpoint);
     saveAnchor(serverTime);
+    try {
+      getAnchorStore().set(SERVER_TRIAL_START_KEY, String(trialStart));
+    } catch (error) {
+      console.warn('Failed to persist server trial start:', error.message);
+    }
     return serverTime;
   } catch (error) {
     if (error.code === 'LICENSE_TIME_ROLLBACK') throw error;
@@ -157,10 +169,16 @@ function getTimeEndpoint() {
 }
 
 async function fetchTrustedTime(endpoint) {
+  const device = getDeviceId();
+  const nonce = crypto.randomBytes(16).toString('hex');
+  const url = new URL(endpoint);
+  url.searchParams.set('device', device);
+  url.searchParams.set('nonce', nonce);
+
   const startedAt = performance.now();
   let response;
   try {
-    response = await fetch(endpoint, {
+    response = await fetch(url, {
       headers: { Accept: 'application/json' },
       cache: 'no-store',
       signal: AbortSignal.timeout(5000),
@@ -184,6 +202,11 @@ async function fetchTrustedTime(endpoint) {
   if (!Number.isFinite(serverTime)) {
     throw new Error('خادم وقت الترخيص لم يُرجع وقت UTC صالحًا');
   }
+  // A fake local server or a replayed old answer fails here; the app then
+  // falls back to the offline grace period, which is itself limited.
+  if (!verifyTimeResponse(payload, device, nonce)) {
+    throw new Error('رد خادم وقت الترخيص غير موقّع أو تم التلاعب به');
+  }
 
   const receivedAt = performance.now();
   const roundTripMs = receivedAt - startedAt;
@@ -201,7 +224,7 @@ async function fetchTrustedTime(endpoint) {
     serverTime: estimatedServerTime,
     monotonicTime: receivedAt,
   };
-  return estimatedServerTime;
+  return { serverTime: estimatedServerTime, trialStart: payload.trialStart };
 }
 
 async function getTrustedNow() {

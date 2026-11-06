@@ -1,0 +1,11 @@
+{
+  "name": "foxcloud-license-server",
+  "private": true,
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev"
+  },
+  "devDependencies": {
+    "wrangler": "4.42.0"
+  }
+}

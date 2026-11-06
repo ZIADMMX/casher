@@ -19,6 +19,7 @@ const PROTECTED_KEYS = new Set([
   'license_time_anchor_wall',
   'license_time_last_seen_wall',
   'license_time_offline_runtime',
+  'license_server_trial_start',
   // Open admin-recovery challenge (electron/services/auth.service.js).
   'recovery_challenge',
 ]);

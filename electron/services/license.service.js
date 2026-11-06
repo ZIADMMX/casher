@@ -1,60 +1,8 @@
-const os = require('node:os');
-const fs = require('node:fs');
-const path = require('node:path');
-const crypto = require('node:crypto');
 const dbRepo = require('../repositories/settings.repository');
 const { parseLicenseKey } = require('../security/licenseSigning');
+const { getMachineHardwareId } = require('../security/deviceId');
 
 const TRIAL_DURATION_DAYS = 14;
-
-// A second copy of the trial start, outside the app's data folder, so deleting
-// the database or reinstalling does not start a fresh trial. The earlier of the
-// two dates wins. Tests point it at a temp folder.
-// shortcut: deleting this file too still resets the trial; a server that records each HWID's first run closes that.
-function trialMarkerPath(hwid) {
-  const dir = (process.env.NODE_ENV === 'test' && process.env.FOX_TRIAL_MARKER_DIR)
-    || path.join(os.homedir(), 'AppData', 'Local', 'FoxCloudRuntime');
-  return path.join(dir, `${hwid}.dat`);
-}
-
-function readTrialMarker(hwid) {
-  try {
-    const value = Number(fs.readFileSync(trialMarkerPath(hwid), 'utf8'));
-    return Number.isFinite(value) && value > 0 ? value : null;
-  } catch {
-    return null;
-  }
-}
-
-function writeTrialMarker(hwid, trialStart) {
-  try {
-    fs.mkdirSync(path.dirname(trialMarkerPath(hwid)), { recursive: true });
-    fs.writeFileSync(trialMarkerPath(hwid), String(trialStart));
-  } catch (error) {
-    console.warn('Failed to save trial marker:', error.message);
-  }
-}
-
-/**
- * Generate deterministic unique Machine Fingerprint (HWID)
- */
-function getMachineHardwareId() {
-  try {
-    const rawInfo = [
-      os.hostname(),
-      os.arch(),
-      os.platform(),
-      os.cpus()?.[0]?.model || 'GENERIC_CPU',
-      os.totalmem().toString(),
-    ].join('||');
-
-    const hash = crypto.createHash('sha256').update(rawInfo).digest('hex');
-    // Short 8-character uppercase HWID for easy customer reading
-    return hash.substring(0, 8).toUpperCase();
-  } catch {
-    return 'FFFFFFFF'; // hex, so a key can still be issued for it
-  }
-}
 
 // Keys issued before the switch to Ed25519 (KASH-...). They were signed with a
 // shared secret that never shipped, so they cannot be verified. The copy asks
@@ -148,11 +96,12 @@ function getLicenseStatus(now = Date.now(), { updateClock = true } = {}) {
   }
 
   // 2. Otherwise handle 14-Day Trial Period
-  const marker = readTrialMarker(hwid);
-  const known = [Number(trialStartStr), marker].filter((v) => Number.isFinite(v) && v > 0);
+  // The license time server remembers each machine's first run (licenseClock
+  // saves it), so deleting the database or reinstalling cannot restart the trial.
+  const known = [Number(trialStartStr), Number(dbRepo.get('license_server_trial_start'))]
+    .filter((v) => Number.isFinite(v) && v > 0);
   const trialStart = known.length ? Math.min(...known) : now;
   if (String(trialStart) !== trialStartStr) dbRepo.set('trial_start_date', String(trialStart));
-  if (marker !== trialStart) writeTrialMarker(hwid, trialStart);
 
   const trialEnd = trialStart + TRIAL_DURATION_DAYS * 24 * 60 * 60 * 1000;
   const remainingMs = trialEnd - now;

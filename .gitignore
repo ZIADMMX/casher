@@ -24,3 +24,6 @@ graphify-out/.rebuild.lock
 # Runtime logs
 *.log
 logs/
+
+# Cloudflare Worker local state
+.wrangler/

@@ -44,8 +44,6 @@ describe('License Flow – Full End-to-End', () => {
   let dateSpy;
 
   beforeEach(() => {
-    // Each test starts on a machine that never ran a trial.
-    require('node:fs').rmSync(process.env.FOX_TRIAL_MARKER_DIR, { recursive: true, force: true });
     mockStore  = {};
     jest.clearAllMocks();
     dateSpy = jest.spyOn(Date, 'now').mockReturnValue(FIXED_NOW);

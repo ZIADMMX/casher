@@ -1,3 +1,7 @@
+const { signedFetch, signAnswer } = require('../helpers/timeServer');
+
+const TRIAL_START = Date.parse('2029-12-25T00:00:00.000Z');
+
 describe('licenseClock.service', () => {
   const originalEndpoint = process.env.FOX_LICENSE_TIME_URL;
   const originalFetch = global.fetch;
@@ -6,10 +10,7 @@ describe('licenseClock.service', () => {
   beforeEach(() => {
     jest.resetModules();
     process.env.FOX_LICENSE_TIME_URL = 'https://license.example.com/api/license/time';
-    global.fetch = jest.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ utc: '2030-01-02T03:04:05.000Z' }),
-    });
+    global.fetch = jest.fn(signedFetch({ utc: '2030-01-02T03:04:05.000Z', trialStart: TRIAL_START }));
     licenseClock = require('../../electron/services/licenseClock.service');
   });
 
@@ -33,6 +34,37 @@ describe('licenseClock.service', () => {
     expect(firstTime).toBeLessThan(serverTime + 2000);
     expect(secondTime).toBeGreaterThanOrEqual(firstTime);
     expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  test('sends this device and a fresh nonce, and saves the server trial start', async () => {
+    const store = { data: new Map(), get: jest.fn(() => null), set: jest.fn((k, v) => store.data.set(k, v)) };
+    licenseClock.setAnchorStoreForTesting(store);
+
+    await licenseClock.getTrustedNow();
+
+    const url = new URL(String(global.fetch.mock.calls[0][0]));
+    expect(url.searchParams.get('device')).toMatch(/^[0-9a-f]{64}$/);
+    expect(url.searchParams.get('nonce')).toMatch(/^[0-9a-f]{32}$/);
+    expect(store.data.get('license_server_trial_start')).toBe(String(TRIAL_START));
+  });
+
+  test('rejects an answer signed by another key (fake local server)', async () => {
+    const { privateKey: fakeKey } = require('node:crypto').generateKeyPairSync('ed25519');
+    global.fetch = jest.fn(signedFetch({ utc: '2030-01-02T03:04:05.000Z', key: fakeKey }));
+    licenseClock.setAnchorStoreForTesting({ get: () => null, set: () => {} }); // no offline anchor to fall back on
+
+    await expect(licenseClock.getTrustedNow()).rejects.toThrow();
+  });
+
+  test('rejects a replayed answer made for another nonce', async () => {
+    licenseClock.setAnchorStoreForTesting({ get: () => null, set: () => {} });
+    global.fetch = jest.fn(async (url) => {
+      const device = new URL(String(url)).searchParams.get('device');
+      const old = signAnswer({ utc: '2030-01-02T03:04:05.000Z', trialStart: TRIAL_START, device, nonce: '0'.repeat(32) });
+      return { ok: true, json: async () => old };
+    });
+
+    await expect(licenseClock.getTrustedNow()).rejects.toThrow();
   });
 
   test('rejects a non-HTTPS time endpoint', async () => {

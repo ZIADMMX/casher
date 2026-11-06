@@ -1,0 +1,9 @@
+name = "foxcloud-license"
+account_id = "4cfd92485f9fe9bc88e260a3d752e9bf"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "foxcloud-license"
+database_id = "3f737462-8309-4d4f-b498-5274d54d1410"

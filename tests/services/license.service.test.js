@@ -18,8 +18,6 @@ describe('license.service', () => {
   
 
   beforeEach(() => {
-    // Each test starts on a machine that never ran a trial.
-    require('node:fs').rmSync(process.env.FOX_TRIAL_MARKER_DIR, { recursive: true, force: true });
     mockStore = {};
     jest.clearAllMocks();
     dateSpy = jest.spyOn(Date, 'now').mockImplementation(() => 1700000000000); // e.g. Nov 14 2023
@@ -99,25 +97,22 @@ describe('license.service', () => {
     expect(result.expiryTimestamp).toBe(expiryTimestamp);
   });
 
-  test('deleting the database does not start a fresh trial', () => {
-    licenseService.getLicenseStatus(); // trial starts now
-    mockStore = {}; // database deleted or app reinstalled
-    dateSpy.mockImplementation(() => 1700000000000 + 15 * 24 * 60 * 60 * 1000);
+  test('after deleting the database, the server-recorded first run still ends the trial', () => {
+    const fifteenDays = 15 * 24 * 60 * 60 * 1000;
+    // Fresh database, but the license server remembers this machine from 15 days ago.
+    mockStore = { license_server_trial_start: String(1700000000000 - fifteenDays) };
 
     const status = licenseService.getLicenseStatus();
     expect(status.isExpired).toBe(true);
     expect(status.trialDeadlineReached).toBe(true);
-    expect(mockStore.trial_start_date).toBe('1700000000000');
+    expect(mockStore.trial_start_date).toBe(String(1700000000000 - fifteenDays));
   });
 
-  test('moving the marker date later does not extend the trial', () => {
-    licenseService.getLicenseStatus();
-    const hwid = licenseService.getMachineHardwareId();
-    require('node:fs').writeFileSync(
-      require('node:path').join(process.env.FOX_TRIAL_MARKER_DIR, `${hwid}.dat`),
-      String(1700000000000 + 30 * 24 * 60 * 60 * 1000)
-    );
-    dateSpy.mockImplementation(() => 1700000000000 + 15 * 24 * 60 * 60 * 1000);
+  test('a later local trial date cannot override the server one', () => {
+    mockStore = {
+      trial_start_date: String(1700000000000),
+      license_server_trial_start: String(1700000000000 - 20 * 24 * 60 * 60 * 1000),
+    };
 
     expect(licenseService.getLicenseStatus().trialDeadlineReached).toBe(true);
   });
