@@ -1,10 +1,39 @@
 const os = require('node:os');
+const fs = require('node:fs');
+const path = require('node:path');
 const crypto = require('node:crypto');
 const dbRepo = require('../repositories/settings.repository');
-
-const DEVELOPER_MASTER_SECRET = process.env.KASHIEAR_LICENSE_SECRET || '';
+const { parseLicenseKey } = require('../security/licenseSigning');
 
 const TRIAL_DURATION_DAYS = 14;
+
+// A second copy of the trial start, outside the app's data folder, so deleting
+// the database or reinstalling does not start a fresh trial. The earlier of the
+// two dates wins. Tests point it at a temp folder.
+// shortcut: deleting this file too still resets the trial; a server that records each HWID's first run closes that.
+function trialMarkerPath(hwid) {
+  const dir = (process.env.NODE_ENV === 'test' && process.env.FOX_TRIAL_MARKER_DIR)
+    || path.join(os.homedir(), 'AppData', 'Local', 'FoxCloudRuntime');
+  return path.join(dir, `${hwid}.dat`);
+}
+
+function readTrialMarker(hwid) {
+  try {
+    const value = Number(fs.readFileSync(trialMarkerPath(hwid), 'utf8'));
+    return Number.isFinite(value) && value > 0 ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeTrialMarker(hwid, trialStart) {
+  try {
+    fs.mkdirSync(path.dirname(trialMarkerPath(hwid)), { recursive: true });
+    fs.writeFileSync(trialMarkerPath(hwid), String(trialStart));
+  } catch (error) {
+    console.warn('Failed to save trial marker:', error.message);
+  }
+}
 
 /**
  * Generate deterministic unique Machine Fingerprint (HWID)
@@ -23,93 +52,45 @@ function getMachineHardwareId() {
     // Short 8-character uppercase HWID for easy customer reading
     return hash.substring(0, 8).toUpperCase();
   } catch {
-    return 'KASH8888';
+    return 'FFFFFFFF'; // hex, so a key can still be issued for it
   }
 }
 
-/**
- * Generate a HMAC signature for a specific HWID and Expiry Date
- */
-function generateLicenseKey({ hwid, expiryTimestamp }) {
-  if (!DEVELOPER_MASTER_SECRET) {
-    throw new Error('KASHIEAR_LICENSE_SECRET غير معرف في متغيرات البيئة');
-  }
-  const cleanHwid = String(hwid).trim().toUpperCase();
-  const payload = `${cleanHwid}:${expiryTimestamp}`;
-  const signature = crypto
-    .createHmac('sha256', DEVELOPER_MASTER_SECRET)
-    .update(payload)
-    .digest('hex')
-    .substring(0, 8)
-    .toUpperCase();
-
-  // Encoded payload: EXPIRY_HEX
-  const expiryHex = Number(expiryTimestamp).toString(16).toUpperCase();
-  return `KASH-${cleanHwid}-${expiryHex}-${signature}`;
+// Keys issued before the switch to Ed25519 (KASH-...). They were signed with a
+// shared secret that never shipped, so they cannot be verified. The copy asks
+// for a new key instead of falling back to an ended trial, which wipes data.
+function isLegacyKey(keyString) {
+  return /^KASH/i.test(String(keyString || '').trim());
 }
 
 /**
- * Parse and Validate a License Key string
+ * Parse and validate a license key for this machine. The Ed25519 signature is
+ * checked against the public key shipped with the app (security/licenseSigning).
  */
 function verifyLicenseKey(keyString, targetHwid = getMachineHardwareId(), now = Date.now()) {
   if (!keyString || typeof keyString !== 'string') {
     return { valid: false, reason: 'مفتاح التفعيل فارغ' };
   }
-
-  const cleanKey = keyString.trim().toUpperCase().replace(/[\s-]/g, '');
-  // Format should start with KASH followed by HWID (8 chars), EXPIRY_HEX, SIGNATURE (8 chars)
-  if (!cleanKey.startsWith('KASH')) {
-    return { valid: false, reason: 'تنسيق المفتاح غير صحيح' };
+  if (isLegacyKey(keyString)) {
+    return { valid: false, legacy: true, reason: 'هذا المفتاح من إصدار قديم. اطلب مفتاح تفعيل جديد من الدعم الفني' };
   }
 
-  const body = cleanKey.substring(4);
-  const targetCleanHwid = targetHwid.trim().toUpperCase();
+  const parsed = parseLicenseKey(keyString);
+  if (!parsed.valid) return parsed;
 
-  // Extract HWID from key
-  const keyHwid = body.substring(0, 8);
-  if (keyHwid !== targetCleanHwid) {
+  if (parsed.hwid !== String(targetHwid).trim().toUpperCase()) {
     return { valid: false, reason: 'هذا السيريال مخصص لجهاز آخر' };
   }
 
-  const sigLength = 8;
-  const signature = body.substring(body.length - sigLength);
-  const expiryHex = body.substring(8, body.length - sigLength);
-  const expiryTimestamp = parseInt(expiryHex, 16);
-
-  if (isNaN(expiryTimestamp)) {
-    return { valid: false, reason: 'سيريال التفعيل تالف أو غير صحيح' };
-  }
-
-  if (!DEVELOPER_MASTER_SECRET) {
-    return { valid: false, reason: 'مفتاح التحقق غير مهيأ في النظام' };
-  }
-
-  // Verify HMAC signature in constant time
-  const expectedPayload = `${keyHwid}:${expiryTimestamp}`;
-  const expectedSig = crypto
-    .createHmac('sha256', DEVELOPER_MASTER_SECRET)
-    .update(expectedPayload)
-    .digest('hex')
-    .substring(0, 8)
-    .toUpperCase();
-
-  const hashExpected = crypto.createHash('sha256').update(expectedSig).digest();
-  const hashActual = crypto.createHash('sha256').update(signature).digest();
-  if (!crypto.timingSafeEqual(hashExpected, hashActual)) {
-    return { valid: false, reason: 'توقيع المفتاح غير صحيح أو تم التلاعب به' };
-  }
-
-  // Check Expiry Date (9999999999000 is Lifetime)
-  const isLifetime = expiryTimestamp >= 9000000000000;
-  if (!isLifetime && now > expiryTimestamp) {
+  if (!parsed.isLifetime && now > parsed.expiryTimestamp) {
     return { valid: false, reason: 'انتهت صلاحية مفتاح التفعيل هذا' };
   }
 
   return {
     valid: true,
-    isLifetime,
-    expiryTimestamp,
-    expiryDate: isLifetime ? 'مدى الحياة' : new Date(expiryTimestamp).toLocaleDateString('ar-EG'),
+    isLifetime: parsed.isLifetime,
+    expiryTimestamp: parsed.expiryTimestamp,
+    expiryDate: parsed.isLifetime ? 'مدى الحياة' : new Date(parsed.expiryTimestamp).toLocaleDateString('ar-EG'),
   };
 }
 
@@ -152,14 +133,26 @@ function getLicenseStatus(now = Date.now(), { updateClock = true } = {}) {
         remainingDays: verification.isLifetime ? 99999 : Math.max(0, Math.ceil((verification.expiryTimestamp - now) / (1000 * 60 * 60 * 24))),
       };
     }
+    // A saved key that no longer verifies (expired, old KASH format, or the
+    // machine changed) locks the app with its own reason, not as a trial.
+    return {
+      isActivated: false,
+      isTrial: false,
+      isExpired: true,
+      needsReactivation: true,
+      trialDeadlineReached: false,
+      hwid,
+      remainingDays: 0,
+      reason: verification.reason,
+    };
   }
 
   // 2. Otherwise handle 14-Day Trial Period
-  let trialStart = Number(trialStartStr);
-  if (!trialStart || isNaN(trialStart)) {
-    trialStart = now;
-    dbRepo.set('trial_start_date', String(now));
-  }
+  const marker = readTrialMarker(hwid);
+  const known = [Number(trialStartStr), marker].filter((v) => Number.isFinite(v) && v > 0);
+  const trialStart = known.length ? Math.min(...known) : now;
+  if (String(trialStart) !== trialStartStr) dbRepo.set('trial_start_date', String(trialStart));
+  if (marker !== trialStart) writeTrialMarker(hwid, trialStart);
 
   const trialEnd = trialStart + TRIAL_DURATION_DAYS * 24 * 60 * 60 * 1000;
   const remainingMs = trialEnd - now;
@@ -193,8 +186,7 @@ function activateSoftware(keyInput, now = Date.now()) {
 
   // license_key is written last: it is the value that marks the copy as activated.
   dbRepo.set('license_activated_at', String(now));
-  dbRepo.set('license_trial_purged', '0');
-  dbRepo.set('license_key', keyInput.trim().toUpperCase());
+  dbRepo.set('license_key', keyInput.trim().toUpperCase().replace(/\s+/g, ''));
 
   return {
     success: true,
@@ -204,9 +196,7 @@ function activateSoftware(keyInput, now = Date.now()) {
 }
 
 module.exports = {
-  DEVELOPER_MASTER_SECRET,
   getMachineHardwareId,
-  generateLicenseKey,
   verifyLicenseKey,
   getLicenseStatus,
   activateSoftware,

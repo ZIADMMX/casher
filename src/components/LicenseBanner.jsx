@@ -121,7 +121,7 @@ function LicenseBanner({ status, onActivateSuccess }) {
                     id="modal-serial-key"
                     type="text"
                     className="license-key-textbox"
-                    placeholder="KASH-XXXX-XXXX-XXXX"
+                    placeholder="الصق مفتاح التفعيل هنا (يبدأ بـ FOX1-)"
                     value={serialKey}
                     onChange={(e) => setSerialKey(e.target.value)}
                     required

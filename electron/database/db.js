@@ -2,7 +2,6 @@
 // The connection lives in connection.js, the base schema in initDatabase.js,
 // and the versioned upgrades in migrations/ (runAllMigrations is in migrations/index.js).
 const { db, dbPath, configureDatabaseConnection, checkpointWalIfNeeded, closeDatabase } = require('./connection');
-const { clearExpiredTrialData } = require('./trialData');
 const { initDatabase } = require('./initDatabase');
 const { runAllMigrations } = require('./migrations');
 const {
@@ -55,7 +54,6 @@ module.exports = {
   db,
   configureDatabaseConnection,
   checkpointWalIfNeeded,
-  clearExpiredTrialData,
   initDatabase,
   runAllMigrations,
   migrateCloudSyncV3,

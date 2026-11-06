@@ -15,8 +15,8 @@ const path = require('node:path');
 const os = require('node:os');
 const bcrypt = require('bcryptjs');
 const crypto = require('node:crypto');
-const originalLicenseSecret = process.env.KASHIEAR_LICENSE_SECRET;
-process.env.KASHIEAR_LICENSE_SECRET = crypto.randomBytes(32).toString('hex');
+const licenseKeys = require('../helpers/licenseKeys');
+const { signLicenseKey } = require('../../electron/security/licenseSigning');
 
 // Create test database
 const testBaseTmp = fs.existsSync('D:\\temp') ? 'D:\\temp' : (fs.existsSync('D:\\') ? 'D:\\temp' : os.tmpdir());
@@ -85,11 +85,6 @@ describe('Offline & Disaster Recovery Test Suite (العمل بدون إنترن
     } catch {
       // ignore
     }
-    if (originalLicenseSecret === undefined) {
-      delete process.env.KASHIEAR_LICENSE_SECRET;
-    } else {
-      process.env.KASHIEAR_LICENSE_SECRET = originalLicenseSecret;
-    }
   });
 
   // =========================================================================
@@ -102,7 +97,7 @@ describe('Offline & Disaster Recovery Test Suite (العمل بدون إنترن
       expect(typeof hwid).toBe('string');
 
       // Generate a legitimate offline lifetime license key for this hardware ID
-      const validOfflineKey = licenseService.generateLicenseKey({
+      const validOfflineKey = licenseKeys.generateLicenseKey({
         hwid,
         expiryTimestamp: 9999999999000,
       });
@@ -117,9 +112,10 @@ describe('Offline & Disaster Recovery Test Suite (العمل بدون إنترن
       expect(status.hwid).toBe(hwid);
     });
 
-    test('rejects tampered or forged offline license keys using constant-time comparison', () => {
+    test('rejects a forged offline license key signed with another private key', () => {
       const hwid = licenseService.getMachineHardwareId();
-      const fakeKey = `KASH-${hwid}-9184E72A000-FAKESIG1`;
+      const { privateKey: attackerKey } = crypto.generateKeyPairSync('ed25519');
+      const fakeKey = signLicenseKey({ hwid, expiryTimestamp: 9999999999000, privateKey: attackerKey });
       expect(() => licenseService.activateSoftware(fakeKey)).toThrow('توقيع المفتاح غير صحيح أو تم التلاعب به');
     });
   });
@@ -164,7 +160,7 @@ describe('Offline & Disaster Recovery Test Suite (العمل بدون إنترن
       expect(challengeCode).toMatch(/^CHAL-/);
 
       // Calculate offline OTP as Developer would
-      const responseOtp = authService.generateDeveloperRecoveryOtp(challengeCode);
+      const responseOtp = licenseKeys.generateDeveloperRecoveryOtp(challengeCode);
       expect(responseOtp).toBeDefined();
 
       // Reset password using Challenge/Response OTP

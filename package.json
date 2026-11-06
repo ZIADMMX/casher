@@ -32,6 +32,9 @@
       "/node_modules/",
       "<rootDir>/e2e/",
       "<rootDir>/tests/frontend/"
+    ],
+    "setupFiles": [
+      "<rootDir>/tests/setupEnv.js"
     ]
   },
   "keywords": [],

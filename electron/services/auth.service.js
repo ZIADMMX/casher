@@ -3,7 +3,9 @@ const { AsyncLocalStorage } = require('node:async_hooks');
 const bcrypt = require('bcryptjs');
 const usersRepo = require('../repositories/users.repository');
 const sessionService = require('./session.service');
-const { getMachineHardwareId, DEVELOPER_MASTER_SECRET } = require('./license.service');
+const { getMachineHardwareId } = require('./license.service');
+const settingsRepo = require('../repositories/settings.repository');
+const { verifyRecoveryResponse } = require('../security/licenseSigning');
 const permissionContext = new AsyncLocalStorage();
 const { personalProfileSchema } = require('../validators/schema');
 
@@ -11,13 +13,6 @@ const MAX_FAILED_LOGIN_ATTEMPTS = 5;
 const LOGIN_LOCKOUT_MS = 60 * 1000; // 1 minute lockout
 const loginAttempts = new Map();
 const requestSession = new AsyncLocalStorage();
-
-function safeTimingCompare(a, b) {
-  if (typeof a !== 'string' || typeof b !== 'string') return false;
-  const hashA = crypto.createHash('sha256').update(a).digest();
-  const hashB = crypto.createHash('sha256').update(b).digest();
-  return crypto.timingSafeEqual(hashA, hashB);
-}
 
 function recordFailedLoginAttempt(usernameKey) {
   if (!usernameKey) return;
@@ -835,40 +830,45 @@ function changePassword(newPassword, callerOrToken = 'default') {
   };
 }
 
-function getRecoveryChallenge(date = new Date()) {
-  const hwid = getMachineHardwareId();
-  const dateStr = date.toISOString().slice(0, 10).replace(/-/g, ''); // YYYYMMDD
-  if (!DEVELOPER_MASTER_SECRET) {
-    return `CHAL-${hwid}-${dateStr}-0000`;
-  }
-  const nonce = crypto
-    .createHmac('sha256', DEVELOPER_MASTER_SECRET)
-    .update(`CHAL:${hwid}:${dateStr}`)
-    .digest('hex')
-    .substring(0, 4)
-    .toUpperCase();
-  return `CHAL-${hwid}-${dateStr}-${nonce}`;
+const RECOVERY_CHALLENGE_KEY = 'recovery_challenge';
+
+function utcDateStamp(date) {
+  return date.toISOString().slice(0, 10).replace(/-/g, ''); // YYYYMMDD
 }
 
-function generateDeveloperRecoveryOtp(challengeCode) {
-  if (!challengeCode || typeof challengeCode !== 'string' || !DEVELOPER_MASTER_SECRET) return null;
-  const cleanCode = challengeCode.trim().toUpperCase();
-  const hash = crypto
-    .createHmac('sha256', DEVELOPER_MASTER_SECRET)
-    .update(`RESP:${cleanCode}`)
-    .digest('hex')
-    .substring(0, 8)
-    .toUpperCase();
-  return `${hash.substring(0, 4)}-${hash.substring(4, 8)}`;
+function readStoredChallenge() {
+  try {
+    const stored = JSON.parse(settingsRepo.get(RECOVERY_CHALLENGE_KEY) || 'null');
+    return stored && typeof stored.code === 'string' ? stored : null;
+  } catch {
+    return null;
+  }
+}
+
+// One challenge per machine per UTC day, with a random nonce. Support answers it
+// with an Ed25519 signature (scripts/generate-key.js recovery <challenge>), and
+// it is discarded once used, so a response works once, on this machine only.
+function getRecoveryChallenge(date = new Date()) {
+  const dateStr = utcDateStamp(date);
+  const stored = readStoredChallenge();
+  if (stored && stored.date === dateStr) return stored.code;
+
+  const nonce = crypto.randomBytes(4).toString('hex').toUpperCase();
+  const code = `CHAL-${getMachineHardwareId()}-${dateStr}-${nonce}`;
+  settingsRepo.set(RECOVERY_CHALLENGE_KEY, JSON.stringify({ date: dateStr, code }));
+  return code;
 }
 
 function verifyRecoveryChallengeResponse(challengeCode, responseOtp) {
   if (!challengeCode || !responseOtp) return false;
-  const expected = generateDeveloperRecoveryOtp(challengeCode);
-  if (!expected) return false;
-  const cleanExpected = expected.replace(/-/g, '').toUpperCase();
-  const cleanInput = responseOtp.trim().replace(/[-\s]/g, '').toUpperCase();
-  return safeTimingCompare(cleanExpected, cleanInput);
+  return verifyRecoveryResponse(challengeCode, responseOtp);
+}
+
+function isOpenRecoveryChallenge(challengeCode, now = Date.now()) {
+  const stored = readStoredChallenge();
+  if (!stored || stored.code.toUpperCase() !== challengeCode) return false;
+  // Issued today or yesterday (UTC), so a response cannot be held and used later.
+  return [0, 1].some((daysAgo) => utcDateStamp(new Date(now - daysAgo * 24 * 60 * 60 * 1000)) === stored.date);
 }
 
 function resetAdminPasswordWithRecoveryKey({ recoveryKey, newPassword }) {
@@ -922,14 +922,10 @@ function resetAdminPasswordWithChallenge({ challengeCode, responseOtp, newPasswo
     throw new Error('كلمة المرور الجديدة يجب ألا تقل عن 6 أحرف');
   }
 
-  // The challenge must be one this machine issued today or yesterday (UTC), so an
-  // OTP from support cannot be replayed later or on another installation.
+  // The challenge must be the open one this machine issued, so a response from
+  // support cannot be replayed later or on another installation.
   const cleanChallenge = challengeCode.trim().toUpperCase();
-  const now = Date.now();
-  const issuedHere = [0, 1].some((daysAgo) => (
-    getRecoveryChallenge(new Date(now - daysAgo * 24 * 60 * 60 * 1000)).toUpperCase() === cleanChallenge
-  ));
-  const isValid = issuedHere && verifyRecoveryChallengeResponse(cleanChallenge, responseOtp);
+  const isValid = isOpenRecoveryChallenge(cleanChallenge) && verifyRecoveryChallengeResponse(cleanChallenge, responseOtp);
   if (!isValid) {
     throw new Error('كود الاستجابة غير صحيح أو منتهي الصلاحية. تواصل مع الدعم الفني');
   }
@@ -938,6 +934,9 @@ function resetAdminPasswordWithChallenge({ challengeCode, responseOtp, newPasswo
   if (!admin) {
     throw new Error('لم يتم العثور على حساب المدير في النظام');
   }
+
+  // Used up: the next request gets a new nonce, so this response is dead.
+  settingsRepo.set(RECOVERY_CHALLENGE_KEY, '');
 
   const newHash = bcrypt.hashSync(newPassword, 10);
   usersRepo.updatePassword(admin.id, newHash);
@@ -966,7 +965,6 @@ module.exports = {
   createInitialAdmin,
   generateRecoveryKey,
   getRecoveryChallenge,
-  generateDeveloperRecoveryOtp,
   verifyRecoveryChallengeResponse,
   resetAdminPasswordWithRecoveryKey,
   resetAdminPasswordWithChallenge,

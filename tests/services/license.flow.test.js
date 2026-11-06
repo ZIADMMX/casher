@@ -10,8 +10,7 @@
  */
 
 const crypto = require('node:crypto');
-const originalLicenseSecret = process.env.KASHIEAR_LICENSE_SECRET;
-process.env.KASHIEAR_LICENSE_SECRET = crypto.randomBytes(32).toString('hex');
+const licenseKeys = require('../helpers/licenseKeys');
 const licenseService = require('../../electron/services/license.service');
 
 // ── Mock DB repo ─────────────────────────────────────────────────────────────
@@ -30,11 +29,11 @@ const FIXED_NOW = 1_700_000_000_000; // 2023-11-14T22:13:20.000Z
 
 function makeKey(daysFromNow = 30, hwid = licenseService.getMachineHardwareId()) {
   const expiryTimestamp = FIXED_NOW + daysFromNow * DAY_MS;
-  return licenseService.generateLicenseKey({ hwid, expiryTimestamp });
+  return licenseKeys.generateLicenseKey({ hwid, expiryTimestamp });
 }
 
 function makeLifetimeKey(hwid = licenseService.getMachineHardwareId()) {
-  return licenseService.generateLicenseKey({
+  return licenseKeys.generateLicenseKey({
     hwid,
     expiryTimestamp: 9_999_999_999_999,
   });
@@ -45,6 +44,8 @@ describe('License Flow – Full End-to-End', () => {
   let dateSpy;
 
   beforeEach(() => {
+    // Each test starts on a machine that never ran a trial.
+    require('node:fs').rmSync(process.env.FOX_TRIAL_MARKER_DIR, { recursive: true, force: true });
     mockStore  = {};
     jest.clearAllMocks();
     dateSpy = jest.spyOn(Date, 'now').mockReturnValue(FIXED_NOW);
@@ -54,13 +55,6 @@ describe('License Flow – Full End-to-End', () => {
     dateSpy.mockRestore();
   });
 
-  afterAll(() => {
-    if (originalLicenseSecret === undefined) {
-      delete process.env.KASHIEAR_LICENSE_SECRET;
-    } else {
-      process.env.KASHIEAR_LICENSE_SECRET = originalLicenseSecret;
-    }
-  });
 
   // ── 1. Fresh install ─────────────────────────────────────────────────────
   describe('1. Fresh install – 14-day trial', () => {

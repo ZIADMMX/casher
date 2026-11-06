@@ -144,6 +144,35 @@ describe('licenseClock.service', () => {
       await expect(licenseClock.getTrustedNow()).rejects.toThrow('ساعة الجهاز');
     });
 
+    test('a frozen wall clock cannot stop time: app running time still counts', async () => {
+      store = anchoredStore();
+      store.data.set('license_time_offline_runtime', String(8 * DAY));
+      licenseClock.setAnchorStoreForTesting(store);
+      global.fetch.mockRejectedValue(new Error('offline'));
+      wallNow = WALL_AT_SYNC + 1000; // clock held at the moment of the last check
+
+      await expect(licenseClock.getTrustedNow()).rejects.toThrow('اتصل بالإنترنت');
+    });
+
+    test('offline running time moves trusted time forward when the wall clock stands still', async () => {
+      store = anchoredStore();
+      store.data.set('license_time_offline_runtime', String(2 * DAY));
+      licenseClock.setAnchorStoreForTesting(store);
+      global.fetch.mockRejectedValue(new Error('offline'));
+      wallNow = WALL_AT_SYNC + 1000;
+
+      await expect(licenseClock.getTrustedNow()).resolves.toBe(SERVER_TIME + 2 * DAY);
+    });
+
+    test('a successful check resets the offline running time', async () => {
+      store = anchoredStore();
+      store.data.set('license_time_offline_runtime', String(5 * DAY));
+      licenseClock.setAnchorStoreForTesting(store);
+
+      await licenseClock.getTrustedNow();
+      expect(store.data.get('license_time_offline_runtime')).toBe('0');
+    });
+
     test('still needs the internet when no check ever succeeded', async () => {
       global.fetch.mockRejectedValue(new Error('offline'));
 

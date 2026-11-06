@@ -188,6 +188,7 @@ exportEmployees: () => ipcRenderer.invoke('export:employees'),
   // License & Software Activation
   getLicenseStatus: () => ipcRenderer.invoke('license:getStatus'),
   activateSoftware: (key) => ipcRenderer.invoke('license:activate', key),
+  exportAllData: (credentials) => ipcRenderer.invoke('license:exportData', credentials),
   onLicenseStatusChanged: (callback) => {
     const listener = (_event, status) => callback(status);
     ipcRenderer.on('license:statusChanged', listener);

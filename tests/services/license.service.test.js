@@ -1,6 +1,6 @@
 const crypto = require('node:crypto');
-const originalLicenseSecret = process.env.KASHIEAR_LICENSE_SECRET;
-process.env.KASHIEAR_LICENSE_SECRET = crypto.randomBytes(32).toString('hex');
+const licenseKeys = require('../helpers/licenseKeys');
+const { signLicenseKey, base32Encode, base32Decode } = require('../../electron/security/licenseSigning');
 const licenseService = require('../../electron/services/license.service');
 require('../../electron/repositories/settings.repository');
 
@@ -18,6 +18,8 @@ describe('license.service', () => {
   
 
   beforeEach(() => {
+    // Each test starts on a machine that never ran a trial.
+    require('node:fs').rmSync(process.env.FOX_TRIAL_MARKER_DIR, { recursive: true, force: true });
     mockStore = {};
     jest.clearAllMocks();
     dateSpy = jest.spyOn(Date, 'now').mockImplementation(() => 1700000000000); // e.g. Nov 14 2023
@@ -27,13 +29,6 @@ describe('license.service', () => {
     dateSpy.mockRestore();
   });
 
-  afterAll(() => {
-    if (originalLicenseSecret === undefined) {
-      delete process.env.KASHIEAR_LICENSE_SECRET;
-    } else {
-      process.env.KASHIEAR_LICENSE_SECRET = originalLicenseSecret;
-    }
-  });
 
   test('1. getMachineHardwareId returns 8 uppercase hex chars consistently', () => {
     const hwid1 = licenseService.getMachineHardwareId();
@@ -43,57 +38,107 @@ describe('license.service', () => {
     expect(hwid1).toBe(hwid2);
   });
 
-  test('2. generateLicenseKey produces correct KASH-XXXX-XXXX-XXXX format', () => {
-    const hwid = 'ABCDEF12';
-    const expiryTimestamp = 1700000000000;
-    const key = licenseService.generateLicenseKey({ hwid, expiryTimestamp });
-    
-    expect(key).toMatch(/^KASH-ABCDEF12-[0-9A-F]+-[0-9A-F]{8}$/);
+  test('2. license keys use the FOX1 Crockford base32 format', () => {
+    const key = licenseKeys.generateLicenseKey({ hwid: 'ABCDEF12', expiryTimestamp: 1700000000000 });
+
+    expect(key).toMatch(/^FOX1(-[0-9A-HJKMNP-TV-Z]{1,5})+$/);
   });
 
-  test('does not embed a fallback signing secret when none is configured', () => {
-    const configuredSecret = process.env.KASHIEAR_LICENSE_SECRET;
-    delete process.env.KASHIEAR_LICENSE_SECRET;
+  test('the app cannot mint keys: it ships no signing function or secret', () => {
+    expect(licenseService.generateLicenseKey).toBeUndefined();
+    expect(licenseService.DEVELOPER_MASTER_SECRET).toBeUndefined();
+  });
 
-    try {
-      jest.isolateModules(() => {
-        const unconfiguredLicenseService = require('../../electron/services/license.service');
-        expect(() => unconfiguredLicenseService.generateLicenseKey({
-          hwid: 'ABCDEF12',
-          expiryTimestamp: 1700000000000,
-        })).toThrow('KASHIEAR_LICENSE_SECRET غير معرف');
-      });
-    } finally {
-      process.env.KASHIEAR_LICENSE_SECRET = configuredSecret;
-    }
+  test('rejects a key signed with any other private key', () => {
+    const hwid = licenseService.getMachineHardwareId();
+    const { privateKey: otherKey } = crypto.generateKeyPairSync('ed25519');
+    const forged = signLicenseKey({ hwid, expiryTimestamp: 9999999999000, privateKey: otherKey });
+
+    const result = licenseService.verifyLicenseKey(forged, hwid);
+    expect(result.valid).toBe(false);
+    expect(result.reason).toBe('توقيع المفتاح غير صحيح أو تم التلاعب به');
+  });
+
+  test('rejects a valid key whose HWID bytes were edited', () => {
+    const key = licenseKeys.generateLicenseKey({ hwid: 'ABCDEF12', expiryTimestamp: 9999999999000 });
+    const bytes = base32Decode(key.slice(4).replace(/-/g, ''));
+    bytes.write('12345678', 1, 'hex');
+    const edited = `FOX1${base32Encode(bytes)}`;
+
+    const result = licenseService.verifyLicenseKey(edited, '12345678');
+    expect(result.valid).toBe(false);
+    expect(result.reason).toBe('توقيع المفتاح غير صحيح أو تم التلاعب به');
+  });
+
+  test('accepts the key with spaces, lower case and without dashes', () => {
+    const hwid = licenseService.getMachineHardwareId();
+    const key = licenseKeys.generateLicenseKey({ hwid, expiryTimestamp: 9999999999000 });
+    const messy = ` ${key.replace(/-/g, '').toLowerCase()} `;
+
+    expect(licenseService.verifyLicenseKey(messy, hwid).valid).toBe(true);
+  });
+
+  test('an old KASH key asks for re-activation instead of falling back to an ended trial', () => {
+    mockStore.license_key = 'KASH-ABCDEF12-9184E72A000-ABCDEF12';
+    mockStore.trial_start_date = String(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+    const status = licenseService.getLicenseStatus();
+    expect(status.isActivated).toBe(false);
+    expect(status.isExpired).toBe(true);
+    expect(status.needsReactivation).toBe(true);
+    expect(status.trialDeadlineReached).toBe(false);
   });
 
   test('3. verifyLicenseKey validates a correct key', () => {
     const hwid = licenseService.getMachineHardwareId();
     const expiryTimestamp = Date.now() + 100000;
-    const key = licenseService.generateLicenseKey({ hwid, expiryTimestamp });
+    const key = licenseKeys.generateLicenseKey({ hwid, expiryTimestamp });
     
     const result = licenseService.verifyLicenseKey(key, hwid);
     expect(result.valid).toBe(true);
     expect(result.expiryTimestamp).toBe(expiryTimestamp);
   });
 
-  test('activation resets the trial purge marker for future license expiry', () => {
+  test('deleting the database does not start a fresh trial', () => {
+    licenseService.getLicenseStatus(); // trial starts now
+    mockStore = {}; // database deleted or app reinstalled
+    dateSpy.mockImplementation(() => 1700000000000 + 15 * 24 * 60 * 60 * 1000);
+
+    const status = licenseService.getLicenseStatus();
+    expect(status.isExpired).toBe(true);
+    expect(status.trialDeadlineReached).toBe(true);
+    expect(mockStore.trial_start_date).toBe('1700000000000');
+  });
+
+  test('moving the marker date later does not extend the trial', () => {
+    licenseService.getLicenseStatus();
     const hwid = licenseService.getMachineHardwareId();
-    const key = licenseService.generateLicenseKey({
-      hwid,
-      expiryTimestamp: Date.now() + 100000,
-    });
+    require('node:fs').writeFileSync(
+      require('node:path').join(process.env.FOX_TRIAL_MARKER_DIR, `${hwid}.dat`),
+      String(1700000000000 + 30 * 24 * 60 * 60 * 1000)
+    );
+    dateSpy.mockImplementation(() => 1700000000000 + 15 * 24 * 60 * 60 * 1000);
 
+    expect(licenseService.getLicenseStatus().trialDeadlineReached).toBe(true);
+  });
+
+  test('an expired paid key locks the app as expired, not as an ended trial', () => {
+    const hwid = licenseService.getMachineHardwareId();
+    const key = licenseKeys.generateLicenseKey({ hwid, expiryTimestamp: Date.now() + 1000 });
     licenseService.activateSoftware(key, Date.now());
+    mockStore.trial_start_date = String(Date.now() - 400 * 24 * 60 * 60 * 1000);
 
-    expect(mockStore.license_trial_purged).toBe('0');
+    const status = licenseService.getLicenseStatus(Date.now() + 2000);
+    expect(status.isActivated).toBe(false);
+    expect(status.isExpired).toBe(true);
+    expect(status.trialDeadlineReached).toBe(false);
+    expect(status.reason).toBe('انتهت صلاحية مفتاح التفعيل هذا');
   });
 
   test('4. verifyLicenseKey rejects key for wrong HWID', () => {
-    const hwid = 'WRONG123';
+    const hwid = 'ABCD1234';
     const expiryTimestamp = Date.now() + 100000;
-    const key = licenseService.generateLicenseKey({ hwid, expiryTimestamp });
+    const key = licenseKeys.generateLicenseKey({ hwid, expiryTimestamp });
     
     const actualHwid = licenseService.getMachineHardwareId();
     const result = licenseService.verifyLicenseKey(key, actualHwid);
@@ -105,7 +150,7 @@ describe('license.service', () => {
   test('5. verifyLicenseKey rejects expired key', () => {
     const hwid = licenseService.getMachineHardwareId();
     const expiryTimestamp = Date.now() - 100000; // Past date
-    const key = licenseService.generateLicenseKey({ hwid, expiryTimestamp });
+    const key = licenseKeys.generateLicenseKey({ hwid, expiryTimestamp });
     
     const result = licenseService.verifyLicenseKey(key, hwid);
     expect(result.valid).toBe(false);
@@ -115,7 +160,7 @@ describe('license.service', () => {
   test('6. verifyLicenseKey accepts lifetime key', () => {
     const hwid = licenseService.getMachineHardwareId();
     const expiryTimestamp = 9999999999999; // Lifetime
-    const key = licenseService.generateLicenseKey({ hwid, expiryTimestamp });
+    const key = licenseKeys.generateLicenseKey({ hwid, expiryTimestamp });
     
     const result = licenseService.verifyLicenseKey(key, hwid);
     expect(result.valid).toBe(true);
@@ -125,7 +170,7 @@ describe('license.service', () => {
   test('7. verifyLicenseKey rejects tampered signature', () => {
     const hwid = licenseService.getMachineHardwareId();
     const expiryTimestamp = Date.now() + 100000;
-    const key = licenseService.generateLicenseKey({ hwid, expiryTimestamp });
+    const key = licenseKeys.generateLicenseKey({ hwid, expiryTimestamp });
     
     const tamperedKey = key.slice(0, -4) + '0000'; // Change last 4 chars
     const result = licenseService.verifyLicenseKey(tamperedKey, hwid);
@@ -174,7 +219,7 @@ describe('license.service', () => {
   test('10. activateSoftware succeeds with valid key', () => {
     const hwid = licenseService.getMachineHardwareId();
     const expiryTimestamp = Date.now() + 100000;
-    const key = licenseService.generateLicenseKey({ hwid, expiryTimestamp });
+    const key = licenseKeys.generateLicenseKey({ hwid, expiryTimestamp });
     
     const result = licenseService.activateSoftware(key);
     expect(result.success).toBe(true);
@@ -188,7 +233,7 @@ describe('license.service', () => {
   test('12. getLicenseStatus returns activated after activation', () => {
     const hwid = licenseService.getMachineHardwareId();
     const expiryTimestamp = 9999999999999;
-    const key = licenseService.generateLicenseKey({ hwid, expiryTimestamp });
+    const key = licenseKeys.generateLicenseKey({ hwid, expiryTimestamp });
     
     licenseService.activateSoftware(key);
     

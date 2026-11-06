@@ -183,6 +183,7 @@ function AppContent() {
     return (
       <LicenseLockScreen
         hwid={licenseStatus.hwid}
+        reason={licenseStatus.reason || ''}
         onActivateSuccess={(newStatus) => setLicenseStatus(newStatus)}
       />
     );

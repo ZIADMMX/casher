@@ -347,7 +347,7 @@ function AdminRecoveryModal({ isOpen, onClose, onResetSuccess }) {
                       id="response-otp-input"
                       type="text"
                       className="license-key-textbox"
-                      placeholder="XXXX-XXXX"
+                      placeholder="الصق كود الاستجابة اللي وصلك من الدعم الفني"
                       value={responseOtp}
                       onChange={(e) => setResponseOtp(e.target.value.toUpperCase())}
                       required

@@ -1,7 +1,5 @@
 const bcrypt = require('bcryptjs');
-const crypto = require('node:crypto');
-const originalLicenseSecret = process.env.KASHIEAR_LICENSE_SECRET;
-process.env.KASHIEAR_LICENSE_SECRET = crypto.randomBytes(32).toString('hex');
+const licenseKeys = require('../helpers/licenseKeys');
 
 jest.mock('../../electron/repositories/users.repository', () => ({
   countAll: jest.fn(),
@@ -72,11 +70,6 @@ beforeEach(() => {
   authService.resetLoginAttempts();
   usersRepo.getByUsername.mockReset().mockReturnValue(admin);
   usersRepo.getById.mockReset().mockImplementation((id) => (id === admin.id ? admin : undefined));
-});
-
-afterAll(() => {
-  if (originalLicenseSecret === undefined) delete process.env.KASHIEAR_LICENSE_SECRET;
-  else process.env.KASHIEAR_LICENSE_SECRET = originalLicenseSecret;
 });
 
 test('a LAN login is not stored under a guessable caller key', () => {

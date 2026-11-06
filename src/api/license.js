@@ -4,5 +4,6 @@ import { bridgeMethod } from './bridge.js';
 
 export const getLicenseStatus = bridgeMethod('getLicenseStatus');
 export const activateSoftware = bridgeMethod('activateSoftware');
+export const exportAllData = bridgeMethod('exportAllData');
 export const onLicenseStatusChanged = bridgeMethod('onLicenseStatusChanged');
 export const onLicenseVerificationFailed = bridgeMethod('onLicenseVerificationFailed');

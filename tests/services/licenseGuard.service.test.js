@@ -4,13 +4,9 @@ jest.mock('../../electron/services/licenseClock.service', () => ({
 jest.mock('../../electron/services/license.service', () => ({
   getLicenseStatus: jest.fn(),
 }));
-jest.mock('../../electron/database/db', () => ({
-  clearExpiredTrialData: jest.fn(),
-}));
 
 const licenseClock = require('../../electron/services/licenseClock.service');
 const licenseService = require('../../electron/services/license.service');
-const database = require('../../electron/database/db');
 const { requireActiveLicense } = require('../../electron/services/licenseGuard.service');
 
 describe('licenseGuard.service', () => {
@@ -19,7 +15,7 @@ describe('licenseGuard.service', () => {
     licenseClock.getTrustedNow.mockResolvedValue(1_800_000_000_000);
   });
 
-  test('blocks operations when the trial has expired and notifies the renderer', async () => {
+  test('blocks operations when the trial has expired and notifies the renderer, without deleting data', async () => {
     licenseService.getLicenseStatus.mockReturnValue({
       isExpired: true,
       isActivated: false,
@@ -32,7 +28,7 @@ describe('licenseGuard.service', () => {
       },
     };
 
-    await expect(requireActiveLicense(event)).rejects.toThrow('انتهت الفترة التجريبية');
+    await expect(requireActiveLicense(event)).rejects.toThrow('بيانات المتجر محفوظة');
 
     expect(licenseService.getLicenseStatus).toHaveBeenCalledWith(
       1_800_000_000_000,
@@ -43,18 +39,17 @@ describe('licenseGuard.service', () => {
       isActivated: false,
       trialDeadlineReached: true,
     });
-    expect(database.clearExpiredTrialData).toHaveBeenCalledTimes(1);
   });
 
-  test('does not purge data when the lock is caused by clock rollback', async () => {
+  test('an expired paid key locks with its own reason', async () => {
     licenseService.getLicenseStatus.mockReturnValue({
       isExpired: true,
       isActivated: false,
-      trialDeadlineReached: false,
+      needsReactivation: true,
+      reason: 'انتهت صلاحية مفتاح التفعيل هذا',
     });
 
-    await expect(requireActiveLicense()).rejects.toThrow('دون تصفير بيانات المتجر');
-    expect(database.clearExpiredTrialData).not.toHaveBeenCalled();
+    await expect(requireActiveLicense()).rejects.toThrow('انتهت صلاحية مفتاح التفعيل هذا');
   });
 
   test('allows operations only while the license is active', async () => {

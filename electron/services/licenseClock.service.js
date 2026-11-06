@@ -15,8 +15,13 @@ const LAST_SEEN_WRITE_INTERVAL_MS = 60_000;
 const ANCHOR_SERVER_KEY = 'license_time_anchor_server';
 const ANCHOR_WALL_KEY = 'license_time_anchor_wall';
 const LAST_SEEN_WALL_KEY = 'license_time_last_seen_wall';
+// Time the app has actually been running offline since the last check. It comes
+// from the monotonic clock, so holding the wall clock still (setting it back a
+// few seconds at a time, below the rollback tolerance) cannot stop time.
+const RUNTIME_KEY = 'license_time_offline_runtime';
 
 let cachedTime = null;
+let runtimeMark = null;
 let pendingRequest = null;
 let anchorStore = null;
 
@@ -41,6 +46,8 @@ function saveAnchor(serverTime) {
     // A successful check resets the rollback watermark, so a clock that was
     // wrong and then corrected recovers as soon as the shop is back online.
     store.set(LAST_SEEN_WALL_KEY, String(wallNow));
+    store.set(RUNTIME_KEY, '0');
+    runtimeMark = null;
   } catch (error) {
     console.warn('Failed to persist license time anchor:', error.message);
   }
@@ -69,9 +76,21 @@ function offlineTrustedNow(networkError) {
     throw new Error('تم إرجاع ساعة الجهاز للخلف. صحّح الوقت أو اتصل بالإنترنت لمتابعة العمل.');
   }
 
-  const elapsed = wallNow - anchorWall;
+  const monotonicNow = performance.now();
+  const savedRuntime = Number(store.get(RUNTIME_KEY)) || 0;
+  const runtime = savedRuntime + (runtimeMark == null ? 0 : monotonicNow - runtimeMark);
+  const elapsed = Math.max(wallNow - anchorWall, runtime);
   if (elapsed > OFFLINE_GRACE_MS) {
     throw new Error('انتهت مدة العمل بدون إنترنت (7 أيام). اتصل بالإنترنت مرة واحدة للتحقق من الترخيص.');
+  }
+
+  if (runtimeMark == null || monotonicNow - runtimeMark >= LAST_SEEN_WRITE_INTERVAL_MS) {
+    try {
+      store.set(RUNTIME_KEY, String(Math.round(runtime)));
+      runtimeMark = monotonicNow;
+    } catch (error) {
+      console.warn('Failed to persist license offline runtime:', error.message);
+    }
   }
 
   if (wallNow - lastSeen >= LAST_SEEN_WRITE_INTERVAL_MS) {
@@ -206,6 +225,7 @@ function resetForTesting() {
   cachedTime = null;
   pendingRequest = null;
   anchorStore = null;
+  runtimeMark = null;
 }
 
 function setAnchorStoreForTesting(store) {

@@ -1,7 +1,6 @@
 const bcrypt = require('bcryptjs');
 const crypto = require('node:crypto');
-const originalLicenseSecret = process.env.KASHIEAR_LICENSE_SECRET;
-process.env.KASHIEAR_LICENSE_SECRET = crypto.randomBytes(32).toString('hex');
+const licenseKeys = require('../helpers/licenseKeys');
 
 jest.mock('../../electron/repositories/users.repository', () => ({
   countAll: jest.fn(),
@@ -100,13 +99,6 @@ describe('auth.service', () => {
     });
   });
 
-  afterAll(() => {
-    if (originalLicenseSecret === undefined) {
-      delete process.env.KASHIEAR_LICENSE_SECRET;
-    } else {
-      process.env.KASHIEAR_LICENSE_SECRET = originalLicenseSecret;
-    }
-  });
 
   test('logs in an active user and returns a clean session user', () => {
     usersRepo.getByUsername.mockReturnValue(admin);
@@ -632,10 +624,10 @@ describe('auth.service', () => {
 
     test('generates challenge code and verifies developer response OTP', () => {
       const challenge = authService.getRecoveryChallenge();
-      expect(challenge).toMatch(/^CHAL-[A-Z0-9]{8}-\d{8}-[A-Z0-9]{4}$/);
+      expect(challenge).toMatch(/^CHAL-[A-Z0-9]{8}-\d{8}-[0-9A-F]{8}$/);
 
-      const devOtp = authService.generateDeveloperRecoveryOtp(challenge);
-      expect(devOtp).toMatch(/^[A-Z0-9]{4}-[A-Z0-9]{4}$/);
+      const devOtp = licenseKeys.generateDeveloperRecoveryOtp(challenge);
+      expect(devOtp).toMatch(/^[0-9A-HJKMNP-TV-Z]{5}(-[0-9A-HJKMNP-TV-Z]{1,5})+$/);
 
       expect(authService.verifyRecoveryChallengeResponse(challenge, devOtp)).toBe(true);
       expect(authService.verifyRecoveryChallengeResponse(challenge, 'WRON-G123')).toBe(false);
@@ -669,7 +661,7 @@ describe('auth.service', () => {
     test('resets admin password with valid challenge response OTP', () => {
       usersRepo.getAdmin.mockReturnValue(adminWithRecovery);
       const challenge = authService.getRecoveryChallenge();
-      const validOtp = authService.generateDeveloperRecoveryOtp(challenge);
+      const validOtp = licenseKeys.generateDeveloperRecoveryOtp(challenge);
 
       const res = authService.resetAdminPasswordWithChallenge({
         challengeCode: challenge,
@@ -680,6 +672,20 @@ describe('auth.service', () => {
       expect(res.success).toBe(true);
       expect(res.newRecoveryKey).toMatch(/^REC-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/);
       expect(usersRepo.updatePassword).toHaveBeenCalledWith(1, expect.any(String));
+    });
+
+    test('a challenge response works only once', () => {
+      usersRepo.getAdmin.mockReturnValue(adminWithRecovery);
+      const challenge = authService.getRecoveryChallenge();
+      const validOtp = licenseKeys.generateDeveloperRecoveryOtp(challenge);
+      authService.resetAdminPasswordWithChallenge({ challengeCode: challenge, responseOtp: validOtp, newPassword: 'first-pass-123' });
+
+      expect(() => authService.resetAdminPasswordWithChallenge({
+        challengeCode: challenge,
+        responseOtp: validOtp,
+        newPassword: 'second-pass-123',
+      })).toThrow('كود الاستجابة غير صحيح أو منتهي الصلاحية');
+      expect(authService.getRecoveryChallenge()).not.toBe(challenge);
     });
 
     test('rejects reset with invalid challenge response OTP', () => {
@@ -706,7 +712,7 @@ describe('auth.service', () => {
       }).toThrow('لم يتم العثور على حساب المدير في النظام');
 
       const challenge = authService.getRecoveryChallenge();
-      const validOtp = authService.generateDeveloperRecoveryOtp(challenge);
+      const validOtp = licenseKeys.generateDeveloperRecoveryOtp(challenge);
       expect(() => {
         authService.resetAdminPasswordWithChallenge({
           challengeCode: challenge,

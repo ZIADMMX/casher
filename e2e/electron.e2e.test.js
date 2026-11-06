@@ -14,7 +14,6 @@ function launchWithUserData(userDataPath) {
     env: {
       ...process.env,
       FOX_E2E_USER_DATA_DIR: userDataPath,
-      KASHIEAR_LICENSE_SECRET: 'e2e-test-license-secret',
       SESSION_SECRET: 'e2e-test-session-secret',
     },
     timeout: 60_000,

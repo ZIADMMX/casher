@@ -1,6 +1,6 @@
 const bcrypt = require('bcryptjs');
 
-process.env.KASHIEAR_LICENSE_SECRET = 'test-license-secret';
+const licenseKeys = require('../helpers/licenseKeys');
 const mockUsers = new Map();
 
 jest.mock('../../electron/repositories/users.repository', () => ({
@@ -108,14 +108,14 @@ describe('Security: developer recovery OTP is bound to this machine and date', (
 
   test('accepts the OTP for a challenge issued here today', () => {
     const challengeCode = authService.getRecoveryChallenge();
-    const responseOtp = authService.generateDeveloperRecoveryOtp(challengeCode);
+    const responseOtp = licenseKeys.generateDeveloperRecoveryOtp(challengeCode);
     expect(authService.resetAdminPasswordWithChallenge({ challengeCode, responseOtp, newPassword: 'newpass1' }))
       .toEqual(expect.objectContaining({ success: true }));
   });
 
   test('rejects a valid OTP for an old challenge (replay)', () => {
     const old = authService.getRecoveryChallenge(new Date('2020-01-01T00:00:00Z'));
-    const responseOtp = authService.generateDeveloperRecoveryOtp(old);
+    const responseOtp = licenseKeys.generateDeveloperRecoveryOtp(old);
     expect(() => authService.resetAdminPasswordWithChallenge({ challengeCode: old, responseOtp, newPassword: 'newpass1' }))
       .toThrow();
     expect(usersRepo.updatePassword).not.toHaveBeenCalled();
@@ -124,7 +124,7 @@ describe('Security: developer recovery OTP is bound to this machine and date', (
   test('rejects a valid OTP for another machine', () => {
     const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
     const other = `CHAL-OTHERMACHINE-${today}-0000`;
-    const responseOtp = authService.generateDeveloperRecoveryOtp(other);
+    const responseOtp = licenseKeys.generateDeveloperRecoveryOtp(other);
     expect(() => authService.resetAdminPasswordWithChallenge({ challengeCode: other, responseOtp, newPassword: 'newpass1' }))
       .toThrow();
   });
