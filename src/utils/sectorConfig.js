@@ -118,7 +118,6 @@ export const SECTOR_CONFIGS = {
       serialNumber: false,
       tableService: false,
       maintenanceTicket: false,
-      vehicleWorkOrders: true,
       subscriptions: false,
     },
   },

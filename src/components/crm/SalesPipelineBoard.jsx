@@ -319,7 +319,19 @@ function SalesPipelineBoard() {
                         <div className="crm-card-footer">
                           <div className="crm-card-owner">
                             <span className="crm-card-owner-label">المسؤول:</span>
-                            <span>{opp.assigned_username || 'غير معيّن'}</span>
+                            <select
+                              className="crm-select-filter crm-card-stage-select"
+                              aria-label="مسؤول الصفقة"
+                              value={opp.user_id || ''}
+                              onChange={(e) => e.target.value && handleOwnerChange(opp.id, Number(e.target.value))}
+                            >
+                              {!opp.user_id && <option value="">غير معيّن</option>}
+                              {assignees.map((user) => (
+                                <option key={user.id} value={user.id}>
+                                  {[user.first_name, user.last_name].filter(Boolean).join(' ') || user.username}
+                                </option>
+                              ))}
+                            </select>
                           </div>
 
                           {/* Quick stage selector (accessible fallback) */}

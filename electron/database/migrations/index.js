@@ -47,8 +47,10 @@ const {
 } = require('./platform');
 const { ensureSalesLedgerGuards, backfillSaleItemCosts } = require('./salesLedger');
 const { ensureKitchenLedger } = require('./kitchenLedger');
+const { ensureDiningTables } = require('./diningTables');
 const { ensureProductLedger } = require('./productLedger');
 const { ensureSyncMetadata } = require('./syncMetadata');
+const { addColumnIfMissing } = require('./helpers');
 
 function runAllMigrations(dbInstance = db) {
   const currentVersion = dbInstance.pragma('user_version', { simple: true }) || 0;
@@ -226,6 +228,21 @@ function runAllMigrations(dbInstance = db) {
     ensureSyncMetadata(dbInstance);
     dbInstance.pragma('user_version = 18');
     console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 18 (معرفات المزامنة وتاريخ آخر تعديل).');
+  }
+
+  if (currentVersion < 19) {
+    // Restaurant tables: an open check per table, sent to the kitchen in rounds.
+    ensureDiningTables(dbInstance);
+    dbInstance.pragma('user_version = 19');
+    console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 19 (طاولات المطعم والحسابات المفتوحة).');
+  }
+
+  if (currentVersion < 20) {
+    // Item add-ons: each sold or sent line keeps a JSON copy of its add-ons.
+    addColumnIfMissing('sale_items', 'modifiers', 'TEXT', dbInstance);
+    addColumnIfMissing('table_tab_items', 'modifiers', 'TEXT', dbInstance);
+    dbInstance.pragma('user_version = 20');
+    console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 20 (إضافات الأصناف).');
   }
 
   // Earlier steps may rebuild the sales tables; make sure the guards exist at the end.

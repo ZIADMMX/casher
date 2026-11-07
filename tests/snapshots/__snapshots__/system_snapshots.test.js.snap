@@ -20,8 +20,6 @@ exports[`System Snapshot Tests (اختبارات اللقطات والقوالب
     <h2>foxcloud POS</h2>
     <div class="sub">فاتورة مبيعات — رقم 1042</div>
     <div class="sub">أحمد محمود · ٢٨‏/٩‏/٢٠٢٦، ٣:٠٠:٠٠ م</div>
-    
-    
 
     <table>
       <thead>
@@ -201,6 +199,7 @@ exports[`System Snapshot Tests (اختبارات اللقطات والقوالب
   "customer_power_of_attorneys",
   "customer_subscriptions",
   "customers",
+  "dining_tables",
   "grocery_speed_keys",
   "inventory_count_items",
   "inventory_counts",
@@ -260,6 +259,10 @@ exports[`System Snapshot Tests (اختبارات اللقطات والقوالب
   "suppliers",
   "system_modules",
   "system_roles",
+  "table_round_events",
+  "table_tab_items",
+  "table_tab_rounds",
+  "table_tabs",
   "ui_configurations",
   "users",
   "warehouse_stock",

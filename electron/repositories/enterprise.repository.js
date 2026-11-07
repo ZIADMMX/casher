@@ -17,6 +17,10 @@ function setModuleEnabled(key, isEnabled) {
   return getModules();
 }
 
+function removeModule(key) {
+  db.prepare('DELETE FROM system_modules WHERE key = ?').run(key);
+}
+
 function upsertModule(data) {
   const stmt = db.prepare(`
     INSERT INTO system_modules (key, name, description, is_enabled, display_order, config_json)
@@ -404,8 +408,13 @@ function setAutomationRuleEnabled(id, isEnabled) {
 
 function getRoles() {
   const roles = db.prepare("SELECT * FROM system_roles ORDER BY id ASC").all();
+  // Users without a system role fall back to their legacy role column (admin / cashier).
+  const countUsers = db.prepare(
+    "SELECT COUNT(*) AS n FROM users WHERE system_role_key = ? OR (system_role_key IS NULL AND role = ?)"
+  );
   return roles.map(r => ({
     ...r,
+    user_count: countUsers.get(r.role_key, r.role_key).n,
     permissions: db.prepare("SELECT permission_key FROM role_permissions WHERE role_key = ?").all(r.role_key).map(p => p.permission_key)
   }));
 }
@@ -452,6 +461,7 @@ module.exports = {
   purgeTestFixtures,
   getModules,
   setModuleEnabled,
+  removeModule,
   upsertModule,
   getBusinessProfiles,
   getActiveBusinessProfile,

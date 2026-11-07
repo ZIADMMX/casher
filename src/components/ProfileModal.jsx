@@ -1,66 +1,80 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useUser } from '../contexts/UserContext.jsx';
+import { CloseIcon, LockIcon } from './icons/PosIcons.jsx';
+import { passwordStrength, STRENGTH_LABELS } from '../utils/passwordStrength.js';
+import '../styles/profile.css';
 
-function ProfileModal({ onClose, forcePasswordChange = false }) {
-  const { currentUser, updateProfile, changePassword } = useUser();
+const MIN_PASSWORD = 6; // matches auth.service updateProfile
+
+function ProfileModal({ onClose }) {
+  const { currentUser, updateProfile } = useUser();
   const [form, setForm] = useState({
     username: currentUser.username,
     currentPassword: '',
     newPassword: '',
     confirmPassword: '',
   });
+  const [changePassword, setChangePassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const dialogRef = useRef(null);
 
   const initial = currentUser.username ? currentUser.username.charAt(0).toUpperCase() : 'U';
+  const roleLabel = currentUser.role === 'admin' ? 'مدير النظام — كامل الصلاحيات' : 'كاشير — نقطة البيع';
+  const strength = passwordStrength(form.newPassword);
 
-  async function handleSubmit(e) {
-    e.preventDefault();
+  useEffect(() => {
+    dialogRef.current?.querySelector('input')?.focus();
+  }, []);
+
+  useEffect(() => {
+    function onKey(event) {
+      if (event.key === 'Escape' && !loading) onClose();
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose, loading]);
+
+  function setField(name) {
+    return (event) => setForm((prev) => ({ ...prev, [name]: event.target.value }));
+  }
+
+  async function handleSubmit(event) {
+    event.preventDefault();
     setError('');
     setSuccessMsg('');
 
-    if (!forcePasswordChange && !form.currentPassword) {
+    if (!form.currentPassword) {
       setError('يرجى إدخال كلمة المرور الحالية لتأكيد التعديلات');
       return;
     }
-
-    if (forcePasswordChange && !form.newPassword) {
-      setError('يجب اختيار كلمة مرور جديدة قبل متابعة استخدام النظام');
+    if (!form.username.trim()) {
+      setError('اسم المستخدم مطلوب');
       return;
     }
-
-    if (form.newPassword && form.newPassword.length < 6) {
-      setError('كلمة المرور الجديدة يجب أن تكون 6 خانات على الأقل');
-      return;
-    }
-
-    if (form.newPassword && form.newPassword !== form.confirmPassword) {
-      setError('كلمة المرور الجديدة وتأكيدها غير متطابقين');
-      return;
+    if (changePassword) {
+      if (form.newPassword.length < MIN_PASSWORD) {
+        setError(`كلمة المرور الجديدة يجب أن تكون ${MIN_PASSWORD.toLocaleString('ar-EG')} أحرف على الأقل`);
+        return;
+      }
+      if (form.newPassword !== form.confirmPassword) {
+        setError('كلمة المرور الجديدة وتأكيدها غير متطابقين');
+        return;
+      }
     }
 
     setLoading(true);
     try {
-      const res = forcePasswordChange
-        ? await changePassword(form.newPassword)
-        : await updateProfile({
-            currentPassword: form.currentPassword,
-            newUsername: form.username,
-            newPassword: form.newPassword || undefined,
-          });
-
+      const res = await updateProfile({
+        currentPassword: form.currentPassword,
+        newUsername: form.username,
+        newPassword: changePassword ? form.newPassword : undefined,
+      });
       if (res?.success) {
-        setSuccessMsg('تم تحديث بيانات البروفايل بنجاح! ✨');
-        setForm((prev) => ({
-          ...prev,
-          currentPassword: '',
-          newPassword: '',
-          confirmPassword: '',
-        }));
-        setTimeout(() => {
-          onClose();
-        }, 1200);
+        setSuccessMsg('تم تحديث بيانات الدخول بنجاح');
+        setForm((prev) => ({ ...prev, currentPassword: '', newPassword: '', confirmPassword: '' }));
+        setTimeout(onClose, 1200);
       }
     } catch (err) {
       setError(err.message || 'فشل تحديث البيانات');
@@ -70,124 +84,131 @@ function ProfileModal({ onClose, forcePasswordChange = false }) {
   }
 
   return (
-    <div className="modal-overlay" onClick={forcePasswordChange ? undefined : onClose}>
-      <div className="profile-modal-card reports-fade-in" onClick={(e) => e.stopPropagation()}>
-        {/* Header */}
-        <div className="profile-modal-header">
-          <div className="profile-header-title">
-            <span className="profile-badge-icon">👤</span>
-            <h3>{forcePasswordChange ? 'تغيير كلمة المرور لأول دخول' : 'الملف الشخصي والحساب'}</h3>
-          </div>
-            {!forcePasswordChange && (
-              <button className="modal-close" onClick={onClose}>×</button>
-            )}
+    <div className="prf-overlay" role="presentation" onClick={loading ? undefined : onClose}>
+      <form
+        ref={dialogRef}
+        className="prf-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="prf-dialog-title"
+        onClick={(event) => event.stopPropagation()}
+        onSubmit={handleSubmit}
+        noValidate
+      >
+        <div className="prf-dialog-head">
+          <span className="prf-icon prf-icon--primary" aria-hidden="true"><LockIcon size={20} /></span>
+          <h2 id="prf-dialog-title">اسم المستخدم وكلمة المرور</h2>
+          <button type="button" className="prf-close" onClick={onClose} disabled={loading} aria-label="إغلاق">
+            <CloseIcon size={18} aria-hidden="true" />
+          </button>
         </div>
 
-        {/* User Visual Card */}
-        <div className="profile-visual-card">
-          <div className="profile-big-avatar">{initial}</div>
-          <div className="profile-visual-info">
-            <h4 className="profile-display-name">{currentUser.username}</h4>
-            <div className="profile-role-pill">
-              {currentUser.role === 'admin' ? (
-                <span className="role-admin">🛡️ مدير النظام كامل الصلاحيات</span>
-              ) : (
-                <span className="role-cashier">💳 كاشير (نقطة البيع)</span>
-              )}
+        <div className="prf-dialog-body">
+          <div className="prf-user-card">
+            <div className="prf-avatar" aria-hidden="true">{initial}</div>
+            <div>
+              <strong dir="ltr">{currentUser.username}</strong>
+              <span>{roleLabel}</span>
             </div>
+          </div>
+
+          {error && <div className="prf-feedback prf-feedback--error" role="alert">{error}</div>}
+          {successMsg && <div className="prf-feedback prf-feedback--success" role="status">{successMsg}</div>}
+
+          <div className="prf-form-field">
+            <label htmlFor="prf-username">اسم المستخدم</label>
+            <input
+              id="prf-username"
+              className="prf-input"
+              dir="ltr"
+              autoComplete="username"
+              value={form.username}
+              onChange={setField('username')}
+              required
+            />
+          </div>
+
+          <div className="prf-form-field">
+            <label htmlFor="prf-current-password">
+              كلمة المرور الحالية <span className="prf-req" aria-hidden="true">*</span>
+            </label>
+            <input
+              id="prf-current-password"
+              className="prf-input"
+              type="password"
+              autoComplete="current-password"
+              placeholder="مطلوبة لتأكيد أي تعديل"
+              value={form.currentPassword}
+              onChange={setField('currentPassword')}
+              aria-describedby="prf-current-hint"
+              required
+            />
+            <small id="prf-current-hint">من غيرها مش هنقدر نحفظ أي تغيير.</small>
+          </div>
+
+          <div className="prf-password-box">
+            <div className="prf-toggle-row">
+              <div>
+                <strong id="prf-toggle-label">تغيير كلمة المرور</strong>
+                <span>اختياري — سيبها قافلة لو مش عايز تغيّر</span>
+              </div>
+              <button
+                type="button"
+                className="prf-switch"
+                role="switch"
+                aria-checked={changePassword}
+                aria-labelledby="prf-toggle-label"
+                onClick={() => setChangePassword((on) => !on)}
+              />
+            </div>
+
+            {changePassword && (
+              <>
+                <div className="prf-form-field">
+                  <label htmlFor="prf-new-password">كلمة المرور الجديدة</label>
+                  <input
+                    id="prf-new-password"
+                    className="prf-input"
+                    type="password"
+                    autoComplete="new-password"
+                    placeholder={`${MIN_PASSWORD.toLocaleString('ar-EG')} أحرف على الأقل`}
+                    value={form.newPassword}
+                    onChange={setField('newPassword')}
+                  />
+                  {strength > 0 && (
+                    <div className="prf-strength" data-level={strength}>
+                      <div className="prf-strength-bars" aria-hidden="true"><span /><span /><span /></div>
+                      <small aria-live="polite">{STRENGTH_LABELS[strength]}</small>
+                    </div>
+                  )}
+                </div>
+
+                <div className="prf-form-field">
+                  <label htmlFor="prf-confirm-password">تأكيد كلمة المرور</label>
+                  <input
+                    id="prf-confirm-password"
+                    className="prf-input"
+                    type="password"
+                    autoComplete="new-password"
+                    placeholder="أعد كتابة كلمة المرور"
+                    value={form.confirmPassword}
+                    onChange={setField('confirmPassword')}
+                  />
+                </div>
+              </>
+            )}
           </div>
         </div>
 
-        {error && <div className="profile-alert-error">{error}</div>}
-        {successMsg && <div className="profile-alert-success">{successMsg}</div>}
-        {forcePasswordChange && !successMsg && (
-          <div className="profile-alert-error">
-            يجب تغيير كلمة المرور الافتراضية قبل استخدام النظام.
-          </div>
-        )}
-
-        {/* Edit Form */}
-        <form onSubmit={handleSubmit} className="profile-edit-form">
-          <div className="profile-field-group">
-            <label className="profile-label">اسم المستخدم (Username)</label>
-            <div className="profile-input-wrap">
-              <span className="profile-input-icon">👤</span>
-              <input
-                type="text"
-                className="profile-input"
-                value={form.username}
-                onChange={(e) => setForm({ ...form, username: e.target.value })}
-                required
-              />
-            </div>
-          </div>
-
-          <div className="profile-field-group">
-              <label className="profile-label">
-                كلمة المرور الحالية {!forcePasswordChange && <span className="req-star">* (مطلوبة لتأكيد التغيير)</span>}
-              </label>
-            <div className="profile-input-wrap">
-              <span className="profile-input-icon">🔒</span>
-              <input
-                type="password"
-                className="profile-input"
-                placeholder="أدخل كلمة المرور الحالية"
-                value={form.currentPassword}
-                onChange={(e) => setForm({ ...form, currentPassword: e.target.value })}
-                required={!forcePasswordChange}
-              />
-            </div>
-          </div>
-
-          <div className="profile-divider">
-            <span>تغيير كلمة المرور (اختياري)</span>
-          </div>
-
-          <div className="profile-password-grid">
-            <div className="profile-field-group">
-              <label className="profile-label">
-                كلمة المرور الجديدة {forcePasswordChange && <span className="req-star">*</span>}
-              </label>
-              <div className="profile-input-wrap">
-                <span className="profile-input-icon">🔑</span>
-                <input
-                  type="password"
-                  className="profile-input"
-                  placeholder={forcePasswordChange ? 'أدخل كلمة مرور جديدة' : 'اتركها فارغة إذا لم ترد التغيير'}
-                  value={form.newPassword}
-                  onChange={(e) => setForm({ ...form, newPassword: e.target.value })}
-                  required={forcePasswordChange}
-                />
-              </div>
-            </div>
-
-            <div className="profile-field-group">
-              <label className="profile-label">تأكيد كلمة المرور الجديدة</label>
-              <div className="profile-input-wrap">
-                <span className="profile-input-icon">🔑</span>
-                <input
-                  type="password"
-                  className="profile-input"
-                  placeholder="أعد كتابة كلمة المرور"
-                  value={form.confirmPassword}
-                  onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })}
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="profile-modal-actions">
-            {!forcePasswordChange && (
-              <button type="button" className="profile-cancel-btn" onClick={onClose} disabled={loading}>
-                إلغاء
-              </button>
-            )}
-            <button type="submit" className="profile-save-btn" disabled={loading}>
-              {loading ? 'جاري الحفظ...' : 'حفظ التعديلات'}
-            </button>
-          </div>
-        </form>
-      </div>
+        <div className="prf-dialog-foot">
+          <button type="button" className="prf-btn prf-btn--ghost" onClick={onClose} disabled={loading}>
+            إلغاء
+          </button>
+          <button type="submit" className="prf-btn prf-btn--primary" disabled={loading}>
+            {loading ? 'جاري الحفظ...' : 'حفظ التعديلات'}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }

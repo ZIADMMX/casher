@@ -1,4 +1,5 @@
 const { db } = require('../database/db');
+const { parseModifiers } = require('../services/modifiers.service');
 
 // Delivered orders stay on the board for a while, then drop off.
 const SERVED_ON_BOARD = 12;
@@ -15,6 +16,8 @@ function getOrders() {
       LEFT JOIN users u ON u.id = s.user_id
       WHERE s.order_mode IS NOT NULL
         AND date(s.created_at, 'localtime') = date('now', 'localtime')
+        -- A paid table check: its rounds are on the board instead.
+        AND NOT EXISTS (SELECT 1 FROM table_tabs tab WHERE tab.sale_id = s.id)
     )
     SELECT * FROM today WHERE kitchen_status != 'served'
     UNION ALL
@@ -28,7 +31,7 @@ function getOrders() {
 
   const ids = orders.map((order) => order.id);
   const items = db.prepare(`
-    SELECT si.sale_id, si.quantity, p.name AS product_name, pv.size, pv.color
+    SELECT si.sale_id, si.quantity, si.modifiers, p.name AS product_name, pv.size, pv.color
     FROM sale_items si
     LEFT JOIN product_variants pv ON pv.id = si.variant_id
     LEFT JOIN products p ON p.id = pv.product_id
@@ -37,7 +40,7 @@ function getOrders() {
   `).all(JSON.stringify(ids));
 
   const bySale = new Map(ids.map((id) => [id, []]));
-  for (const item of items) bySale.get(item.sale_id)?.push(item);
+  for (const item of items) bySale.get(item.sale_id)?.push({ ...item, modifiers: parseModifiers(item.modifiers) });
   return orders.map((order) => ({ ...order, items: bySale.get(order.id) || [] }));
 }
 

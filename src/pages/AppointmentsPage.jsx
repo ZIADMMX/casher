@@ -629,12 +629,6 @@ function AppointmentsPage() {
                         <div>{isLawFirm ? <LegalIcon name="person" /> : '👤'} {text('المشترك:', 'الموكل:')} {appointment.customer_name} {appointment.customer_phone && `· ${isLawFirm ? '' : '📱 '}${appointment.customer_phone}`}</div>
                         <div>{isLawFirm ? <LegalIcon name="scale" /> : '🏋️'} {text('الكابتن / الصالة:', 'المحامي / القاعة:')} {appointment.resource_name} · {text('المدفوع:', 'الأتعاب المدفوعة:')} {Number(appointment.deposit_amount || 0).toFixed(2)} ج.م</div>
 
-                        {appointment.converted_order_number && (
-                          <div style={{ color: isLawFirm ? '#c84b08' : '#c084fc', fontWeight: 700 }}>
-                            {!isLawFirm && '📑'} {text('رقم طلب الحصة:', 'رقم فاتورة الأتعاب:')} {appointment.converted_order_number}
-                          </div>
-                        )}
-
                         {['booked', 'confirmed'].includes(appointment.status) && (
                           <button
                             type="button"
@@ -689,18 +683,6 @@ function AppointmentsPage() {
                               text('تم إلغاء الحجز', 'تم إلغاء الموعد')
                             )}>
                               إلغاء
-                            </button>
-                          )}
-                          {['booked', 'confirmed', 'completed'].includes(appointment.status) && !appointment.converted_order_id && (
-                            <button
-                              type="button"
-                              className="convert"
-                              onClick={() => runAction(
-                                () => inventoryApi.convertAppointmentToServiceOrder(appointment.id),
-                                text('تم تحويل الحصة إلى أمر عمل وفاتورة بنجاح!', 'تم تحويل الموعد إلى فاتورة بنجاح!'),
-                              )}
-                            >
-                              {text('🚀 تحويل لفاتورة / أمر عمل', '🚀 إصدار فاتورة أتعاب')}
                             </button>
                           )}
                         </div>

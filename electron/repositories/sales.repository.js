@@ -1,4 +1,5 @@
 const { db } = require('../database/db');
+const { parseModifiers, serializeModifiers } = require('../services/modifiers.service');
 
 function createSale({
   shiftId,
@@ -47,10 +48,10 @@ function createSaleItem(saleId, item) {
   const baseQuantity = Number(item.baseQuantityDeduction) || quantity;
   const factor = quantity > 0 ? baseQuantity / quantity : 1;
   const stmt = db.prepare(`
-    INSERT INTO sale_items (sale_id, variant_id, quantity, unit_price, unit_cost)
-    VALUES (?, ?, ?, ?, (SELECT purchase_price * ? FROM product_variants WHERE id = ?))
+    INSERT INTO sale_items (sale_id, variant_id, quantity, unit_price, unit_cost, modifiers)
+    VALUES (?, ?, ?, ?, (SELECT purchase_price * ? FROM product_variants WHERE id = ?), ?)
   `);
-  stmt.run(saleId, item.variantId, item.quantity, item.unitPrice, factor, item.variantId);
+  stmt.run(saleId, item.variantId, item.quantity, item.unitPrice, factor, item.variantId, serializeModifiers(item.modifiers));
 }
 
 function getStatsByCustomer() {
@@ -73,8 +74,9 @@ function getById(saleId) {
       si.variant_id,
       si.variant_id as variantId,
       si.quantity, 
-      si.unit_price, 
-      pv.size, 
+      si.unit_price,
+      si.modifiers,
+      pv.size,
       pv.color, 
       pv.barcode,
       pv.sku,
@@ -86,11 +88,17 @@ function getById(saleId) {
     WHERE si.sale_id = ?
   `).all(saleId);
 
-  return { ...sale, items };
+  return { ...sale, items: items.map((item) => ({ ...item, modifiers: parseModifiers(item.modifiers) })) };
 }
 
+// Returns work per item, so lines of the same item (plain and with add-ons) count as one.
 function getSaleItem(saleId, variantId) {
-  return db.prepare('SELECT * FROM sale_items WHERE sale_id = ? AND variant_id = ?').get(saleId, variantId);
+  return db.prepare(`
+    SELECT sale_id, variant_id, SUM(quantity) AS quantity,
+      SUM(quantity * unit_price) / SUM(quantity) AS unit_price
+    FROM sale_items WHERE sale_id = ? AND variant_id = ?
+    GROUP BY sale_id, variant_id
+  `).get(saleId, variantId);
 }
 
 module.exports = { createSale, createSaleItem, getStatsByCustomer, getById, getSaleItem };

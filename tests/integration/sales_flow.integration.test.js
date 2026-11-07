@@ -64,8 +64,6 @@ const customersRepo = require('../../electron/repositories/customers.repository'
 const SettingsRepository = require('../../electron/repositories/settings.repository');
 const returnsRepo = require('../../electron/repositories/returns.repository');
 const inventoryRepo = require('../../electron/repositories/inventory.repository');
-const ordersRepo = require('../../electron/repositories/orders.repository');
-const ordersService = require('../../electron/services/orders.service');
 
 describe('End-to-End Sales Integration Test (من إضافة منتج للسلة حتى الدفع والطباعة)', () => {
   let variant1Id;
@@ -434,51 +432,6 @@ describe('End-to-End Sales Integration Test (من إضافة منتج للسلة
     expect(mockLoadURL).toHaveBeenCalledTimes(1);
     expect(mockPrint).toHaveBeenCalledTimes(1);
     expect(mockClose).toHaveBeenCalledTimes(1);
-  });
-
-  test('repair work order records parts without stock deduction and invoices them once at delivery', () => {
-    authService.login('cashier_samir', 'pass123');
-    attendanceService.checkIn({ date: attendanceService.getTodayDate() });
-    shiftsService.openShift({
-      openingCash: 200,
-      shiftType: 'morning',
-      posStation: 'الدرج الرئيسي - POS 1',
-    });
-
-    const order = ordersService.createOrder({
-      order_type: 'maintenance',
-      customer_name: 'عميل الورشة',
-      customer_phone: '01000000000',
-      vehicle_plate: 'س ص ع 1234',
-      vehicle_make: 'تويوتا',
-      vehicle_model: 'كورولا',
-      vehicle_year: 2020,
-      odometer: 80000,
-      fault_description: 'صوت في الفرامل',
-    });
-    ordersService.addOrderItem(order.id, { variantId: variant1Id, quantity: 1 });
-
-    expect(inventoryRepo.getStockQuantity(inventoryRepo.getDefaultWarehouseId(), variant1Id)).toBe(20);
-    ordersService.updateOrderStatus(order.id, 'ready');
-
-    const result = salesService.createSale({
-      orderId: order.id,
-      items: [{ variantId: variant1Id, quantity: 1, unitPrice: 150 }],
-      paymentMethod: 'cash',
-    });
-    const completedOrder = ordersRepo.getOrderById(order.id);
-
-    expect(completedOrder.status).toBe('delivered');
-    expect(completedOrder.sale_id).toBe(result.saleId);
-    expect(completedOrder.vehicle_plate).toBe('س ص ع 1234');
-    expect(completedOrder.items).toHaveLength(1);
-    expect(inventoryRepo.getStockQuantity(inventoryRepo.getDefaultWarehouseId(), variant1Id)).toBe(19);
-    expect(() => salesService.createSale({
-      orderId: order.id,
-      items: [{ variantId: variant1Id, quantity: 1, unitPrice: 150 }],
-      paymentMethod: 'cash',
-    })).toThrow('يجب أن يكون أمر الشغل جاهزًا وغير مفوتر');
-    expect(inventoryRepo.getStockQuantity(inventoryRepo.getDefaultWarehouseId(), variant1Id)).toBe(19);
   });
 
   test('local offline sales keep unique increasing invoice IDs without a network connection', () => {

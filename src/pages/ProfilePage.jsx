@@ -1,6 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useUser } from '../contexts/UserContext.jsx';
 import * as authApi from '../api/auth.js';
+import * as auditApi from '../api/audit.js';
+import { getActionMeta } from '../utils/auditActions.js';
+import {
+  LockIcon, MapPinIcon, PencilIcon, PlusIcon, ShieldIcon, UserIcon,
+} from '../components/icons/PosIcons.jsx';
 import '../styles/profile.css';
 
 const EMPTY_PROFILE = {
@@ -15,19 +20,68 @@ const EMPTY_PROFILE = {
   address: '',
 };
 
-const PROFILE_FIELDS = [
-  { name: 'firstName', label: 'الاسم الأول', autoComplete: 'given-name', maxLength: 60 },
-  { name: 'lastName', label: 'اسم العائلة', autoComplete: 'family-name', maxLength: 60 },
-  { name: 'email', label: 'البريد الإلكتروني', type: 'email', autoComplete: 'email', maxLength: 254 },
-  { name: 'phone', label: 'رقم الهاتف', type: 'tel', autoComplete: 'tel', maxLength: 30 },
-  { name: 'dateOfBirth', label: 'تاريخ الميلاد', type: 'date' },
-  { name: 'country', label: 'الدولة', autoComplete: 'country-name', maxLength: 100 },
-  { name: 'city', label: 'المدينة', autoComplete: 'address-level2', maxLength: 100 },
-  { name: 'address', label: 'العنوان', autoComplete: 'street-address', maxLength: 240 },
+const GENDER_LABELS = { male: 'ذكر', female: 'أنثى', prefer_not_to_say: 'أفضل عدم التحديد' };
+
+const SECTIONS = [
+  {
+    key: 'basic',
+    title: 'البيانات الأساسية',
+    hint: 'الاسم وبيانات التواصل المرتبطة بحسابك',
+    Icon: UserIcon,
+    tone: 'primary',
+    fields: [
+      { name: 'firstName', label: 'الاسم الأول', autoComplete: 'given-name', maxLength: 60 },
+      { name: 'lastName', label: 'اسم العائلة', autoComplete: 'family-name', maxLength: 60 },
+      { name: 'phone', label: 'رقم الهاتف', type: 'tel', autoComplete: 'tel', maxLength: 30, ltr: true },
+      { name: 'email', label: 'البريد الإلكتروني', type: 'email', autoComplete: 'email', maxLength: 254, ltr: true },
+      { name: 'gender', label: 'النوع', options: GENDER_LABELS },
+      { name: 'dateOfBirth', label: 'تاريخ الميلاد', type: 'date' },
+    ],
+  },
+  {
+    key: 'location',
+    title: 'الموقع والعنوان',
+    hint: 'يستخدم في الفواتير وبيانات الفرع',
+    Icon: MapPinIcon,
+    tone: 'info',
+    fields: [
+      { name: 'country', label: 'الدولة', autoComplete: 'country-name', maxLength: 100 },
+      { name: 'city', label: 'المدينة', autoComplete: 'address-level2', maxLength: 100 },
+      { name: 'address', label: 'العنوان', autoComplete: 'street-address', maxLength: 240, wide: true },
+    ],
+  },
 ];
 
-function formatValue(value) {
-  return value || 'غير محدد';
+const ALL_FIELDS = SECTIONS.flatMap((section) => section.fields);
+// Fields that matter most for receipts and account recovery, named in the completion hint.
+const KEY_FIELDS = ['email', 'firstName'];
+
+function toForm(source) {
+  return Object.fromEntries(Object.keys(EMPTY_PROFILE).map((key) => [key, source?.[key] || '']));
+}
+
+function formatDate(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString('ar-EG', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+function formatDateTime(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const time = date.toLocaleTimeString('ar-EG', { hour: 'numeric', minute: '2-digit' });
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  if (date.toDateString() === today.toDateString()) return `اليوم — ${time}`;
+  if (date.toDateString() === yesterday.toDateString()) return `أمس — ${time}`;
+  return `${date.toLocaleDateString('ar-EG', { day: 'numeric', month: 'long' })} — ${time}`;
+}
+
+function displayValue(field, value) {
+  if (field.options) return field.options[value] || '';
+  return value;
 }
 
 function ProfilePage({ onOpenAccountSettings }) {
@@ -36,9 +90,10 @@ function ProfilePage({ onOpenAccountSettings }) {
   const [form, setForm] = useState(EMPTY_PROFILE);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [activity, setActivity] = useState(null);
 
   const loadProfile = useCallback(async () => {
     setLoading(true);
@@ -51,11 +106,8 @@ function ProfilePage({ onOpenAccountSettings }) {
       if (!result || typeof result !== 'object') {
         throw new Error('لم يستلم التطبيق بيانات الملف الشخصي');
       }
-      const nextForm = Object.fromEntries(
-        Object.keys(EMPTY_PROFILE).map((key) => [key, result[key] || '']),
-      );
       setProfile(result);
-      setForm(nextForm);
+      setForm(toForm(result));
     } catch (loadError) {
       setError(loadError.message || 'تعذر تحميل الملف الشخصي');
     } finally {
@@ -67,30 +119,55 @@ function ProfilePage({ onOpenAccountSettings }) {
     loadProfile();
   }, [loadProfile]);
 
+  // The audit log is admin-only on the backend; other roles simply don't get the activity card.
+  useEffect(() => {
+    if (!profile?.id || profile.role !== 'admin' || !auditApi.getAuditLogs.isAvailable()) return;
+    let cancelled = false;
+    auditApi.getAuditLogs({ userId: profile.id, limit: 4 })
+      .then((result) => { if (!cancelled) setActivity(result?.items || []); })
+      .catch(() => { if (!cancelled) setActivity(null); });
+    return () => { cancelled = true; };
+  }, [profile?.id, profile?.role]);
+
   const displayName = profile?.fullName
     || [profile?.firstName, profile?.lastName].filter(Boolean).join(' ')
+    || profile?.username
     || currentUser?.username
     || 'المستخدم';
-  const initials = useMemo(
-    () => displayName.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || '؟',
-    [displayName],
-  );
-  const roleLabel = profile?.role === 'admin'
-    ? 'مدير النظام'
-    : profile?.role || 'مستخدم';
+  const initial = displayName.trim().charAt(0).toUpperCase() || '؟';
+  const isAdmin = profile?.role === 'admin';
+  const roleLabel = isAdmin ? 'مدير النظام' : profile?.role || 'مستخدم';
+
+  const missing = ALL_FIELDS.filter((field) => !profile?.[field.name]);
+  const completion = Math.round(((ALL_FIELDS.length - missing.length) / ALL_FIELDS.length) * 100);
+  const missingKey = KEY_FIELDS
+    .filter((name) => missing.some((field) => field.name === name))
+    .map((name) => ALL_FIELDS.find((field) => field.name === name).label);
+
+  const lastLogin = activity?.find((log) => log.action_type === 'login')?.created_at;
+  const stats = [
+    { label: 'عضو منذ', value: formatDate(profile?.createdAt) },
+    { label: 'آخر دخول', value: formatDateTime(lastLogin) },
+    { label: 'اسم المستخدم', value: profile?.username, ltr: true },
+    { label: 'الصلاحيات', value: isAdmin ? 'كامل الصلاحيات' : roleLabel },
+  ].filter((stat) => stat.value);
+
+  function startEdit(sectionKey) {
+    setForm(toForm(profile));
+    setEditing(sectionKey);
+    setError('');
+    setSuccess('');
+  }
+
+  function cancelEdit() {
+    setForm(toForm(profile));
+    setEditing(null);
+    setError('');
+  }
 
   function handleChange(event) {
     const { name, value } = event.target;
     setForm((previous) => ({ ...previous, [name]: value }));
-  }
-
-  function cancelEdit() {
-    setForm(Object.fromEntries(
-      Object.keys(EMPTY_PROFILE).map((key) => [key, profile?.[key] || '']),
-    ));
-    setEditing(false);
-    setError('');
-    setSuccess('');
   }
 
   async function handleSubmit(event) {
@@ -98,7 +175,6 @@ function ProfilePage({ onOpenAccountSettings }) {
     setSaving(true);
     setError('');
     setSuccess('');
-
     try {
       if (!authApi.saveMyProfile.isAvailable()) {
         throw new Error('خدمة حفظ الملف الشخصي غير متاحة في هذا الإصدار');
@@ -110,19 +186,16 @@ function ProfilePage({ onOpenAccountSettings }) {
       if (!updated || typeof updated !== 'object') {
         throw new Error('لم يستلم التطبيق تأكيد تحديث الملف الشخصي');
       }
-
       setProfile(updated);
-      setForm(Object.fromEntries(
-        Object.keys(EMPTY_PROFILE).map((key) => [key, updated[key] || '']),
-      ));
-      setCurrentUser((user) => user ? {
+      setForm(toForm(updated));
+      setCurrentUser((user) => (user ? {
         ...user,
         firstName: updated.firstName,
         lastName: updated.lastName,
         fullName: updated.fullName,
-      } : user);
+      } : user));
       setSuccess('تم حفظ بيانات الملف الشخصي بنجاح');
-      setEditing(false);
+      setEditing(null);
     } catch (saveError) {
       setError(saveError.message || 'تعذر حفظ الملف الشخصي');
     } finally {
@@ -130,132 +203,228 @@ function ProfilePage({ onOpenAccountSettings }) {
     }
   }
 
-  return (
-    <section className="profile-page" aria-labelledby="profile-page-title">
-      <header className="profile-page-heading">
-        <div>
-          <span className="profile-page-eyebrow">الحساب الشخصي</span>
-          <h1 id="profile-page-title">ملفي الشخصي</h1>
-          <p>اعرض بياناتك الشخصية وحدّث معلومات التواصل والعنوان.</p>
+  function renderField(field, sectionKey) {
+    const value = profile[field.name];
+    const className = `prf-field${field.wide ? ' prf-field--wide' : ''}`;
+
+    if (editing === sectionKey) {
+      const id = `prf-${field.name}`;
+      return (
+        <div className={className} key={field.name}>
+          <label htmlFor={id}>{field.label}</label>
+          {field.options ? (
+            <select id={id} name={field.name} className="prf-input" value={form[field.name]} onChange={handleChange}>
+              <option value="">غير محدد</option>
+              {Object.entries(field.options).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+            </select>
+          ) : (
+            <input
+              id={id}
+              className="prf-input"
+              name={field.name}
+              type={field.type || 'text'}
+              dir={field.ltr ? 'ltr' : undefined}
+              value={form[field.name]}
+              onChange={handleChange}
+              autoComplete={field.autoComplete}
+              maxLength={field.maxLength}
+            />
+          )}
         </div>
-        {!editing && !loading && profile && (
-          <button type="button" className="profile-action-primary" onClick={() => {
-            setEditing(true);
-            setSuccess('');
-            setError('');
-          }}>
-            <span aria-hidden="true">✎</span>
-            تعديل الملف الشخصي
+      );
+    }
+
+    return (
+      <div className={className} key={field.name}>
+        <span>{field.label}</span>
+        {value ? (
+          <strong dir={field.ltr ? 'ltr' : undefined}>{displayValue(field, value)}</strong>
+        ) : (
+          <button
+            type="button"
+            className="prf-add"
+            onClick={() => startEdit(sectionKey)}
+            aria-label={`إضافة ${field.label}`}
+          >
+            <PlusIcon size={16} aria-hidden="true" />
+            إضافة
           </button>
         )}
-      </header>
+      </div>
+    );
+  }
+
+  return (
+    <section className="prf-page" aria-labelledby="prf-title">
+      <nav className="prf-crumbs" aria-label="مسار الصفحة">
+        <span>الحساب الشخصي</span>
+        <span aria-hidden="true">‹</span>
+        <span id="prf-title" aria-current="page">ملفي الشخصي</span>
+      </nav>
 
       {error && (
-        <div className="profile-feedback profile-feedback-error" role="alert">
+        <div className="prf-feedback prf-feedback--error" role="alert">
           <span>{error}</span>
           {!profile && (
-            <button type="button" onClick={loadProfile} disabled={loading}>
+            <button type="button" className="prf-btn prf-btn--ghost" onClick={loadProfile} disabled={loading}>
               إعادة المحاولة
             </button>
           )}
         </div>
       )}
-      {success && <div className="profile-feedback profile-feedback-success" role="status">{success}</div>}
+      {success && <div className="prf-feedback prf-feedback--success" role="status">{success}</div>}
 
       {loading ? (
-        <div className="profile-loading" role="status">جاري تحميل بيانات الملف الشخصي...</div>
+        <div className="prf-loading" role="status">جاري تحميل بيانات الملف الشخصي...</div>
       ) : profile ? (
         <>
-          <article className="profile-summary-card">
-            <div className="profile-avatar" aria-hidden="true">{initials}</div>
-            <div className="profile-summary-info">
-              <h2>{displayName}</h2>
-              <p className="profile-username">@{profile.username}</p>
-              <span className="profile-role-badge">{roleLabel}</span>
-            </div>
-            <div className="profile-account-date">
-              <span>عضو منذ</span>
-              <strong>{profile.createdAt
-                ? new Date(profile.createdAt).toLocaleDateString('ar-EG')
-                : 'غير محدد'}</strong>
-            </div>
-          </article>
-
-          {editing ? (
-            <form className="profile-details-card" onSubmit={handleSubmit}>
-              <div className="profile-section-title">
+          <header className="prf-hero">
+            <div className="prf-hero-top">
+              <div className="prf-identity">
+                <div className="prf-avatar" aria-hidden="true">{initial}</div>
                 <div>
-                  <h2>البيانات الشخصية</h2>
-                  <p>حدّث معلوماتك، ثم احفظ التغييرات.</p>
+                  <h1>{displayName}</h1>
+                  <p dir={profile.email ? 'ltr' : undefined}>{profile.email || 'لا يوجد بريد إلكتروني مسجّل'}</p>
+                  <div className="prf-chips">
+                    <span className="prf-chip prf-chip--role">
+                      <ShieldIcon size={14} aria-hidden="true" />
+                      {roleLabel}
+                    </span>
+                    <span className="prf-chip prf-chip--online">
+                      <span className="prf-dot" aria-hidden="true" />
+                      نشط الآن
+                    </span>
+                  </div>
                 </div>
               </div>
-
-              <div className="profile-form-grid">
-                {PROFILE_FIELDS.map((field) => (
-                  <label className={`profile-form-field${field.name === 'address' ? ' profile-form-field-wide' : ''}`} key={field.name}>
-                    <span>{field.label}</span>
-                    <input
-                      name={field.name}
-                      type={field.type || 'text'}
-                      value={form[field.name]}
-                      onChange={handleChange}
-                      autoComplete={field.autoComplete}
-                      maxLength={field.maxLength}
-                    />
-                  </label>
+              <div className="prf-hero-actions">
+                <button type="button" className="prf-btn prf-btn--primary" onClick={() => startEdit('basic')}>
+                  <PencilIcon size={16} aria-hidden="true" />
+                  تعديل الملف الشخصي
+                </button>
+                <button type="button" className="prf-btn prf-btn--on-dark" onClick={onOpenAccountSettings}>
+                  <LockIcon size={16} aria-hidden="true" />
+                  تغيير كلمة المرور
+                </button>
+              </div>
+            </div>
+            {stats.length > 0 && (
+              <dl className="prf-stats">
+                {stats.map((stat) => (
+                  <div key={stat.label}>
+                    <dt>{stat.label}</dt>
+                    <dd dir={stat.ltr ? 'ltr' : undefined}>{stat.value}</dd>
+                  </div>
                 ))}
-                <label className="profile-form-field">
-                  <span>النوع</span>
-                  <select name="gender" value={form.gender} onChange={handleChange}>
-                    <option value="">غير محدد</option>
-                    <option value="male">ذكر</option>
-                    <option value="female">أنثى</option>
-                    <option value="prefer_not_to_say">أفضل عدم التحديد</option>
-                  </select>
-                </label>
-              </div>
+              </dl>
+            )}
+          </header>
 
-              <div className="profile-form-actions">
-                <button type="button" className="profile-action-secondary" onClick={cancelEdit} disabled={saving}>
-                  إلغاء
-                </button>
-                <button type="submit" className="profile-action-primary" disabled={saving}>
-                  {saving ? 'جاري الحفظ...' : 'حفظ التغييرات'}
-                </button>
-              </div>
-            </form>
-          ) : (
-            <article className="profile-details-card">
-              <div className="profile-section-title">
-                <div>
-                  <h2>المعلومات الشخصية</h2>
-                  <p>معلومات الملف الشخصي المرتبطة بحسابك.</p>
+          {missing.length > 0 && (
+            <article className="prf-card prf-completion">
+              <div className="prf-completion-body">
+                <h2>
+                  اكتمال الملف الشخصي
+                  <span className="prf-completion-pct">{completion.toLocaleString('en-US')}%</span>
+                </h2>
+                <div
+                  className="prf-progress"
+                  role="progressbar"
+                  aria-valuenow={completion}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-label="نسبة اكتمال الملف الشخصي"
+                >
+                  <span style={{ inlineSize: `${completion}%` }} />
                 </div>
+                <p>
+                  فاضل {missing.length === 2 ? 'حقلين' : `${missing.length.toLocaleString('ar-EG')} ${missing.length > 2 && missing.length < 11 ? 'حقول' : 'حقل'}`} عشان الملف يكمل
+                  {missingKey.length > 0 && ` — ${missingKey.join(' و')} أهمهم`}.
+                </p>
               </div>
-              <div className="profile-information-grid">
-                <div><span>الاسم الأول</span><strong>{formatValue(profile.firstName)}</strong></div>
-                <div><span>اسم العائلة</span><strong>{formatValue(profile.lastName)}</strong></div>
-                <div><span>البريد الإلكتروني</span><strong dir="ltr">{formatValue(profile.email)}</strong></div>
-                <div><span>رقم الهاتف</span><strong dir="ltr">{formatValue(profile.phone)}</strong></div>
-                <div><span>النوع</span><strong>{profile.gender === 'male' ? 'ذكر' : profile.gender === 'female' ? 'أنثى' : profile.gender === 'prefer_not_to_say' ? 'أفضل عدم التحديد' : 'غير محدد'}</strong></div>
-                <div><span>تاريخ الميلاد</span><strong>{formatValue(profile.dateOfBirth)}</strong></div>
-              </div>
-              <div className="profile-location-section">
-                <h3>الموقع</h3>
-                <div className="profile-information-grid">
-                  <div><span>الدولة</span><strong>{formatValue(profile.country)}</strong></div>
-                  <div><span>المدينة</span><strong>{formatValue(profile.city)}</strong></div>
-                  <div className="profile-information-wide"><span>العنوان</span><strong>{formatValue(profile.address)}</strong></div>
-                </div>
-              </div>
-              <div className="profile-account-actions">
-                <span>اسم المستخدم وكلمة المرور</span>
-                <button type="button" className="profile-action-secondary" onClick={onOpenAccountSettings}>
-                  إدارة بيانات الدخول
-                </button>
-              </div>
+              <button type="button" className="prf-btn prf-btn--ghost" onClick={() => startEdit(
+                SECTIONS.find((section) => section.fields.some((field) => !profile[field.name])).key,
+              )}>
+                أكمل بياناتك
+              </button>
             </article>
           )}
+
+          <div className="prf-layout">
+            <div className="prf-main">
+              {SECTIONS.map((section) => (
+                <form
+                  key={section.key}
+                  className="prf-card prf-section"
+                  onSubmit={handleSubmit}
+                  aria-labelledby={`prf-section-${section.key}`}
+                >
+                  <div className="prf-section-head">
+                    <span className={`prf-icon prf-icon--${section.tone}`} aria-hidden="true">
+                      <section.Icon size={18} />
+                    </span>
+                    <div className="prf-section-titles">
+                      <h2 id={`prf-section-${section.key}`}>{section.title}</h2>
+                      <p>{section.hint}</p>
+                    </div>
+                    {editing !== section.key && (
+                      <button
+                        type="button"
+                        className="prf-btn prf-btn--ghost prf-btn--sm"
+                        onClick={() => startEdit(section.key)}
+                        disabled={saving}
+                      >
+                        تعديل
+                      </button>
+                    )}
+                  </div>
+                  <div className="prf-grid">
+                    {section.fields.map((field) => renderField(field, section.key))}
+                  </div>
+                  {editing === section.key && (
+                    <div className="prf-form-actions">
+                      <button type="button" className="prf-btn prf-btn--ghost" onClick={cancelEdit} disabled={saving}>
+                        إلغاء
+                      </button>
+                      <button type="submit" className="prf-btn prf-btn--primary" disabled={saving}>
+                        {saving ? 'جاري الحفظ...' : 'حفظ التغييرات'}
+                      </button>
+                    </div>
+                  )}
+                </form>
+              ))}
+            </div>
+
+            <aside className="prf-side">
+              <article className="prf-card prf-side-card" aria-labelledby="prf-security-title">
+                <div className="prf-side-head">
+                  <span className="prf-icon prf-icon--success" aria-hidden="true"><ShieldIcon size={18} /></span>
+                  <h2 id="prf-security-title">الأمان</h2>
+                </div>
+                <div className="prf-kv">
+                  <span>اسم المستخدم</span>
+                  <strong dir="ltr">{profile.username}</strong>
+                </div>
+                <button type="button" className="prf-btn prf-btn--primary prf-btn--block" onClick={onOpenAccountSettings}>
+                  تغيير كلمة المرور
+                </button>
+              </article>
+
+              {activity && activity.length > 0 && (
+                <article className="prf-card prf-side-card" aria-labelledby="prf-activity-title">
+                  <h2 id="prf-activity-title">آخر النشاط</h2>
+                  <ol className="prf-timeline">
+                    {activity.map((log) => (
+                      <li key={log.id} data-action={log.action_type}>
+                        <strong>{getActionMeta(log.action_type).label}</strong>
+                        <span>{formatDateTime(log.created_at)}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </article>
+              )}
+            </aside>
+          </div>
         </>
       ) : null}
     </section>

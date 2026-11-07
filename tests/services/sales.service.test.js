@@ -10,10 +10,6 @@ jest.mock('../../electron/repositories/sales.repository', () => ({
   createSaleItem: jest.fn(),
   getById: jest.fn(),
 }));
-jest.mock('../../electron/repositories/orders.repository', () => ({
-  getOrderForCheckout: jest.fn(),
-  completeOrderWithSale: jest.fn(),
-}));
 jest.mock('../../electron/repositories/productVariants.repository', () => ({
   getById: jest.fn(),
   decreaseStock: jest.fn(),
@@ -38,7 +34,6 @@ jest.mock('../../electron/services/auth.service', () => ({
 }));
 
 const salesRepo = require('../../electron/repositories/sales.repository');
-const ordersRepo = require('../../electron/repositories/orders.repository');
 const variantsRepo = require('../../electron/repositories/productVariants.repository');
 const shiftsRepo = require('../../electron/repositories/shifts.repository');
 const inventoryRepo = require('../../electron/repositories/inventory.repository');
@@ -109,48 +104,6 @@ describe('sales.service.createSale', () => {
     expect(result).toEqual({ saleId: 42, totalAmount: 10 });
     expect(inventoryRepo.getStockQuantity).not.toHaveBeenCalled();
     expect(inventoryRepo.applyStockChange).not.toHaveBeenCalled();
-  });
-
-  test('links a ready repair order to its sale in the checkout transaction', () => {
-    ordersRepo.getOrderForCheckout.mockReturnValue({
-      id: 23,
-      order_type: 'maintenance',
-      status: 'ready',
-      sale_id: null,
-      customer_id: 4,
-      customer_name: 'عميل الورشة',
-      customer_phone: '01000000000',
-    });
-
-    const result = createSale({
-      items: [{ variantId: 1, quantity: 1 }],
-      paymentMethod: 'cash',
-      orderId: 23,
-    });
-
-    expect(result.saleId).toBe(42);
-    expect(ordersRepo.completeOrderWithSale).toHaveBeenCalledWith(23, 42, 19.99, 7);
-    expect(salesRepo.createSale).toHaveBeenCalledWith(expect.objectContaining({
-      customerId: 4,
-      customerName: 'عميل الورشة',
-      customerPhone: '01000000000',
-    }));
-  });
-
-  test('refuses to invoice a repair order that is not ready', () => {
-    ordersRepo.getOrderForCheckout.mockReturnValue({
-      id: 23,
-      order_type: 'maintenance',
-      status: 'in_progress',
-      sale_id: null,
-    });
-
-    expect(() => createSale({
-      items: [{ variantId: 1, quantity: 1 }],
-      paymentMethod: 'cash',
-      orderId: 23,
-    })).toThrow('يجب أن يكون أمر الشغل جاهزًا وغير مفوتر');
-    expect(salesRepo.createSale).not.toHaveBeenCalled();
   });
 
   test('applies an eligible configured bundle offer without treating it as a cashier-entered discount', () => {

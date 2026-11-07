@@ -5,7 +5,6 @@
 const DEFAULT_MODULES = [
   { key: 'pos', name: 'شاشة الكاشير والمبيعات', description: 'إصدار الفواتير وطباعة الإيصالات والماسح البصري', display_order: 1, is_enabled: 1 },
   { key: 'inventory', name: 'إدارة المنتجات والمخزون', description: 'المنتجات والخصومات والتصنيفات والتكلفة', display_order: 2, is_enabled: 1 },
-  { key: 'orders', name: 'مركز الطلبات والعمليات', description: 'طلبات التوصيل، الحجوزات، التفصيل، الصيانة والخدمات', display_order: 3, is_enabled: 1 },
   { key: 'subscriptions', name: 'الاشتراكات والباقات', description: 'باقات الجلسات، العضويات، الاشتراكات الشهرية والتجميد', display_order: 4, is_enabled: 1 },
   { key: 'commissions', name: 'نظام العمولات والحوافز', description: 'حساب عمولات الموظفين التلقائية ومحرك الأهداف', display_order: 5, is_enabled: 1 },
   { key: 'crm', name: 'إدارة علاقات العملاء', description: 'ملفات العملاء وسجل التعامل والفرص البيعية والمتابعة', display_order: 6, is_enabled: 1 },
@@ -32,7 +31,7 @@ const DEFAULT_PROFILES = [
       attributes: ['size', 'color', 'brand', 'material'],
       term_order: 'طلب بيع / توصيل',
       term_customer: 'زبون / عميل',
-      enabled_modules: ['pos', 'inventory', 'orders', 'commissions', 'crm', 'purchases', 'reports', 'settings', 'enterprise']
+      enabled_modules: ['pos', 'inventory', 'commissions', 'crm', 'purchases', 'reports', 'settings', 'enterprise']
     }
   },
   {
@@ -43,7 +42,7 @@ const DEFAULT_PROFILES = [
       attributes: ['brand', 'model', 'serial_number', 'warranty_months'],
       term_order: 'طلب توريد / صيانة',
       term_customer: 'عميل شركات / فرد',
-      enabled_modules: ['pos', 'inventory', 'orders', 'commissions', 'crm', 'purchases', 'reports', 'settings', 'enterprise']
+      enabled_modules: ['pos', 'inventory', 'commissions', 'crm', 'purchases', 'reports', 'settings', 'enterprise']
     }
   },
   {
@@ -54,7 +53,7 @@ const DEFAULT_PROFILES = [
       attributes: ['device_type', 'imei_serial', 'fault_description', 'warranty_status'],
       term_order: 'امر صيانة / تذكرة',
       term_customer: 'صاحب الجهاز',
-      enabled_modules: ['orders', 'crm', 'inventory', 'pos', 'commissions', 'reports', 'settings', 'enterprise']
+      enabled_modules: ['crm', 'inventory', 'pos', 'commissions', 'reports', 'settings', 'enterprise']
     }
   },
   {
@@ -65,7 +64,7 @@ const DEFAULT_PROFILES = [
       attributes: ['car_make', 'car_model', 'year', 'vehicle_plate', 'odometer', 'fault_description'],
       term_order: 'أمر إصلاح سيارة',
       term_customer: 'مالك السيارة',
-      enabled_modules: ['pos', 'orders', 'inventory', 'customers', 'commissions', 'reports', 'settings', 'enterprise']
+      enabled_modules: ['pos', 'inventory', 'customers', 'commissions', 'reports', 'settings', 'enterprise']
     }
   },
   {
@@ -98,7 +97,7 @@ const DEFAULT_PROFILES = [
       attributes: ['car_make', 'car_model', 'year', 'oem_number'],
       term_order: 'طلب قطع غيار',
       term_customer: 'مركز خدمة / عميل',
-      enabled_modules: ['inventory', 'pos', 'purchases', 'orders', 'reports', 'settings', 'enterprise']
+      enabled_modules: ['inventory', 'pos', 'purchases', 'reports', 'settings', 'enterprise']
     }
   },
   {
@@ -109,7 +108,7 @@ const DEFAULT_PROFILES = [
       attributes: ['case_number', 'court_name', 'circuit_name', 'opponent_name', 'power_of_attorney_num'],
       term_order: 'ملف قضية',
       term_customer: 'موكّل',
-      enabled_modules: ['cases', 'appointments', 'crm', 'orders', 'reports', 'settings', 'enterprise', 'users', 'salaries']
+      enabled_modules: ['cases', 'appointments', 'crm', 'reports', 'settings', 'enterprise', 'users', 'salaries']
     }
   },
   {
@@ -117,10 +116,11 @@ const DEFAULT_PROFILES = [
     name: '☕ مطاعم وكافيهات (Cafe & Food)',
     is_active: 0,
     settings_json: {
-      attributes: ['milk_type', 'sweetness_level', 'extras'],
+      // No per-product fields: milk, sugar and extras are per-order choices, not product data.
+      attributes: [],
       term_order: 'طلب / أوردر',
       term_customer: 'ضيف / عميل',
-      enabled_modules: ['pos', 'inventory', 'orders', 'reports', 'settings', 'shifts', 'users', 'enterprise']
+      enabled_modules: ['pos', 'inventory', 'reports', 'settings', 'shifts', 'users', 'enterprise']
     }
   },
   {
@@ -166,33 +166,16 @@ const PRESET_ATTRIBUTE_KEYS = new Set([
   'case_number', 'court_name', 'circuit_name', 'opponent_name', 'power_of_attorney_num',
 ]);
 
-// Initial Roles Seed
+// Initial Roles Seed (lists live in shared/ so the roles page can "reset to default").
 // Cashier: sells, runs their own shift (shifts.service limits it to their own),
 // takes orders and adds customers. No returns, discounts, prices, stock or reports.
-const CASHIER_PERMISSIONS = [
-  'pos.view', 'pos.sell',
-  'shifts.view', 'shifts.manage',
-  'orders.view', 'orders.manage',
-  'products.view',
-  'customers.view', 'customers.create',
-];
-
 // Branch manager: everything a cashier does, plus products (prices, options,
 // archive), returns, discounts, the sales log and the team. Stock changes,
 // settings and roles stay with the owner.
-const MANAGER_PERMISSIONS = [
-  ...CASHIER_PERMISSIONS,
-  'pos.discount', 'pos.refund',
-  'sales.view',
-  'products.create', 'products.edit', 'products.delete',
-  'inventory.view',
-  'promotions.view',
-  'customers.edit',
-  'subscriptions.view', 'subscriptions.manage',
-  'reports.view',
-  'team.view', 'team.manage',
-  'attendance.view', 'attendance.manage', 'leaves.view', 'leaves.manage',
-];
+const {
+  cashier: CASHIER_PERMISSIONS,
+  manager: MANAGER_PERMISSIONS,
+} = require('../../../shared/defaultRolePermissions.json');
 
 const DEFAULT_ROLES = [
   {

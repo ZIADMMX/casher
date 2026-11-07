@@ -12,12 +12,12 @@ const RESOURCE_PERMISSIONS = {
   'inventory': 'inventory',
   'branches': 'inventory',
   'sales': 'pos',
+  'tables': 'pos',
   'returns': 'pos',
   'customers': 'customers',
   'crm': 'customers',
   'suppliers': 'suppliers',
   'purchases': 'purchases',
-  'orders': 'orders',
   'subscriptions': 'subscriptions',
   'packages': 'subscriptions',
   'commissions': 'commissions',
@@ -172,17 +172,16 @@ function getPermissionForChannel(channel, args = []) {
     if (/refund|return/i.test(action)) return 'pos.refund';
     return 'pos.sell';
   }
+  if (resource === 'tables') {
+    if (action === 'addTable' || action === 'removeTable') return 'settings.manage';
+    return isReadAction(action) ? 'pos.view' : 'pos.sell';
+  }
   if (resource === 'returns') return 'pos.refund';
   if (resource === 'customers') {
     if (isReadAction(action)) return 'customers.view';
     if (/delete|remove/i.test(action)) return 'customers.delete';
     if (/add|create/i.test(action)) return 'customers.create';
     return 'customers.edit';
-  }
-  if (resource === 'orders') {
-    if (isReadAction(action)) return 'orders.view';
-    if (/delete|remove/i.test(action)) return 'orders.delete';
-    return 'orders.manage';
   }
   if (resource === 'subscriptions') {
     if (isReadAction(action)) return 'subscriptions.view';
@@ -237,7 +236,6 @@ function getPermissionForApi(pathname, method) {
       : 'customers.edit';
   }
   if (resource === 'courts' && method === 'DELETE') return 'cases.delete';
-  if (resource === 'orders' && action === 'manage') return 'orders.manage';
   if (resource === 'subscriptions' && action === 'manage') return 'subscriptions.manage';
   if (resource === 'purchases' && action === 'manage') return 'purchases.manage';
   if (resource === 'suppliers' && action === 'manage') return 'suppliers.manage';

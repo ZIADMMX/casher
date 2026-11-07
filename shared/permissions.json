@@ -2,106 +2,164 @@
   {
     "moduleName": "شاشة الكاشير والمبيعات (POS)",
     "moduleKey": "pos",
-    "permissions": ["pos.view", "pos.sell", "pos.discount", "pos.refund"]
+    "description": "نقطة البيع",
+    "permissions": ["pos.view", "pos.sell", "pos.discount", "pos.refund"],
+    "labels": { "pos.view": "فتح شاشة الكاشير", "pos.sell": "إتمام عملية بيع", "pos.discount": "تطبيق خصم على الفاتورة", "pos.refund": "عمل مرتجع من الكاشير" },
+    "sensitive": ["pos.discount", "pos.refund"]
   },
   {
     "moduleName": "إدارة المنتجات والمخزون",
     "moduleKey": "inventory",
-    "permissions": ["products.view", "products.create", "products.edit", "products.delete", "inventory.view", "inventory.transfer", "inventory.adjust", "inventory.manage"]
+    "description": "الكتالوج والأرصدة",
+    "permissions": ["products.view", "products.create", "products.edit", "products.delete", "inventory.view", "inventory.transfer", "inventory.adjust", "inventory.manage"],
+    "labels": { "products.view": "عرض المنتجات", "products.create": "إضافة منتج جديد", "products.edit": "تعديل بيانات وأسعار المنتج", "products.delete": "حذف منتج", "inventory.view": "عرض أرصدة المخزون", "inventory.transfer": "تحويل مخزون بين الفروع", "inventory.adjust": "تسوية جرد المخزون", "inventory.manage": "إدارة المخازن والمواقع" },
+    "sensitive": ["products.delete", "inventory.adjust"]
   },
   {
     "moduleName": "سجل الفواتير والمبيعات",
     "moduleKey": "sales",
-    "permissions": ["sales.view", "sales.refund", "sales.export"]
+    "description": "الأرشيف والمرتجعات",
+    "permissions": ["sales.view", "sales.refund", "sales.export"],
+    "labels": { "sales.view": "عرض الفواتير", "sales.refund": "استرجاع فاتورة مغلقة", "sales.export": "تصدير الفواتير (Excel / PDF)" },
+    "sensitive": ["sales.refund"]
   },
   {
     "moduleName": "العملاء والاتصالات (CRM)",
     "moduleKey": "customers",
-    "permissions": ["customers.view", "customers.create", "customers.edit", "customers.delete"]
-  },
-  {
-    "moduleName": "مركز الطلبات والعمليات",
-    "moduleKey": "orders",
-    "permissions": ["orders.view", "orders.manage", "orders.delete"]
+    "description": "CRM",
+    "permissions": ["customers.view", "customers.create", "customers.edit", "customers.delete"],
+    "labels": { "customers.view": "عرض ملفات العملاء", "customers.create": "إضافة عميل", "customers.edit": "تعديل بيانات عميل", "customers.delete": "حذف عميل" },
+    "sensitive": ["customers.delete"]
   },
   {
     "moduleName": "الاشتراكات والباقات",
     "moduleKey": "subscriptions",
-    "permissions": ["subscriptions.view", "subscriptions.manage", "subscriptions.freeze"]
+    "description": "العضويات المتجددة",
+    "permissions": ["subscriptions.view", "subscriptions.manage", "subscriptions.freeze"],
+    "labels": { "subscriptions.view": "عرض الاشتراكات", "subscriptions.manage": "إدارة الباقات والتجديد", "subscriptions.freeze": "تجميد / إيقاف اشتراك" },
+    "sensitive": ["subscriptions.freeze"]
   },
   {
     "moduleName": "العمولات والحوافز",
     "moduleKey": "commissions",
-    "permissions": ["commissions.view", "commissions.manage"]
+    "description": "حوافز الموظفين",
+    "permissions": ["commissions.view", "commissions.manage"],
+    "labels": { "commissions.view": "عرض تقارير العمولة", "commissions.manage": "تعديل قواعد احتساب العمولة" },
+    "sensitive": ["commissions.manage"]
   },
   {
     "moduleName": "التقارير والتحليلات",
     "moduleKey": "reports",
-    "permissions": ["reports.view", "reports.export"]
+    "description": "لوحات الأداء",
+    "permissions": ["reports.view", "reports.export"],
+    "labels": { "reports.view": "عرض لوحات التقارير", "reports.export": "تصدير التقارير" },
+    "sensitive": []
   },
   {
     "moduleName": "إعدادات النظام والأمان",
     "moduleKey": "settings",
-    "permissions": ["settings.view", "settings.manage"]
+    "description": "قسم حساس — يُمنح لمدير النظام فقط",
+    "restricted": true,
+    "permissions": ["settings.view", "settings.manage"],
+    "labels": { "settings.view": "عرض إعدادات النظام", "settings.manage": "تعديل الإعدادات والأمان" },
+    "sensitive": ["settings.manage"]
   },
   {
     "moduleName": "البنية والديناميكية (Enterprise)",
     "moduleKey": "enterprise",
-    "permissions": ["enterprise.view", "enterprise.manage"]
+    "description": "الأتمتة وسير العمل",
+    "restricted": true,
+    "permissions": ["enterprise.view", "enterprise.manage"],
+    "labels": { "enterprise.view": "عرض إعدادات البنية", "enterprise.manage": "تعديل الأتمتة والوحدات" },
+    "sensitive": ["enterprise.manage"]
   },
   {
     "moduleName": "فريق العمل",
     "moduleKey": "team",
-    "permissions": ["team.view", "team.manage", "team.import", "team.export"]
+    "description": "حسابات الموظفين",
+    "permissions": ["team.view", "team.manage", "team.import", "team.export"],
+    "labels": { "team.view": "عرض فريق العمل", "team.manage": "إضافة وتعديل الموظفين", "team.import": "استيراد موظفين", "team.export": "تصدير بيانات الفريق" },
+    "sensitive": ["team.manage"]
   },
   {
     "moduleName": "الحضور والانصراف",
     "moduleKey": "attendance",
-    "permissions": ["attendance.view", "attendance.manage"]
+    "description": "سجل الدوام",
+    "permissions": ["attendance.view", "attendance.manage"],
+    "labels": { "attendance.view": "عرض الحضور والانصراف", "attendance.manage": "تعديل سجلات الحضور" },
+    "sensitive": []
   },
   {
     "moduleName": "الإجازات",
     "moduleKey": "leaves",
-    "permissions": ["leaves.view", "leaves.manage"]
+    "description": "طلبات الإجازة",
+    "permissions": ["leaves.view", "leaves.manage"],
+    "labels": { "leaves.view": "عرض الإجازات", "leaves.manage": "اعتماد ورفض الإجازات" },
+    "sensitive": []
   },
   {
     "moduleName": "الأدوار والصلاحيات",
     "moduleKey": "roles",
-    "permissions": ["roles.manage"]
+    "description": "قسم حساس — يُمنح لمدير النظام فقط",
+    "restricted": true,
+    "permissions": ["roles.manage"],
+    "labels": { "roles.manage": "إدارة الأدوار والصلاحيات" },
+    "sensitive": ["roles.manage"]
   },
   {
     "moduleName": "الموردون والمشتريات",
     "moduleKey": "procurement",
-    "permissions": ["suppliers.view", "suppliers.manage", "purchases.view", "purchases.manage"]
+    "description": "فواتير الشراء",
+    "permissions": ["suppliers.view", "suppliers.manage", "purchases.view", "purchases.manage"],
+    "labels": { "suppliers.view": "عرض الموردين", "suppliers.manage": "إدارة الموردين", "purchases.view": "عرض فواتير الشراء", "purchases.manage": "إنشاء وتعديل فواتير الشراء" },
+    "sensitive": []
   },
   {
     "moduleName": "الورديات",
     "moduleKey": "shifts",
-    "permissions": ["shifts.view", "shifts.manage"]
+    "description": "فتح وإغلاق الدرج",
+    "permissions": ["shifts.view", "shifts.manage"],
+    "labels": { "shifts.view": "عرض الورديات", "shifts.manage": "فتح وإغلاق الوردية" },
+    "sensitive": []
   },
   {
     "moduleName": "الحجوزات",
     "moduleKey": "appointments",
-    "permissions": ["appointments.view", "appointments.manage"]
+    "description": "المواعيد والجلسات",
+    "permissions": ["appointments.view", "appointments.manage"],
+    "labels": { "appointments.view": "عرض الحجوزات", "appointments.manage": "إضافة وتعديل الحجوزات" },
+    "sensitive": []
   },
   {
     "moduleName": "العروض والخصومات",
     "moduleKey": "promotions",
-    "permissions": ["promotions.view", "promotions.manage"]
+    "description": "الكوبونات والعروض",
+    "permissions": ["promotions.view", "promotions.manage"],
+    "labels": { "promotions.view": "عرض العروض", "promotions.manage": "إنشاء وتعديل العروض" },
+    "sensitive": []
   },
   {
     "moduleName": "قنوات البيع",
     "moduleKey": "channels",
-    "permissions": ["channels.view", "channels.manage"]
+    "description": "المتاجر والتطبيقات",
+    "permissions": ["channels.view", "channels.manage"],
+    "labels": { "channels.view": "عرض قنوات البيع", "channels.manage": "ربط وإدارة القنوات" },
+    "sensitive": []
   },
   {
     "moduleName": "مساعد الذكاء الاصطناعي",
     "moduleKey": "ai",
-    "permissions": ["ai.view", "ai.manage"]
+    "description": "المساعد الذكي",
+    "permissions": ["ai.view", "ai.manage"],
+    "labels": { "ai.view": "استخدام المساعد", "ai.manage": "إعدادات المساعد" },
+    "sensitive": []
   },
   {
     "moduleName": "القضايا والمحاكم",
     "moduleKey": "cases",
-    "permissions": ["cases.view", "cases.manage", "cases.delete"]
+    "description": "ملفات القضايا",
+    "permissions": ["cases.view", "cases.manage", "cases.delete"],
+    "labels": { "cases.view": "عرض القضايا", "cases.manage": "إدارة القضايا والجلسات", "cases.delete": "حذف قضية" },
+    "sensitive": ["cases.delete"]
   }
 ]

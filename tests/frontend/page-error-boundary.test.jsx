@@ -52,3 +52,12 @@ test('the restart button restarts the whole app through the recovery channel', a
   expect(relaunchAfterError).toHaveBeenCalledTimes(1);
   expect(screen.getByRole('button', { name: /جارٍ إعادة تشغيل البرنامج/ })).toBeDisabled();
 });
+
+test('a stale build shows a reload button and plain text instead of the raw error', () => {
+  function Stale() { throw new TypeError('Failed to fetch dynamically imported module: file:///x/LeavesPage-abc.js'); }
+  render(<PageErrorBoundary pageName="leaves"><Stale /></PageErrorBoundary>);
+  expect(screen.getByText('فيه نسخة أحدث من البرنامج')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'تحديث الصفحة' })).toBeInTheDocument();
+  expect(screen.queryByText(/محاولة تلقائية خلال/)).not.toBeInTheDocument();
+  expect(screen.queryByText(/dynamically imported module/)).not.toBeInTheDocument();
+});

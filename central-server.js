@@ -120,12 +120,12 @@ function authenticate(req) {
 
 // 6 Enterprise Sector Profiles Registry
 const ENTERPRISE_PROFILES = [
-  { key: 'retail', name: '🛍️ تجزئة وملابس (Retail & Apparel)', modules: ['pos', 'inventory', 'orders', 'crm', 'reports', 'settings'] },
-  { key: 'electronics', name: '💻 إلكترونيات وتكنولوجيا (Electronics & Tech)', modules: ['pos', 'inventory', 'orders', 'commissions', 'reports', 'settings'] },
-  { key: 'maintenance', name: '🛠️ ورشة صيانة وخدمات (Maintenance & Repair)', modules: ['orders', 'crm', 'inventory', 'pos', 'reports', 'settings'] },
+  { key: 'retail', name: '🛍️ تجزئة وملابس (Retail & Apparel)', modules: ['pos', 'inventory', 'crm', 'reports', 'settings'] },
+  { key: 'electronics', name: '💻 إلكترونيات وتكنولوجيا (Electronics & Tech)', modules: ['pos', 'inventory', 'commissions', 'reports', 'settings'] },
+  { key: 'maintenance', name: '🛠️ ورشة صيانة وخدمات (Maintenance & Repair)', modules: ['crm', 'inventory', 'pos', 'reports', 'settings'] },
   { key: 'subscriptions_gym', name: '🏋️ جيم واشتراكات (Gym & Subscriptions)', modules: ['subscriptions', 'pos', 'crm', 'reports', 'settings'] },
   { key: 'grocery', name: '🛒 سوبرماركت وبقالة (Grocery & Supermarket)', modules: ['pos', 'inventory', 'purchases', 'reports', 'settings'] },
-  { key: 'spare_parts', name: '🚘 قطع غيار وسيارات (Auto Spare Parts)', modules: ['inventory', 'pos', 'purchases', 'orders', 'reports', 'settings'] },
+  { key: 'spare_parts', name: '🚘 قطع غيار وسيارات (Auto Spare Parts)', modules: ['inventory', 'pos', 'purchases', 'reports', 'settings'] },
 ];
 
 const {

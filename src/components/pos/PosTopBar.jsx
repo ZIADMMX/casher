@@ -1,10 +1,10 @@
 import { getSectorSvgIcon } from '../icons/SectorIcons.jsx';
 import {
-  CarIcon,
   ChartIcon,
   DrawerIcon,
   LockIcon,
   MonitorIcon,
+  TableIcon,
   ReceiptIcon,
 } from '../icons/PosIcons.jsx';
 
@@ -41,7 +41,7 @@ export default function PosTopBar({
   onCloseShiftModal,
   onOpenCashDrawer,
   onOpenKitchen,
-  onOpenWorkOrders,
+  onOpenTables,
 }) {
   const features = sectorConfig?.features || {};
   const showAttendance = Boolean(attendance?.canManage) && (Boolean(activeShift) || attendance.isCheckedIn);
@@ -115,16 +115,16 @@ export default function PosTopBar({
         </button>
 
         {features.tableService && (
-          <button type="button" className="pos-topbar-btn" onClick={onOpenKitchen}>
-            <MonitorIcon size={18} />
-            <span>شاشة المطبخ</span>
+          <button type="button" className="pos-topbar-btn" onClick={onOpenTables}>
+            <TableIcon size={18} />
+            <span>الطاولات</span>
           </button>
         )}
 
-        {features.vehicleWorkOrders && (
-          <button type="button" className="pos-topbar-btn" onClick={onOpenWorkOrders}>
-            <CarIcon size={18} />
-            <span>أوامر الإصلاح</span>
+        {features.tableService && (
+          <button type="button" className="pos-topbar-btn" onClick={onOpenKitchen}>
+            <MonitorIcon size={18} />
+            <span>شاشة المطبخ</span>
           </button>
         )}
 

@@ -92,12 +92,12 @@ exportEmployees: () => ipcRenderer.invoke('export:employees'),
   // Sales
   createSale: (saleData) => invokeRemoteOrLocal('POST', '/api/sales/create', 'sales:create', saleData, saleData),
   getKitchenOrders: () => invokeRemoteOrLocal('GET', '/api/sales/kitchen-orders', 'sales:getKitchenOrders'),
-  updateKitchenOrderStatus: (saleId, status) => invokeRemoteOrLocal(
+  updateKitchenOrderStatus: (saleId, status, roundId) => invokeRemoteOrLocal(
     'POST',
     '/api/sales/kitchen-orders/status',
     'sales:updateKitchenOrderStatus',
-    { saleId, status },
-    { saleId, status }
+    { saleId, status, roundId },
+    { saleId, status, roundId }
   ),
   previewBundlePromotions: (items) => ipcRenderer.invoke('sales:previewBundlePromotion', items),
   getBundlePromotions: () => ipcRenderer.invoke('promotions:getBundles'),
@@ -218,16 +218,14 @@ exportEmployees: () => ipcRenderer.invoke('export:employees'),
     return () => ipcRenderer.removeListener('notification:received', subscription);
   },
 
-  // Operations & Orders Center
-  getAllOrders: (filters) => ipcRenderer.invoke('orders:getAll', filters),
-  getOrderById: (orderId) => ipcRenderer.invoke('orders:getById', orderId),
-  createOrder: (orderData, items) => ipcRenderer.invoke('orders:create', { orderData, items }),
-  addOrderItem: (orderId, item) => ipcRenderer.invoke('orders:addItem', { orderId, item }),
-  updateOrderStatus: (orderId, status, description) => ipcRenderer.invoke('orders:updateStatus', { orderId, status, description }),
-  assignOrder: (orderId, assignedUserId) => ipcRenderer.invoke('orders:assign', { orderId, assignedUserId }),
-  addOrderComment: (orderId, comment) => ipcRenderer.invoke('orders:addComment', { orderId, comment }),
-  addOrderAttachment: (orderId, attachmentData) => ipcRenderer.invoke('orders:addAttachment', { orderId, attachmentData }),
-  getOrderStats: () => ipcRenderer.invoke('orders:getStats'),
+  // Restaurant Tables
+  getTables: () => ipcRenderer.invoke('tables:getTables'),
+  addTable: (name) => ipcRenderer.invoke('tables:addTable', name),
+  removeTable: (tableId) => ipcRenderer.invoke('tables:removeTable', tableId),
+  openTableTab: (tableId) => ipcRenderer.invoke('tables:openTab', tableId),
+  getOpenTableTab: (tabId) => ipcRenderer.invoke('tables:getOpenTab', tabId),
+  sendTableRound: (tabId, items) => ipcRenderer.invoke('tables:sendRound', { tabId, items }),
+  cancelTableTab: (tabId) => ipcRenderer.invoke('tables:cancelTab', tabId),
 
   // Subscriptions & Packages
   getAllPackages: () => ipcRenderer.invoke('subscriptions:getAllPackages'),
@@ -544,7 +542,6 @@ exportEmployees: () => ipcRenderer.invoke('export:employees'),
   createAppointment: (data) => invokeRemoteOrLocal('POST', '/api/appointments/create', 'appointments:create', data, data),
   updateAppointmentStatus: (id, status) => invokeRemoteOrLocal('POST', '/api/appointments/status', 'appointments:updateStatus', { id, status }, { id, status }),
   rescheduleAppointment: (id, data) => invokeRemoteOrLocal('POST', '/api/appointments/reschedule', 'appointments:reschedule', { id, data }, { id, data }),
-  convertAppointmentToServiceOrder: (id) => invokeRemoteOrLocal('POST', '/api/appointments/convert', 'appointments:convertToOrder', { id }, id),
   getCentralServerConfig: () => ipcRenderer.invoke('central:getConfig'),
   configureCentralServer: (baseUrl) => ipcRenderer.invoke('central:configure', baseUrl),
   setCentralWarehouse: (warehouseId) => ipcRenderer.invoke('central:setWarehouse', warehouseId),

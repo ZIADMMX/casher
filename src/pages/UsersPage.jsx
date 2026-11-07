@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import useUsers from '../hooks/useUsers.js';
 import { formatProductImageUrl } from '../utils/media.js';
 import * as auditApi from '../api/audit.js';
+import { getActionMeta } from '../utils/auditActions.js';
 import * as importExportApi from '../api/importExport.js';
 import * as salesApi from '../api/sales.js';
 import * as shiftsApi from '../api/shifts.js';
@@ -128,37 +129,6 @@ async function loadLegacyUserDetails(user) {
     sales: [],
     shifts,
   };
-}
-
-function getActionMeta(actionType) {
-  switch (actionType) {
-    case 'sale_created':
-      return { icon: '🛒', label: 'فاتورة بيع' };
-    case 'discount_applied':
-      return { icon: '🏷️', label: 'خصم' };
-    case 'item_removed':
-      return { icon: '🗑️', label: 'حذف صنف' };
-    case 'cart_cleared':
-      return { icon: '⚠️', label: 'إفراغ السلة' };
-    case 'expense_added':
-      return { icon: '💸', label: 'سحب مصروف' };
-    case 'shift_open':
-      return { icon: '🟢', label: 'فتح وردية' };
-    case 'shift_close':
-      return { icon: '🔒', label: 'إغلاق وردية' };
-    case 'return_processed':
-      return { icon: '↩️', label: 'مرتجع' };
-    case 'held_order_saved':
-      return { icon: '⏸️', label: 'تعليق فاتورة' };
-    case 'login':
-      return { icon: '🔑', label: 'دخول' };
-    case 'logout':
-      return { icon: '🚪', label: 'خروج' };
-    case 'failed_login':
-      return { icon: '🚫', label: 'دخول خاطئ' };
-    default:
-      return { icon: '⚡', label: 'حركة مسجلة' };
-  }
 }
 
 function UsersPage({ currentUser }) {

@@ -58,9 +58,9 @@ describe('Enterprise Framework Service Unit Tests', () => {
     expect(Array.isArray(modules)).toBe(true);
     expect(modules.length).toBeGreaterThan(0);
 
-    const updated = setModuleEnabled('orders', false);
+    const updated = setModuleEnabled('commissions', false);
     expect(Array.isArray(updated)).toBe(true);
-    setModuleEnabled('orders', true);
+    setModuleEnabled('commissions', true);
   });
 
   test('smoke: creates a workflow', () => {
@@ -268,12 +268,11 @@ describe('Enterprise Framework Service Unit Tests', () => {
       expect(states.get('subscriptions')).toBe(1);
       expect(states.get('crm')).toBe(1);
       expect(states.get('inventory')).toBe(0);
-      expect(states.get('orders')).toBe(0);
+      expect(states.has('orders')).toBe(false);
       sharedModules.forEach((moduleKey) => expect(states.get(moduleKey)).toBe(1));
 
       setActiveBusinessProfile('maintenance');
       states = readModuleStates();
-      expect(states.get('orders')).toBe(1);
       expect(states.get('crm')).toBe(1);
       expect(states.get('purchases')).toBe(0);
       expect(states.get('subscriptions')).toBe(0);
@@ -282,7 +281,6 @@ describe('Enterprise Framework Service Unit Tests', () => {
       const autoWorkshop = getActiveBusinessConfiguration();
       states = new Map(autoWorkshop.modules.map((module) => [module.key, module.is_enabled]));
       const autoAttributes = autoWorkshop.attributes.map((attribute) => attribute.attribute_key);
-      expect(states.get('orders')).toBe(1);
       expect(states.get('inventory')).toBe(1);
       expect(autoAttributes).toEqual(expect.arrayContaining([
         'car_make',
@@ -316,6 +314,18 @@ describe('Enterprise Framework Service Unit Tests', () => {
       if (attrId) {
         db.prepare('DELETE FROM product_attribute_definitions WHERE id = ?').run(attrId);
       }
+    }
+  });
+
+  test('the cafe profile adds no preset product fields (no milk type or sugar level)', () => {
+    try {
+      setActiveBusinessProfile('cafe_restaurant');
+      const keys = getAttributeDefinitions().map((attribute) => attribute.attribute_key);
+      expect(keys).not.toEqual(expect.arrayContaining(['milk_type']));
+      expect(keys).not.toContain('sweetness_level');
+      expect(keys).not.toContain('car_make');
+    } finally {
+      setActiveBusinessProfile('retail');
     }
   });
 
@@ -424,7 +434,7 @@ describe('Enterprise Framework Service Unit Tests', () => {
     try {
       createRole(testRoleKey, 'مشرف اختبارات', 'دور مخصص للاختبارات');
 
-      const permissions = ['pos.view', 'pos.sell', 'orders.manage', 'reports.view'];
+      const permissions = ['pos.view', 'pos.sell', 'customers.view', 'reports.view'];
       setRolePermissions(testRoleKey, permissions);
 
       const roles = getRoles();

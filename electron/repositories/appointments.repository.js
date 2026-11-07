@@ -110,12 +110,10 @@ function getAppointments({ from, to, status } = {}) {
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
   return db.prepare(`
     SELECT a.*, s.name AS service_name, s.duration_minutes, s.price,
-      r.name AS resource_name, r.resource_type,
-      o.order_number AS converted_order_number
+      r.name AS resource_name, r.resource_type
     FROM appointments a
     JOIN appointment_services s ON s.id = a.service_id
     JOIN appointment_resources r ON r.id = a.resource_id
-    LEFT JOIN orders o ON o.id = a.converted_order_id
     ${where}
     ORDER BY a.start_at
   `).all(...params);
@@ -215,14 +213,6 @@ function markReminderSent(id) {
   `).run(id);
 }
 
-function linkOrder(id, orderId) {
-  return db.prepare(`
-    UPDATE appointments
-    SET converted_order_id = ?, status = 'converted', updated_at = CURRENT_TIMESTAMP
-    WHERE id = ? AND converted_order_id IS NULL AND status IN ('booked', 'confirmed', 'completed')
-  `).run(orderId, id);
-}
-
 module.exports = {
   getResources,
   getResourceById,
@@ -242,5 +232,4 @@ module.exports = {
   updateSchedule,
   getDueReminders,
   markReminderSent,
-  linkOrder,
 };

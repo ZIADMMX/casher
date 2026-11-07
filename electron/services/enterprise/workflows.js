@@ -17,7 +17,7 @@ function seedDefaultWorkflows(forceReset = false) {
 
     // 1. Maintenance Workflow (الصيانة والورشة)
     const wfMaintId = enterpriseRepo.createWorkflow({
-      module_key: 'orders',
+      module_key: 'general',
       entity_type: 'maintenance_ticket',
       name: 'سير عمل صيانة الأجهزة والخدمات',
       description: 'مسار تذاكر ورشة الصيانة: استلام ← فحص ← انتظار قطعة ← جاهز ← تم التسليم',
@@ -126,7 +126,7 @@ function seedDefaultWorkflows(forceReset = false) {
 
     // 3. Delivery Request Workflow (طلبات التوصيل)
     const wfDelivId = enterpriseRepo.createWorkflow({
-      module_key: 'orders',
+      module_key: 'general',
       entity_type: 'delivery_request',
       name: 'سير عمل طلبات التوصيل والدليفري',
       description: 'مسار طلبات التوصيل: طلب جديد ← قيد التجهيز ← جاري التوصيل ← تم التسليم',

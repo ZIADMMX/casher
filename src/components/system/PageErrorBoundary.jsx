@@ -11,7 +11,6 @@ const PAGE_NAMES = {
   products: 'الأصناف',
   inventory: 'المخزون',
   branches: 'الفروع والمخازن',
-  orders: 'الطلبات',
   shifts: 'الورديات',
   users: 'المستخدمين',
   settings: 'الإعدادات',
@@ -19,19 +18,35 @@ const PAGE_NAMES = {
   suppliers: 'الموردين',
   crm: 'إدارة العملاء',
   cases: 'القضايا',
+  leaves: 'الإجازات',
+  profile: 'الملف الشخصي',
 };
 
 const AUTO_RETRY_SECONDS = 10;
 const MAX_AUTO_RETRIES = 3;
 
+// The page file was replaced by a newer build while the app was open; only a reload fixes it.
+function isStaleBuild(message = '') {
+  return /dynamically imported module|Importing a module script failed|ChunkLoadError|Loading chunk/i.test(message);
+}
+
 function isOverloaded(message = '') {
   return /مشغول|server_busy|SERVER_BUSY|تكرار المحاولة|timeout|ETIMEDOUT/i.test(message);
 }
 
+// Plain-language explanation for the details box; the raw message goes only into "copy details".
+function explain(kind) {
+  if (kind === 'stale') return 'البرنامج اتحدّث وهو مفتوح، فملفات الصفحة دي اتغيرت. اضغط «تحديث الصفحة» وهتفتح عادي.';
+  if (kind === 'overloaded') return 'قاعدة البيانات أو الخادم مشغول بطلبات كتير في نفس الوقت. استنى ثواني وجرّب تاني.';
+  return 'الصفحة واجهت خطأ أثناء العرض. لو تكرر، اضغط «نسخ التفاصيل» وابعتها للدعم الفني عشان نحدد السبب.';
+}
+
 export function ErrorScreen({ error, pageName, attempt, onRetry }) {
   const message = error?.message || 'خطأ غير معروف';
-  const overloaded = isOverloaded(message);
-  const canAutoRetry = attempt < MAX_AUTO_RETRIES;
+  const stale = isStaleBuild(message);
+  const overloaded = !stale && isOverloaded(message);
+  const kind = stale ? 'stale' : overloaded ? 'overloaded' : 'generic';
+  const canAutoRetry = !stale && attempt < MAX_AUTO_RETRIES;
   const [secondsLeft, setSecondsLeft] = useState(AUTO_RETRY_SECONDS);
   const [restarting, setRestarting] = useState(false);
   const [restartError, setRestartError] = useState('');
@@ -92,12 +107,14 @@ export function ErrorScreen({ error, pageName, attempt, onRetry }) {
         </span>
 
         <h1 className="err-title">
-          {overloaded ? 'النظام عليه ضغط كبير دلوقتي' : `حصلت مشكلة في عرض ${pageLabel}`}
+          {stale ? 'فيه نسخة أحدث من البرنامج' : overloaded ? 'النظام عليه ضغط كبير دلوقتي' : `حصلت مشكلة في عرض ${pageLabel}`}
         </h1>
         <p className="err-lead">
-          {overloaded
-            ? 'البرنامج بيحاول يرجع لوحده. لو ماشتغلش، إعادة التشغيل بتحلها في ثواني.'
-            : 'بياناتك محفوظة ومفيش حاجة اتمسحت. جرّب تاني، ولو المشكلة فضلت أعد تشغيل البرنامج.'}
+          {stale
+            ? 'بياناتك محفوظة. حدّث الصفحة عشان تفتح بالنسخة الجديدة.'
+            : overloaded
+              ? 'البرنامج بيحاول يرجع لوحده. لو ماشتغلش، إعادة التشغيل بتحلها في ثواني.'
+              : 'بياناتك محفوظة ومفيش حاجة اتمسحت. جرّب تاني، ولو المشكلة فضلت أعد تشغيل البرنامج.'}
         </p>
 
         {canAutoRetry && !restarting ? (
@@ -111,25 +128,34 @@ export function ErrorScreen({ error, pageName, attempt, onRetry }) {
             </div>
             <span className="err-progress"><span style={{ inlineSize: `${progress}%` }} /></span>
           </div>
-        ) : !restarting && (
+        ) : !restarting && !stale && (
           <p className="err-note">المحاولات التلقائية ما نفعتش. أعد تشغيل البرنامج، ولو تكررت المشكلة ابعت تفاصيل الخطأ للدعم.</p>
         )}
 
         <div className="err-actions">
-          <button ref={primaryRef} type="button" className="err-btn err-btn--primary" onClick={restartApp} disabled={restarting}>
-            <RefreshIcon size={18} className={restarting ? 'err-spin' : ''} />
-            {restarting ? 'جارٍ إعادة تشغيل البرنامج…' : 'إعادة تشغيل البرنامج'}
-          </button>
-          <button type="button" className="err-btn err-btn--secondary" onClick={onRetry} disabled={restarting}>
-            إعادة المحاولة الآن
-          </button>
+          {stale ? (
+            <button ref={primaryRef} type="button" className="err-btn err-btn--primary" onClick={() => window.location.reload()}>
+              <RefreshIcon size={18} />
+              تحديث الصفحة
+            </button>
+          ) : (
+            <>
+              <button ref={primaryRef} type="button" className="err-btn err-btn--primary" onClick={restartApp} disabled={restarting}>
+                <RefreshIcon size={18} className={restarting ? 'err-spin' : ''} />
+                {restarting ? 'جارٍ إعادة تشغيل البرنامج…' : 'إعادة تشغيل البرنامج'}
+              </button>
+              <button type="button" className="err-btn err-btn--secondary" onClick={onRetry} disabled={restarting}>
+                إعادة المحاولة الآن
+              </button>
+            </>
+          )}
         </div>
 
         {restartError && <p className="err-restart-error">{restartError}</p>}
 
         <details className="err-details">
           <summary>تفاصيل للدعم الفني</summary>
-          <code className="err-details__msg">{message}</code>
+          <p className="err-details__msg">{explain(kind)}</p>
           <button type="button" className="err-link" onClick={copyDetails}>
             <ClipboardCheckIcon size={16} /> {copied ? 'اتنسخت' : 'نسخ التفاصيل'}
           </button>

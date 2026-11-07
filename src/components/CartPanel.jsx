@@ -1,6 +1,7 @@
 import CouponInput from './CouponInput.jsx';
 import PaymentSection from './PaymentSection.jsx';
 import { getCategoryIcon } from './ProductGrid.jsx';
+import { lineKey } from '../utils/cartModifiers.js';
 import {
   AlertIcon,
   BagIcon,
@@ -65,6 +66,7 @@ function CartPanel({
   setUseSubscriptionCredit,
   sectorConfig,
   onOpenScaleEdit,
+  onEditModifiers = null,
   paymentSectionRef,
   isShiftOpen = true,
   shiftLoaded = true,
@@ -209,7 +211,7 @@ function CartPanel({
               const atMinimum = !item.isScaleItem && item.quantity <= 1;
               const variantText = [item.size, item.color].filter(Boolean).join(' · ');
               return (
-                <li key={`${item.variantId}_${item.unitId || 'base'}`} className="pos-cart-item-card">
+                <li key={lineKey(item)} className="pos-cart-item-card">
                   <span className="pos-cart-item-icon" aria-hidden="true">
                     <ProductLineIcon emoji={getCategoryIcon('', item.productName, sectorKey)} size={20} />
                   </span>
@@ -220,6 +222,20 @@ function CartPanel({
                       {`${money(item.unitPrice)} ج.م / ${item.unitName || unitTerm}`}
                       {variantText ? ` · ${variantText}` : ''}
                     </span>
+                    {item.modifiers?.length > 0 && (
+                      <span className="pos-item-unit-price">+ {item.modifiers.map((m) => m.name).join('، ')}</span>
+                    )}
+                    {onEditModifiers && !item.isScaleItem && (
+                      <button
+                        type="button"
+                        className="pos-scale-tag"
+                        onClick={() => onEditModifiers(item)}
+                        aria-label={`إضافات ${item.productName}`}
+                      >
+                        <PlusIcon size={14} />
+                        إضافات
+                      </button>
+                    )}
                     {item.isScaleItem && (
                       <button
                         type="button"
@@ -237,7 +253,7 @@ function CartPanel({
                     <button
                       type="button"
                       className="stepper-btn"
-                      onClick={() => changeQuantity(item.variantId, 1, item.unitId)}
+                      onClick={() => changeQuantity(item, 1)}
                       disabled={Boolean(item.maxStock && item.quantity >= item.maxStock)}
                       title="زيادة"
                       aria-label={`زيادة كمية ${item.productName}`}
@@ -251,8 +267,8 @@ function CartPanel({
                       type="button"
                       className={`stepper-btn${atMinimum ? ' is-remove' : ''}`}
                       onClick={() => (atMinimum
-                        ? removeFromCart(item.variantId, item.unitId)
-                        : changeQuantity(item.variantId, -1, item.unitId))}
+                        ? removeFromCart(item)
+                        : changeQuantity(item, -1))}
                       title={atMinimum ? 'حذف الصنف' : 'تقليل'}
                       aria-label={atMinimum ? `حذف ${item.productName}` : `تقليل كمية ${item.productName}`}
                     >

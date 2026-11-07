@@ -22,7 +22,7 @@ const RAW_SECTOR_PRESETS = [
       product: 'صنف / موديل',
       unit: 'قطعة',
     },
-    enabled_modules: ['pos', 'inventory', 'orders', 'commissions', 'crm', 'purchases', 'reports', 'settings', 'returns', 'shifts', 'users'],
+    enabled_modules: ['pos', 'inventory', 'commissions', 'crm', 'purchases', 'reports', 'settings', 'returns', 'shifts', 'users'],
     default_units: ['قطعة', 'دستة', 'طقم'],
     starter_working_hours: {
       days: ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'],
@@ -202,7 +202,7 @@ const RAW_SECTOR_PRESETS = [
       product: 'صنف / وجبة',
       unit: 'طلب',
     },
-    enabled_modules: ['pos', 'inventory', 'orders', 'reports', 'settings', 'shifts', 'users'],
+    enabled_modules: ['pos', 'inventory', 'reports', 'settings', 'shifts', 'users'],
     default_units: ['طلب', 'كوب', 'وجبة'],
     starter_working_hours: {
       days: ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'],
@@ -300,7 +300,7 @@ const RAW_SECTOR_PRESETS = [
       product: 'جهاز / ملحق',
       unit: 'قطعة',
     },
-    enabled_modules: ['pos', 'inventory', 'orders', 'commissions', 'crm', 'purchases', 'reports', 'settings', 'returns', 'shifts', 'users'],
+    enabled_modules: ['pos', 'inventory', 'commissions', 'crm', 'purchases', 'reports', 'settings', 'returns', 'shifts', 'users'],
     default_units: ['قطعة', 'طقم'],
     starter_working_hours: {
       days: ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'],
@@ -376,15 +376,15 @@ const RAW_SECTOR_PRESETS = [
     sector_name: 'ورش صيانة ومراكز خدمة (Repair & Service)',
     sector_tagline: 'تذاكر صيانة، دورات عمل فنيين، متابعة حالات وأجور صيانة',
     icon: 'tool',
-    primary_action_title: 'سجل أول أمر شغل صيانة',
-    primary_action_route: 'orders',
+    primary_action_title: 'أصدر أول فاتورة صيانة',
+    primary_action_route: 'pos',
     terminology: {
       order: 'أمر صيانة / تذكرة',
       customer: 'صاحب الجهاز',
       product: 'خدمة / قطعة غيار',
       unit: 'خدمة',
     },
-    enabled_modules: ['orders', 'crm', 'inventory', 'pos', 'commissions', 'reports', 'settings', 'shifts', 'users'],
+    enabled_modules: ['crm', 'inventory', 'pos', 'commissions', 'reports', 'settings', 'shifts', 'users'],
     default_units: ['خدمة', 'قطعة'],
     starter_working_hours: {
       days: ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'],
@@ -458,14 +458,14 @@ const RAW_SECTOR_PRESETS = [
     sector_tagline: 'أوامر شغل للسيارات مع قطع غيار ومصنعية وفاتورة عند التسليم',
     icon: 'tool',
     primary_action_title: 'استلام سيارة وفتح أمر إصلاح',
-    primary_action_route: 'orders',
+    primary_action_route: 'pos',
     terminology: {
       order: 'أمر إصلاح سيارة',
       customer: 'مالك السيارة',
       product: 'قطعة غيار / مصنعية',
       unit: 'قطعة / خدمة',
     },
-    enabled_modules: ['orders', 'crm', 'inventory', 'pos', 'commissions', 'reports', 'settings', 'shifts', 'users'],
+    enabled_modules: ['crm', 'inventory', 'pos', 'commissions', 'reports', 'settings', 'shifts', 'users'],
     default_units: ['قطعة', 'لتر', 'خدمة'],
     starter_working_hours: {
       days: ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'],
@@ -543,7 +543,7 @@ const RAW_SECTOR_PRESETS = [
       product: 'قطعة غيار',
       unit: 'قطعة',
     },
-    enabled_modules: ['inventory', 'pos', 'purchases', 'orders', 'reports', 'settings', 'shifts', 'users', 'returns'],
+    enabled_modules: ['inventory', 'pos', 'purchases', 'reports', 'settings', 'shifts', 'users', 'returns'],
     default_units: ['قطعة', 'طقم', 'لتر'],
     starter_working_hours: {
       days: ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'],
@@ -680,7 +680,7 @@ const RAW_SECTOR_PRESETS = [
       product: 'خدمة قانونية / أتعاب',
       unit: 'جلسة / ساعة',
     },
-    enabled_modules: ['cases', 'appointments', 'crm', 'orders', 'reports', 'settings', 'users', 'salaries'],
+    enabled_modules: ['cases', 'appointments', 'crm', 'reports', 'settings', 'users', 'salaries'],
     default_units: ['قضية', 'جلسة', 'ساعة استشارة'],
     starter_working_hours: {
       days: ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'],
@@ -869,7 +869,7 @@ const RAW_SECTOR_PRESETS = [
       product: 'صنف / منتج',
       unit: 'قطعة',
     },
-    enabled_modules: ['pos', 'inventory', 'orders', 'purchases', 'reports', 'settings', 'shifts', 'users'],
+    enabled_modules: ['pos', 'inventory', 'purchases', 'reports', 'settings', 'shifts', 'users'],
     default_units: ['قطعة', 'خدمة', 'ساعة'],
     starter_working_hours: {
       days: ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'],
@@ -916,7 +916,7 @@ const RAW_SECTOR_PRESETS = [
 
 // أسماء الموديولات المسموحة (لازم تطابق system_modules)
 const VALID_MODULES = new Set([
-  'pos', 'inventory', 'orders', 'commissions', 'crm', 'purchases',
+  'pos', 'inventory', 'commissions', 'crm', 'purchases',
   'reports', 'settings', 'returns', 'shifts', 'users',
   'subscriptions', 'cases', 'appointments', 'salaries', 'salon',
 ]);

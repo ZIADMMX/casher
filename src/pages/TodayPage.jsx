@@ -5,7 +5,6 @@ import LawFirmTodayPage from '../components/legal/LawFirmTodayPage.jsx';
 import { isBridgeAvailable } from '../api/bridge.js';
 import * as customersApi from '../api/customers.js';
 import * as inventoryApi from '../api/inventory.js';
-import * as ordersApi from '../api/orders.js';
 import * as reportsApi from '../api/reports.js';
 import * as salonApi from '../api/salon.js';
 import * as shiftsApi from '../api/shifts.js';
@@ -23,7 +22,6 @@ function SectorTodayPage({ onNavigate }) {
   const [currentShift, setCurrentShift] = useState(null);
   const [shiftXReport, setShiftXReport] = useState(null);
   const [shiftExpenses, setShiftExpenses] = useState([]);
-  const [orders, setOrders] = useState([]);
   const [subscriptions, setSubscriptions] = useState([]);
   const [appointments, setAppointments] = useState([]);
   const [salonChairs, setSalonChairs] = useState([]);
@@ -41,16 +39,14 @@ function SectorTodayPage({ onNavigate }) {
       const todayStr = new Date().toISOString().split('T')[0];
 
       // 1. Parallel loading of core entities
-      const [shift, ordersList, subsList, custsList, chairsList] = await Promise.all([
+      const [shift, subsList, custsList, chairsList] = await Promise.all([
         shiftsApi.getCurrentShift.isAvailable() ? shiftsApi.getCurrentShift().catch(() => null) : null,
-        ordersApi.getAllOrders.isAvailable() ? ordersApi.getAllOrders().catch(() => []) : [],
         subscriptionsApi.getAllSubscriptions.isAvailable() ? subscriptionsApi.getAllSubscriptions().catch(() => []) : [],
         customersApi.getAllCustomersWithStats.isAvailable() ? customersApi.getAllCustomersWithStats().catch(() => []) : [],
         salonApi.getAllSalonChairs.isAvailable() ? salonApi.getAllSalonChairs().catch(() => []) : [],
       ]);
 
       setCurrentShift(shift);
-      setOrders(Array.isArray(ordersList) ? ordersList : []);
       setSubscriptions(Array.isArray(subsList) ? subsList : []);
       setCustomers(Array.isArray(custsList) ? custsList : []);
       setSalonChairs(Array.isArray(chairsList) ? chairsList : []);
@@ -300,12 +296,12 @@ function SectorTodayPage({ onNavigate }) {
           icon: '🚘',
           doorOpenText: 'الورشة مفتوحة وجاهزة لاستقبال السيارات وأوامر الإصلاح!',
           doorClosedText: 'الورشة مغلقة لليوم.. احصِ أوامر الصيانة والمصنعيات والقطع',
-          metric1Label: 'أوامر الإصلاح اليوم',
-          metric1Value: orders.filter((o) => o.status === 'in_progress').length,
+          metric1Label: 'فواتير الصيانة اليوم',
+          metric1Value: finances.invoiceCount,
           metric2Label: 'إيرادات الصيانة',
           metric2Value: finances.totalInflow,
-          metric3Label: 'سيارات جاهزة للتسليم',
-          metric3Value: orders.filter((o) => o.status === 'ready').length,
+          metric3Label: 'حركات السحب النثري',
+          metric3Value: shiftExpenses.length,
           pendingCardTitle: 'سيارات بانتظار الفحص والموافقة',
           pendingEmptyText: 'لا توجد سيارات معلقة بانتظار الموافقة',
           expiringCardTitle: 'أوامر متأخرة عن موعد التسليم',
@@ -313,10 +309,10 @@ function SectorTodayPage({ onNavigate }) {
           scheduleTitle: 'جدول استلام وفحص السيارات اليوم',
           scheduleEmptyTitle: 'لا توجد سيارات مجدولة اليوم',
           scheduleEmptySub: 'استلم سيارة صيانة جديدة وافتح أمر إصلاح',
-          btn1Text: 'أمر إصلاح جديد 🔧',
-          btn1Action: () => onNavigate('orders'),
-          btn2Text: 'سجل أوامر الشغل',
-          btn2Action: () => onNavigate('orders'),
+          btn1Text: 'فاتورة صيانة جديدة 🔧',
+          btn1Action: () => onNavigate('pos'),
+          btn2Text: 'العملاء',
+          btn2Action: () => onNavigate('customers'),
         };
 
       case 'cafe_restaurant':
@@ -329,8 +325,8 @@ function SectorTodayPage({ onNavigate }) {
           metric1Value: finances.invoiceCount,
           metric2Label: 'إجمالي المبيعات',
           metric2Value: finances.totalInflow,
-          metric3Label: 'قيد التحضير بالمطبخ',
-          metric3Value: orders.filter((o) => o.status === 'new' || o.status === 'in_progress').length,
+          metric3Label: 'حركات السحب النثري',
+          metric3Value: shiftExpenses.length,
           pendingCardTitle: 'طلبات معلقة بالمطبخ والبار',
           pendingEmptyText: 'لا توجد طلبات معلقة بالمطبخ حالياً',
           expiringCardTitle: 'مكونات قاربت على النفاد',
@@ -379,8 +375,8 @@ function SectorTodayPage({ onNavigate }) {
           metric1Value: finances.invoiceCount,
           metric2Label: 'إجمالي اليوم',
           metric2Value: finances.totalInflow,
-          metric3Label: 'طلبات التوصيل',
-          metric3Value: orders.filter((o) => o.status === 'new' || o.status === 'in_progress').length,
+          metric3Label: 'حركات السحب النثري',
+          metric3Value: shiftExpenses.length,
           pendingCardTitle: 'طلبات شحن وتوصيل معلقة',
           pendingEmptyText: 'لا توجد طلبات معلقة لليوم',
           expiringCardTitle: 'أصناف قاربت على النفاد',
@@ -390,11 +386,11 @@ function SectorTodayPage({ onNavigate }) {
           scheduleEmptySub: 'أضف طلب توصيل جديد أو ابدأ البيع المباشر',
           btn1Text: 'نقطة البيع (POS)',
           btn1Action: () => onNavigate('pos'),
-          btn2Text: 'طلب بيع / توصيل',
-          btn2Action: () => onNavigate('orders'),
+          btn2Text: 'العملاء',
+          btn2Action: () => onNavigate('customers'),
         };
     }
-  }, [profileKey, appointments, finances, orders, subscriptions, salonChairs, shiftExpenses, onNavigate]);
+  }, [profileKey, appointments, finances, subscriptions, salonChairs, shiftExpenses, onNavigate]);
 
   // Customer Segmentation
   const customerHealth = useMemo(() => {
@@ -731,23 +727,6 @@ function SectorTodayPage({ onNavigate }) {
                     </div>
                   </div>
                   <span className="today-list-item-badge">{apt.status || 'مؤكد'}</span>
-                </div>
-              ))}
-            </div>
-          ) : orders.length > 0 && profileKey !== 'salon_barbershop' && profileKey !== 'subscriptions_gym' ? (
-            <div className="today-schedule-items-list">
-              {orders.slice(0, 6).map((ord) => (
-                <div key={ord.id} className="today-schedule-row">
-                  <div className="today-schedule-row-left">
-                    <span className="today-schedule-time">
-                      #{ord.order_number || ord.id}
-                    </span>
-                    <div className="today-schedule-details">
-                      <h4>{ord.customer_name || 'عميل'}</h4>
-                      <p>المبلغ: {ord.estimated_amount || ord.paid_amount || 0} ج.م</p>
-                    </div>
-                  </div>
-                  <span className="today-list-item-badge">{ord.status || 'قيد التنفيذ'}</span>
                 </div>
               ))}
             </div>

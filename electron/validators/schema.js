@@ -303,7 +303,7 @@ const createSaleSchema = v.object({
   customerName: v.string('اسم العميل غير صالح').optional().nullable(),
   customerPhone: v.string('رقم هاتف العميل غير صالح').optional().nullable(),
   dueDate: v.string('تاريخ الاستحقاق غير صالح').optional().nullable(),
-  orderId: v.number('معرف أمر الشغل غير صالح').int('معرف أمر الشغل غير صالح').positive('معرف أمر الشغل غير صالح').optional().nullable(),
+  tableTabId: v.number('رقم حساب الطاولة غير صالح').int('رقم حساب الطاولة غير صالح').positive('رقم حساب الطاولة غير صالح').optional().nullable(),
 }).refine((data) => {
   if (data.paymentMethod === 'credit') {
     if (!data.customerName || !data.customerName.trim()) {
@@ -559,7 +559,8 @@ const reportPeriodSchema = v.any().refine(isReportPeriod, 'الفترة الزم
 
 const kitchenStatusSchema = v.any().refine((value) => (
   typeof value === 'object' && value !== null && !Array.isArray(value)
-  && Number.isSafeInteger(value.saleId) && value.saleId > 0
+  && ((Number.isSafeInteger(value.saleId) && value.saleId > 0)
+    || (Number.isSafeInteger(value.roundId) && value.roundId > 0))
   && ['new', 'preparing', 'ready', 'served'].includes(value.status)
 ), 'طلب تحديث المطبخ غير صالح');
 

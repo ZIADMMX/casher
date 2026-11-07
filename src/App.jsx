@@ -38,7 +38,6 @@ const AttendancePage = lazy(() => import('./pages/AttendancePage.jsx'));
 const LeavesPage = lazy(() => import('./pages/LeavesPage.jsx'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage.jsx'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage.jsx'));
-const OrdersPage = lazy(() => import('./pages/OrdersPage.jsx'));
 const KitchenDisplayPage = lazy(() => import('./pages/KitchenDisplayPage.jsx'));
 const SubscriptionsPage = lazy(() => import('./pages/SubscriptionsPage.jsx'));
 const CommissionsPage = lazy(() => import('./pages/CommissionsPage.jsx'));
@@ -62,7 +61,6 @@ function AppContent() {
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [licenseStatus, setLicenseStatus] = useState(null);
   const [licenseError, setLicenseError] = useState('');
-  const [workOrderForCheckout, setWorkOrderForCheckout] = useState(null);
   function navigateToPage(page, options = {}) {
     setCaseToOpen(page === 'cases' ? options.caseId || null : null);
     setOpenNewCaseOnLoad(page === 'cases' && options.createCase === true);
@@ -222,7 +220,6 @@ function AppContent() {
       today: profileKey === 'law_firm' ? 'cases.view' : 'pos.view',
       pos: 'pos.view',
       kitchen: 'pos.view',
-      orders: 'orders.view',
       appointments: 'appointments.view',
       courts: 'cases.view',
       subscriptions: 'subscriptions.view',
@@ -268,21 +265,7 @@ function AppContent() {
         return <AppointmentsPage />;
       case 'pos':
         return (
-          <POSPage
-            onNavigate={setActivePage}
-            workOrder={workOrderForCheckout}
-            onWorkOrderCheckoutComplete={() => setWorkOrderForCheckout(null)}
-          />
-        );
-      case 'orders':
-        return (
-          <OrdersPage
-            onNavigate={setActivePage}
-            onCheckoutOrder={(order) => {
-              setWorkOrderForCheckout(order);
-              setActivePage(profileKey === 'law_firm' ? 'today' : 'pos');
-            }}
-          />
+          <POSPage onNavigate={setActivePage} />
         );
       case 'kitchen':
         return <KitchenDisplayPage />;

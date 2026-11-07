@@ -14,7 +14,6 @@ function registerAppointmentsHandlers() {
   safeHandle('appointments:create', (_event, data) => appointmentsService.createAppointment(data));
   safeHandle('appointments:updateStatus', (_event, payload) => appointmentsService.updateAppointmentStatus(payload.id, payload.status));
   safeHandle('appointments:reschedule', (_event, payload) => appointmentsService.rescheduleAppointment(payload.id, payload.data));
-  safeHandle('appointments:convertToOrder', (_event, id) => appointmentsService.convertToServiceOrder(id));
 }
 
 module.exports = { registerAppointmentsHandlers };

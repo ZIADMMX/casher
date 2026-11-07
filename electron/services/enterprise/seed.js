@@ -13,6 +13,8 @@ function seedEnterpriseDefaults() {
       enterpriseRepo.purgeTestFixtures();
     } catch {}
 
+    // The orders center was removed; drop its module row from older installs (order data tables stay).
+    enterpriseRepo.removeModule('orders');
     const existingModules = enterpriseRepo.getModules();
     const moduleKeys = new Set(existingModules.map((module) => module.key));
     for (const m of DEFAULT_MODULES) {
@@ -48,6 +50,22 @@ function seedEnterpriseDefaults() {
             ...new Set([...PROFILE_BASELINE_MODULES, ...DEFAULT_PROFILES[0].settings_json.enabled_modules]),
           ]);
         }
+      }
+    }
+    // Older installs stored milk/sugar/extras as cafe product fields; drop them unless the owner changed the list.
+    const savedCafeProfile = existingProfiles.find((profile) => profile.key === 'cafe_restaurant');
+    if (savedCafeProfile) {
+      const savedSettings = typeof savedCafeProfile.settings_json === 'string'
+        ? JSON.parse(savedCafeProfile.settings_json)
+        : savedCafeProfile.settings_json;
+      const savedAttributes = savedSettings?.attributes || [];
+      const previousCafeAttributes = ['milk_type', 'sweetness_level', 'extras'];
+      if (savedAttributes.length === previousCafeAttributes.length
+        && previousCafeAttributes.every((key) => savedAttributes.includes(key))) {
+        enterpriseRepo.upsertBusinessProfile({
+          ...savedCafeProfile,
+          settings_json: { ...savedSettings, attributes: [] },
+        });
       }
     }
     if (!existingProfiles.some((profile) => profile.is_active)) {

@@ -27,7 +27,6 @@ export const getAppointments = bridgeMethod('getAppointments');
 export const createAppointment = bridgeMethod('createAppointment');
 export const updateAppointmentStatus = bridgeMethod('updateAppointmentStatus');
 export const rescheduleAppointment = bridgeMethod('rescheduleAppointment');
-export const convertAppointmentToServiceOrder = bridgeMethod('convertAppointmentToServiceOrder');
 export const getCentralServerConfig = bridgeMethod('getCentralServerConfig');
 export const configureCentralServer = bridgeMethod('configureCentralServer');
 export const setCentralWarehouse = bridgeMethod('setCentralWarehouse');

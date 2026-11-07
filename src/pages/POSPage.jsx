@@ -13,6 +13,7 @@ import { getSectorConfig } from '../utils/sectorConfig.js';
 
 // Modular POS Subcomponents
 import HeldOrdersModal from '../components/pos/HeldOrdersModal.jsx';
+import TablesModal from '../components/pos/TablesModal.jsx';
 import ShiftOpenModal from '../components/pos/ShiftOpenModal.jsx';
 import ShiftExpenseModal from '../components/pos/ShiftExpenseModal.jsx';
 import ShiftCloseModal from '../components/pos/ShiftCloseModal.jsx';
@@ -34,10 +35,13 @@ import * as productsApi from '../api/products.js';
 import * as salesApi from '../api/sales.js';
 import * as shiftsApi from '../api/shifts.js';
 import * as subscriptionsApi from '../api/subscriptions.js';
+import * as tablesApi from '../api/tables.js';
 import { hasPermission } from '../utils/accessControl.js';
 import { computeCartTotals } from '../utils/cartTotals.js';
+import { applyModifiers, lineKey, parseAddonCatalog } from '../utils/cartModifiers.js';
+import ModifiersModal from '../components/pos/ModifiersModal.jsx';
 
-function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
+function POSPage({ onNavigate }) {
   const { settings } = useSettings();
   const { configuration } = useBusinessProfile();
   const sectorKey = configuration?.profile?.key || 'retail';
@@ -65,6 +69,18 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
   // نظام الفواتير المعلقة (Held Orders)
   const [heldOrders, setHeldOrders] = useState([]);
   const [showHeldModal, setShowHeldModal] = useState(false);
+
+  // Restaurant tables: the open check being served, and whether it is being paid.
+  const [activeTab, setActiveTab] = useState(null);
+  const [payingTab, setPayingTab] = useState(false);
+  const [showTablesModal, setShowTablesModal] = useState(false);
+  // While a table check is being paid the cart mirrors the check, so it can't be edited.
+  const cartLocked = Boolean(activeTab && payingTab);
+  const warnCartLocked = () => setMessage({ type: 'warning', text: 'الحساب في وضع الدفع. ألغِ الدفع الأول لو عايز تعدل.' });
+
+  // Item add-ons (extra cheese, no onion...) from settings, and the cart line being edited.
+  const addonCatalog = useMemo(() => parseAddonCatalog(settings.sector_addons), [settings.sector_addons]);
+  const [modifiersLine, setModifiersLine] = useState(null);
 
   // نظام الورديات (Shift Management)
   const [activeShift, setActiveShift] = useState(null);
@@ -108,27 +124,6 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
       .catch((error) => console.error('تعذر تحميل جلسة مستخدم نقطة البيع:', error));
     return () => { mounted = false; };
   }, []);
-
-  useEffect(() => {
-    if (!workOrder) return;
-    setSelectedCustomerId(workOrder.customer_id ? String(workOrder.customer_id) : '');
-    setCreditCustomerName(workOrder.customer_name || '');
-    setCreditCustomerPhone(workOrder.customer_phone || '');
-    setCart((workOrder.items || [])
-      .filter((item) => item.variant_id)
-      .map((item) => ({
-        variantId: item.variant_id,
-        productName: item.product_name || item.title,
-        quantity: Number(item.quantity),
-        unitPrice: Number(item.unit_price),
-        size: item.size || null,
-        color: item.color || null,
-      })));
-    setMessage({
-      type: 'success',
-      text: `إصدار فاتورة التسليم لأمر الشغل ${workOrder.order_number} — أضف قطع الغيار والمصنعية للسلة`,
-    });
-  }, [workOrder]);
 
   useEffect(() => {
     async function checkSubscription() {
@@ -240,17 +235,20 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
   }
 
   function addToCart(product) {
+    if (cartLocked) return warnCartLocked();
     const variantId = selectedVariant[product.id] || product.variants[0]?.id;
     const variant = product.variants?.find((v) => v.id === variantId) || product.variants[0];
     const isService = Boolean(product.is_service);
     if (!variant || (!isService && variant.stock_quantity === 0)) return;
 
     setCart((prev) => {
-      const existing = prev.find((item) => item.variantId === variant.id);
+      const inCart = prev.filter((item) => item.variantId === variant.id).reduce((sum, item) => sum + item.quantity, 0);
+      if (!isService && inCart >= variant.stock_quantity) return prev;
+      // A tap adds a plain one; lines with add-ons stay as the cashier set them.
+      const existing = prev.find((item) => item.variantId === variant.id && !item.modifiers?.length);
       if (existing) {
-        if (!isService && existing.quantity >= variant.stock_quantity) return prev;
         return prev.map((item) =>
-          item.variantId === variant.id ? { ...item, quantity: item.quantity + 1 } : item
+          item === existing ? { ...item, quantity: item.quantity + 1 } : item
         );
       }
       return [
@@ -270,6 +268,7 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
   }
 
   function addScannedVariantToCart(variant, extraOptions = {}) {
+    if (cartLocked) return warnCartLocked();
     if (!variant || (variant.stock_quantity !== undefined && variant.stock_quantity <= 0)) {
       playErrorBeep();
       setMessage({ type: 'error', text: `الصنف "${variant?.productName || ''}" غير متوفر بالمخزون حالياً` });
@@ -281,9 +280,12 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
     const unitName = extraOptions.unitName || (extraOptions.isScale ? 'كجم' : 'قطعة');
     const isScaleItem = Boolean(extraOptions.isScale);
     const unitId = extraOptions.unitId || null;
+    // A price-printed scale label is sent with the sale so the server prices it from the label.
+    const scaleBarcode = extraOptions.scaleBarcode || null;
 
     setCart((prev) => {
-      const existing = prev.find((item) => item.variantId === variant.id && item.unitId === unitId);
+      const existing = prev.find((item) => item.variantId === variant.id && item.unitId === unitId
+        && (item.scaleBarcode || null) === scaleBarcode && !item.modifiers?.length);
       if (existing) {
         const nextQty = Math.round((existing.quantity + qtyToAdd) * 1000) / 1000;
         if (variant.stock_quantity && nextQty > variant.stock_quantity) {
@@ -300,7 +302,7 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
           text: `تمت زيادة كمية "${variant.productName || 'المنتج'}" إلى ${nextQty} ${unitName}`,
         });
         return prev.map((item) =>
-          item.variantId === variant.id && item.unitId === unitId
+          item === existing
             ? { ...item, quantity: nextQty }
             : item
         );
@@ -324,6 +326,7 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
           unitName,
           isScaleItem,
           unitId,
+          scaleBarcode,
         },
       ];
     });
@@ -365,6 +368,9 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
               unitName: resolved.unitName,
               isScale: resolved.type === 'scale_item',
               unitId: resolved.unit?.id,
+              scaleBarcode: resolved.type === 'scale_item' && resolved.scaleData?.encodingType === 'total_price'
+                ? resolved.rawCode
+                : null,
             }
           );
           if (resolved.batchWarning) {
@@ -406,11 +412,13 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
 
   useBarcodeScanner(handleBarcodeScan);
 
-  function changeQuantity(variantId, delta, unitId = null) {
+  function changeQuantity(line, delta) {
+    if (cartLocked) return warnCartLocked();
+    const key = lineKey(line);
     setCart((prev) =>
       prev
         .map((item) => {
-          if (item.variantId !== variantId || (unitId && item.unitId !== unitId)) return item;
+          if (lineKey(item) !== key) return item;
           const step = item.isScaleItem ? (delta > 0 ? 0.250 : -0.250) : delta;
           const newQty = Math.round((item.quantity + step) * 1000) / 1000;
           if (newQty <= 0 || (item.maxStock && newQty > item.maxStock)) return item;
@@ -420,10 +428,17 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
     );
   }
 
-  function removeFromCart(variantId, unitId = null) {
-    setCart((prev) =>
-      prev.filter((item) => !(item.variantId === variantId && (unitId ? item.unitId === unitId : true)))
-    );
+  function removeFromCart(line) {
+    if (cartLocked) return warnCartLocked();
+    const key = lineKey(line);
+    setCart((prev) => prev.filter((item) => lineKey(item) !== key));
+  }
+
+  function handleApplyModifiers(names, quantity) {
+    if (cartLocked) return warnCartLocked();
+    const line = modifiersLine;
+    setModifiersLine(null);
+    if (line) setCart((prev) => applyModifiers(prev, line, names, quantity, addonCatalog));
   }
 
   const handleSelectSpeedKey = (key) => {
@@ -489,7 +504,7 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
 
   // تعليق الفاتورة الحالية
   const handleHoldCurrentOrder = useCallback(() => {
-    if (cart.length === 0) return;
+    if (cart.length === 0 || activeTab) return;
     const newHold = {
       id: Date.now(),
       createdAt: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }),
@@ -505,7 +520,7 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
     setHeldOrders((prev) => [newHold, ...prev]);
     clearCart();
     setMessage({ type: 'success', text: 'تم تعليق الفاتورة الحالية بنجاح ⏸️' });
-  }, [cart, discount, couponCode, paymentMethod, activeOrderMode, creditCustomerName, creditCustomerPhone, creditDueDate, clearCart]);
+  }, [cart, discount, couponCode, paymentMethod, activeOrderMode, creditCustomerName, creditCustomerPhone, creditDueDate, clearCart, activeTab]);
 
   // استرجاع فاتورة معلقة
   function handleResumeHeldOrder(order) {
@@ -558,8 +573,103 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
     ? `تم تطبيق عرض ${bundlePromotion.name} تلقائيًا (خصم ${bundlePromotion.discount.toFixed(2)} ج.م)`
     : couponMessage;
 
+  function requireShiftForTables() {
+    if (activeShift) return true;
+    playErrorBeep();
+    setMessage({ type: 'warning', text: 'افتح الوردية أولاً لاستقبال طلبات الطاولات.' });
+    return false;
+  }
+
+  async function handleSelectTable(table) {
+    if (!requireShiftForTables()) {
+      setShowTablesModal(false);
+      return;
+    }
+    if (activeTab && cart.length > 0) {
+      setMessage({ type: 'warning', text: `ابعت أصناف ${activeTab.table_name} للمطبخ أو امسحها الأول` });
+      return;
+    }
+    try {
+      const tab = await tablesApi.openTableTab(table.id);
+      setActiveTab(tab);
+      setPayingTab(false);
+      setShowTablesModal(false);
+      setMessage(null);
+    } catch (err) {
+      setMessage({ type: 'error', text: normalizeErrorMessage(err) });
+    }
+  }
+
+  async function handleSendRound() {
+    if (!activeTab || cart.length === 0) return;
+    if (!requireShiftForTables()) return;
+    try {
+      const tab = await tablesApi.sendTableRound(
+        activeTab.id,
+        cart.map((item) => ({
+          variantId: item.variantId,
+          quantity: item.quantity,
+          modifiers: item.modifiers?.map((m) => m.name),
+        })),
+      );
+      setActiveTab(tab);
+      clearCart();
+      playSuccessBeep();
+      setMessage({ type: 'success', text: `اتبعت للمطبخ — ${tab.table_name}` });
+    } catch (err) {
+      playErrorBeep();
+      setMessage({ type: 'error', text: normalizeErrorMessage(err) });
+    }
+  }
+
+  async function handleStartPayTab() {
+    try {
+      const tab = await tablesApi.getOpenTableTab(activeTab.id);
+      setActiveTab(tab);
+      setCart(tab.items.map((item) => ({
+        variantId: item.variant_id,
+        productName: item.product_name || 'صنف محذوف',
+        size: item.size,
+        color: item.color,
+        unitPrice: item.unit_price,
+        quantity: item.quantity,
+        modifiers: item.modifiers,
+        maxStock: null,
+        isService: true,
+      })));
+      setPayingTab(true);
+      setMessage({ type: 'success', text: `حساب ${tab.table_name}: اختار طريقة الدفع وكمّل البيع` });
+    } catch (err) {
+      setMessage({ type: 'error', text: normalizeErrorMessage(err) });
+    }
+  }
+
+  function handleCancelPayTab() {
+    setCart([]);
+    setPayingTab(false);
+    setMessage(null);
+  }
+
+  async function handleLeaveTable() {
+    if (cart.length > 0 && !window.confirm('فيه أصناف لسه ما اتبعتتش للمطبخ. تمسحها وتخرج من الطاولة؟')) return;
+    try {
+      // An empty check is cancelled so the table shows free again.
+      if (activeTab.items.length === 0) await tablesApi.cancelTableTab(activeTab.id);
+    } catch (err) {
+      console.error('تعذر إلغاء حساب الطاولة الفاضي:', err);
+    }
+    clearCart();
+    setActiveTab(null);
+    setPayingTab(false);
+    setMessage(null);
+  }
+
   const handleCompleteSale = useCallback(async () => {
     if (cart.length === 0 || isCreditInvalid || isCashInvalid) return;
+    if (activeTab && !payingTab) {
+      setMessage({ type: 'warning', text: 'ابعت الأصناف للمطبخ، أو اضغط "دفع الحساب" لما الطاولة تخلص.' });
+      return;
+    }
     if (!activeShift) {
       playErrorBeep();
       setMessage({ type: 'warning', text: 'افتح الوردية أولاً لإتمام البيع.' });
@@ -573,33 +683,27 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
         items: cart.map((item) => ({
           variantId: item.variantId,
           quantity: item.quantity,
-          unitPrice: item.unitPrice,
+          // Shown price only; the server prices every line (and its add-ons) itself.
+          unitPrice: item.basePrice ?? item.unitPrice,
           unitId: item.unitId || null,
+          scaleBarcode: item.scaleBarcode || null,
+          modifiers: item.modifiers?.map((m) => m.name),
         })),
         discount: Number(discount || 0),
         paymentMethod,
-        orderMode: sectorConfig.key === 'cafe_restaurant' ? activeOrderMode : null,
+        orderMode: sectorConfig.key === 'cafe_restaurant' ? (activeTab ? 'dine_in' : activeOrderMode) : null,
+        tableTabId: activeTab?.id || null,
         customerId: selectedCustomerId ? Number(selectedCustomerId) : null,
         customerName: selectedCustomerObj ? selectedCustomerObj.name : creditCustomerName,
         customerPhone: selectedCustomerObj ? selectedCustomerObj.phone : creditCustomerPhone,
         dueDate: creditDueDate,
-        orderId: workOrder?.id || null,
         subscriptionId: useSubscriptionCredit && activeSubscription ? activeSubscription.id : null,
         creditsDeducted: useSubscriptionCredit ? 1 : 0,
       });
 
       const fullSale = await salesApi.getSaleById(result.saleId);
       if (fullSale) {
-        const receiptSale = workOrder
-          ? {
-              ...fullSale,
-              workOrderNumber: workOrder.order_number,
-              vehiclePlate: workOrder.vehicle_plate,
-              vehicleDescription: [workOrder.vehicle_make, workOrder.vehicle_model, workOrder.vehicle_year]
-                .filter(Boolean)
-                .join(' '),
-            }
-          : fullSale;
+        const receiptSale = activeTab ? { ...fullSale, tableName: activeTab.table_name } : fullSale;
         setPrintableSale({
           ...receiptSale,
           cashReceived: paymentMethod === 'cash' ? cashReceived : null,
@@ -641,14 +745,17 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
       }
 
       clearCart();
-      if (workOrder) onWorkOrderCheckoutComplete?.();
+      if (activeTab) {
+        setActiveTab(null);
+        setPayingTab(false);
+      }
       await loadProducts();
       refreshShift();
       setMessage((current) => printStatus.error
         ? current
         : { type: 'success', text: `تم إتمام البيع بنجاح — فاتورة #${result.saleId}` });
 
-      if (paymentMethod === 'credit' && onNavigate && !workOrder) {
+      if (paymentMethod === 'credit' && onNavigate) {
         const customerPayload = {
           name: creditCustomerName?.trim() || '',
           phone: creditCustomerPhone?.trim() || '',
@@ -671,16 +778,7 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
       playErrorBeep();
       setMessage({ type: 'error', text: err.message });
     }
-  }, [cart, isCreditInvalid, isCashInvalid, activeShift, discount, paymentMethod, activeOrderMode, sectorConfig.key, creditCustomerName, creditCustomerPhone, creditDueDate, cashReceived, changeDue, clearCart, loadProducts, refreshShift, onNavigate, activeSubscription, posCustomers, selectedCustomerId, useSubscriptionCredit, settings.thermal_printer_name, settings.receipt_paper_size, settings.cash_drawer_pin, workOrder, onWorkOrderCheckoutComplete]);
-
-  function handleExitWorkOrderCheckout() {
-    if (cart.length && !window.confirm('هل تريد إلغاء تجهيز فاتورة أمر الشغل والعودة للبيع العادي؟ سيبقى أمر الشغل محفوظًا.')) {
-      return;
-    }
-    clearCart();
-    onWorkOrderCheckoutComplete?.();
-    setMessage(null);
-  }
+  }, [cart, isCreditInvalid, isCashInvalid, activeShift, discount, paymentMethod, activeOrderMode, sectorConfig.key, creditCustomerName, creditCustomerPhone, creditDueDate, cashReceived, changeDue, clearCart, loadProducts, refreshShift, onNavigate, activeSubscription, posCustomers, selectedCustomerId, useSubscriptionCredit, settings.thermal_printer_name, settings.receipt_paper_size, settings.cash_drawer_pin, activeTab, payingTab]);
 
   // دوال إدارة الوردية من الـ POS
   const handleOpenStartShiftModal = async () => {
@@ -845,19 +943,40 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
         onCloseShiftModal={() => setShowShiftCloseModal(true)}
         onOpenCashDrawer={handleManualOpenCashDrawer}
         onOpenKitchen={() => onNavigate?.('kitchen')}
-        onOpenWorkOrders={() => onNavigate?.('orders')}
+        onOpenTables={() => setShowTablesModal(true)}
       />
 
       {/* Catalog (start side in RTL): search, categories, products */}
       <section className="pos-catalog-container" aria-label="قائمة الأصناف">
-        {workOrder && (
-          <div className="pos-work-order-banner">
-            <span>
-              أمر شغل <strong>{workOrder.order_number}</strong>
-              {workOrder.vehicle_plate ? ` — السيارة ${workOrder.vehicle_plate}` : ''}
-              {' '} | أضف قطع الغيار والمصنعية ثم أصدر فاتورة التسليم.
-            </span>
-            <button type="button" onClick={handleExitWorkOrderCheckout}>العودة للبيع العادي</button>
+        {activeTab && (
+          <div className="pos-table-banner" role="status">
+            <div className="pos-table-banner__info">
+              <strong>{activeTab.table_name}</strong>
+              <span>
+                {activeTab.items.length
+                  ? `اتبعت للمطبخ: ${activeTab.items.length} صنف · ${Number(activeTab.total).toFixed(2)} ج.م`
+                  : 'حساب جديد — ضيف الأصناف وابعتها للمطبخ'}
+              </span>
+            </div>
+            <div className="pos-table-banner__actions">
+              {payingTab ? (
+                <button type="button" onClick={handleCancelPayTab}>إلغاء الدفع</button>
+              ) : (
+                <>
+                  <button type="button" className="is-primary" disabled={cart.length === 0} onClick={handleSendRound}>
+                    إرسال للمطبخ{cart.length ? ` (${cart.length})` : ''}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={cart.length > 0 || activeTab.items.length === 0}
+                    onClick={handleStartPayTab}
+                  >
+                    دفع الحساب
+                  </button>
+                  <button type="button" onClick={handleLeaveTable}>خروج</button>
+                </>
+              )}
+            </div>
           </div>
         )}
 
@@ -954,8 +1073,9 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
           cart={cart}
           changeQuantity={changeQuantity}
           removeFromCart={removeFromCart}
+          onEditModifiers={addonCatalog.length > 0 && !cartLocked ? setModifiersLine : null}
           onOpenScaleEdit={(item) => setScaleModalItem(item)}
-          clearCart={clearCart}
+          clearCart={cartLocked ? handleCancelPayTab : clearCart}
           onHoldOrder={handleHoldCurrentOrder}
           heldOrdersCount={heldOrders.length}
           onShowHeldOrders={() => setShowHeldModal(true)}
@@ -1000,6 +1120,20 @@ function POSPage({ onNavigate, workOrder, onWorkOrderCheckoutComplete }) {
           ) : null}
         />
       </aside>
+
+      <ModifiersModal
+        line={modifiersLine}
+        catalog={addonCatalog}
+        onApply={handleApplyModifiers}
+        onClose={() => setModifiersLine(null)}
+      />
+
+      <TablesModal
+        isOpen={showTablesModal}
+        onClose={() => setShowTablesModal(false)}
+        onSelectTable={handleSelectTable}
+        canManage={hasPermission(posSessionUser, 'settings.manage')}
+      />
 
       {/* Held Orders Modal */}
       <HeldOrdersModal

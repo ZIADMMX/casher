@@ -33,7 +33,7 @@ const SECTION_MODULES = [
   [/^License/, 'license'],
   [/^Excel Import/, 'importExport'],
   [/^Real-time Notifications/, 'notifications'],
-  [/^Operations & Orders/, 'orders'],
+  [/^Restaurant Tables/, 'tables'],
   [/^Subscriptions/, 'subscriptions'],
   [/^Commissions/, 'commissions'],
   [/^Payroll/, 'payroll'],

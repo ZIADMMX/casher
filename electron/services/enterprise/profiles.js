@@ -41,8 +41,9 @@ function getAttributeDefinitions(profileKey = null) {
     : enterpriseRepo.getActiveBusinessProfile();
   const configuredKeys = profile ? parseProfileSettings(profile).attributes : null;
   const definitions = enterpriseRepo.getAttributeDefinitions(profile?.key || null);
-  if (!configuredKeys?.length) return definitions;
-  const allowedKeys = new Set(configuredKeys);
+  // An empty list means "no preset fields", not "every preset field".
+  if (!profile) return definitions;
+  const allowedKeys = new Set(configuredKeys || []);
   return definitions.filter((definition) =>
     allowedKeys.has(definition.attribute_key) ||
     definition.business_profile_key === profile?.key ||

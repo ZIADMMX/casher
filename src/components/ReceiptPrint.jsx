@@ -66,16 +66,10 @@ function ReceiptPrint({ sale }) {
           <span>فاتورة #{sale.id}</span>
           <span>{formattedDate} {formattedTime}</span>
         </div>
-        {sale.workOrderNumber && (
+        {sale.tableName && (
           <div className="receipt-meta-line">
-            <span>أمر الشغل</span>
-            <span>{sale.workOrderNumber}</span>
-          </div>
-        )}
-        {sale.vehiclePlate && (
-          <div className="receipt-meta-line">
-            <span>السيارة</span>
-            <span>{sale.vehiclePlate}{sale.vehicleDescription ? ` — ${sale.vehicleDescription}` : ''}</span>
+            <span>الطاولة</span>
+            <span>{sale.tableName}</span>
           </div>
         )}
         {showCashier && sale.cashier_name && (
@@ -111,6 +105,9 @@ function ReceiptPrint({ sale }) {
                   <div className="item-name-text">{name}</div>
                   {(size || color) && (
                     <div className="item-variant-text">{size}{color}</div>
+                  )}
+                  {item.modifiers?.length > 0 && (
+                    <div className="item-variant-text">+ {item.modifiers.map((m) => m.name).join('، ')}</div>
                   )}
                 </td>
                 <td className="td-qty">{item.unitName || item.unit_name ? `${item.quantity} ${item.unitName || item.unit_name}` : item.quantity}</td>

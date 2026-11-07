@@ -78,7 +78,7 @@ function WorkflowsPage() {
   const [newWorkflowForm, setNewWorkflowForm] = useState({
     name: '',
     entity_type: 'maintenance_ticket',
-    module_key: 'orders',
+    module_key: 'general',
     description: ''
   });
 
@@ -245,7 +245,7 @@ function WorkflowsPage() {
         const created = await enterpriseApi.createWorkflow(newWorkflowForm);
         showToast('تم إنشاء مسار سير العمل الجديد بنجاح', 'success');
         setShowNewWorkflowModal(false);
-        setNewWorkflowForm({ name: '', entity_type: 'maintenance_ticket', module_key: 'orders', description: '' });
+        setNewWorkflowForm({ name: '', entity_type: 'maintenance_ticket', module_key: 'general', description: '' });
         await loadWorkflows();
         if (created?.id) setSelectedWorkflowId(created.id);
       }

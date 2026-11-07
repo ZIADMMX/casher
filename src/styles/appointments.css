@@ -355,16 +355,6 @@
   color: #FFF;
 }
 
-.appointment-item-actions button.convert {
-  background: #F2600C;
-  border-color: #F2600C;
-  color: #FFF;
-}
-
-.appointment-item-actions button.convert:hover {
-  background: #1E4ED8;
-}
-
 .appointment-reschedule {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -500,15 +490,13 @@
   accent-color: #f2600c;
 }
 
-.law-firm-appointments .appointment-button.primary,
-.law-firm-appointments .appointment-item-actions button.convert {
+.law-firm-appointments .appointment-button.primary {
   color: #fff;
   background: #f2600c;
   box-shadow: 0 4px 12px rgba(242, 96, 12, 0.18);
 }
 
-.law-firm-appointments .appointment-button.primary:hover:not(:disabled),
-.law-firm-appointments .appointment-item-actions button.convert:hover {
+.law-firm-appointments .appointment-button.primary:hover:not(:disabled) {
   background: #d94d00;
 }
 

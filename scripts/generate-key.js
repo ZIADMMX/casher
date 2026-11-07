@@ -7,7 +7,9 @@
 const { signLicenseKey, signRecoveryResponse } = require('../electron/security/licenseSigning');
 const { readPrivateKey } = require('./lib/license-private-key');
 
-const [first, second] = process.argv.slice(2);
+let [first, second] = process.argv.slice(2);
+// Accept "<days> <HWID>" too: the 8-hex machine code is the HWID whichever comes first.
+if (second && /^[0-9a-f]{8}$/i.test(second) && !/^[0-9a-f]{8}$/i.test(first)) [first, second] = [second, first];
 
 function usage() {
   console.log(`

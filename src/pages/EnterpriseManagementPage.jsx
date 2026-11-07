@@ -551,7 +551,6 @@ function EnterpriseManagementPage({ onNavigate }) {
                       <option value="notify_user">إرسال إشعار للنظام (notify_user)</option>
                       <option value="grant_loyalty_points">منح نقاط ولاء تلقائية للعميل (grant_loyalty_points)</option>
                       <option value="add_customer_note">إضافة ملاحظة وتفاعل لسجل CRM (add_customer_note)</option>
-                      <option value="flag_order_urgent">تمييز الطلب كـ عاجل (flag_order_urgent)</option>
                     </select>
                   </div>
                 </div>

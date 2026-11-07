@@ -319,22 +319,40 @@
 }
 
 /* ==========================================================================
-   Work-order banner (auto workshops)
+   Restaurant tables: table-mode banner and floor grid
    ========================================================================== */
-.pos-work-order-banner {
+.pos-table-banner {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
-  border: 1px solid color-mix(in srgb, var(--color-info) 30%, var(--color-surface));
+  border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-md);
-  background: var(--color-info-soft);
-  color: var(--color-info-text);
+  background: var(--color-primary-soft);
+  color: var(--color-text);
+}
+
+.pos-table-banner__info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
   font-size: var(--text-sm);
 }
 
-.pos-work-order-banner button {
+.pos-table-banner__info strong {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-heavy);
+}
+
+.pos-table-banner__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.pos-table-banner__actions button {
   min-block-size: var(--touch-min);
   padding: 0 var(--space-4);
   border: 1px solid var(--color-border-strong);
@@ -344,6 +362,141 @@
   font: inherit;
   font-weight: var(--weight-bold);
   cursor: pointer;
+}
+
+.pos-table-banner__actions button.is-primary {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.pos-table-banner__actions button:hover:not(:disabled) {
+  border-color: var(--color-primary-hover);
+}
+
+.pos-table-banner__actions button.is-primary:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+}
+
+.pos-table-banner__actions button:active:not(:disabled) {
+  background: var(--color-primary-active);
+  color: var(--color-on-primary);
+}
+
+.pos-table-banner__actions button:disabled,
+.pos-table-banner__actions button.is-primary:disabled {
+  border-color: var(--color-border);
+  background: var(--color-surface-muted);
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+}
+
+.pos-table-banner__actions button:focus-visible,
+.pos-table-card__open:focus-visible,
+.pos-table-card__remove:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.pos-tables-modal {
+  inline-size: min(760px, 94vw);
+}
+
+.pos-tables-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: var(--space-3);
+}
+
+.pos-table-card {
+  position: relative;
+}
+
+.pos-table-card__open {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  inline-size: 100%;
+  min-block-size: calc(var(--touch-min) * 2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-success);
+  border-radius: var(--radius-md);
+  background: var(--color-success-soft);
+  color: var(--color-success-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.pos-table-card.is-busy .pos-table-card__open {
+  border-color: var(--color-warning);
+  background: var(--color-warning-soft);
+  color: var(--color-warning-text);
+}
+
+.pos-table-card__open:hover:not(:disabled) {
+  box-shadow: var(--shadow-sm);
+}
+
+.pos-table-card__open:disabled {
+  cursor: wait;
+}
+
+.pos-table-card__name {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-heavy);
+}
+
+.pos-table-card__state {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+
+.pos-table-card__remove {
+  position: absolute;
+  inset-block-start: var(--space-1);
+  inset-inline-end: var(--space-1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: var(--touch-min);
+  min-block-size: var(--touch-min);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.pos-table-card__remove:hover:not(:disabled) {
+  background: var(--color-danger-soft);
+  color: var(--color-danger-text);
+}
+
+.pos-tables-add {
+  display: flex;
+  gap: var(--space-2);
+  margin-block-start: var(--space-4);
+}
+
+.pos-tables-add__input {
+  flex: 1;
+  min-block-size: var(--touch-min);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+}
+
+.pos-tables-error {
+  margin: 0 0 var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--color-danger-soft);
+  color: var(--color-danger-text);
 }
 
 /* ==========================================================================

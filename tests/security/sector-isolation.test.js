@@ -69,7 +69,6 @@ describe('Sector Page Isolation Policies', () => {
       // Allowed core
       expect(isBusinessProfilePageEnabled('pos', 'grocery')).toBe(true);
       expect(isBusinessProfilePageEnabled('products', 'grocery')).toBe(true);
-      expect(isBusinessProfilePageEnabled('orders', 'grocery')).toBe(true);
     });
 
     test('Retail does NOT have cases, salon, appointments, subscriptions, commissions', () => {
@@ -112,7 +111,6 @@ describe('Sector Page Isolation Policies', () => {
         expect(isBusinessProfilePageEnabled('appointments', profile)).toBe(false);
         expect(isBusinessProfilePageEnabled('subscriptions', profile)).toBe(false);
         expect(isBusinessProfilePageEnabled('pos', profile)).toBe(true);
-        expect(isBusinessProfilePageEnabled('orders', profile)).toBe(true);
         expect(isBusinessProfilePageEnabled('products', profile)).toBe(true);
       });
     });

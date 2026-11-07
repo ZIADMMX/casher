@@ -69,12 +69,7 @@ function generateEscPosReceiptBuffer(sale, options = {}) {
 
   buffers.push(Buffer.from(`فاتورة مبيعات - رقم ${sale.saleId || sale.id || ''}\n`, 'utf-8'));
   buffers.push(Buffer.from(`${sale.customerName || 'عميل نقدي سريع'} · ${new Date().toLocaleString('ar-EG')}\n`, 'utf-8'));
-  if (sale.workOrderNumber) {
-    buffers.push(Buffer.from(`أمر الشغل: ${sale.workOrderNumber}\n`, 'utf-8'));
-  }
-  if (sale.vehiclePlate) {
-    buffers.push(Buffer.from(`السيارة: ${sale.vehiclePlate}${sale.vehicleDescription ? ` - ${sale.vehicleDescription}` : ''}\n`, 'utf-8'));
-  }
+  if (sale.tableName) buffers.push(Buffer.from(`الطاولة: ${sale.tableName}\n`, 'utf-8'));
   buffers.push(Buffer.from('------------------------------------------------\n', 'utf-8'));
 
   // 4. Line Items Table
@@ -85,6 +80,9 @@ function generateEscPosReceiptBuffer(sale, options = {}) {
       const qty = item.quantity || 1;
       const total = (item.unitPrice || item.price || 0) * qty;
       buffers.push(Buffer.from(`${name}\n`, 'utf-8'));
+      if (item.modifiers?.length) {
+        buffers.push(Buffer.from(`   + ${item.modifiers.map((m) => m.name).join('، ')}\n`, 'utf-8'));
+      }
       buffers.push(Buffer.from(`   ${qty} x ${item.unitPrice || 0} = ${total} EGP\n`, 'utf-8'));
     });
   }
@@ -432,7 +430,7 @@ function buildReceiptHtml(sale, options = {}) {
   const rowsHtml = sale.items
     .map((item) => `
       <tr>
-        <td>${escapeHtml(item.productName)}${item.size ? ` (${escapeHtml(item.size)})` : ''}${item.color ? ` - ${escapeHtml(item.color)}` : ''}</td>
+        <td>${escapeHtml(item.productName)}${item.size ? ` (${escapeHtml(item.size)})` : ''}${item.color ? ` - ${escapeHtml(item.color)}` : ''}${item.modifiers?.length ? `<br><small>+ ${escapeHtml(item.modifiers.map((m) => m.name).join('، '))}</small>` : ''}</td>
         <td style="text-align:center">${escapeHtml(item.quantity)}</td>
         <td style="text-align:left">${escapeHtml(item.unitPrice * item.quantity)} ج.م</td>
       </tr>`)
@@ -456,9 +454,8 @@ function buildReceiptHtml(sale, options = {}) {
   <body>
     <h2>${escapeHtml(options.storeName || DEFAULT_RECEIPT_TITLE)}</h2>
     <div class="sub">فاتورة مبيعات — رقم ${escapeHtml(sale.saleId)}</div>
-    <div class="sub">${escapeHtml(sale.customerName || 'عميل نقدي سريع')} · ${new Date().toLocaleString('ar-EG')}</div>
-    ${sale.workOrderNumber ? `<div class="sub">أمر الشغل: ${escapeHtml(sale.workOrderNumber)}</div>` : ''}
-    ${sale.vehiclePlate ? `<div class="sub">السيارة: ${escapeHtml(sale.vehiclePlate)}${sale.vehicleDescription ? ` — ${escapeHtml(sale.vehicleDescription)}` : ''}</div>` : ''}
+    <div class="sub">${escapeHtml(sale.customerName || 'عميل نقدي سريع')} · ${new Date().toLocaleString('ar-EG')}</div>${sale.tableName ? `
+    <div class="sub">الطاولة: ${escapeHtml(sale.tableName)}</div>` : ''}
 
     <table>
       <thead>

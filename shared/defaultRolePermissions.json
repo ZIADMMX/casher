@@ -1,0 +1,24 @@
+{
+  "cashier": [
+    "pos.view", "pos.sell",
+    "shifts.view", "shifts.manage",
+    "products.view",
+    "customers.view", "customers.create"
+  ],
+  "manager": [
+    "pos.view", "pos.sell",
+    "shifts.view", "shifts.manage",
+    "products.view",
+    "customers.view", "customers.create",
+    "pos.discount", "pos.refund",
+    "sales.view",
+    "products.create", "products.edit", "products.delete",
+    "inventory.view",
+    "promotions.view",
+    "customers.edit",
+    "subscriptions.view", "subscriptions.manage",
+    "reports.view",
+    "team.view", "team.manage",
+    "attendance.view", "attendance.manage", "leaves.view", "leaves.manage"
+  ]
+}

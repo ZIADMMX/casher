@@ -558,11 +558,6 @@ async function handleApiRequest(req, res) {
       return sendJSON(res, 200, appointmentsService.rescheduleAppointment(body.id, body.data));
     }
 
-    if (pathname === '/api/appointments/convert' && method === 'POST') {
-      const body = await parseBody(req);
-      return sendJSON(res, 201, appointmentsService.convertToServiceOrder(body.id));
-    }
-
     if (pathname === '/api/customers/add' && method === 'POST') {
       const body = await parseBody(req);
       const result = customersService.addCustomer(body);

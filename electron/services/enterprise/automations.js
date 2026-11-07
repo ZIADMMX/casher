@@ -124,25 +124,6 @@ function evaluateEventAutomations(triggerEvent, eventPayload = {}) {
           break;
         }
 
-        case 'flag_order_urgent': {
-          if (eventPayload.order_id) {
-            try {
-              const ordersService = require('../orders.service');
-              ordersService.addOrderComment(eventPayload.order_id, `⚡ أتمتة: تم تمييز الطلب كـ عاجل تلقائياً (${rule.rule_name})`);
-            } catch (e) {
-              console.warn('[AutomationEngine] flagOrderUrgent warning:', e.message);
-            }
-          }
-          NotificationsService.notify({
-            userId: null,
-            type: 'warning',
-            title: 'طلب عاجل 🚨',
-            message: `تم تحديد أولوية الطلب كـ عاجل تلقائياً عبر الأتمتة: ${rule.rule_name}`,
-            linkPage: 'orders'
-          });
-          break;
-        }
-
         default:
           break;
       }

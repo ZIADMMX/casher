@@ -2,15 +2,16 @@
 const { db } = require('../database/db');
 const customersRepo = require('../repositories/customers.repository');
 const salesRepo = require('../repositories/sales.repository');
-const ordersRepo = require('../repositories/orders.repository');
 const variantsRepo = require('../repositories/productVariants.repository');
 const shiftsRepo = require('../repositories/shifts.repository');
+const tablesRepo = require('../repositories/tables.repository');
 const productsCache = require('./products.cache');
 const NotificationsService = require('./notifications.service');
 const { requireAuth, getCurrentSession, hasGrantedPermission } = require('./auth.service');
 const { logError } = require('../services/logger.service');
 const inventoryRepo = require('../repositories/inventory.repository');
 const bundlePromotionsService = require('./bundlePromotions.service');
+const { resolveModifiers, getCatalog: getAddonCatalog } = require('./modifiers.service');
 
 /**
  * Create a new sale transaction.
@@ -28,12 +29,27 @@ function createSale({
   dueDate,
   subscriptionId,
   creditsDeducted,
-  orderId,
+  tableTabId,
 }) {
   try {
     const session = getCurrentSession();
     if (!session) {
       throw new Error('يجب تسجيل الدخول أولاً');
+    }
+    let tableTab = null;
+    if (tableTabId !== undefined && tableTabId !== null) {
+      const tabId = Number(tableTabId);
+      tableTab = Number.isSafeInteger(tabId) && tabId > 0 ? tablesRepo.getTab(tabId) : null;
+      if (!tableTab || tableTab.status !== 'open') throw new Error('حساب الطاولة اتقفل بالفعل');
+      // Bill what the kitchen received, not what the till sends.
+      // Their unit_price already includes the add-ons priced when the round was sent.
+      items = tablesRepo.getTabItems(tableTab.id).map((item) => ({
+        variantId: item.variant_id,
+        quantity: item.quantity,
+        unitPrice: item.unit_price,
+        sentModifiers: item.modifiers,
+      }));
+      orderMode = 'dine_in';
     }
     if (!items || items.length === 0) {
       throw new Error('السلة فارغة');
@@ -41,24 +57,8 @@ function createSale({
     if (orderMode != null && !['dine_in', 'takeaway', 'delivery'].includes(orderMode)) {
       throw new Error('طريقة استلام الطلب غير صالحة');
     }
-    let linkedOrder = null;
-    if (orderId !== undefined && orderId !== null) {
-      const normalizedOrderId = Number(orderId);
-      if (!Number.isInteger(normalizedOrderId) || normalizedOrderId <= 0) {
-        throw new Error('معرف أمر الشغل غير صالح');
-      }
-      linkedOrder = ordersRepo.getOrderForCheckout(normalizedOrderId);
-      if (!linkedOrder || linkedOrder.order_type !== 'maintenance') {
-        throw new Error('أمر الشغل غير موجود');
-      }
-      if (linkedOrder.status !== 'ready' || linkedOrder.sale_id) {
-        throw new Error('يجب أن يكون أمر الشغل جاهزًا وغير مفوتر قبل إصدار الفاتورة');
-      }
-      orderId = normalizedOrderId;
-    }
-
     if (paymentMethod === 'credit') {
-      if (!(customerName?.trim() || linkedOrder?.customer_name?.trim())) {
+      if (!(customerName?.trim())) {
         throw new Error('اسم العميل مطلوب في حالة البيع الآجل');
       }
       if (!dueDate) {
@@ -80,6 +80,7 @@ function createSale({
     const branchId = inventoryRepo.getWarehouseBranchId(warehouseId);
     const verifiedItems = [];
     const requestedByVariant = new Map();
+    const addonCatalog = items.some((item) => item.modifiers?.length) ? getAddonCatalog() : [];
     for (const item of items) {
       const itemQty = Number(item.quantity);
       if (isNaN(itemQty) || itemQty <= 0) {
@@ -104,11 +105,24 @@ function createSale({
             stockDeductionFactor = Number(unit.conversion_factor) || 1;
           }
         } catch {}
-      } else if (
-        item.unitPrice !== undefined
-        && (Number(item.unitPrice) > 0 || (orderId && Number(item.unitPrice) === 0))
-      ) {
+      } else if (tableTab) {
+        // A table check: the price was fixed by the server when the round was sent.
         effectiveUnitPrice = Number(item.unitPrice);
+      } else if (item.scaleBarcode) {
+        // A price-printed scale label: read the label again here instead of trusting the till.
+        const scan = require('./grocery.service').resolveBarcode(String(item.scaleBarcode));
+        if (!scan?.resolved || scan.type !== 'scale_item' || Number(scan.variantId) !== Number(item.variantId)) {
+          throw new Error('باركود الميزان غير صالح أو لا يخص هذا الصنف');
+        }
+        effectiveUnitPrice = Number(scan.unitPrice);
+      }
+      // Any other unitPrice the till sends is ignored: the catalog price wins.
+
+      let modifiers = tableTab ? item.sentModifiers || [] : [];
+      if (!tableTab) {
+        const resolved = resolveModifiers(item.modifiers, addonCatalog);
+        modifiers = resolved.modifiers;
+        effectiveUnitPrice = Math.round((Number(effectiveUnitPrice) + resolved.extra) * 100) / 100;
       }
 
       const baseQuantityDeduction = quantity * stockDeductionFactor;
@@ -127,6 +141,7 @@ function createSale({
         unitPrice: effectiveUnitPrice,
         baseQuantityDeduction,
         isService,
+        modifiers,
       });
     }
 
@@ -175,7 +190,7 @@ function createSale({
     const effectiveDiscount = Math.max(normalizedDiscount, appliedPromotion?.discount || 0);
     const totalAmount = Math.round(Math.max(subtotal - effectiveDiscount, 0) * 100) / 100;
 
-    let resolvedCustomerId = customerId || linkedOrder?.customer_id || null;
+    let resolvedCustomerId = customerId || null;
     if (!resolvedCustomerId) {
       if (customerPhone) {
         const existing = customersRepo.getByPhone(customerPhone);
@@ -193,18 +208,14 @@ function createSale({
       const saleId = salesRepo.createSale({
         shiftId: activeShift ? activeShift.id : null,
         customerId: resolvedCustomerId,
-        customerName: linkedOrder
-          ? (customerName?.trim() || linkedOrder.customer_name || null)
-          : paymentMethod === 'credit' ? customerName.trim() : null,
-        customerPhone: linkedOrder
-          ? (customerPhone?.trim() || linkedOrder.customer_phone || null)
-          : paymentMethod === 'credit' ? (customerPhone || null) : null,
+        customerName: paymentMethod === 'credit' ? customerName.trim() : null,
+        customerPhone: paymentMethod === 'credit' ? (customerPhone || null) : null,
         userId: session.id,
         totalAmount,
         discount: effectiveDiscount,
         paymentMethod,
         orderMode,
-        kitchenStatus: orderMode ? 'new' : null,
+        kitchenStatus: tableTab ? 'served' : orderMode ? 'new' : null,
         dueDate: paymentMethod === 'credit' ? dueDate : null,
         branchId,
         warehouseId,
@@ -236,13 +247,8 @@ function createSale({
         }
       }
 
-      if (linkedOrder) {
-        ordersRepo.completeOrderWithSale(
-          linkedOrder.id,
-          saleId,
-          paymentMethod === 'credit' ? 0 : totalAmount,
-          session.id
-        );
+      if (tableTab && !tablesRepo.closeTab(tableTab.id, 'paid', saleId).changes) {
+        throw new Error('حساب الطاولة اتقفل بالفعل');
       }
 
       return saleId;

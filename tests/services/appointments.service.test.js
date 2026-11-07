@@ -140,7 +140,7 @@ describe('Appointments service', () => {
     // suite runs; the reminder check then runs one hour before that slot.
     const slot = futureSlot();
     const oneHourBefore = new Date(slot.getTime() - 60 * 60_000);
-    const appointment = appointmentsService.createAppointment({
+    appointmentsService.createAppointment({
       serviceId,
       resourceId,
       customerName: 'عميل',
@@ -153,10 +153,5 @@ describe('Appointments service', () => {
     appointmentsService.checkDueReminders(oneHourBefore);
     appointmentsService.checkDueReminders(oneHourBefore);
     expect(NotificationsService.notify).toHaveBeenCalledTimes(1);
-
-    const converted = appointmentsService.convertToServiceOrder(appointment.id);
-    expect(converted.orderId).toBeGreaterThan(0);
-    expect(appointmentsRepo.getAppointment(appointment.id).status).toBe('converted');
-    expect(() => appointmentsService.convertToServiceOrder(appointment.id)).toThrow('تم تحويل');
   });
 });

@@ -2,7 +2,6 @@ const appointmentsRepo = require('../repositories/appointments.repository');
 const customersRepo = require('../repositories/customers.repository');
 const { requireAdmin, requireAuth } = require('./auth.service');
 const NotificationsService = require('./notifications.service');
-const ordersService = require('./orders.service');
 
 const RESOURCE_TYPES = new Set(['employee', 'room', 'chair', 'car', 'device', 'other']);
 const STATUSES = new Set(['booked', 'confirmed', 'completed', 'cancelled', 'no_show']);
@@ -280,43 +279,6 @@ function rescheduleAppointment(id, data) {
   return appointmentsRepo.getAppointment(appointmentId);
 }
 
-function convertToServiceOrder(id) {
-  const session = requireAuth();
-  const appointmentId = positiveInteger(id, 'معرف الحجز');
-  const appointment = appointmentsRepo.getAppointment(appointmentId);
-  if (!appointment) throw new Error('الحجز غير موجود');
-  if (appointment.converted_order_id) throw new Error('تم تحويل هذا الحجز إلى طلب خدمة مسبقًا');
-  if (!['booked', 'confirmed', 'completed'].includes(appointment.status)) {
-    throw new Error('لا يمكن تحويل الحجز في حالته الحالية');
-  }
-
-  // Create service order directly (createOrder handles its own transaction safely)
-  const order = ordersService.createOrder({
-    order_type: 'service',
-    customer_id: appointment.customer_id,
-    customer_name: appointment.customer_name,
-    customer_phone: appointment.customer_phone,
-    status: 'new',
-    priority: 'medium',
-    due_date: appointment.start_at,
-    estimated_amount: appointment.price,
-    paid_amount: appointment.deposit_amount,
-    notes: `حجز #${appointment.id} — ${appointment.service_name} لدى ${appointment.resource_name}`,
-    appointment_id: appointment.id,
-    created_by_user_id: session.id,
-  }, [{
-    title: appointment.service_name,
-    quantity: 1,
-    unit_price: appointment.price,
-    notes: `الموعد: ${appointment.start_at} | المورد: ${appointment.resource_name}`,
-  }], session);
-
-  const linked = appointmentsRepo.linkOrder(appointmentId, order.id);
-  if (!linked.changes) throw new Error('تعذر ربط طلب الخدمة بالحجز');
-
-  return { appointmentId, orderId: order.id, orderNumber: order.order_number };
-}
-
 function checkDueReminders(now = new Date()) {
   const nowIso = now.toISOString();
   const horizonIso = new Date(now.getTime() + 7 * 24 * 60 * 60_000).toISOString();
@@ -353,6 +315,5 @@ module.exports = {
   getAppointments,
   updateAppointmentStatus,
   rescheduleAppointment,
-  convertToServiceOrder,
   checkDueReminders,
 };

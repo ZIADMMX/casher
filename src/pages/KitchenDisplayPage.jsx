@@ -41,6 +41,11 @@ function elapsed(fromDate, now) {
   return { minutes: m, label: `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}` };
 }
 
+// Table rounds are named by their table; sale orders by their number.
+function orderLabel(order) {
+  return order.round_id ? `${order.table_name} · دفعة ${order.round_no}` : `#${order.id}`;
+}
+
 function OrderCard({ order, column, now, busy, onMove }) {
   const createdAt = parseDbTime(order.created_at);
   const age = createdAt ? elapsed(createdAt, now) : null;
@@ -52,7 +57,7 @@ function OrderCard({ order, column, now, busy, onMove }) {
   return (
     <article className={`kds-card kds-card--${column.tone}${late ? ' is-late' : ''}${fresh ? ' is-fresh' : ''}`}>
       <header className="kds-card__head">
-        <span className="kds-card__no">#{order.id}</span>
+        <span className="kds-card__no">{orderLabel(order)}</span>
         {active && age && (
           <span className={`kds-timer${late ? ' kds-timer--late' : warn ? ' kds-timer--warn' : ''}`} title="منذ تسجيل الطلب">
             {age.label}
@@ -68,12 +73,15 @@ function OrderCard({ order, column, now, busy, onMove }) {
 
       <ul className="kds-items">
         {(order.items || []).map((item, index) => (
-          <li key={`${order.id}-${index}`} className="kds-item">
+          <li key={`${order.key}-${index}`} className="kds-item">
             <span className="kds-item__qty">×<bdi>{item.quantity}</bdi></span>
             <span className="kds-item__name">
               {item.product_name || 'صنف محذوف'}
               {[item.size, item.color].filter(Boolean).length > 0 && (
                 <span className="kds-item__variant">{[item.size, item.color].filter(Boolean).join(' / ')}</span>
+              )}
+              {item.modifiers?.length > 0 && (
+                <span className="kds-item__variant">+ {item.modifiers.map((m) => m.name).join('، ')}</span>
               )}
             </span>
           </li>
@@ -113,7 +121,8 @@ export default function KitchenDisplayPage() {
     try {
       if (!salesApi.getKitchenOrders.isAvailable()) throw new Error('شاشة المطبخ غير متاحة في هذا الإصدار');
       const result = await salesApi.getKitchenOrders();
-      setOrders(Array.isArray(result) ? result : []);
+      // The central server sends sale orders only, without a key.
+      setOrders(Array.isArray(result) ? result.map((o) => ({ ...o, key: o.key || `sale-${o.id}` })) : []);
       setConnected(true);
       setLastSync(new Date());
     } catch (loadError) {
@@ -145,12 +154,12 @@ export default function KitchenDisplayPage() {
 
   async function moveOrder(order, nextStatus, { isUndo = false } = {}) {
     const fromStatus = order.kitchen_status || 'new';
-    setBusyId(order.id);
+    setBusyId(order.key);
     setError('');
     // Show the move right away; the next poll (or the error path) corrects it.
-    setOrders((list) => list.map((o) => (o.id === order.id ? { ...o, kitchen_status: nextStatus } : o)));
+    setOrders((list) => list.map((o) => (o.key === order.key ? { ...o, kitchen_status: nextStatus } : o)));
     try {
-      await salesApi.updateKitchenOrderStatus(order.id, nextStatus);
+      await salesApi.updateKitchenOrderStatus(order.round_id ? null : order.id, nextStatus, order.round_id || null);
       setUndo(isUndo ? null : { order: { ...order, kitchen_status: nextStatus }, from: fromStatus, to: nextStatus });
     } catch (moveError) {
       setError(moveError?.message || 'تعذر تحديث حالة الطلب');
@@ -231,11 +240,11 @@ export default function KitchenDisplayPage() {
                 <div className="kds-col__list">
                   {list.map((order) => (
                     <OrderCard
-                      key={order.id}
+                      key={order.key}
                       order={order}
                       column={column}
                       now={now}
-                      busy={busyId === order.id}
+                      busy={busyId === order.key}
                       onMove={moveOrder}
                     />
                   ))}
@@ -250,7 +259,7 @@ export default function KitchenDisplayPage() {
       {undo && (
         <div className="kds-toast" role="status">
           <span>
-            تم نقل الطلب <bdi>#{undo.order.id}</bdi> إلى {COLUMN_BY_KEY[undo.to]?.label}
+            تم نقل الطلب <bdi>{orderLabel(undo.order)}</bdi> إلى {COLUMN_BY_KEY[undo.to]?.label}
           </span>
           <button
             type="button"

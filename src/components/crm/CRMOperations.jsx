@@ -507,6 +507,18 @@ function CRMOperations({ section }) {
                   ))}
                 </select>
               )}
+
+              <input
+                className="crm-select-filter"
+                aria-label="اسم الفلتر"
+                placeholder="اسم الفلتر"
+                maxLength={60}
+                value={filterName}
+                onChange={(event) => setFilterName(event.target.value)}
+              />
+              <button type="button" className="secondary-btn" disabled={!filterName.trim()} onClick={saveFilter}>
+                حفظ الفلتر
+              </button>
             </div>
 
             <div className="crm-toolbar-right">

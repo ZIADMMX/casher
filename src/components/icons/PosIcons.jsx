@@ -49,7 +49,7 @@ export const ChartIcon = make(<><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /></
 export const CheckIcon = make(<path d="m5 12 5 5L20 7" />);
 export const CloseIcon = make(<path d="M6 6l12 12M18 6 6 18" />);
 export const ScaleIcon = make(<><path d="M12 3v18M7 21h10M5 7h14" /><path d="m5 7-3 7a3 3 0 0 0 6 0zM19 7l-3 7a3 3 0 0 0 6 0z" /></>);
-export const CarIcon = make(<><path d="M5 16V11l2-5h10l2 5v5" /><path d="M3 16h18v3H3zM7 19v1M17 19v1M5 11h14" /></>);
+export const TableIcon = make(<><path d="M3 9h18M5 9v11M19 9v11" /><path d="M8 9V5h8v4" /></>);
 export const TagIcon = make(<><path d="M3 12V3h9l9 9-9 9z" /><circle cx="7.5" cy="7.5" r="1.5" /></>);
 export const BagIcon = make(<><path d="M5 8h14l-1 13H6z" /><path d="M9 8V6a3 3 0 0 1 6 0v2" /></>);
 export const AlertIcon = make(<><path d="M12 3 2 21h20z" /><path d="M12 10v5M12 18h.01" /></>);
@@ -78,6 +78,7 @@ export const FileTextIcon = make(<><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1
 export const UndoIcon = make(<><path d="M4 8v5h5" /><path d="M4.5 13A8 8 0 1 0 7 6.6L4 9" /></>);
 export const KeyIcon = make(<><circle cx="7.5" cy="15.5" r="4.5" /><path d="m10.7 12.3 9.3-9.3M16 7l3 3M14 9l2 2" /></>);
 export const PencilIcon = make(<><path d="M4 20h4L19 9l-4-4L4 16z" /><path d="m13.5 6.5 4 4" /></>);
+export const MapPinIcon = make(<><path d="M12 21s-7-6.2-7-12a7 7 0 0 1 14 0c0 5.8-7 12-7 12z" /><circle cx="12" cy="9" r="2.5" /></>);
 export const ShieldIcon = make(<><path d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6z" /><path d="m9 12 2 2 4-4" /></>);
 export const GiftIcon = make(<><rect x="3" y="8" width="18" height="4" rx="1" /><path d="M5 12v8h14v-8M12 8v12M12 8c-1.5-3-5-3-5-1s3 1 5 1zM12 8c1.5-3 5-3 5-1s-3 1-5 1z" /></>);
 export const SheetIcon = make(<><rect x="4" y="3" width="16" height="18" rx="2" /><path d="M4 9h16M4 15h16M10 3v18" /></>);

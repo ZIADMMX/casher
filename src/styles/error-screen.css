@@ -150,9 +150,9 @@
   border-radius: var(--radius-sm);
   background: var(--color-surface-muted);
   color: var(--color-text);
-  direction: ltr;
-  text-align: left;
-  font-size: var(--text-xs);
+  text-align: start;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
 }
 
 .err-link {

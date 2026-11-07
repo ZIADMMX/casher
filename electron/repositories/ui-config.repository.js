@@ -19,7 +19,6 @@ const DEFAULT_CONFIGS = {
     { id: 'returns_today', label: 'المرتجعات', visible: false, icon: 'returns' },
     { id: 'profit_today', label: 'الأرباح', visible: true, icon: 'profit' },
     { id: 'active_shifts', label: 'الورديات النشطة', visible: false, icon: 'shifts' },
-    { id: 'pending_orders', label: 'الطلبات المعلقة', visible: true, icon: 'orders' },
   ],
   pos_fields: [
     { id: 'barcode_search', label: 'البحث بالباركود', visible: true, required: true },
