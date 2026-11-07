@@ -10,5 +10,10 @@ module.exports = defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['tests/frontend/setup/jest-dom.js'],
+    // Forked workers time out while starting on Windows ("Failed to start forks worker"); threads start reliably.
+    pool: 'threads',
+    // One jsdom per worker; too many at once crash Node or starve the slower tests.
+    maxWorkers: 4,
+    testTimeout: 20000,
   },
 });
