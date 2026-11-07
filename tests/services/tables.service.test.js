@@ -167,3 +167,34 @@ test('a till sale is charged the catalog price, whatever price the till sends', 
     paymentMethod: 'cash',
   })).toThrow('باركود الميزان');
 });
+
+test('kitchen tickets carry the line note and split by prep station', () => {
+  const kitchenTicket = require('../../electron/services/kitchenTicket.service');
+  const tablesRepo = require('../../electron/repositories/tables.repository');
+  const drinksId = mockDb.prepare("INSERT INTO categories (name) VALUES ('مشروبات')").run().lastInsertRowid;
+  mockDb.prepare('UPDATE products SET category_id = ? WHERE id = (SELECT product_id FROM product_variants WHERE id = ?)')
+    .run(drinksId, teaId);
+
+  const table = tablesService.addTable('طاولة الملاحظات').find((t) => t.name === 'طاولة الملاحظات');
+  const tab = tablesService.openTab(table.id);
+  expect(() => tablesService.sendRound(tab.id, [{ variantId: burgerId, quantity: 1, note: 'x'.repeat(121) }]))
+    .toThrow('أطول من');
+  const sent = tablesService.sendRound(tab.id, [
+    { variantId: burgerId, quantity: 1, note: '  من غير   بصل ' },
+    { variantId: teaId, quantity: 2 },
+  ]);
+  expect(sent.items[0].note).toBe('من غير بصل');
+
+  const ticket = tablesRepo.getRoundTicket(sent.roundId);
+  expect(ticket).toMatchObject({ table_name: 'طاولة الملاحظات', round_no: 1, order_mode: 'dine_in' });
+  expect(ticket.items.map((item) => item.note)).toEqual(['من غير بصل', null]);
+
+  const stations = kitchenTicket.getStations(JSON.stringify([{ name: 'البار', printer: 'BAR', categoryIds: [drinksId] }, { name: '' }]));
+  const groups = kitchenTicket.splitByStation(ticket.items, stations, 'KITCHEN');
+  expect(groups.map((g) => [g.stationName, g.printer, g.items.map((i) => i.product_name)]))
+    .toEqual([[null, 'KITCHEN', ['برجر']], ['البار', 'BAR', ['شاي']]]);
+
+  // The note reaches the paid sale too.
+  const { saleId } = salesService.createSale({ items: [], paymentMethod: 'cash', tableTabId: tab.id });
+  expect(salesService.getSaleById(saleId).items.map((item) => item.note).sort()).toEqual([null, 'من غير بصل'].sort());
+});

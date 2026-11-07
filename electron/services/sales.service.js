@@ -11,7 +11,7 @@ const { requireAuth, getCurrentSession, hasGrantedPermission } = require('./auth
 const { logError } = require('../services/logger.service');
 const inventoryRepo = require('../repositories/inventory.repository');
 const bundlePromotionsService = require('./bundlePromotions.service');
-const { resolveModifiers, getCatalog: getAddonCatalog } = require('./modifiers.service');
+const { resolveModifiers, cleanNote, getCatalog: getAddonCatalog } = require('./modifiers.service');
 
 /**
  * Create a new sale transaction.
@@ -48,6 +48,7 @@ function createSale({
         quantity: item.quantity,
         unitPrice: item.unit_price,
         sentModifiers: item.modifiers,
+        note: item.note,
       }));
       orderMode = 'dine_in';
     }
@@ -142,6 +143,7 @@ function createSale({
         baseQuantityDeduction,
         isService,
         modifiers,
+        note: cleanNote(item.note),
       });
     }
 

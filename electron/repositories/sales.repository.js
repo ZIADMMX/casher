@@ -48,10 +48,10 @@ function createSaleItem(saleId, item) {
   const baseQuantity = Number(item.baseQuantityDeduction) || quantity;
   const factor = quantity > 0 ? baseQuantity / quantity : 1;
   const stmt = db.prepare(`
-    INSERT INTO sale_items (sale_id, variant_id, quantity, unit_price, unit_cost, modifiers)
-    VALUES (?, ?, ?, ?, (SELECT purchase_price * ? FROM product_variants WHERE id = ?), ?)
+    INSERT INTO sale_items (sale_id, variant_id, quantity, unit_price, unit_cost, modifiers, note)
+    VALUES (?, ?, ?, ?, (SELECT purchase_price * ? FROM product_variants WHERE id = ?), ?, ?)
   `);
-  stmt.run(saleId, item.variantId, item.quantity, item.unitPrice, factor, item.variantId, serializeModifiers(item.modifiers));
+  stmt.run(saleId, item.variantId, item.quantity, item.unitPrice, factor, item.variantId, serializeModifiers(item.modifiers), item.note ?? null);
 }
 
 function getStatsByCustomer() {
@@ -76,6 +76,7 @@ function getById(saleId) {
       si.quantity, 
       si.unit_price,
       si.modifiers,
+      si.note,
       pv.size,
       pv.color, 
       pv.barcode,

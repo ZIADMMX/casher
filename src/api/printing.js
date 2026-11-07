@@ -8,3 +8,4 @@ export const getPrinters = bridgeMethod('getPrinters');
 export const printRaw = bridgeMethod('printRaw');
 export const cutPaper = bridgeMethod('cutPaper');
 export const printBarcodeLabel = bridgeMethod('printBarcodeLabel');
+export const printKitchenTicket = bridgeMethod('printKitchenTicket');

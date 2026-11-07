@@ -384,6 +384,7 @@ CREATE TABLE IF NOT EXISTS sale_items (
     unit_price REAL NOT NULL CHECK(unit_price >= 0),            -- السعر وقت البيع (يتسجل هنا عشان لو السعر اتغير بعدين)
     unit_cost REAL CHECK(unit_cost IS NULL OR unit_cost >= 0),  -- تكلفة الوحدة وقت البيع (الأرباح القديمة لا تتغير لو سعر الشراء اتغير)
     modifiers TEXT,                      -- نسخة JSON من إضافات الصنف [{name, price}]، وسعرها داخل unit_price
+    note TEXT,                           -- ملاحظة حرة للمطبخ (من غير بصل، استوا زيادة)
     FOREIGN KEY (sale_id) REFERENCES sales(id) ON DELETE CASCADE,
     FOREIGN KEY (variant_id) REFERENCES product_variants(id) ON DELETE SET NULL
 );
@@ -2008,6 +2009,7 @@ CREATE TABLE IF NOT EXISTS table_tab_items (
     quantity REAL NOT NULL CHECK(quantity > 0),
     unit_price REAL NOT NULL CHECK(unit_price >= 0),
     modifiers TEXT,
+    note TEXT,
     FOREIGN KEY (tab_id) REFERENCES table_tabs(id),
     FOREIGN KEY (round_id) REFERENCES table_tab_rounds(id),
     FOREIGN KEY (variant_id) REFERENCES product_variants(id)

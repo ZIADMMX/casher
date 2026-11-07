@@ -3,6 +3,7 @@ import { useSettings } from '../contexts/SettingsContext.jsx';
 import { useBusinessProfile } from '../contexts/BusinessProfileContext.jsx';
 import Modal from '../components/Modal.jsx';
 import AddonsSettingsCard from '../components/settings/AddonsSettingsCard.jsx';
+import RestaurantSettingsCard from '../components/settings/RestaurantSettingsCard.jsx';
 
 function SettingsPage() {
   const { settings, saveSettings, uploadLogo, backupDatabase, restoreDatabase } = useSettings();
@@ -363,6 +364,7 @@ function SettingsPage() {
           </div>
 
           {!isLawFirm && <AddonsSettingsCard />}
+          {configuration?.profile?.key === 'cafe_restaurant' && <RestaurantSettingsCard />}
 
           {/* Card 3: النسخ الاحتياطي والأمان */}
           <div style={{ background: '#FFFFFF', borderRadius: '16px', border: '1px solid #E2E8F0', padding: '24px', boxShadow: '0 2px 10px rgba(0,0,0,0.03)' }}>

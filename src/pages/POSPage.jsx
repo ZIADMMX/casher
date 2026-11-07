@@ -245,7 +245,7 @@ function POSPage({ onNavigate }) {
       const inCart = prev.filter((item) => item.variantId === variant.id).reduce((sum, item) => sum + item.quantity, 0);
       if (!isService && inCart >= variant.stock_quantity) return prev;
       // A tap adds a plain one; lines with add-ons stay as the cashier set them.
-      const existing = prev.find((item) => item.variantId === variant.id && !item.modifiers?.length);
+      const existing = prev.find((item) => item.variantId === variant.id && !item.modifiers?.length && !item.note);
       if (existing) {
         return prev.map((item) =>
           item === existing ? { ...item, quantity: item.quantity + 1 } : item
@@ -285,7 +285,7 @@ function POSPage({ onNavigate }) {
 
     setCart((prev) => {
       const existing = prev.find((item) => item.variantId === variant.id && item.unitId === unitId
-        && (item.scaleBarcode || null) === scaleBarcode && !item.modifiers?.length);
+        && (item.scaleBarcode || null) === scaleBarcode && !item.modifiers?.length && !item.note);
       if (existing) {
         const nextQty = Math.round((existing.quantity + qtyToAdd) * 1000) / 1000;
         if (variant.stock_quantity && nextQty > variant.stock_quantity) {
@@ -434,11 +434,11 @@ function POSPage({ onNavigate }) {
     setCart((prev) => prev.filter((item) => lineKey(item) !== key));
   }
 
-  function handleApplyModifiers(names, quantity) {
+  function handleApplyModifiers(names, quantity, note) {
     if (cartLocked) return warnCartLocked();
     const line = modifiersLine;
     setModifiersLine(null);
-    if (line) setCart((prev) => applyModifiers(prev, line, names, quantity, addonCatalog));
+    if (line) setCart((prev) => applyModifiers(prev, line, names, quantity, addonCatalog, note));
   }
 
   const handleSelectSpeedKey = (key) => {
@@ -573,6 +573,17 @@ function POSPage({ onNavigate }) {
     ? `تم تطبيق عرض ${bundlePromotion.name} تلقائيًا (خصم ${bundlePromotion.discount.toFixed(2)} ج.م)`
     : couponMessage;
 
+  // Prints the order's kitchen ticket(s) in the background; the order itself is already saved.
+  function printKitchenTicket(ref) {
+    if (!printingApi.printKitchenTicket.isAvailable()) return;
+    const warn = (text) => setMessage({ type: 'warning', text: `الطلب اتسجل لكن تذكرة المطبخ ما اتطبعتش: ${text}` });
+    printingApi.printKitchenTicket(ref)
+      .then((result) => {
+        if (result?.failed?.length) warn(result.failed.map((f) => `${f.station} (${f.error})`).join('، '));
+      })
+      .catch((err) => warn(normalizeErrorMessage(err)));
+  }
+
   function requireShiftForTables() {
     if (activeShift) return true;
     playErrorBeep();
@@ -610,11 +621,13 @@ function POSPage({ onNavigate }) {
           variantId: item.variantId,
           quantity: item.quantity,
           modifiers: item.modifiers?.map((m) => m.name),
+          note: item.note || null,
         })),
       );
       setActiveTab(tab);
       clearCart();
       playSuccessBeep();
+      printKitchenTicket({ roundId: tab.roundId });
       setMessage({ type: 'success', text: `اتبعت للمطبخ — ${tab.table_name}` });
     } catch (err) {
       playErrorBeep();
@@ -634,6 +647,7 @@ function POSPage({ onNavigate }) {
         unitPrice: item.unit_price,
         quantity: item.quantity,
         modifiers: item.modifiers,
+        note: item.note || undefined,
         maxStock: null,
         isService: true,
       })));
@@ -688,6 +702,7 @@ function POSPage({ onNavigate }) {
           unitId: item.unitId || null,
           scaleBarcode: item.scaleBarcode || null,
           modifiers: item.modifiers?.map((m) => m.name),
+          note: item.note || null,
         })),
         discount: Number(discount || 0),
         paymentMethod,
@@ -700,6 +715,9 @@ function POSPage({ onNavigate }) {
         subscriptionId: useSubscriptionCredit && activeSubscription ? activeSubscription.id : null,
         creditsDeducted: useSubscriptionCredit ? 1 : 0,
       });
+
+      // A table's rounds already went to the kitchen when they were sent.
+      if (sectorConfig.key === 'cafe_restaurant' && !activeTab) printKitchenTicket({ saleId: result.saleId });
 
       const fullSale = await salesApi.getSaleById(result.saleId);
       if (fullSale) {
@@ -1073,7 +1091,7 @@ function POSPage({ onNavigate }) {
           cart={cart}
           changeQuantity={changeQuantity}
           removeFromCart={removeFromCart}
-          onEditModifiers={addonCatalog.length > 0 && !cartLocked ? setModifiersLine : null}
+          onEditModifiers={(addonCatalog.length > 0 || sectorConfig.key === 'cafe_restaurant') && !cartLocked ? setModifiersLine : null}
           onOpenScaleEdit={(item) => setScaleModalItem(item)}
           clearCart={cartLocked ? handleCancelPayTab : clearCart}
           onHoldOrder={handleHoldCurrentOrder}

@@ -35,8 +35,18 @@ function resolveModifiers(names, catalog = getCatalog()) {
   return { modifiers, extra };
 }
 
+// The free kitchen note on one line ("no onion"). Plain text, kept short.
+const MAX_NOTE_LENGTH = 120;
+function cleanNote(note) {
+  if (note == null) return null;
+  if (typeof note !== 'string') throw new Error('ملاحظة الصنف غير صالحة');
+  const text = note.replace(/\s+/g, ' ').trim();
+  if (text.length > MAX_NOTE_LENGTH) throw new Error(`ملاحظة الصنف أطول من ${MAX_NOTE_LENGTH} حرف`);
+  return text || null;
+}
+
 function serializeModifiers(modifiers) {
   return modifiers?.length ? JSON.stringify(modifiers) : null;
 }
 
-module.exports = { getCatalog, resolveModifiers, parseModifiers, serializeModifiers };
+module.exports = { getCatalog, resolveModifiers, parseModifiers, serializeModifiers, cleanNote, MAX_NOTE_LENGTH };

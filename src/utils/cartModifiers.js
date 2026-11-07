@@ -1,7 +1,8 @@
 // Item add-ons in the POS cart. Kept pure so it can be tested directly.
 // A cart line is one item with one set of add-ons; the same sandwich plain and
 // with extra cheese are two lines. unitPrice always includes the add-ons and
-// basePrice is the item's own price.
+// basePrice is the item's own price. A kitchen note ("no onion") also makes
+// its own line, so the cook sees which unit it belongs to.
 
 const roundMoney = (value) => Math.round(value * 100) / 100;
 const roundQty = (value) => Math.round(value * 1000) / 1000;
@@ -22,15 +23,16 @@ export function parseAddonCatalog(json) {
 
 export function lineKey(item) {
   const names = (item.modifiers || []).map((m) => m.name).sort();
-  return [item.variantId, item.unitId || '', item.scaleBarcode || '', ...names].join('|');
+  return [item.variantId, item.unitId || '', item.scaleBarcode || '', ...names, item.note ? `note:${item.note}` : ''].join('|');
 }
 
 /**
- * Moves `quantity` units of `line` onto the add-ons `names` (from `catalog`).
+ * Moves `quantity` units of `line` onto the add-ons `names` (from `catalog`)
+ * and the kitchen `note` (the line's own note when left out).
  * The rest of the line stays as it was; units that end up identical to
  * another line are merged into it.
  */
-export function applyModifiers(cart, line, names, quantity, catalog) {
+export function applyModifiers(cart, line, names, quantity, catalog, note = line.note) {
   const key = lineKey(line);
   const qty = Math.min(Math.max(Number(quantity) || 0, 0), line.quantity);
   const basePrice = line.basePrice ?? line.unitPrice;
@@ -40,6 +42,7 @@ export function applyModifiers(cart, line, names, quantity, catalog) {
     quantity: qty,
     basePrice,
     modifiers,
+    note: String(note ?? '').replace(/\s+/g, ' ').trim().slice(0, 120) || undefined,
     unitPrice: roundMoney(basePrice + modifiers.reduce((sum, m) => sum + m.price, 0)),
   };
   const movedKey = lineKey(moved);

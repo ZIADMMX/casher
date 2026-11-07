@@ -5,7 +5,7 @@ const tablesRepo = require('../repositories/tables.repository');
 const variantsRepo = require('../repositories/productVariants.repository');
 const shiftsRepo = require('../repositories/shifts.repository');
 const { requireAuth, getCurrentSession } = require('./auth.service');
-const { resolveModifiers, getCatalog: getAddonCatalog } = require('./modifiers.service');
+const { resolveModifiers, cleanNote, getCatalog: getAddonCatalog } = require('./modifiers.service');
 
 const MAX_TABLES = 200;
 
@@ -91,11 +91,12 @@ function sendRound(tabId, items) {
     if (!variant) throw new Error('صنف غير موجود في المنيو');
     const { modifiers, extra } = resolveModifiers(item?.modifiers, catalog);
     const unitPrice = Math.round(((Number(variant.selling_price) || 0) + extra) * 100) / 100;
-    return { variantId, quantity, unitPrice, modifiers };
+    return { variantId, quantity, unitPrice, modifiers, note: cleanNote(item?.note) };
   });
 
-  tablesRepo.addRound(id, lines, getCurrentSession()?.id);
-  return tabWithItems(id);
+  const roundId = tablesRepo.addRound(id, lines, getCurrentSession()?.id);
+  // roundId lets the till print this round's kitchen ticket.
+  return { ...tabWithItems(id), roundId };
 }
 
 // Only an empty check can be cancelled; anything the kitchen received must be paid.

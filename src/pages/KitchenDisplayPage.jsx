@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as salesApi from '../api/sales.js';
+import { useSettings } from '../contexts/SettingsContext.jsx';
+import { parsePrepStations, stationOf } from '../utils/prepStations.js';
 import { LockIcon, CheckIcon, UndoIcon } from '../components/icons/PosIcons.jsx';
 import '../styles/kitchen.css';
 
@@ -83,6 +85,7 @@ function OrderCard({ order, column, now, busy, onMove }) {
               {item.modifiers?.length > 0 && (
                 <span className="kds-item__variant">+ {item.modifiers.map((m) => m.name).join('، ')}</span>
               )}
+              {item.note && <span className="kds-item__variant"><strong>📝 {item.note}</strong></span>}
             </span>
           </li>
         ))}
@@ -106,7 +109,15 @@ function OrderCard({ order, column, now, busy, onMove }) {
 }
 
 export default function KitchenDisplayPage() {
-  const [orders, setOrders] = useState([]);
+  const { settings } = useSettings();
+  const stations = parsePrepStations(settings?.prep_stations);
+  // null = every station; '' = the main kitchen; otherwise a station name.
+  const [station, setStation] = useState(null);
+  const [allOrders, setOrders] = useState([]);
+  // A station screen shows only its own items, and only orders that have some.
+  const orders = station === null ? allOrders : allOrders
+    .map((o) => ({ ...o, items: (o.items || []).filter((item) => stationOf(item, stations) === station) }))
+    .filter((o) => o.items.length > 0);
   const [loading, setLoading] = useState(true);
   const [connected, setConnected] = useState(true);
   const [lastSync, setLastSync] = useState(null);
@@ -210,6 +221,18 @@ export default function KitchenDisplayPage() {
         </dl>
 
         <div className="kds-top__side">
+          {stations.length > 0 && (
+            <select
+              className="kds-mode"
+              value={station ?? '*'}
+              aria-label="المحطة"
+              onChange={(e) => setStation(e.target.value === '*' ? null : e.target.value)}
+            >
+              <option value="*">كل المحطات</option>
+              <option value="">المطبخ الرئيسي</option>
+              {stations.map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}
+            </select>
+          )}
           <button
             type="button"
             className={`kds-mode${fullscreen ? ' is-on' : ''}`}

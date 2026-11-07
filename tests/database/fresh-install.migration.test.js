@@ -19,7 +19,7 @@ describe('fresh install migrations', () => {
   });
 
   it('reaches the latest schema version', () => {
-    expect(db.pragma('user_version', { simple: true })).toBe(20);
+    expect(db.pragma('user_version', { simple: true })).toBe(require('../../electron/database/connection').DATABASE_SCHEMA_VERSION);
   });
 
   it('seeds one onboarding preset per sector', () => {

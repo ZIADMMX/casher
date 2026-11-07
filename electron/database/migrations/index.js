@@ -245,6 +245,14 @@ function runAllMigrations(dbInstance = db) {
     console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 20 (إضافات الأصناف).');
   }
 
+  if (currentVersion < 21) {
+    // A free note per line ("no onion, well done") for the kitchen ticket.
+    addColumnIfMissing('sale_items', 'note', 'TEXT', dbInstance);
+    addColumnIfMissing('table_tab_items', 'note', 'TEXT', dbInstance);
+    dbInstance.pragma('user_version = 21');
+    console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 21 (ملاحظة الصنف للمطبخ).');
+  }
+
   // Earlier steps may rebuild the sales tables; make sure the guards exist at the end.
   ensureSalesLedgerGuards(dbInstance);
   ensureKitchenLedger(dbInstance);

@@ -225,15 +225,16 @@ function CartPanel({
                     {item.modifiers?.length > 0 && (
                       <span className="pos-item-unit-price">+ {item.modifiers.map((m) => m.name).join('، ')}</span>
                     )}
+                    {item.note && <span className="pos-item-unit-price">📝 {item.note}</span>}
                     {onEditModifiers && !item.isScaleItem && (
                       <button
                         type="button"
                         className="pos-scale-tag"
                         onClick={() => onEditModifiers(item)}
-                        aria-label={`إضافات ${item.productName}`}
+                        aria-label={`إضافات وملاحظة ${item.productName}`}
                       >
                         <PlusIcon size={14} />
-                        إضافات
+                        إضافات / ملاحظة
                       </button>
                     )}
                     {item.isScaleItem && (

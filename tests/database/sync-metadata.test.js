@@ -100,7 +100,7 @@ describe('upgrading an older database that already has data', () => {
   });
 
   test('reaches schema 18', () => {
-    expect(db.pragma('user_version', { simple: true })).toBe(20);
+    expect(db.pragma('user_version', { simple: true })).toBe(require('../../electron/database/connection').DATABASE_SCHEMA_VERSION);
   });
 
   test.each(SYNC_TABLES)('every existing %s row has a uuid and updated_at', (table) => {

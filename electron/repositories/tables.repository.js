@@ -47,7 +47,7 @@ function openTab(tableId, userId) {
 
 function getTabItems(tabId) {
   return withModifiers(db.prepare(`
-    SELECT i.id, i.round_id, i.variant_id, i.quantity, i.unit_price, i.modifiers,
+    SELECT i.id, i.round_id, i.variant_id, i.quantity, i.unit_price, i.modifiers, i.note,
       p.name AS product_name, pv.size, pv.color
     FROM table_tab_items i
     LEFT JOIN product_variants pv ON pv.id = i.variant_id
@@ -63,10 +63,10 @@ function addRound(tabId, items, userId) {
     const roundId = db.prepare('INSERT INTO table_tab_rounds (tab_id, created_by) VALUES (?, ?)')
       .run(tabId, userId ?? null).lastInsertRowid;
     const insert = db.prepare(`
-      INSERT INTO table_tab_items (tab_id, round_id, variant_id, quantity, unit_price, modifiers) VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO table_tab_items (tab_id, round_id, variant_id, quantity, unit_price, modifiers, note) VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
     for (const item of items) {
-      insert.run(tabId, roundId, item.variantId, item.quantity, item.unitPrice, serializeModifiers(item.modifiers));
+      insert.run(tabId, roundId, item.variantId, item.quantity, item.unitPrice, serializeModifiers(item.modifiers), item.note ?? null);
     }
     return roundId;
   })();
@@ -107,7 +107,7 @@ function getKitchenRounds(servedLimit) {
   if (!rounds.length) return [];
 
   const items = withModifiers(db.prepare(`
-    SELECT i.round_id, i.quantity, i.modifiers, p.name AS product_name, pv.size, pv.color
+    SELECT i.round_id, i.quantity, i.modifiers, i.note, p.name AS product_name, p.category_id, pv.size, pv.color
     FROM table_tab_items i
     LEFT JOIN product_variants pv ON pv.id = i.variant_id
     LEFT JOIN products p ON p.id = pv.product_id
@@ -147,7 +147,31 @@ function moveRound(roundId, fromStatus, toStatus, userId) {
   })();
 }
 
+// One round with what the cook needs (no prices), for its printed ticket.
+function getRoundTicket(roundId) {
+  const round = db.prepare(`
+    SELECT r.id, r.created_at, t.name AS table_name,
+      (SELECT COUNT(*) FROM table_tab_rounds r2 WHERE r2.tab_id = r.tab_id AND r2.id <= r.id) AS round_no,
+      COALESCE(NULLIF(TRIM(u.full_name), ''), u.username) AS cashier_name
+    FROM table_tab_rounds r
+    JOIN table_tabs tab ON tab.id = r.tab_id
+    JOIN dining_tables t ON t.id = tab.table_id
+    LEFT JOIN users u ON u.id = r.created_by
+    WHERE r.id = ?
+  `).get(roundId);
+  if (!round) return null;
+  const items = withModifiers(db.prepare(`
+    SELECT i.quantity, i.modifiers, i.note, p.name AS product_name, p.category_id, pv.size, pv.color
+    FROM table_tab_items i
+    LEFT JOIN product_variants pv ON pv.id = i.variant_id
+    LEFT JOIN products p ON p.id = pv.product_id
+    WHERE i.round_id = ? ORDER BY i.id
+  `).all(roundId));
+  return { ...round, order_mode: 'dine_in', items };
+}
+
 module.exports = {
+  getRoundTicket,
   getTables,
   getTable,
   addTable,

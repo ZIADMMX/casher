@@ -31,7 +31,7 @@ function getOrders() {
 
   const ids = orders.map((order) => order.id);
   const items = db.prepare(`
-    SELECT si.sale_id, si.quantity, si.modifiers, p.name AS product_name, pv.size, pv.color
+    SELECT si.sale_id, si.quantity, si.modifiers, si.note, p.name AS product_name, p.category_id, pv.size, pv.color
     FROM sale_items si
     LEFT JOIN product_variants pv ON pv.id = si.variant_id
     LEFT JOIN products p ON p.id = pv.product_id
@@ -81,4 +81,23 @@ function moveOrder(saleId, fromStatus, toStatus, userId) {
   })();
 }
 
-module.exports = { getOrders, getOrderState, getLastChange, moveOrder };
+// One kitchen order with what the cook needs (no prices), for its printed ticket.
+function getSaleTicket(saleId) {
+  const sale = db.prepare(`
+    SELECT s.id, s.order_mode, s.customer_name, s.customer_phone, s.notes, s.created_at,
+      COALESCE(NULLIF(TRIM(u.full_name), ''), u.username) AS cashier_name
+    FROM sales s LEFT JOIN users u ON u.id = s.user_id
+    WHERE s.id = ? AND s.order_mode IS NOT NULL
+  `).get(saleId);
+  if (!sale) return null;
+  const items = db.prepare(`
+    SELECT si.quantity, si.modifiers, si.note, p.name AS product_name, p.category_id, pv.size, pv.color
+    FROM sale_items si
+    LEFT JOIN product_variants pv ON pv.id = si.variant_id
+    LEFT JOIN products p ON p.id = pv.product_id
+    WHERE si.sale_id = ? ORDER BY si.id
+  `).all(saleId).map((item) => ({ ...item, modifiers: parseModifiers(item.modifiers) }));
+  return { ...sale, items };
+}
+
+module.exports = { getOrders, getOrderState, getLastChange, moveOrder, getSaleTicket };

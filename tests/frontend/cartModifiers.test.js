@@ -33,6 +33,13 @@ describe('cart add-ons', () => {
     expect(applyModifiers(cart, sandwich, [], 3, catalog)).toBe(cart);
   });
 
+  test('a kitchen note splits units into their own line, trimmed', () => {
+    const cart = applyModifiers([sandwich], sandwich, [], 1, catalog, '  من غير   طحينة ');
+    expect(cart).toHaveLength(2);
+    expect(cart[1]).toMatchObject({ quantity: 1, note: 'من غير طحينة', unitPrice: 50 });
+    expect(applyModifiers(cart, cart[1], [], 1, catalog, '')).toHaveLength(1);
+  });
+
   test('lineKey ignores add-on order', () => {
     const a = { variantId: 1, modifiers: [{ name: 'b' }, { name: 'a' }] };
     const b = { variantId: 1, modifiers: [{ name: 'a' }, { name: 'b' }] };

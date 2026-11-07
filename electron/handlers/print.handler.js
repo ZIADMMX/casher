@@ -1,5 +1,6 @@
 const { printReceipt, printBarcodeLabel, printRawEscPos, openCashDrawer, cutPaper } = require('../services/print.service');
 const authService = require('../services/auth.service');
+const { printKitchenTicket } = require('../services/kitchenTicket.service');
 const { safeHandle } = require('./safeHandle');
 
 function registerPrintHandlers() {
@@ -34,6 +35,9 @@ function registerPrintHandlers() {
     authService.requireAuth();
     return cutPaper(options);
   });
+
+  // { saleId } or { roundId }: the ticket is built from the database, not from the till.
+  safeHandle('print:kitchenTicket', (event, ref) => printKitchenTicket(ref));
 
   safeHandle('print:barcodeLabel', (event, labelData) => {
     authService.requireAdmin();

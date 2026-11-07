@@ -76,6 +76,7 @@ restoreBackup: () => ipcRenderer.invoke('backup:restore'),
   printRaw: (rawBuffer, options) => ipcRenderer.invoke('print:raw', { rawBuffer, options }),
   cutPaper: (options) => ipcRenderer.invoke('print:cutPaper', options),
   printBarcodeLabel: (labelData) => ipcRenderer.invoke('print:barcodeLabel', labelData),
+  printKitchenTicket: (ref) => ipcRenderer.invoke('print:kitchenTicket', ref),
   // Customers
   getAllCustomersWithStats: () => invokeRemoteOrLocal('GET', '/api/customers', 'customers:getAllWithStats'),
   addCustomer: (data) => invokeRemoteOrLocal('POST', '/api/customers/add', 'customers:add', data, data),

@@ -3,16 +3,18 @@ import { CloseIcon } from '../icons/PosIcons.jsx';
 
 /**
  * Picks the add-ons for one cart line and how many of its units get them
- * ("one of the three with extra cheese").
+ * ("one of the three with extra cheese"), plus a free note for the kitchen.
  */
 export default function ModifiersModal({ line, catalog, onApply, onClose }) {
   const [selected, setSelected] = useState([]);
   const [quantity, setQuantity] = useState(1);
+  const [note, setNote] = useState('');
 
   useEffect(() => {
     if (!line) return;
     setSelected((line.modifiers || []).map((m) => m.name));
     setQuantity(line.quantity);
+    setNote(line.note || '');
   }, [line]);
 
   if (!line) return null;
@@ -25,10 +27,10 @@ export default function ModifiersModal({ line, catalog, onApply, onClose }) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="held-orders-modal pos-tables-modal" role="dialog" aria-label="إضافات الصنف" onClick={(e) => e.stopPropagation()}>
+      <div className="held-orders-modal pos-tables-modal" role="dialog" aria-label="إضافات وملاحظة الصنف" onClick={(e) => e.stopPropagation()}>
         <div className="held-modal-header">
           <div className="held-title-row">
-            <h3>إضافات: {line.productName}</h3>
+            <h3>{line.productName}</h3>
           </div>
           <button type="button" className="modal-close" onClick={onClose} aria-label="إغلاق">
             <CloseIcon size={18} />
@@ -61,9 +63,17 @@ export default function ModifiersModal({ line, catalog, onApply, onClose }) {
             className="pos-tables-add"
             onSubmit={(e) => {
               e.preventDefault();
-              onApply(selected, quantity);
+              onApply(selected, quantity, note);
             }}
           >
+            <input
+              className="pos-tables-add__input"
+              value={note}
+              maxLength={120}
+              placeholder="ملاحظة للمطبخ (مثال: من غير بصل، استوا زيادة)"
+              aria-label="ملاحظة للمطبخ"
+              onChange={(e) => setNote(e.target.value)}
+            />
             {line.quantity > 1 && (
               <label>
                 {'العدد '}

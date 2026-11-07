@@ -598,6 +598,56 @@ async function printReceipt(sale, receiptOptions = {}) {
 }
 
 function printReceiptWithDialog(sale, options = {}) {
+  return printHtml(buildReceiptHtml(sale, options), options);
+}
+
+const ORDER_MODE_LABELS = { dine_in: 'صالة', takeaway: 'تيك أواي', delivery: 'توصيل' };
+
+// The cook's copy of an order: big text, no prices. One ticket per prep station.
+function buildKitchenTicketHtml(ticket, options = {}) {
+  const paperWidth = options.paperSize === '58mm' ? '58mm' : '80mm';
+  const title = ticket.table_name
+    ? `${ticket.table_name} · دفعة ${ticket.round_no}`
+    : `طلب #${ticket.id}`;
+  const rows = ticket.items.map((item) => {
+    const variant = [item.size, item.color].filter(Boolean).join(' / ');
+    return `
+      <div class="item">
+        <div><b>${escapeHtml(item.quantity)} ×</b> ${escapeHtml(item.product_name || 'صنف محذوف')}${variant ? ` (${escapeHtml(variant)})` : ''}</div>${item.modifiers?.length ? `
+        <div class="sub-line">+ ${escapeHtml(item.modifiers.map((m) => m.name).join('، '))}</div>` : ''}${item.note ? `
+        <div class="sub-line note">⚠ ${escapeHtml(item.note)}</div>` : ''}
+      </div>`;
+  }).join('');
+  const customer = [ticket.customer_name, ticket.customer_phone].filter(Boolean).join(' · ');
+
+  return `
+  <html dir="rtl" lang="ar">
+  <head>
+    <meta charset="UTF-8" />
+    <style>
+      body { font-family: Tahoma, sans-serif; width: ${paperWidth}; box-sizing: border-box; margin: 0; padding: 8px; font-size: 16px; }
+      h2 { text-align: center; margin: 0; font-size: 22px; }
+      .sub { text-align: center; font-size: 13px; margin: 2px 0; }
+      .station { text-align: center; font-size: 15px; font-weight: bold; border: 2px solid #000; margin: 6px 0; padding: 2px; }
+      .item { border-bottom: 1px dashed #000; padding: 6px 0; font-size: 18px; }
+      .sub-line { font-size: 14px; padding-right: 12px; }
+      .note { font-weight: bold; }
+    </style>
+  </head>
+  <body>
+    <h2>${escapeHtml(title)}</h2>
+    <div class="sub">${escapeHtml(ORDER_MODE_LABELS[ticket.order_mode] || 'طلب')} · ${new Date().toLocaleTimeString('ar-EG')}${ticket.cashier_name ? ` · ${escapeHtml(ticket.cashier_name)}` : ''}</div>${customer ? `
+    <div class="sub">${escapeHtml(customer)}</div>` : ''}${ticket.delivery_address ? `
+    <div class="sub">${escapeHtml(ticket.delivery_address)}</div>` : ''}${options.stationName ? `
+    <div class="station">${escapeHtml(options.stationName)}</div>` : ''}
+    ${rows}${ticket.notes ? `
+    <div class="sub-line note">📝 ${escapeHtml(ticket.notes)}</div>` : ''}
+  </body>
+</html>`;
+}
+
+// Prints one HTML page: silently on `options.printerName`, or through the print dialog.
+function printHtml(html, options = {}) {
   return new Promise((resolve, reject) => {
     let printWindow = null;
     let timeoutId = null;
@@ -631,7 +681,6 @@ function printReceiptWithDialog(sale, options = {}) {
         reject(err);
       }, 20000);
 
-      const html = buildReceiptHtml(sale, options);
       printWindow.loadURL(`data:text/html;charset=UTF-8,${encodeURIComponent(html)}`);
 
       printWindow.webContents.on('did-finish-load', () => {
@@ -758,6 +807,8 @@ function printBarcodeLabel(variant) {
 
 module.exports = {
   printReceipt,
+  printHtml,
+  buildKitchenTicketHtml,
   printBarcodeLabel,
   buildReceiptHtml,
   buildBarcodeLabelHtml,
