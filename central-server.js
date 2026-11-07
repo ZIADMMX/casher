@@ -23,6 +23,8 @@ const {
   createCentralProduct,
   PosError,
 } = require('./electron/services/centralPos.service');
+const syncIngest = require('./electron/services/syncIngest.service');
+const mobileReports = require('./electron/services/mobileReports.service');
 
 // Parse command line arguments for port and instance ID
 const args = process.argv.slice(2);
@@ -236,6 +238,19 @@ async function ensureCourtsSchema() {
   await courtsSchemaMigration;
 }
 
+let syncSchemaMigration = null;
+async function ensureSyncSchema() {
+  if (!syncSchemaMigration) {
+    syncSchemaMigration = ensurePosSchema()
+      .then(() => writePool.query(syncIngest.SCHEMA_SQL))
+      .catch((error) => {
+        syncSchemaMigration = null;
+        throw error;
+      });
+  }
+  await syncSchemaMigration;
+}
+
 const server = http.createServer(async (req, res) => {
   if (!applyCorsPolicy(req, res)) {
     return sendJSON(res, 403, { error: 'هذا المصدر غير مسموح له بالاتصال بالخادم' });
@@ -335,6 +350,24 @@ const server = http.createServer(async (req, res) => {
         token,
         user: { id: user.id, username: user.username, role: user.role, branch_id: user.branch_id },
       });
+    }
+
+    // -------------------------------------------------------------
+    // Cloud sync: a shop desktop pushes its rows with its device key
+    // -------------------------------------------------------------
+    if (pathname === '/api/sync/push' && method === 'POST') {
+      const key = syncIngest.readDeviceKey(req);
+      if (!key) return sendJSON(res, 401, { error: 'مفتاح مزامنة الجهاز مطلوب' });
+      await ensureSyncSchema();
+      const device = await syncIngest.findDevice(queryWrite, key);
+      if (!device) return sendJSON(res, 401, { error: 'مفتاح مزامنة الجهاز غير صالح أو تم إلغاؤه' });
+      let records;
+      try {
+        records = syncIngest.validateBatch(await parseBody(req, 8 * 1024 * 1024));
+      } catch (error) {
+        return sendJSON(res, error.statusCode || 400, { error: error.message });
+      }
+      return sendJSON(res, 200, await syncIngest.ingest(queryWrite, device, records));
     }
 
     // -------------------------------------------------------------
@@ -1209,6 +1242,75 @@ const server = http.createServer(async (req, res) => {
         );
       }
       return sendJSON(res, 200, { success: true, message: 'تم حفظ الإعدادات بنجاح' });
+    }
+
+    // -------------------------------------------------------------
+    // 8. Admin - Cloud sync device keys (the key is shown once, only its hash is kept)
+    // -------------------------------------------------------------
+    if (pathname === '/api/admin/sync-devices' && method === 'GET') {
+      await ensureSyncSchema();
+      const devices = await queryRead(
+        `SELECT id, branch_id, name, created_at, last_seen_at, revoked_at
+         FROM sync_devices ORDER BY id ASC`
+      );
+      return sendJSON(res, 200, devices.rows);
+    }
+
+    if (pathname === '/api/admin/sync-devices' && method === 'POST') {
+      await ensureSyncSchema();
+      const { branch_id: branchId, name } = await parseBody(req);
+      if (!Number.isSafeInteger(Number(branchId)) || Number(branchId) <= 0) {
+        return sendJSON(res, 400, { error: 'اختر فرعًا صالحًا للجهاز' });
+      }
+      if (!name || !String(name).trim() || String(name).length > 100) {
+        return sendJSON(res, 400, { error: 'اسم الجهاز مطلوب (100 حرف كحد أقصى)' });
+      }
+      const branch = await queryRead('SELECT id FROM branches WHERE id = $1', [Number(branchId)]);
+      if (!branch.rows.length) return sendJSON(res, 404, { error: 'الفرع غير موجود' });
+      const key = syncIngest.newDeviceKey();
+      const inserted = await queryWrite(
+        `INSERT INTO sync_devices (branch_id, name, key_hash, created_by)
+         VALUES ($1, $2, $3, $4) RETURNING id, branch_id, name, created_at`,
+        [Number(branchId), String(name).trim(), syncIngest.hashKey(key), currentUser.id]
+      );
+      return sendJSON(res, 201, { ...inserted.rows[0], key });
+    }
+
+    if (pathname === '/api/admin/sync-devices/revoke' && method === 'POST') {
+      await ensureSyncSchema();
+      const { id } = await parseBody(req);
+      if (!Number.isSafeInteger(Number(id)) || Number(id) <= 0) return sendJSON(res, 400, { error: 'معرف الجهاز غير صالح' });
+      const revoked = await queryWrite(
+        `UPDATE sync_devices SET revoked_at = CURRENT_TIMESTAMP
+         WHERE id = $1 AND revoked_at IS NULL RETURNING id`,
+        [Number(id)]
+      );
+      if (!revoked.rows.length) return sendJSON(res, 404, { error: 'الجهاز غير موجود أو ملغى بالفعل' });
+      return sendJSON(res, 200, { success: true });
+    }
+
+    // -------------------------------------------------------------
+    // 9. Admin - Mobile app reports (read-only, from synced shop data)
+    // -------------------------------------------------------------
+    if (pathname.startsWith('/api/admin/mobile/') && method === 'GET') {
+      await ensureSyncSchema();
+      try {
+        if (pathname === '/api/admin/mobile/summary') {
+          return sendJSON(res, 200, await mobileReports.getSummary(queryRead, mobileReports.parseRange(parsedUrl.query)));
+        }
+        if (pathname === '/api/admin/mobile/sales') {
+          return sendJSON(res, 200, await mobileReports.listSales(queryRead, parsedUrl.query));
+        }
+        if (pathname === '/api/admin/mobile/low-stock') {
+          return sendJSON(res, 200, await mobileReports.listLowStock(queryRead, parsedUrl.query));
+        }
+        if (pathname === '/api/admin/mobile/open-shifts') {
+          return sendJSON(res, 200, await mobileReports.listOpenShifts(queryRead, parsedUrl.query));
+        }
+      } catch (error) {
+        if (error.statusCode === 400) return sendJSON(res, 400, { error: error.message });
+        throw error;
+      }
     }
 
     // 404 Route Not Found

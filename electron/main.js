@@ -417,6 +417,8 @@ app.whenReady().then(async () => {
   });
   const appointmentsService = require('./services/appointments.service');
   startSafeInterval('AppointmentReminders', () => appointmentsService.checkDueReminders(), 60_000);
+  // Does nothing until a device key is configured (cloudSync.configure).
+  startSafeInterval('CloudSync', () => require('./services/cloudSync.service').syncOnce(), 60_000);
   const crmService = require('./services/crm.service');
   startSafeInterval('CrmReminders', () => crmService.checkDueReminders(), 60_000);
   const casesService = require('./services/cases.service');
