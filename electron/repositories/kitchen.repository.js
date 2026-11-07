@@ -18,6 +18,7 @@ function getOrders() {
         AND date(s.created_at, 'localtime') = date('now', 'localtime')
         -- A paid table check: its rounds are on the board instead.
         AND NOT EXISTS (SELECT 1 FROM table_tabs tab WHERE tab.sale_id = s.id)
+        AND NOT EXISTS (SELECT 1 FROM table_tab_items i WHERE i.paid_sale_id = s.id)
     )
     SELECT * FROM today WHERE kitchen_status != 'served'
     UNION ALL

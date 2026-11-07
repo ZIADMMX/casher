@@ -2012,6 +2012,7 @@ CREATE TABLE IF NOT EXISTS table_tab_items (
     unit_price REAL NOT NULL CHECK(unit_price >= 0),
     modifiers TEXT,
     note TEXT,
+    paid_sale_id INTEGER,                -- the sale that paid this line (split checks)
     FOREIGN KEY (tab_id) REFERENCES table_tabs(id),
     FOREIGN KEY (round_id) REFERENCES table_tab_rounds(id),
     FOREIGN KEY (variant_id) REFERENCES product_variants(id)
@@ -2046,9 +2047,15 @@ BEGIN
 END;
 
 -- Sent items are what the kitchen cooked; they can't be edited or removed.
+-- Sent items are what the kitchen cooked: only marking an unpaid line as paid is allowed.
 CREATE TRIGGER IF NOT EXISTS trg_table_tab_items_no_change
 BEFORE UPDATE ON table_tab_items
 WHEN (SELECT foreign_keys FROM pragma_foreign_keys) = 1
+  AND (OLD.paid_sale_id IS NOT NULL
+    OR NEW.tab_id IS NOT OLD.tab_id OR NEW.round_id IS NOT OLD.round_id
+    OR NEW.variant_id IS NOT OLD.variant_id OR NEW.quantity IS NOT OLD.quantity
+    OR NEW.unit_price IS NOT OLD.unit_price OR NEW.modifiers IS NOT OLD.modifiers
+    OR NEW.note IS NOT OLD.note)
 BEGIN
     SELECT RAISE(ABORT, 'Sent table items cannot be changed');
 END;

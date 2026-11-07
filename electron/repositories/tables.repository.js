@@ -3,12 +3,12 @@ const { parseModifiers, serializeModifiers } = require('../services/modifiers.se
 
 const withModifiers = (rows) => rows.map((row) => ({ ...row, modifiers: parseModifiers(row.modifiers) }));
 
-// Active tables with their open check (if any) and its running total.
+// Active tables with their open check (if any) and what is still unpaid on it.
 function getTables() {
   return db.prepare(`
     SELECT t.id, t.name, tab.id AS tab_id, tab.opened_at,
-      COALESCE((SELECT SUM(i.quantity * i.unit_price) FROM table_tab_items i WHERE i.tab_id = tab.id), 0) AS tab_total,
-      (SELECT COUNT(*) FROM table_tab_items i WHERE i.tab_id = tab.id) AS item_count
+      COALESCE((SELECT SUM(i.quantity * i.unit_price) FROM table_tab_items i WHERE i.tab_id = tab.id AND i.paid_sale_id IS NULL), 0) AS tab_total,
+      (SELECT COUNT(*) FROM table_tab_items i WHERE i.tab_id = tab.id AND i.paid_sale_id IS NULL) AS item_count
     FROM dining_tables t
     LEFT JOIN table_tabs tab ON tab.table_id = t.id AND tab.status = 'open'
     WHERE t.is_active = 1
@@ -47,7 +47,7 @@ function openTab(tableId, userId) {
 
 function getTabItems(tabId) {
   return withModifiers(db.prepare(`
-    SELECT i.id, i.round_id, i.variant_id, i.quantity, i.unit_price, i.modifiers, i.note,
+    SELECT i.id, i.round_id, i.variant_id, i.quantity, i.unit_price, i.modifiers, i.note, i.paid_sale_id,
       p.name AS product_name, pv.size, pv.color
     FROM table_tab_items i
     LEFT JOIN product_variants pv ON pv.id = i.variant_id
@@ -70,6 +70,19 @@ function addRound(tabId, items, userId) {
     }
     return roundId;
   })();
+}
+
+// Marks lines as paid by one sale. Returns how many were still unpaid, so a
+// caller can tell when another till paid some of them first.
+function markItemsPaid(tabId, itemIds, saleId) {
+  return db.prepare(`
+    UPDATE table_tab_items SET paid_sale_id = ?
+    WHERE tab_id = ? AND paid_sale_id IS NULL AND id IN (SELECT value FROM json_each(?))
+  `).run(saleId, tabId, JSON.stringify(itemIds)).changes;
+}
+
+function countUnpaidItems(tabId) {
+  return db.prepare('SELECT COUNT(*) AS n FROM table_tab_items WHERE tab_id = ? AND paid_sale_id IS NULL').get(tabId).n;
 }
 
 // Only succeeds while the check is still open, so two tills can't both close it.
@@ -182,6 +195,8 @@ module.exports = {
   getTabItems,
   addRound,
   closeTab,
+  markItemsPaid,
+  countUnpaidItems,
   getKitchenRounds,
   getRoundState,
   getRoundLastChange,

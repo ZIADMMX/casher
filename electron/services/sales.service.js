@@ -32,6 +32,7 @@ function createSale({
   subscriptionId,
   creditsDeducted,
   tableTabId,
+  tabItemIds,
   delivery,
 }) {
   try {
@@ -44,9 +45,19 @@ function createSale({
       const tabId = Number(tableTabId);
       tableTab = Number.isSafeInteger(tabId) && tabId > 0 ? tablesRepo.getTab(tabId) : null;
       if (!tableTab || tableTab.status !== 'open') throw new Error('حساب الطاولة اتقفل بالفعل');
-      // Bill what the kitchen received, not what the till sends.
-      // Their unit_price already includes the add-ons priced when the round was sent.
-      items = tablesRepo.getTabItems(tableTab.id).map((item) => ({
+      // Bill what the kitchen received, not what the till sends: every unpaid
+      // line, or the chosen ones when the check is split. Their unit_price
+      // already includes the add-ons priced when the round was sent.
+      let lines = tablesRepo.getTabItems(tableTab.id).filter((item) => item.paid_sale_id == null);
+      if (tabItemIds != null) {
+        if (!Array.isArray(tabItemIds) || tabItemIds.length === 0 || tabItemIds.length > 500) throw new Error('اختار الأصناف اللي هتتدفع');
+        const chosen = new Set(tabItemIds.map(Number));
+        lines = lines.filter((item) => chosen.has(item.id));
+        if (lines.length !== chosen.size) throw new Error('بعض الأصناف المختارة اتدفعت بالفعل أو مش في الحساب ده');
+      }
+      if (lines.length === 0) throw new Error('مفيش أصناف فاضلة للدفع على الحساب ده');
+      tableTab.payingItemIds = lines.map((item) => item.id);
+      items = lines.map((item) => ({
         variantId: item.variant_id,
         quantity: item.quantity,
         unitPrice: item.unit_price,
@@ -279,8 +290,14 @@ function createSale({
         }
       }
 
-      if (tableTab && !tablesRepo.closeTab(tableTab.id, 'paid', saleId).changes) {
-        throw new Error('حساب الطاولة اتقفل بالفعل');
+      if (tableTab) {
+        if (tablesRepo.markItemsPaid(tableTab.id, tableTab.payingItemIds, saleId) !== tableTab.payingItemIds.length) {
+          throw new Error('بعض الأصناف اتدفعت من جهاز تاني');
+        }
+        // The last part paid closes the check.
+        if (tablesRepo.countUnpaidItems(tableTab.id) === 0 && !tablesRepo.closeTab(tableTab.id, 'paid', saleId).changes) {
+          throw new Error('حساب الطاولة اتقفل بالفعل');
+        }
       }
 
       return saleId;
@@ -381,7 +398,7 @@ function createSale({
       logError('SaleNotifications', notifErr);
     }
 
-    return { saleId, totalAmount };
+    return { saleId, totalAmount, tabClosed: tableTab ? tablesRepo.countUnpaidItems(tableTab.id) === 0 : undefined };
   } catch (err) {
     // سجل أي خطأ حرجي ثم أعد رميه ليتم التعامل معه في طبقة IPC
     logError('CreateSale', err);

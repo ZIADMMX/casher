@@ -101,4 +101,24 @@ function ensureDiningTables(database) {
   database.exec(SQL);
 }
 
-module.exports = { ensureDiningTables, DINING_TABLES_SQL: SQL };
+// v24: a check can be paid in parts, so a sent line may be marked paid once.
+// Everything else about it stays fixed.
+const TAB_ITEMS_GUARD_SQL = `CREATE TRIGGER IF NOT EXISTS trg_table_tab_items_no_change
+BEFORE UPDATE ON table_tab_items
+WHEN ${GUARD}
+  AND (OLD.paid_sale_id IS NOT NULL
+    OR NEW.tab_id IS NOT OLD.tab_id OR NEW.round_id IS NOT OLD.round_id
+    OR NEW.variant_id IS NOT OLD.variant_id OR NEW.quantity IS NOT OLD.quantity
+    OR NEW.unit_price IS NOT OLD.unit_price OR NEW.modifiers IS NOT OLD.modifiers
+    OR NEW.note IS NOT OLD.note)
+BEGIN
+    SELECT RAISE(ABORT, 'Sent table items cannot be changed');
+END;`;
+
+function allowSplitPayments(database) {
+  require('./helpers').addColumnIfMissing('table_tab_items', 'paid_sale_id', 'INTEGER REFERENCES sales(id)', database);
+  database.exec('DROP TRIGGER IF EXISTS trg_table_tab_items_no_change');
+  database.exec(TAB_ITEMS_GUARD_SQL);
+}
+
+module.exports = { ensureDiningTables, allowSplitPayments, DINING_TABLES_SQL: SQL };

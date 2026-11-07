@@ -47,7 +47,7 @@ const {
 } = require('./platform');
 const { ensureSalesLedgerGuards, backfillSaleItemCosts } = require('./salesLedger');
 const { ensureKitchenLedger } = require('./kitchenLedger');
-const { ensureDiningTables } = require('./diningTables');
+const { ensureDiningTables, allowSplitPayments } = require('./diningTables');
 const { ensureRecipes } = require('./recipes');
 const { ensureProductLedger } = require('./productLedger');
 const { ensureSyncMetadata } = require('./syncMetadata');
@@ -267,6 +267,13 @@ function runAllMigrations(dbInstance = db) {
     addColumnIfMissing('sales', 'delivery_address', 'TEXT', dbInstance);
     dbInstance.pragma('user_version = 23');
     console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 23 (رسوم الخدمة وبيانات التوصيل).');
+  }
+
+  if (currentVersion < 24) {
+    // Split checks: each table line remembers the sale that paid it.
+    allowSplitPayments(dbInstance);
+    dbInstance.pragma('user_version = 24');
+    console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 24 (تقسيم فاتورة الطاولة).');
   }
 
   // Earlier steps may rebuild the sales tables; make sure the guards exist at the end.

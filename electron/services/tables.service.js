@@ -50,8 +50,9 @@ function removeTable(tableId) {
 function tabWithItems(tabId) {
   const tab = tablesRepo.getTab(tabId);
   const items = tablesRepo.getTabItems(tabId);
-  const total = Math.round(items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0) * 100) / 100;
-  return { ...tab, items, total };
+  const sum = (list) => Math.round(list.reduce((acc, item) => acc + item.quantity * item.unit_price, 0) * 100) / 100;
+  // total is what is still unpaid; parts of a split check may already be paid.
+  return { ...tab, items, total: sum(items.filter((item) => item.paid_sale_id == null)), paid_total: sum(items.filter((item) => item.paid_sale_id != null)) };
 }
 
 // Opens the table's check, or returns the one already open.

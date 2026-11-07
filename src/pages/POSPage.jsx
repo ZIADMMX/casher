@@ -41,6 +41,7 @@ import { computeCartTotals } from '../utils/cartTotals.js';
 import { applyModifiers, lineKey, parseAddonCatalog } from '../utils/cartModifiers.js';
 import ModifiersModal from '../components/pos/ModifiersModal.jsx';
 import DeliveryInfoBar from '../components/pos/DeliveryInfoBar.jsx';
+import SplitBillModal from '../components/pos/SplitBillModal.jsx';
 
 const EMPTY_DELIVERY = { name: '', phone: '', address: '' };
 
@@ -77,6 +78,9 @@ function POSPage({ onNavigate }) {
   const [activeTab, setActiveTab] = useState(null);
   const [payingTab, setPayingTab] = useState(false);
   const [showTablesModal, setShowTablesModal] = useState(false);
+  // Split check: the lines being paid now (null = everything still unpaid).
+  const [payingItemIds, setPayingItemIds] = useState(null);
+  const [showSplitModal, setShowSplitModal] = useState(false);
   // While a table check is being paid the cart mirrors the check, so it can't be edited.
   const cartLocked = Boolean(activeTab && payingTab);
   const warnCartLocked = () => setMessage({ type: 'warning', text: 'الحساب في وضع الدفع. ألغِ الدفع الأول لو عايز تعدل.' });
@@ -648,11 +652,14 @@ function POSPage({ onNavigate }) {
     }
   }
 
-  async function handleStartPayTab() {
+  async function handleStartPayTab(itemIds = null) {
     try {
       const tab = await tablesApi.getOpenTableTab(activeTab.id);
       setActiveTab(tab);
-      setCart(tab.items.map((item) => ({
+      const lines = tab.items.filter((item) => item.paid_sale_id == null && (!itemIds || itemIds.includes(item.id)));
+      setPayingItemIds(itemIds);
+      setCart(lines.map((item) => ({
+        tabItemId: item.id,
         variantId: item.variant_id,
         productName: item.product_name || 'صنف محذوف',
         size: item.size,
@@ -674,6 +681,7 @@ function POSPage({ onNavigate }) {
   function handleCancelPayTab() {
     setCart([]);
     setPayingTab(false);
+    setPayingItemIds(null);
     setMessage(null);
   }
 
@@ -727,6 +735,7 @@ function POSPage({ onNavigate }) {
         orderMode: saleOrderMode,
         delivery: saleOrderMode === 'delivery' ? deliveryInfo : null,
         tableTabId: activeTab?.id || null,
+        tabItemIds: activeTab ? payingItemIds : undefined,
         customerId: selectedCustomerId ? Number(selectedCustomerId) : null,
         customerName: selectedCustomerObj ? selectedCustomerObj.name : creditCustomerName,
         customerPhone: selectedCustomerObj ? selectedCustomerObj.phone : creditCustomerPhone,
@@ -783,8 +792,14 @@ function POSPage({ onNavigate }) {
 
       clearCart();
       if (activeTab) {
-        setActiveTab(null);
         setPayingTab(false);
+        setPayingItemIds(null);
+        // Part of a split check paid: stay on the table for the rest.
+        if (result.tabClosed === false) {
+          setActiveTab(await tablesApi.getOpenTableTab(activeTab.id).catch(() => null));
+        } else {
+          setActiveTab(null);
+        }
       }
       await loadProducts();
       refreshShift();
@@ -815,7 +830,7 @@ function POSPage({ onNavigate }) {
       playErrorBeep();
       setMessage({ type: 'error', text: err.message });
     }
-  }, [cart, isCreditInvalid, isCashInvalid, activeShift, discount, paymentMethod, sectorConfig.key, creditCustomerName, creditCustomerPhone, creditDueDate, cashReceived, changeDue, clearCart, loadProducts, refreshShift, onNavigate, activeSubscription, posCustomers, selectedCustomerId, useSubscriptionCredit, settings.thermal_printer_name, settings.receipt_paper_size, settings.cash_drawer_pin, activeTab, payingTab, saleOrderMode, deliveryInfo]);
+  }, [cart, isCreditInvalid, isCashInvalid, activeShift, discount, paymentMethod, sectorConfig.key, creditCustomerName, creditCustomerPhone, creditDueDate, cashReceived, changeDue, clearCart, loadProducts, refreshShift, onNavigate, activeSubscription, posCustomers, selectedCustomerId, useSubscriptionCredit, settings.thermal_printer_name, settings.receipt_paper_size, settings.cash_drawer_pin, activeTab, payingTab, payingItemIds, saleOrderMode, deliveryInfo]);
 
   // دوال إدارة الوردية من الـ POS
   const handleOpenStartShiftModal = async () => {
@@ -991,7 +1006,7 @@ function POSPage({ onNavigate }) {
               <strong>{activeTab.table_name}</strong>
               <span>
                 {activeTab.items.length
-                  ? `اتبعت للمطبخ: ${activeTab.items.length} صنف · ${Number(activeTab.total).toFixed(2)} ج.م`
+                  ? `اتبعت للمطبخ: ${activeTab.items.length} صنف · باقي ${Number(activeTab.total).toFixed(2)} ج.م${Number(activeTab.paid_total) > 0 ? ` · اتدفع ${Number(activeTab.paid_total).toFixed(2)}` : ''}`
                   : 'حساب جديد — ضيف الأصناف وابعتها للمطبخ'}
               </span>
             </div>
@@ -1006,9 +1021,16 @@ function POSPage({ onNavigate }) {
                   <button
                     type="button"
                     disabled={cart.length > 0 || activeTab.items.length === 0}
-                    onClick={handleStartPayTab}
+                    onClick={() => handleStartPayTab()}
                   >
                     دفع الحساب
+                  </button>
+                  <button
+                    type="button"
+                    disabled={cart.length > 0 || Number(activeTab.total) <= 0}
+                    onClick={() => setShowSplitModal(true)}
+                  >
+                    تقسيم
                   </button>
                   <button type="button" onClick={handleLeaveTable}>خروج</button>
                 </>
@@ -1162,6 +1184,12 @@ function POSPage({ onNavigate }) {
           ) : null}
         />
       </aside>
+
+      <SplitBillModal
+        tab={showSplitModal ? activeTab : null}
+        onPay={(ids) => { setShowSplitModal(false); handleStartPayTab(ids); }}
+        onClose={() => setShowSplitModal(false)}
+      />
 
       <ModifiersModal
         line={modifiersLine}

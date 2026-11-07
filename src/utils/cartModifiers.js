@@ -23,7 +23,7 @@ export function parseAddonCatalog(json) {
 
 export function lineKey(item) {
   const names = (item.modifiers || []).map((m) => m.name).sort();
-  return [item.variantId, item.unitId || '', item.scaleBarcode || '', ...names, item.note ? `note:${item.note}` : ''].join('|');
+  return [item.variantId, item.unitId || '', item.scaleBarcode || '', ...names, item.note ? `note:${item.note}` : '', item.tabItemId ? `tab:${item.tabItemId}` : ''].join('|');
 }
 
 /**

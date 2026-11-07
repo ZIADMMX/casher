@@ -267,3 +267,27 @@ test('dine-in pays the service charge after discount; delivery needs an address 
     settings.set('delivery_fee', '0');
   }
 });
+
+test('a split check is paid in parts and the last part frees the table', () => {
+  const table = tablesService.addTable('طاولة التقسيم').find((t) => t.name === 'طاولة التقسيم');
+  const tab = tablesService.openTab(table.id);
+  const sent = tablesService.sendRound(tab.id, [{ variantId: burgerId, quantity: 1 }, { variantId: teaId, quantity: 2 }]);
+  const [burgerLine, teaLine] = sent.items;
+
+  const first = salesService.createSale({ items: [], paymentMethod: 'cash', tableTabId: tab.id, tabItemIds: [burgerLine.id] });
+  expect(first).toMatchObject({ totalAmount: 80, tabClosed: false });
+  expect(tablesService.getOpenTab(tab.id)).toMatchObject({ total: 30, paid_total: 80 });
+  expect(tablesService.getTables().find((t) => t.id === table.id).tab_total).toBe(30);
+  // A paid line can't be paid again, and stays fixed.
+  expect(() => salesService.createSale({ items: [], paymentMethod: 'cash', tableTabId: tab.id, tabItemIds: [burgerLine.id] }))
+    .toThrow('اتدفعت بالفعل');
+  expect(() => mockDb.prepare('UPDATE table_tab_items SET paid_sale_id = NULL WHERE id = ?').run(burgerLine.id))
+    .toThrow('cannot be changed');
+  // The split sales are not new kitchen orders.
+  expect(kitchenService.getKitchenOrders().some((o) => o.key === `sale-${first.saleId}`)).toBe(false);
+
+  const last = salesService.createSale({ items: [], paymentMethod: 'card', tableTabId: tab.id });
+  expect(last).toMatchObject({ totalAmount: 30, tabClosed: true });
+  expect(salesService.getSaleById(last.saleId).items.map((i) => i.variant_id)).toEqual([teaLine.variant_id]);
+  expect(tablesService.getTables().find((t) => t.id === table.id).tab_id).toBeNull();
+});
