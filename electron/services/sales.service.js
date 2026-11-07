@@ -11,6 +11,7 @@ const { requireAuth, getCurrentSession, hasGrantedPermission } = require('./auth
 const { logError } = require('../services/logger.service');
 const inventoryRepo = require('../repositories/inventory.repository');
 const recipesRepo = require('../repositories/recipes.repository');
+const SettingsRepository = require('../repositories/settings.repository');
 const bundlePromotionsService = require('./bundlePromotions.service');
 const { resolveModifiers, cleanNote, getCatalog: getAddonCatalog } = require('./modifiers.service');
 
@@ -31,6 +32,7 @@ function createSale({
   subscriptionId,
   creditsDeducted,
   tableTabId,
+  delivery,
 }) {
   try {
     const session = getCurrentSession();
@@ -58,6 +60,13 @@ function createSale({
     }
     if (orderMode != null && !['dine_in', 'takeaway', 'delivery'].includes(orderMode)) {
       throw new Error('طريقة استلام الطلب غير صالحة');
+    }
+    // A delivery order needs who and where; the kitchen ticket and receipt show them.
+    let deliveryInfo = null;
+    if (orderMode === 'delivery') {
+      const text = (value, max) => String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
+      deliveryInfo = { name: text(delivery?.name, 80), phone: text(delivery?.phone, 20), address: text(delivery?.address, 200) };
+      if (!deliveryInfo.phone || !deliveryInfo.address) throw new Error('رقم الموبايل والعنوان مطلوبين لطلب التوصيل');
     }
     if (paymentMethod === 'credit') {
       if (!(customerName?.trim())) {
@@ -205,7 +214,15 @@ function createSale({
 
     const appliedPromotion = bundlePromotionsService.getBestBundlePromotion(verifiedItems);
     const effectiveDiscount = Math.max(normalizedDiscount, appliedPromotion?.discount || 0);
-    const totalAmount = Math.round(Math.max(subtotal - effectiveDiscount, 0) * 100) / 100;
+    const afterDiscount = Math.round(Math.max(subtotal - effectiveDiscount, 0) * 100) / 100;
+    // Dine-in service (a % after discount) or a fixed delivery fee, from settings.
+    // Same formula as the till (src/utils/cartTotals.js).
+    const servicePercent = orderMode === 'dine_in'
+      ? Math.min(Math.max(Number(SettingsRepository.get('service_charge_percent')) || 0, 0), 30) : 0;
+    const fixedCharge = orderMode === 'delivery' ? Math.max(Number(SettingsRepository.get('delivery_fee')) || 0, 0) : 0;
+    const serviceCharge = afterDiscount > 0
+      ? Math.round((afterDiscount * servicePercent / 100 + fixedCharge) * 100) / 100 : 0;
+    const totalAmount = Math.round((afterDiscount + serviceCharge) * 100) / 100;
 
     let resolvedCustomerId = customerId || null;
     if (!resolvedCustomerId) {
@@ -225,8 +242,8 @@ function createSale({
       const saleId = salesRepo.createSale({
         shiftId: activeShift ? activeShift.id : null,
         customerId: resolvedCustomerId,
-        customerName: paymentMethod === 'credit' ? customerName.trim() : null,
-        customerPhone: paymentMethod === 'credit' ? (customerPhone || null) : null,
+        customerName: paymentMethod === 'credit' ? customerName.trim() : deliveryInfo?.name || null,
+        customerPhone: paymentMethod === 'credit' ? (customerPhone || deliveryInfo?.phone || null) : deliveryInfo?.phone || null,
         userId: session.id,
         totalAmount,
         discount: effectiveDiscount,
@@ -236,6 +253,8 @@ function createSale({
         dueDate: paymentMethod === 'credit' ? dueDate : null,
         branchId,
         warehouseId,
+        serviceCharge,
+        deliveryAddress: deliveryInfo?.address,
       });
 
       for (const item of verifiedItems) {

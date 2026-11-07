@@ -41,6 +41,8 @@ function CartPanel({
   couponMessage,
   applyCoupon,
   subtotal,
+  serviceCharge = 0,
+  serviceChargeLabel = '',
   total,
   paymentMethod,
   setPaymentMethod,
@@ -323,6 +325,13 @@ function CartPanel({
           )}
           {!discountOpen && couponMessage && hasDiscount && (
             <p className="pos-coupon-message success">{couponMessage}</p>
+          )}
+
+          {serviceCharge > 0 && (
+            <div className="summary-line">
+              <span className="summary-label">{serviceChargeLabel}</span>
+              <span className="summary-val">{money(serviceCharge)} ج.م</span>
+            </div>
           )}
 
           <div className="summary-line tax-hint-line">

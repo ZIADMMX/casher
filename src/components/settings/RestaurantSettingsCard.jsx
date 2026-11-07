@@ -9,10 +9,13 @@ const MAX_STATIONS = 20;
 // Kitchen printing for restaurants: the main kitchen printer and prep stations
 // (grill, bar, desserts...). Each station gets the categories it prepares and,
 // optionally, its own printer. Saved in `kitchen_printer_name` and `prep_stations`.
+// Also the dine-in service charge (`service_charge_percent`) and the delivery fee (`delivery_fee`).
 export default function RestaurantSettingsCard() {
   const { settings, saveSettings } = useSettings();
   const [kitchenPrinter, setKitchenPrinter] = useState('');
   const [stations, setStations] = useState([]);
+  const [servicePercent, setServicePercent] = useState('0');
+  const [deliveryFee, setDeliveryFee] = useState('0');
   const [printers, setPrinters] = useState([]);
   const [categories, setCategories] = useState([]);
   const [saving, setSaving] = useState(false);
@@ -21,7 +24,9 @@ export default function RestaurantSettingsCard() {
   useEffect(() => {
     setKitchenPrinter(settings.kitchen_printer_name || '');
     setStations(parsePrepStations(settings.prep_stations));
-  }, [settings.kitchen_printer_name, settings.prep_stations]);
+    setServicePercent(String(settings.service_charge_percent || 0));
+    setDeliveryFee(String(settings.delivery_fee || 0));
+  }, [settings.kitchen_printer_name, settings.prep_stations, settings.service_charge_percent, settings.delivery_fee]);
 
   useEffect(() => {
     Promise.resolve(printingApi.getPrinters.ifAvailable())
@@ -46,12 +51,27 @@ export default function RestaurantSettingsCard() {
       setFeedback({ type: 'error', text: 'فيه محطتين بنفس الاسم' });
       return;
     }
+    const percent = Number(servicePercent);
+    const fee = Number(deliveryFee);
+    if (!Number.isFinite(percent) || percent < 0 || percent > 30) {
+      setFeedback({ type: 'error', text: 'نسبة الخدمة لازم تكون من 0 لـ 30%' });
+      return;
+    }
+    if (!Number.isFinite(fee) || fee < 0 || fee > 10000) {
+      setFeedback({ type: 'error', text: 'رسوم التوصيل غير صالحة' });
+      return;
+    }
     setSaving(true);
-    const res = await saveSettings({ kitchen_printer_name: kitchenPrinter, prep_stations: JSON.stringify(cleaned) });
+    const res = await saveSettings({
+      kitchen_printer_name: kitchenPrinter,
+      prep_stations: JSON.stringify(cleaned),
+      service_charge_percent: String(percent),
+      delivery_fee: String(fee),
+    });
     setSaving(false);
     setFeedback(res?.success
-      ? { type: 'success', text: 'تم حفظ إعدادات المطبخ' }
-      : { type: 'error', text: res?.error || 'تعذر حفظ إعدادات المطبخ' });
+      ? { type: 'success', text: 'تم حفظ إعدادات المطعم' }
+      : { type: 'error', text: res?.error || 'تعذر حفظ إعدادات المطعم' });
   }
 
   const printerSelect = (value, onChange, label) => (
@@ -64,11 +84,26 @@ export default function RestaurantSettingsCard() {
   return (
     <div style={{ background: '#FFFFFF', borderRadius: '16px', border: '1px solid #E2E8F0', padding: '24px', boxShadow: '0 2px 10px rgba(0,0,0,0.03)' }}>
       <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#1E293B', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <span>🍳</span> المطبخ ومحطات التحضير
+        <span>🍳</span> المطعم: المطبخ والخدمة والتوصيل
       </h3>
       <p style={{ color: '#64748B', fontSize: '13px', margin: '0 0 16px 0' }}>
         كل طلب أو دفعة طاولة بتطلع لها تذكرة مطبخ من غير أسعار. لو عندك محطات (مشويات، بار، حلويات) اختار أقسام كل محطة وطابعتها؛ الباقي يروح لطابعة المطبخ.
       </p>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
+        <label>
+          <span className="form-label">خدمة الصالة (%)</span>
+          <input className="form-input" type="number" min="0" max="30" step="0.5" value={servicePercent}
+            onChange={(e) => setServicePercent(e.target.value)} />
+          <span className="form-helper">بتتضاف على طلبات الصالة والطاولات بعد الخصم.</span>
+        </label>
+        <label>
+          <span className="form-label">رسوم التوصيل (ج.م)</span>
+          <input className="form-input" type="number" min="0" step="1" value={deliveryFee}
+            onChange={(e) => setDeliveryFee(e.target.value)} />
+          <span className="form-helper">مبلغ ثابت على كل طلب توصيل.</span>
+        </label>
+      </div>
 
       <label className="form-label">طابعة المطبخ الرئيسية</label>
       {printerSelect(kitchenPrinter, setKitchenPrinter, 'طابعة المطبخ الرئيسية')}
@@ -115,7 +150,7 @@ export default function RestaurantSettingsCard() {
           + محطة جديدة
         </button>
         <button type="button" className="primary-btn" disabled={saving} onClick={handleSave}>
-          {saving ? 'جارٍ الحفظ...' : 'حفظ إعدادات المطبخ'}
+          {saving ? 'جارٍ الحفظ...' : 'حفظ إعدادات المطعم'}
         </button>
       </div>
       {feedback && (

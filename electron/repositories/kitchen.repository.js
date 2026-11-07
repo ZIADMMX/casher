@@ -9,7 +9,7 @@ function getOrders() {
   const orders = db.prepare(`
     WITH today AS (
       SELECT s.id, s.order_mode, COALESCE(s.kitchen_status, 'new') AS kitchen_status,
-        s.customer_name, s.notes, s.created_at,
+        s.customer_name, s.customer_phone, s.delivery_address, s.notes, s.created_at,
         COALESCE(NULLIF(TRIM(u.full_name), ''), u.username) AS cashier_name,
         (SELECT e.created_at FROM kitchen_status_events e WHERE e.sale_id = s.id ORDER BY e.id DESC LIMIT 1) AS status_changed_at
       FROM sales s
@@ -84,7 +84,7 @@ function moveOrder(saleId, fromStatus, toStatus, userId) {
 // One kitchen order with what the cook needs (no prices), for its printed ticket.
 function getSaleTicket(saleId) {
   const sale = db.prepare(`
-    SELECT s.id, s.order_mode, s.customer_name, s.customer_phone, s.notes, s.created_at,
+    SELECT s.id, s.order_mode, s.customer_name, s.customer_phone, s.delivery_address, s.notes, s.created_at,
       COALESCE(NULLIF(TRIM(u.full_name), ''), u.username) AS cashier_name
     FROM sales s LEFT JOIN users u ON u.id = s.user_id
     WHERE s.id = ? AND s.order_mode IS NOT NULL

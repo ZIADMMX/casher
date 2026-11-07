@@ -66,6 +66,12 @@ function ReceiptPrint({ sale }) {
           <span>فاتورة #{sale.id}</span>
           <span>{formattedDate} {formattedTime}</span>
         </div>
+        {sale.delivery_address && (
+          <div className="receipt-meta-line">
+            <span>توصيل {sale.customer_phone}</span>
+            <span>{sale.delivery_address}</span>
+          </div>
+        )}
         {sale.tableName && (
           <div className="receipt-meta-line">
             <span>الطاولة</span>
@@ -127,6 +133,13 @@ function ReceiptPrint({ sale }) {
           <div className="receipt-row">
             <span>الخصم المطبق</span>
             <span>- {Number(sale.discount).toFixed(2)} ج.م</span>
+          </div>
+        )}
+
+        {Number(sale.service_charge || 0) > 0 && (
+          <div className="receipt-row">
+            <span>{sale.order_mode === 'delivery' ? 'رسوم التوصيل' : 'الخدمة'}</span>
+            <span>{Number(sale.service_charge).toFixed(2)} ج.م</span>
           </div>
         )}
 

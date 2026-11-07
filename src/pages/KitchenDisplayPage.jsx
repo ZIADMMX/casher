@@ -72,6 +72,9 @@ function OrderCard({ order, column, now, busy, onMove }) {
         {createdAt && <span>{timeFmt.format(createdAt)}</span>}
         {order.customer_name && <span className="kds-card__customer">{order.customer_name}</span>}
       </div>
+      {order.delivery_address && (
+        <p className="kds-note">🛵 <bdi>{order.customer_phone}</bdi> · {order.delivery_address}</p>
+      )}
 
       <ul className="kds-items">
         {(order.items || []).map((item, index) => (

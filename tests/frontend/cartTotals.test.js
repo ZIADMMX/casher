@@ -59,4 +59,12 @@ describe('computeCartTotals', () => {
     expect(computeCartTotals({ cart, paymentMethod: 'credit', creditCustomerName: 'أحمد', creditDueDate: '2026-12-01' })
       .isCreditInvalid).toBe(false);
   });
+
+  test('adds the dine-in service charge after the discount, and a fixed delivery fee', () => {
+    const items = [{ unitPrice: 100, quantity: 2 }];
+    const dineIn = computeCartTotals({ cart: items, discount: 20, paymentMethod: 'card', serviceChargePercent: 12 });
+    expect(dineIn).toMatchObject({ subtotal: 200, serviceCharge: 21.6, total: 201.6 });
+    expect(computeCartTotals({ cart: items, paymentMethod: 'card', fixedCharge: 15 })).toMatchObject({ serviceCharge: 15, total: 215 });
+    expect(computeCartTotals({ cart: [], paymentMethod: 'card', fixedCharge: 15 }).total).toBe(0);
+  });
 });

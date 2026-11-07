@@ -363,6 +363,8 @@ CREATE TABLE IF NOT EXISTS sales (
     due_date DATETIME,                   -- تاريخ الاستحقاق (للبيع الآجل)
     order_mode TEXT CHECK(order_mode IS NULL OR order_mode IN ('dine_in', 'takeaway', 'delivery')),
     kitchen_status TEXT CHECK(kitchen_status IS NULL OR kitchen_status IN ('new', 'preparing', 'ready', 'served')),
+    service_charge REAL NOT NULL DEFAULT 0 CHECK(service_charge >= 0), -- خدمة الصالة أو رسوم التوصيل، داخل total_amount
+    delivery_address TEXT,               -- عنوان طلب التوصيل
     invoice_number TEXT,
     notes TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,

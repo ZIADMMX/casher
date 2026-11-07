@@ -40,6 +40,9 @@ import { hasPermission } from '../utils/accessControl.js';
 import { computeCartTotals } from '../utils/cartTotals.js';
 import { applyModifiers, lineKey, parseAddonCatalog } from '../utils/cartModifiers.js';
 import ModifiersModal from '../components/pos/ModifiersModal.jsx';
+import DeliveryInfoBar from '../components/pos/DeliveryInfoBar.jsx';
+
+const EMPTY_DELIVERY = { name: '', phone: '', address: '' };
 
 function POSPage({ onNavigate }) {
   const { settings } = useSettings();
@@ -81,6 +84,8 @@ function POSPage({ onNavigate }) {
   // Item add-ons (extra cheese, no onion...) from settings, and the cart line being edited.
   const addonCatalog = useMemo(() => parseAddonCatalog(settings.sector_addons), [settings.sector_addons]);
   const [modifiersLine, setModifiersLine] = useState(null);
+  // Delivery orders: who and where.
+  const [deliveryInfo, setDeliveryInfo] = useState(EMPTY_DELIVERY);
 
   // نظام الورديات (Shift Management)
   const [activeShift, setActiveShift] = useState(null);
@@ -501,6 +506,7 @@ function POSPage({ onNavigate }) {
     setSelectedCustomerId('');
     setActiveSubscription(null);
     setUseSubscriptionCredit(false);
+    setDeliveryInfo(EMPTY_DELIVERY);
   }, []);
 
   // تعليق الفاتورة الحالية
@@ -561,7 +567,11 @@ function POSPage({ onNavigate }) {
     }
   }
 
-  const { subtotal, effectiveDiscount, total, changeDue, isCreditInvalid, isCashInvalid } = computeCartTotals({
+  // How this order is served (restaurants only): a table check is always dine-in.
+  const saleOrderMode = sectorConfig.key === 'cafe_restaurant' ? (activeTab ? 'dine_in' : activeOrderMode) : null;
+  const serviceChargePercent = saleOrderMode === 'dine_in' ? Number(settings.service_charge_percent) || 0 : 0;
+  const deliveryFee = saleOrderMode === 'delivery' ? Number(settings.delivery_fee) || 0 : 0;
+  const { subtotal, effectiveDiscount, serviceCharge, total, changeDue, isCreditInvalid, isCashInvalid } = computeCartTotals({
     cart,
     discount,
     bundlePromotion,
@@ -569,6 +579,8 @@ function POSPage({ onNavigate }) {
     cashReceived,
     creditCustomerName,
     creditDueDate,
+    serviceChargePercent,
+    fixedCharge: deliveryFee,
   });
   const displayedCouponMessage = bundlePromotion?.discount > Number(discount || 0)
     ? `تم تطبيق عرض ${bundlePromotion.name} تلقائيًا (خصم ${bundlePromotion.discount.toFixed(2)} ج.م)`
@@ -690,6 +702,11 @@ function POSPage({ onNavigate }) {
       setMessage({ type: 'warning', text: 'افتح الوردية أولاً لإتمام البيع.' });
       return;
     }
+    if (saleOrderMode === 'delivery' && (!deliveryInfo.phone.trim() || !deliveryInfo.address.trim())) {
+      playErrorBeep();
+      setMessage({ type: 'warning', text: 'اكتب رقم موبايل وعنوان التوصيل الأول.' });
+      return;
+    }
     const printStatus = { error: null };
     setMessage(null);
     try {
@@ -707,7 +724,8 @@ function POSPage({ onNavigate }) {
         })),
         discount: Number(discount || 0),
         paymentMethod,
-        orderMode: sectorConfig.key === 'cafe_restaurant' ? (activeTab ? 'dine_in' : activeOrderMode) : null,
+        orderMode: saleOrderMode,
+        delivery: saleOrderMode === 'delivery' ? deliveryInfo : null,
         tableTabId: activeTab?.id || null,
         customerId: selectedCustomerId ? Number(selectedCustomerId) : null,
         customerName: selectedCustomerObj ? selectedCustomerObj.name : creditCustomerName,
@@ -797,7 +815,7 @@ function POSPage({ onNavigate }) {
       playErrorBeep();
       setMessage({ type: 'error', text: err.message });
     }
-  }, [cart, isCreditInvalid, isCashInvalid, activeShift, discount, paymentMethod, activeOrderMode, sectorConfig.key, creditCustomerName, creditCustomerPhone, creditDueDate, cashReceived, changeDue, clearCart, loadProducts, refreshShift, onNavigate, activeSubscription, posCustomers, selectedCustomerId, useSubscriptionCredit, settings.thermal_printer_name, settings.receipt_paper_size, settings.cash_drawer_pin, activeTab, payingTab]);
+  }, [cart, isCreditInvalid, isCashInvalid, activeShift, discount, paymentMethod, sectorConfig.key, creditCustomerName, creditCustomerPhone, creditDueDate, cashReceived, changeDue, clearCart, loadProducts, refreshShift, onNavigate, activeSubscription, posCustomers, selectedCustomerId, useSubscriptionCredit, settings.thermal_printer_name, settings.receipt_paper_size, settings.cash_drawer_pin, activeTab, payingTab, saleOrderMode, deliveryInfo]);
 
   // دوال إدارة الوردية من الـ POS
   const handleOpenStartShiftModal = async () => {
@@ -1031,6 +1049,9 @@ function POSPage({ onNavigate }) {
             onSelectOrderMode={setActiveOrderMode}
           />
         </div>
+        {saleOrderMode === 'delivery' && (
+          <DeliveryInfoBar value={deliveryInfo} onChange={setDeliveryInfo} deliveryFee={deliveryFee} />
+        )}
 
         {/* Speed Keys Bar (Supermarket Fast PLU Buttons) */}
         {sectorConfig.features?.speedKeys && (
@@ -1104,6 +1125,8 @@ function POSPage({ onNavigate }) {
           couponMessage={displayedCouponMessage}
           applyCoupon={applyCoupon}
           subtotal={subtotal}
+          serviceCharge={serviceCharge}
+          serviceChargeLabel={saleOrderMode === 'delivery' ? 'رسوم التوصيل' : `خدمة ${serviceChargePercent}%`}
           total={total}
           paymentMethod={paymentMethod}
           setPaymentMethod={setPaymentMethod}

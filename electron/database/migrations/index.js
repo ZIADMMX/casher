@@ -261,6 +261,14 @@ function runAllMigrations(dbInstance = db) {
     console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 22 (وصفات الأصناف وخصم المكونات).');
   }
 
+  if (currentVersion < 23) {
+    // Dine-in service charge / delivery fee (part of total_amount) and the delivery address.
+    addColumnIfMissing('sales', 'service_charge', 'REAL NOT NULL DEFAULT 0 CHECK(service_charge >= 0)', dbInstance);
+    addColumnIfMissing('sales', 'delivery_address', 'TEXT', dbInstance);
+    dbInstance.pragma('user_version = 23');
+    console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 23 (رسوم الخدمة وبيانات التوصيل).');
+  }
+
   // Earlier steps may rebuild the sales tables; make sure the guards exist at the end.
   ensureSalesLedgerGuards(dbInstance);
   ensureKitchenLedger(dbInstance);

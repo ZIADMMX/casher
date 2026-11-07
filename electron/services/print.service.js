@@ -70,6 +70,7 @@ function generateEscPosReceiptBuffer(sale, options = {}) {
   buffers.push(Buffer.from(`فاتورة مبيعات - رقم ${sale.saleId || sale.id || ''}\n`, 'utf-8'));
   buffers.push(Buffer.from(`${sale.customerName || 'عميل نقدي سريع'} · ${new Date().toLocaleString('ar-EG')}\n`, 'utf-8'));
   if (sale.tableName) buffers.push(Buffer.from(`الطاولة: ${sale.tableName}\n`, 'utf-8'));
+  if (sale.delivery_address) buffers.push(Buffer.from(`توصيل: ${sale.customer_phone || ''} - ${sale.delivery_address}\n`, 'utf-8'));
   buffers.push(Buffer.from('------------------------------------------------\n', 'utf-8'));
 
   // 4. Line Items Table
@@ -93,6 +94,9 @@ function generateEscPosReceiptBuffer(sale, options = {}) {
   buffers.push(Buffer.from(`Subtotal: ${sale.subtotal || sale.total || 0} EGP\n`, 'utf-8'));
   if (sale.discount) {
     buffers.push(Buffer.from(`Discount: -${sale.discount} EGP\n`, 'utf-8'));
+  }
+  if (sale.serviceCharge) {
+    buffers.push(Buffer.from(`${sale.order_mode === 'delivery' ? 'Delivery' : 'Service'}: ${sale.serviceCharge} EGP\n`, 'utf-8'));
   }
   buffers.push(ESC_POS.BOLD_ON);
   buffers.push(ESC_POS.TXT_LARGE);
@@ -455,7 +459,8 @@ function buildReceiptHtml(sale, options = {}) {
     <h2>${escapeHtml(options.storeName || DEFAULT_RECEIPT_TITLE)}</h2>
     <div class="sub">فاتورة مبيعات — رقم ${escapeHtml(sale.saleId)}</div>
     <div class="sub">${escapeHtml(sale.customerName || 'عميل نقدي سريع')} · ${new Date().toLocaleString('ar-EG')}</div>${sale.tableName ? `
-    <div class="sub">الطاولة: ${escapeHtml(sale.tableName)}</div>` : ''}
+    <div class="sub">الطاولة: ${escapeHtml(sale.tableName)}</div>` : ''}${sale.delivery_address ? `
+    <div class="sub">توصيل: ${escapeHtml(sale.customer_phone || '')} · ${escapeHtml(sale.delivery_address)}</div>` : ''}
 
     <table>
       <thead>
@@ -468,7 +473,8 @@ function buildReceiptHtml(sale, options = {}) {
 
     <table class="totals">
       <tr><td>الإجمالي الفرعي</td><td style="text-align:left">${escapeHtml(sale.subtotal)} ج.م</td></tr>
-      <tr><td>الخصم</td><td style="text-align:left">- ${escapeHtml(sale.discount)} ج.م</td></tr>
+      <tr><td>الخصم</td><td style="text-align:left">- ${escapeHtml(sale.discount)} ج.م</td></tr>${sale.serviceCharge ? `
+      <tr><td>${sale.order_mode === 'delivery' ? 'رسوم التوصيل' : 'الخدمة'}</td><td style="text-align:left">${escapeHtml(sale.serviceCharge)} ج.م</td></tr>` : ''}
       <tr class="grand"><td>الإجمالي المستحق</td><td style="text-align:left">${escapeHtml(sale.total)} ج.م</td></tr>
     </table>
 
@@ -539,7 +545,29 @@ function buildBarcodeLabelHtml(variant) {
 </html>`;
 }
 
-async function printReceipt(sale, receiptOptions = {}) {
+// The till sends the sale as the database returns it (id, total_amount,
+// unit_price...). The printed templates read camelCase fields, so map both.
+function normalizeReceiptSale(sale = {}) {
+  const items = (sale.items || []).map((item) => ({
+    ...item,
+    productName: item.productName ?? item.product_name,
+    unitPrice: Number(item.unitPrice ?? item.unit_price) || 0,
+  }));
+  const subtotal = sale.subtotal ?? Math.round(items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0) * 100) / 100;
+  return {
+    ...sale,
+    items,
+    saleId: sale.saleId ?? sale.id,
+    customerName: sale.customerName ?? sale.customer_name,
+    subtotal,
+    discount: Number(sale.discount) || 0,
+    serviceCharge: Number(sale.serviceCharge ?? sale.service_charge) || 0,
+    total: sale.total ?? sale.total_amount,
+  };
+}
+
+async function printReceipt(rawSale, receiptOptions = {}) {
+  const sale = normalizeReceiptSale(rawSale);
   const options = { ...receiptOptions, storeName: resolveStoreName(receiptOptions) };
   // RAW mode remains available for printers that need the application-generated ESC/POS receipt.
   if (options.useRawMode || options.ip) {
@@ -807,6 +835,7 @@ function printBarcodeLabel(variant) {
 
 module.exports = {
   printReceipt,
+  normalizeReceiptSale,
   printHtml,
   buildKitchenTicketHtml,
   printBarcodeLabel,

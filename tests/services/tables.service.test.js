@@ -230,3 +230,40 @@ test('a recipe item takes its ingredients out of stock, not itself', () => {
   recipesService.setRecipe(comboId, []);
   expect(recipesService.getRecipe(comboId)).toEqual([]);
 });
+
+test('dine-in pays the service charge after discount; delivery needs an address and pays a fixed fee', () => {
+  const settings = require('../../electron/repositories/settings.repository');
+  const { normalizeReceiptSale } = require('../../electron/services/print.service');
+  settings.set('service_charge_percent', '12');
+  settings.set('delivery_fee', '15');
+  try {
+    const table = tablesService.addTable('طاولة الخدمة').find((t) => t.name === 'طاولة الخدمة');
+    const tab = tablesService.openTab(table.id);
+    tablesService.sendRound(tab.id, [{ variantId: burgerId, quantity: 2 }]); // 160
+    const dineIn = salesService.createSale({ items: [], discount: 10, paymentMethod: 'cash', tableTabId: tab.id });
+    expect(dineIn.totalAmount).toBe(168); // (160 - 10) * 1.12
+    const sale = salesService.getSaleById(dineIn.saleId);
+    expect(sale.service_charge).toBe(18);
+    expect(normalizeReceiptSale(sale)).toMatchObject({ saleId: dineIn.saleId, subtotal: 160, serviceCharge: 18, total: 168 });
+
+    expect(() => salesService.createSale({
+      items: [{ variantId: teaId, quantity: 1 }], paymentMethod: 'cash', orderMode: 'delivery', delivery: { phone: '010' },
+    })).toThrow('العنوان مطلوبين');
+    const delivered = salesService.createSale({
+      items: [{ variantId: teaId, quantity: 2 }],
+      paymentMethod: 'cash',
+      orderMode: 'delivery',
+      delivery: { name: 'منى', phone: '01000000000', address: ' 5 ش النصر،  الدور 3 ' },
+    });
+    expect(delivered.totalAmount).toBe(45);
+    const row = mockDb.prepare('SELECT customer_name, customer_phone, delivery_address, service_charge FROM sales WHERE id = ?').get(delivered.saleId);
+    expect(row).toEqual({ customer_name: 'منى', customer_phone: '01000000000', delivery_address: '5 ش النصر، الدور 3', service_charge: 15 });
+    expect(require('../../electron/repositories/kitchen.repository').getSaleTicket(delivered.saleId).delivery_address).toBe('5 ش النصر، الدور 3');
+
+    // Takeaway pays neither.
+    expect(salesService.createSale({ items: [{ variantId: teaId, quantity: 1 }], paymentMethod: 'cash', orderMode: 'takeaway' }).totalAmount).toBe(15);
+  } finally {
+    settings.set('service_charge_percent', '0');
+    settings.set('delivery_fee', '0');
+  }
+});

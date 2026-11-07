@@ -15,13 +15,16 @@ function createSale({
   kitchenStatus,
   branchId,
   warehouseId,
+  serviceCharge,
+  deliveryAddress,
 }) {
   const stmt = db.prepare(`
     INSERT INTO sales (
       shift_id, branch_id, warehouse_id, customer_id, customer_name, customer_phone, user_id,
-      total_amount, discount, payment_method, due_date, order_mode, kitchen_status
+      total_amount, discount, payment_method, due_date, order_mode, kitchen_status,
+      service_charge, delivery_address
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   const result = stmt.run(
     shiftId || null,
@@ -36,7 +39,9 @@ function createSale({
     paymentMethod,
     dueDate || null,
     orderMode || null,
-    kitchenStatus || null
+    kitchenStatus || null,
+    serviceCharge || 0,
+    deliveryAddress || null
   );
   return result.lastInsertRowid;
 }
