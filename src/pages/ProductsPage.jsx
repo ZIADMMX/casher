@@ -11,6 +11,7 @@ import { useBusinessProfile } from '../contexts/BusinessProfileContext.jsx';
 import { useUser } from '../contexts/UserContext.jsx';
 import BundlePromotionsPanel from '../components/products/BundlePromotionsPanel.jsx';
 import ProductUnitsModal from '../components/products/ProductUnitsModal.jsx';
+import RecipeDialog from '../components/products/RecipeDialog.jsx';
 import ExpiryManagerModal from '../components/products/ExpiryManagerModal.jsx';
 import {
   AddProductDialog, ArchiveDialog, ArchiveGlyph, Dialog, ProductDetailsDialog, UnlockDialog,
@@ -306,6 +307,7 @@ function ProductsPage({ onNavigate }) {
   const [dialog, setDialog] = useState(null); // { type, productId?, after? }
   const [scannedBarcode, setScannedBarcode] = useState('');
   const [unitsTarget, setUnitsTarget] = useState(null);
+  const [recipeTarget, setRecipeTarget] = useState(null);
   const [showImport, setShowImport] = useState(false);
   const [showExpiry, setShowExpiry] = useState(false);
   const [showBundles, setShowBundles] = useState(false);
@@ -695,6 +697,7 @@ function ProductsPage({ onNavigate }) {
           onPrintBarcode={(variant) => handlePrint(variant, openProduct.name, 'barcode')}
           onPrintPriceTag={(variant) => handlePrint(variant, openProduct.name, 'hangTag')}
           onOpenUnits={(variant) => setUnitsTarget({ variant, productName: openProduct.name })}
+          onOpenRecipe={sectorKey === 'cafe_restaurant' ? (variant) => setRecipeTarget({ variant, productName: openProduct.name }) : null}
         />
       )}
 
@@ -715,6 +718,16 @@ function ProductsPage({ onNavigate }) {
             <LogList entries={log} />
           </div>
         </Dialog>
+      )}
+
+      {recipeTarget && (
+        <RecipeDialog
+          variant={recipeTarget.variant}
+          productName={recipeTarget.productName}
+          products={products}
+          canEdit={access.canEdit}
+          onClose={() => { setRecipeTarget(null); refresh(); }}
+        />
       )}
 
       {unitsTarget && (

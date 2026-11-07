@@ -344,7 +344,7 @@ function variantLabel(variant, fallback) {
 
 export function ProductDetailsDialog({
   product, code, emoji, attributes, categories, access, quantityLabel, onClose,
-  onEditProduct, onAddVariant, onEditVariant, onDeleteVariant, onPrintBarcode, onPrintPriceTag, onOpenUnits,
+  onEditProduct, onAddVariant, onEditVariant, onDeleteVariant, onPrintBarcode, onPrintPriceTag, onOpenUnits, onOpenRecipe = null,
 }) {
   const canEdit = access.canEdit;
   const hasSize = attributes.some((item) => item.attribute_key === 'size');
@@ -589,6 +589,12 @@ export function ProductDetailsDialog({
                     <button type="button" className="prd-icon-btn" title="وحدات القياس (كرتونة / علبة)" aria-label="وحدات القياس" onClick={() => onOpenUnits(variant)}>
                       <PackageIcon size={16} />
                     </button>
+                    {onOpenRecipe && (
+                      <button type="button" className="prd-icon-btn" title="الوصفة (الخامات اللي تتخصم من المخزون)" aria-label="الوصفة" onClick={() => onOpenRecipe(variant)}>
+                        <TagIcon size={16} />
+                        {variant.has_recipe ? ' ✓' : ''}
+                      </button>
+                    )}
                     <button type="button" className="prd-icon-btn" title="طباعة باركود" aria-label="طباعة باركود" onClick={() => onPrintBarcode(variant)}>
                       <PrinterIcon size={16} />
                     </button>

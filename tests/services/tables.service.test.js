@@ -198,3 +198,35 @@ test('kitchen tickets carry the line note and split by prep station', () => {
   const { saleId } = salesService.createSale({ items: [], paymentMethod: 'cash', tableTabId: tab.id });
   expect(salesService.getSaleById(saleId).items.map((item) => item.note).sort()).toEqual([null, 'من غير بصل'].sort());
 });
+
+test('a recipe item takes its ingredients out of stock, not itself', () => {
+  const recipesService = require('../../electron/services/recipes.service');
+  const returnsService = require('../../electron/services/returns.service');
+  const bunId = makeVariant('عيش برجر', 4); // cost 2, stock 20
+  const beefId = makeVariant('لحمة مفرومة كجم', 300); // cost 150, stock 20
+  const comboId = makeVariant('كومبو برجر', 120);
+
+  expect(() => recipesService.setRecipe(comboId, [{ variantId: comboId, quantity: 1 }])).toThrow('مكون في وصفته');
+  expect(() => recipesService.setRecipe(comboId, [{ variantId: bunId, quantity: 0 }])).toThrow('كمية المكون');
+  recipesService.setRecipe(comboId, [{ variantId: bunId, quantity: 1 }, { variantId: beefId, quantity: 0.15 }]);
+  // One level only: a recipe item can't be an ingredient, an ingredient can't get a recipe.
+  expect(() => recipesService.setRecipe(burgerId, [{ variantId: comboId, quantity: 1 }])).toThrow('ليه وصفة');
+  expect(() => recipesService.setRecipe(bunId, [{ variantId: teaId, quantity: 1 }])).toThrow('مكون في وصفة تانية');
+
+  const { saleId } = salesService.createSale({ items: [{ variantId: comboId, quantity: 2 }], paymentMethod: 'cash' });
+  expect(variantsRepo.getById(comboId).stock_quantity).toBe(20);
+  expect(variantsRepo.getById(bunId).stock_quantity).toBe(18);
+  expect(variantsRepo.getById(beefId).stock_quantity).toBeCloseTo(19.7);
+  expect(mockDb.prepare('SELECT unit_cost FROM sale_items WHERE sale_id = ?').get(saleId).unit_cost).toBeCloseTo(24.5);
+
+  expect(() => salesService.createSale({ items: [{ variantId: comboId, quantity: 19 }], paymentMethod: 'cash' }))
+    .toThrow('عيش برجر');
+
+  // A returned dish was cooked: nothing goes back on the shelf.
+  returnsService.processReturn({ saleId, variantId: comboId, quantity: 1, reason: 'test', mode: 'refund' });
+  expect(variantsRepo.getById(comboId).stock_quantity).toBe(20);
+  expect(variantsRepo.getById(bunId).stock_quantity).toBe(18);
+
+  recipesService.setRecipe(comboId, []);
+  expect(recipesService.getRecipe(comboId)).toEqual([]);
+});

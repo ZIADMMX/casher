@@ -227,6 +227,8 @@ exportEmployees: () => ipcRenderer.invoke('export:employees'),
   getOpenTableTab: (tabId) => ipcRenderer.invoke('tables:getOpenTab', tabId),
   sendTableRound: (tabId, items) => ipcRenderer.invoke('tables:sendRound', { tabId, items }),
   cancelTableTab: (tabId) => ipcRenderer.invoke('tables:cancelTab', tabId),
+  getRecipe: (variantId) => ipcRenderer.invoke('products:getRecipe', variantId),
+  setRecipe: (variantId, ingredients) => ipcRenderer.invoke('products:setRecipe', { variantId, ingredients }),
 
   // Subscriptions & Packages
   getAllPackages: () => ipcRenderer.invoke('subscriptions:getAllPackages'),

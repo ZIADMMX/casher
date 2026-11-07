@@ -7,6 +7,7 @@ const NotificationsService = require('./notifications.service');
 const { requireAuth, getCurrentSession } = require('./auth.service');
 const inventoryRepo = require('../repositories/inventory.repository');
 const groceryRepo = require('../repositories/grocery.repository');
+const recipesRepo = require('../repositories/recipes.repository');
 
 // نجيب فاتورة معينة برقمها عشان الكاشير يقدر يبحث عنها
 function findSale(saleId) {
@@ -87,21 +88,25 @@ function processReturn({
   let recordedExchangePaymentMethod = null;
 
   const runTransaction = db.transaction(() => {
-    // 1. إرجاع الكمية للمخزون (الصنف المرتجع)
-    inventoryRepo.applyStockChange({
-      warehouseId,
-      variantId: parsedVariantId,
-      delta: parsedQty,
-      movementType: 'return',
-      referenceType: 'return',
-      userId: session.id,
-      notes: `مرتجع من فاتورة بيع #${parsedSaleId}`,
-    });
-    // إعادة تعبئة التشغيلة / الدفعة إذا كانت السلعة خاضعة للتشغيلات والصلاحيات
-    try {
-      groceryRepo.restockBatchQuantity(parsedVariantId, parsedQty);
-    } catch (err) {
-      console.warn('تنبيه: تعذر إعادة تعبئة تشغيلة المرتجع:', err.message);
+    // 1. إرجاع الكمية للمخزون (الصنف المرتجع). A recipe item was cooked from its
+    // ingredients; neither the dish nor the used ingredients go back on the shelf.
+    const madeFromRecipe = recipesRepo.hasRecipe(parsedVariantId);
+    if (!madeFromRecipe) {
+      inventoryRepo.applyStockChange({
+        warehouseId,
+        variantId: parsedVariantId,
+        delta: parsedQty,
+        movementType: 'return',
+        referenceType: 'return',
+        userId: session.id,
+        notes: `مرتجع من فاتورة بيع #${parsedSaleId}`,
+      });
+      // إعادة تعبئة التشغيلة / الدفعة إذا كانت السلعة خاضعة للتشغيلات والصلاحيات
+      try {
+        groceryRepo.restockBatchQuantity(parsedVariantId, parsedQty);
+      } catch (err) {
+        console.warn('تنبيه: تعذر إعادة تعبئة تشغيلة المرتجع:', err.message);
+      }
     }
 
     let exchangeInfo = null;

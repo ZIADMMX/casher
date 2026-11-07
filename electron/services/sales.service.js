@@ -10,6 +10,7 @@ const NotificationsService = require('./notifications.service');
 const { requireAuth, getCurrentSession, hasGrantedPermission } = require('./auth.service');
 const { logError } = require('../services/logger.service');
 const inventoryRepo = require('../repositories/inventory.repository');
+const recipesRepo = require('../repositories/recipes.repository');
 const bundlePromotionsService = require('./bundlePromotions.service');
 const { resolveModifiers, cleanNote, getCatalog: getAddonCatalog } = require('./modifiers.service');
 
@@ -127,12 +128,21 @@ function createSale({
       }
 
       const baseQuantityDeduction = quantity * stockDeductionFactor;
-      if (!isService) {
-        const requested = (requestedByVariant.get(Number(item.variantId)) || 0) + baseQuantityDeduction;
-        requestedByVariant.set(Number(item.variantId), requested);
-        const available = inventoryRepo.getStockQuantity(warehouseId, Number(item.variantId));
+      // What leaves the shelf: a recipe's ingredients, or the item itself (a service: nothing).
+      const recipe = recipesRepo.getRecipe(Number(item.variantId));
+      const stockLines = recipe.length
+        ? recipe.map((ing) => ({
+          variantId: ing.ingredient_variant_id,
+          quantity: Math.round(baseQuantityDeduction * ing.quantity * 1000) / 1000,
+          label: ing.product_name || ing.sku,
+        }))
+        : isService ? [] : [{ variantId: Number(item.variantId), quantity: baseQuantityDeduction, label: variant.sku }];
+      for (const line of stockLines) {
+        const requested = (requestedByVariant.get(line.variantId) || 0) + line.quantity;
+        requestedByVariant.set(line.variantId, requested);
+        const available = inventoryRepo.getStockQuantity(warehouseId, line.variantId);
         if (available < requested) {
-          throw new Error(`الكمية المتاحة غير كافية للصنف (${variant.sku || 'الصنف'}). المطلوب: ${requested}، المتاح: ${available}`);
+          throw new Error(`الكمية المتاحة غير كافية للصنف (${line.label || 'الصنف'}). المطلوب: ${requested}، المتاح: ${available}`);
         }
       }
 
@@ -142,6 +152,11 @@ function createSale({
         unitPrice: effectiveUnitPrice,
         baseQuantityDeduction,
         isService,
+        stockLines,
+        // A recipe item costs what its ingredients cost at sale time.
+        unitCost: recipe.length
+          ? Math.round(recipe.reduce((sum, ing) => sum + (Number(ing.purchase_price) || 0) * ing.quantity, 0) * stockDeductionFactor * 10000) / 10000
+          : undefined,
         modifiers,
         note: cleanNote(item.note),
       });
@@ -225,24 +240,20 @@ function createSale({
 
       for (const item of verifiedItems) {
         salesRepo.createSaleItem(saleId, item);
-        const deductionQty = item.baseQuantityDeduction || item.quantity;
-        if (!item.isService) {
+        for (const line of item.stockLines) {
           inventoryRepo.applyStockChange({
             warehouseId,
-            variantId: item.variantId,
-            delta: -deductionQty,
+            variantId: line.variantId,
+            delta: -line.quantity,
             movementType: 'sale',
             referenceType: 'sale',
             referenceId: saleId,
             userId: session.id,
           });
-        }
-
-        if (!item.isService) {
           // خصم رصيد التشغيلات وتواريخ الصلاحية آلياً وفقاً لسياسة FIFO
           try {
             const groceryRepo = require('../repositories/grocery.repository');
-            groceryRepo.deductFifoBatchQuantity(item.variantId, deductionQty);
+            groceryRepo.deductFifoBatchQuantity(line.variantId, line.quantity);
           } catch {
             // تجاهل آمن في حالة عدم وجود تشغيلات لهذا الصنف
           }
@@ -326,9 +337,8 @@ function createSale({
       }
 
       // فحص مستويات المخزون بعد البيع
-      for (const item of verifiedItems) {
-        if (item.isService) continue;
-        const updated = variantsRepo.getById(item.variantId);
+      for (const variantId of requestedByVariant.keys()) {
+        const updated = variantsRepo.getById(variantId);
         if (updated) {
           if (updated.stock_quantity === 0) {
             NotificationsService.notify({

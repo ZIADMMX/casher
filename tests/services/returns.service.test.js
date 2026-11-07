@@ -1,3 +1,4 @@
+jest.mock('../../electron/repositories/recipes.repository', () => ({ getRecipe: jest.fn(() => []), hasRecipe: jest.fn(() => false) }));
 const mockStockUpdateRun = jest.fn();
 
 jest.mock('../../electron/database/db', () => ({

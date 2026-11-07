@@ -9,3 +9,5 @@ export const openTableTab = bridgeMethod('openTableTab');
 export const getOpenTableTab = bridgeMethod('getOpenTableTab');
 export const sendTableRound = bridgeMethod('sendTableRound');
 export const cancelTableTab = bridgeMethod('cancelTableTab');
+export const getRecipe = bridgeMethod('getRecipe');
+export const setRecipe = bridgeMethod('setRecipe');

@@ -10,7 +10,11 @@ function getStmts() {
           (product_id, size, color, sku, barcode, purchase_price, selling_price, stock_quantity, low_stock_threshold)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `),
-      getAll: db.prepare('SELECT * FROM product_variants'),
+      // has_recipe: sold from its ingredients, so its own stock never blocks a sale.
+      getAll: db.prepare(`
+        SELECT pv.*, EXISTS (SELECT 1 FROM recipe_items r WHERE r.variant_id = pv.id) AS has_recipe
+        FROM product_variants pv
+      `),
       // Stock of every variant the POS catalog shows (active products only).
       getActiveStock: db.prepare(`
         SELECT pv.id, pv.stock_quantity

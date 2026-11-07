@@ -238,7 +238,8 @@ function POSPage({ onNavigate }) {
     if (cartLocked) return warnCartLocked();
     const variantId = selectedVariant[product.id] || product.variants[0]?.id;
     const variant = product.variants?.find((v) => v.id === variantId) || product.variants[0];
-    const isService = Boolean(product.is_service);
+    // A recipe item is checked against its ingredients' stock by the server.
+    const isService = Boolean(product.is_service || variant?.has_recipe);
     if (!variant || (!isService && variant.stock_quantity === 0)) return;
 
     setCart((prev) => {

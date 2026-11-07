@@ -48,6 +48,7 @@ const {
 const { ensureSalesLedgerGuards, backfillSaleItemCosts } = require('./salesLedger');
 const { ensureKitchenLedger } = require('./kitchenLedger');
 const { ensureDiningTables } = require('./diningTables');
+const { ensureRecipes } = require('./recipes');
 const { ensureProductLedger } = require('./productLedger');
 const { ensureSyncMetadata } = require('./syncMetadata');
 const { addColumnIfMissing } = require('./helpers');
@@ -251,6 +252,13 @@ function runAllMigrations(dbInstance = db) {
     addColumnIfMissing('table_tab_items', 'note', 'TEXT', dbInstance);
     dbInstance.pragma('user_version = 21');
     console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 21 (ملاحظة الصنف للمطبخ).');
+  }
+
+  if (currentVersion < 22) {
+    // Recipes: selling a menu item takes its ingredients out of stock.
+    ensureRecipes(dbInstance);
+    dbInstance.pragma('user_version = 22');
+    console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 22 (وصفات الأصناف وخصم المكونات).');
   }
 
   // Earlier steps may rebuild the sales tables; make sure the guards exist at the end.

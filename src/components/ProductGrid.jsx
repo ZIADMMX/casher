@@ -149,7 +149,7 @@ function ProductGrid({ products = EMPTY_PRODUCTS, selectedVariant = {}, pickVari
           .filter((item) => product.variants.some((v) => v.id === item.variantId))
           .reduce((sum, item) => sum + item.quantity, 0);
 
-        const isOutOfStock = !activeVariant || (!isService && activeVariant.stock_quantity === 0);
+        const isOutOfStock = !activeVariant || (!isService && !activeVariant.has_recipe && activeVariant.stock_quantity === 0);
 
         return (
           <div key={product.id} className={`pos-product-card ${isOutOfStock ? 'is-out-of-stock' : ''}`}>

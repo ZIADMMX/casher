@@ -232,6 +232,7 @@ exports[`System Snapshot Tests (اختبارات اللقطات والقوالب
   "products",
   "purchase_items",
   "purchases",
+  "recipe_items",
   "returns",
   "review_activity",
   "review_prompt_state",

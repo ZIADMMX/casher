@@ -102,6 +102,7 @@ const { db, dbPath, runAllMigrations } = require('./database/db');
 const { registerSalesHandlers } = require('./handlers/sales.handler');
 const { registerKitchenHandlers } = require('./handlers/kitchen.handler');
 const { registerTablesHandlers } = require('./handlers/tables.handler');
+const { registerRecipesHandlers } = require('./handlers/recipes.handler');
 const { registerProductHandlers } = require('./handlers/products.handler');
 const { registerAuthHandlers } = require('./handlers/auth.handler');
 const { registerUsersHandlers } = require('./handlers/users.handler');
@@ -354,6 +355,7 @@ app.whenReady().then(async () => {
   registerSalesHandlers();
   registerKitchenHandlers();
   registerTablesHandlers();
+  registerRecipesHandlers();
   registerBundlePromotionHandlers();
   registerReportsHandlers();
   registerPrintHandlers();
