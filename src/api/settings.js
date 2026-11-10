@@ -9,3 +9,6 @@ export const saveSettings = bridgeMethod('saveSettings');
 export const backupDatabase = bridgeMethod('backupDatabase');
 export const restoreDatabase = bridgeMethod('restoreDatabase');
 export const uploadStoreLogo = bridgeMethod('uploadStoreLogo');
+export const getCloudSyncStatus = bridgeMethod('getCloudSyncStatus');
+export const configureCloudSync = bridgeMethod('configureCloudSync');
+export const syncCloudNow = bridgeMethod('syncCloudNow');

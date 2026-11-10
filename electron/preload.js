@@ -185,6 +185,9 @@ exportEmployees: () => ipcRenderer.invoke('export:employees'),
   backupDatabase: () => ipcRenderer.invoke('settings:backup'),
   restoreDatabase: () => ipcRenderer.invoke('settings:restore'),
   uploadStoreLogo: () => ipcRenderer.invoke('settings:uploadLogo'),
+  getCloudSyncStatus: () => ipcRenderer.invoke('cloudSync:getStatus'),
+  configureCloudSync: (config) => ipcRenderer.invoke('cloudSync:configure', config),
+  syncCloudNow: () => ipcRenderer.invoke('cloudSync:syncNow'),
 
   // License & Software Activation
   getLicenseStatus: () => ipcRenderer.invoke('license:getStatus'),

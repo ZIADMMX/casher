@@ -105,3 +105,44 @@ test('toIso reads SQLite UTC timestamps', () => {
   expect(cloudSync.toIso('2026-03-04 05:06:07')).toBe('2026-03-04T05:06:07.000Z');
   expect(cloudSync.toIso('garbage')).toBeNull();
 });
+
+test('shows the message from an erp-api error body', async () => {
+  db.prepare("UPDATE customers SET updated_at = '2026-01-03 09:00:00' WHERE id = 1").run();
+  global.fetch.mockResolvedValueOnce({
+    ok: false, status: 401, json: async () => ({ error: { code: 'DEVICE_KEY_INVALID', message: 'مفتاح الجهاز غير صالح' } }),
+  });
+  await expect(cloudSync.syncOnce(db)).rejects.toThrow('مفتاح الجهاز غير صالح');
+});
+
+test('saving a new server or key sends every row again', async () => {
+  await cloudSync.syncOnce(db);
+  global.fetch.mockClear();
+  cloudSync.configure({ baseUrl: 'https://erp-api.example.com', deviceKey: KEY }, db);
+  await expect(cloudSync.syncOnce(db)).resolves.toEqual({ pushed: 5 });
+  expect(global.fetch.mock.calls[0][0]).toBe('https://erp-api.example.com/api/sync/push');
+});
+
+test('saving a new server while a run is uploading still sends every row to the new server', async () => {
+  cloudSync.configure({ baseUrl: 'https://old.example.com', deviceKey: KEY }, db);
+  global.fetch.mockImplementationOnce(async () => {
+    // the owner saves a new server while the first batch is in flight
+    cloudSync.configure({ baseUrl: 'https://new.example.com', deviceKey: KEY }, db);
+    return { ok: true, json: async () => ({}) };
+  });
+  await cloudSync.syncOnce(db);
+  global.fetch.mockClear();
+  await cloudSync.syncOnce(db);
+  const urls = global.fetch.mock.calls.map(([url]) => url);
+  expect(urls.every((u) => u.startsWith('https://new.example.com'))).toBe(true);
+  expect(pushedRecords()).toHaveLength(5);
+});
+
+test('network failures are reported in Arabic', async () => {
+  cloudSync.configure({ baseUrl: 'https://erp-api.example.com', deviceKey: KEY }, db);
+  global.fetch.mockRejectedValueOnce(new TypeError('fetch failed'));
+  await expect(cloudSync.syncOnce(db)).rejects.toThrow('تعذر الوصول لخادم المزامنة');
+  const timeout = new Error('The operation was aborted due to timeout');
+  timeout.name = 'TimeoutError';
+  global.fetch.mockRejectedValueOnce(timeout);
+  await expect(cloudSync.syncOnce(db)).rejects.toThrow('خادم المزامنة اتأخر في الرد');
+});

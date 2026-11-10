@@ -23,6 +23,8 @@ const SQLITE_DATETIME = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(\.\d+)?$/;
 
 const status = { lastRunAt: null, lastSuccessAt: null, lastError: null, lastPushed: 0 };
 let running = null;
+// Bumped by configure(): a run started with the old server stops before moving any cursor.
+let configVersion = 0;
 
 function configPath() {
   return path.join(app.getPath('userData'), 'cloud-sync.json');
@@ -53,7 +55,8 @@ function validateBaseUrl(value) {
 }
 
 /** Save { baseUrl, deviceKey }, or pass null to turn sync off. The key is stored encrypted. */
-function configure(value) {
+function configure(value, database = db) {
+  configVersion += 1;
   if (!value) {
     fs.rmSync(configPath(), { force: true });
     return getStatus();
@@ -66,6 +69,8 @@ function configure(value) {
     encoding: 'utf8',
     mode: 0o600,
   });
+  // A new server or device starts empty, so send everything again (the server upserts, repeats are harmless).
+  if (hasTable(database, 'sync_cursors')) database.exec('DELETE FROM sync_cursors');
   return getStatus();
 }
 
@@ -110,19 +115,27 @@ function toRecord(table, row) {
 }
 
 async function push(baseUrl, deviceKey, records) {
-  const response = await fetch(`${baseUrl}/api/sync/push`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${deviceKey}` },
-    body: JSON.stringify({ records }),
-    signal: AbortSignal.timeout(30_000),
-  });
+  let response;
+  try {
+    response = await fetch(`${baseUrl}/api/sync/push`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${deviceKey}` },
+      body: JSON.stringify({ records }),
+      signal: AbortSignal.timeout(30_000),
+    });
+  } catch (error) {
+    // fetch only rejects for network problems; the cursor stays put, so the next run retries
+    if (error.name === 'TimeoutError') throw new Error('خادم المزامنة اتأخر في الرد، وهيتعاد الرفع تلقائيًا');
+    throw new Error('تعذر الوصول لخادم المزامنة (مفيش نت؟)، وهيتعاد الرفع تلقائيًا');
+  }
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
-    throw new Error(body.error || `رفض خادم المزامنة الدفعة (${response.status})`);
+    // erp-api answers { error: { code, message } }; older servers sent a plain string
+    throw new Error(body.error?.message || (typeof body.error === 'string' && body.error) || `رفض خادم المزامنة الدفعة (${response.status})`);
   }
 }
 
-async function syncTable(database, table, config) {
+async function syncTable(database, table, config, version) {
   const cursorRow = database.prepare('SELECT updated_at, uuid FROM sync_cursors WHERE table_name = ?').get(table);
   let cursor = cursorRow || { updated_at: '', uuid: '' };
   const select = database.prepare(`
@@ -154,6 +167,7 @@ async function syncTable(database, table, config) {
       last = row;
     }
     if (records.length > 0) await push(config.baseUrl, config.deviceKey, records);
+    if (version !== configVersion) return null;
     cursor = { updated_at: last.updated_at, uuid: last.uuid };
     saveCursor.run(table, cursor.updated_at, cursor.uuid);
     pushed += records.length;
@@ -161,6 +175,7 @@ async function syncTable(database, table, config) {
 }
 
 async function runSync(database) {
+  const version = configVersion;
   const config = readConfig();
   if (!config.baseUrl || !config.deviceKey) return { skipped: true };
   status.lastRunAt = new Date().toISOString();
@@ -168,7 +183,11 @@ async function runSync(database) {
     ensureCursorTable(database);
     let pushed = 0;
     for (const table of SYNC_TABLES) {
-      if (hasTable(database, table)) pushed += await syncTable(database, table, config);
+      if (!hasTable(database, table)) continue;
+      const count = await syncTable(database, table, config, version);
+      // The server changed mid-run: stop here and let the next run start over with the new one.
+      if (count === null) return { pushed, restarted: true };
+      pushed += count;
     }
     Object.assign(status, { lastSuccessAt: new Date().toISOString(), lastError: null, lastPushed: pushed });
     return { pushed };

@@ -74,6 +74,7 @@ function getPermissionForChannel(channel, args = []) {
     return request?.route ? getPermissionForApi(request.route, request.method) : null;
   }
   if (channel.startsWith('central:')) return 'settings.manage';
+  if (channel.startsWith('cloudSync:')) return 'settings.manage';
 
   const separator = channel.indexOf(':');
   if (separator < 0) return null;

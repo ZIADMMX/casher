@@ -6,10 +6,30 @@ const { getDefaultBackupPath } = require('../services/backup.service');
 const authService = require('../services/auth.service');
 const { safeHandle } = require('./safeHandle');
 
+// Loaded on first use: its migration helpers open the database connection as soon as they load.
+const cloudSync = () => require('../services/cloudSync.service');
+
 function registerSettingsHandlers() {
   safeHandle('settings:getAll', () => {
     authService.requireAuth();
     return SettingsService.getSettings();
+  });
+
+  // Desktop -> erp-api upload (see services/cloudSync.service.js)
+  safeHandle('cloudSync:getStatus', () => {
+    authService.requireAdmin();
+    return cloudSync().getStatus();
+  });
+
+  safeHandle('cloudSync:configure', (_event, config) => {
+    authService.requireAdmin();
+    return cloudSync().configure(config);
+  });
+
+  safeHandle('cloudSync:syncNow', async () => {
+    authService.requireAdmin();
+    await cloudSync().syncOnce();
+    return cloudSync().getStatus();
   });
 
   safeHandle('settings:save', (_event, settingsData) => {
