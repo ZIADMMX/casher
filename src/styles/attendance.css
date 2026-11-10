@@ -375,7 +375,7 @@
 }
 
 .attendance-no-variance {
-  color: #94a3b8;
+  color: var(--color-text-muted);
 }
 
 .attendance-state.is-muted {

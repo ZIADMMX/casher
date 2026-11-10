@@ -6,15 +6,15 @@
 :root {
   --onboard-bg: #121318;
   --onboard-card-bg: rgba(26, 28, 36, 0.75);
-  --onboard-card-border: rgba(255, 255, 255, 0.08);
+  --onboard-card-border: rgba(255, 255, 255, 0.11);
   --onboard-card-hover-border: rgba(240, 90, 36, 0.4);
   --onboard-primary: #F05A24;
   --onboard-primary-hover: #FF6A38;
   --onboard-primary-glow: rgba(240, 90, 36, 0.35);
   --onboard-success: #10B981;
-  --onboard-text-main: #FFFFFF;
-  --onboard-text-muted: #94A3B8;
-  --onboard-text-sub: #64748B;
+  --onboard-text-main: #F1F5F9; /* soft white: less glare than pure #FFF on dark */
+  --onboard-text-muted: #CBD5E1;
+  --onboard-text-sub: #9AA8BC;
 }
 
 .onboarding-wizard-container {
@@ -150,7 +150,7 @@
 }
 
 .stepper-node.active .stepper-label {
-  color: #FFFFFF;
+  color: var(--onboard-text-main);
   font-weight: 700;
 }
 
@@ -202,6 +202,7 @@
 }
 
 .onboarding-heading {
+  color: var(--onboard-text-main);
   font-size: 26px;
   font-weight: 800;
   margin: 0 0 8px;
@@ -244,7 +245,7 @@
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
   user-select: none;
-  text-align: right;
+  text-align: start;
 }
 
 .sector-card:hover {
@@ -328,7 +329,7 @@
   font-size: 16px;
   font-weight: 700;
   margin: 0;
-  color: #FFFFFF;
+  color: var(--onboard-text-main);
 }
 
 .sector-card-subtitle {
@@ -358,7 +359,7 @@
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  color: #E2E8F0;
+  color: var(--onboard-text-muted);
 }
 
 .sector-card.selected .sector-feature-pill {
@@ -383,7 +384,7 @@
 .custom-sector-label {
   font-size: 13px;
   font-weight: 600;
-  color: #FFFFFF;
+  color: var(--onboard-text-main);
 }
 
 .custom-sector-input {
@@ -393,7 +394,7 @@
   border-radius: 8px;
   padding: 10px 14px;
   font-size: 14px;
-  color: #FFFFFF;
+  color: var(--onboard-text-main);
   outline: none;
   transition: border-color 0.2s ease;
 }
@@ -445,7 +446,7 @@
 
 .summary-main-text {
   font-size: 14px;
-  color: #FFFFFF;
+  color: var(--onboard-text-main);
 }
 
 .summary-main-text strong {
@@ -542,7 +543,7 @@
   font-size: 24px;
   font-weight: 800;
   margin: 0 0 8px;
-  color: #FFFFFF;
+  color: var(--onboard-text-main);
 }
 
 .catalog-sub-title {
@@ -579,7 +580,7 @@
 /* Financial KPIs Banner */
 .catalog-kpi-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 16px;
 }
 
@@ -620,7 +621,7 @@
 .kpi-number {
   font-size: 22px;
   font-weight: 800;
-  color: #FFFFFF;
+  color: var(--onboard-text-main);
 }
 
 .kpi-unit {
@@ -673,13 +674,26 @@
 }
 
 .card-icon {
-  font-size: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: rgba(240, 90, 36, 0.12);
+  color: #FFA27A;
+  flex-shrink: 0;
+}
+
+.card-icon svg {
+  width: 18px;
+  height: 18px;
 }
 
 .card-title {
   font-size: 16px;
   font-weight: 700;
-  color: #FFFFFF;
+  color: var(--onboard-text-main);
   margin: 0;
 }
 
@@ -762,7 +776,7 @@
 .upload-main-text {
   font-size: 13px;
   font-weight: 700;
-  color: #FFFFFF;
+  color: var(--onboard-text-main);
 }
 
 .upload-hint-text {
@@ -840,7 +854,7 @@
 .time-input {
   background: rgba(0, 0, 0, 0.35);
   border: 1px solid var(--onboard-card-border);
-  color: #FFFFFF;
+  color: var(--onboard-text-main);
   padding: 8px 12px;
   border-radius: 8px;
   font-size: 14px;
@@ -876,17 +890,34 @@
 }
 
 .day-pill {
-  font-size: 11px;
-  padding: 3px 8px;
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.05);
+  font: inherit;
+  font-size: 12px;
+  min-height: 32px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--onboard-card-border);
+  background: transparent;
+  color: var(--onboard-text-sub);
+  cursor: pointer;
+  text-decoration: line-through;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.day-pill:hover {
+  border-color: var(--onboard-card-hover-border);
   color: var(--onboard-text-muted);
+}
+
+.day-pill:focus-visible {
+  outline: 2px solid var(--onboard-primary);
+  outline-offset: 2px;
 }
 
 .day-pill.active {
   background: rgba(240, 90, 36, 0.15);
   color: #FFA27A;
-  border: 1px solid rgba(240, 90, 36, 0.25);
+  border-color: rgba(240, 90, 36, 0.35);
+  text-decoration: none;
 }
 
 /* Categories & Addons Chips */
@@ -907,7 +938,7 @@
   align-items: center;
   gap: 8px;
   font-size: 13px;
-  color: #FFFFFF;
+  color: var(--onboard-text-main);
   transition: all 0.2s ease;
 }
 
@@ -952,7 +983,7 @@
 .btn-outline-small {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #FFFFFF;
+  color: var(--onboard-text-main);
   border-radius: 8px;
   padding: 6px 14px;
   font-size: 12px;
@@ -989,7 +1020,7 @@
   flex: 1;
   background: rgba(0, 0, 0, 0.4);
   border: 1px solid var(--onboard-card-border);
-  color: #FFFFFF;
+  color: var(--onboard-text-main);
   padding: 8px 12px;
   border-radius: 8px;
   font-size: 13px;
@@ -1055,7 +1086,7 @@
   border: 1.5px solid rgba(255, 255, 255, 0.16);
   border-radius: 9px;
   padding: 9px 38px 9px 14px;
-  color: #FFFFFF;
+  color: var(--onboard-text-main);
   font-size: 13px;
   outline: none;
   width: 220px;
@@ -1074,7 +1105,7 @@
   border: 1.5px solid rgba(255, 255, 255, 0.16);
   border-radius: 9px;
   padding: 9px 14px;
-  color: #FFFFFF;
+  color: var(--onboard-text-main);
   font-size: 13px;
   font-weight: 600;
   outline: none;
@@ -1088,7 +1119,7 @@
 
 .table-filter-select option {
   background: #111420;
-  color: #FFFFFF;
+  color: var(--onboard-text-main);
 }
 
 .inline-add-product-form {
@@ -1109,7 +1140,7 @@
   min-width: 120px;
   background: rgba(15, 23, 42, 0.85);
   border: 1px solid rgba(255, 255, 255, 0.18);
-  color: #FFFFFF;
+  color: var(--onboard-text-main);
   padding: 9px 12px;
   border-radius: 8px;
   font-size: 13px;
@@ -1139,19 +1170,37 @@
 .onboarding-table {
   width: 100%;
   border-collapse: collapse;
-  text-align: right;
+  text-align: start;
   font-size: 13.5px;
 }
 
 .onboarding-table thead th {
   background: rgba(255, 255, 255, 0.05);
-  color: #E2E8F0;
+  color: var(--onboard-text-main);
   font-weight: 700;
-  font-size: 13px;
-  padding: 14px 16px;
+  font-size: 12px;
+  line-height: 1.4;
+  padding: 12px 10px;
   border-bottom: 1.5px solid rgba(255, 255, 255, 0.12);
-  white-space: nowrap;
+  vertical-align: bottom;
   letter-spacing: 0.01em;
+}
+
+.onboarding-table .col-item {
+  min-width: 150px;
+}
+
+.onboarding-table thead th:not(.col-item) {
+  min-width: 76px;
+}
+
+.onboarding-table .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 
 .onboarding-table tbody tr {
@@ -1168,7 +1217,7 @@
 }
 
 .onboarding-table td {
-  padding: 13px 16px;
+  padding: 10px;
   vertical-align: middle;
 }
 
@@ -1193,7 +1242,7 @@
 .onboarding-table .prod-meta,
 .onboarding-table .onboarding-item-desc {
   font-size: 11.5px;
-  color: #94A3B8 !important;
+  color: var(--onboard-text-muted) !important;
   line-height: 1.35;
 }
 
@@ -1208,19 +1257,22 @@
   font-weight: 600;
   padding: 4px 11px;
   border-radius: 8px;
-  white-space: nowrap;
+  line-height: 1.4;
 }
 
 /* High contrast editable input */
 .onboarding-table .table-editable-input {
   background: rgba(15, 23, 42, 0.9);
   border: 1.5px solid rgba(255, 255, 255, 0.18);
-  color: #FFFFFF !important;
+  color: var(--onboard-text-main) !important;
   padding: 7px 10px;
   border-radius: 8px;
   font-size: 13.5px;
   font-weight: 700;
-  width: 94px;
+  width: 100%;
+  min-width: 60px;
+  max-width: 84px;
+  min-height: 40px;
   text-align: center;
   outline: none;
   transition: all 0.2s ease;
@@ -1281,7 +1333,7 @@
 .table-row-del-btn {
   background: none;
   border: none;
-  color: #94A3B8;
+  color: var(--onboard-text-muted);
   cursor: pointer;
   padding: 6px;
   border-radius: 8px;
@@ -1304,7 +1356,7 @@
 .empty-table-cell {
   text-align: center;
   padding: 36px 16px;
-  color: #94A3B8;
+  color: var(--onboard-text-muted);
   font-size: 14px;
 }
 
@@ -1329,7 +1381,7 @@
 .onboarding-back-btn {
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #FFFFFF;
+  color: var(--onboard-text-main);
   border-radius: 10px;
   padding: 12px 20px;
   font-size: 14px;
@@ -1355,7 +1407,10 @@
   transform: translateX(4px);
 }
 
+/* Summary on its own row, actions below it: back at the start, confirm at the end */
 .bottom-summary-preview {
+  order: -1;
+  flex-basis: 100%;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1363,8 +1418,25 @@
   color: var(--onboard-text-muted);
 }
 
+.prod-form-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  font-size: 13px;
+  color: var(--onboard-text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.prod-form-check input {
+  accent-color: var(--onboard-primary);
+  width: 16px;
+  height: 16px;
+}
+
 .bottom-summary-preview strong {
-  color: #FFFFFF;
+  color: var(--onboard-text-main);
 }
 
 /* Loading State */
@@ -1543,7 +1615,7 @@
 .provisioning-title {
   font-size: 18px;
   font-weight: 700;
-  color: #FFFFFF;
+  color: var(--onboard-text-main);
   margin: 0;
   min-height: 28px;
   transition: all 0.3s ease;
@@ -1595,7 +1667,7 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
-  text-align: right;
+  text-align: start;
   margin-top: 6px;
 }
 
@@ -1739,7 +1811,7 @@
 .success-main-title {
   font-size: 22px;
   font-weight: 800;
-  color: #FFFFFF;
+  color: var(--onboard-text-main);
   margin: 0;
 }
 
@@ -1780,7 +1852,7 @@
 .summary-metric-card .metric-number {
   font-size: 18px;
   font-weight: 800;
-  color: #FFFFFF;
+  color: var(--onboard-text-main);
 }
 
 .summary-metric-card .metric-label {
@@ -1837,4 +1909,9 @@
   font-size: 12px;
   font-weight: 600;
   white-space: nowrap;
+}
+
+/* An odd last sector card spans the row instead of leaving a gap beside it */
+.sector-cards-grid > .sector-card:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
 }

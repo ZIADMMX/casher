@@ -31,9 +31,10 @@
   --color-surface-accent: #fffdf8;
   --color-surface-sidebar: #15151b;
   --color-text-primary: #292821;
-  --color-text-secondary: #625e54;
-  --color-text-muted: #827d70;
-  --color-border: #e8e4d9;
+  /* secondary/muted darkened to keep >= 4.5:1 on white surfaces */
+  --color-text-secondary: #57534a;
+  --color-text-muted: #6c675c;
+  --color-border: #e2ddd0;
   --color-border-strong: #d8c89f;
 
   /* Typography scale. */
@@ -100,7 +101,7 @@
   --bg-card: var(--color-surface);
   --bg-sidebar: var(--color-surface-sidebar);
   --text-main: var(--color-text-primary);
-  --text-muted: #858071;
+  --text-muted: var(--color-text-muted);
   --border-subtle: var(--color-border);
 }
 

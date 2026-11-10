@@ -117,8 +117,8 @@
   --sb-border: rgba(255, 214, 180, 0.14);
   --sb-line: rgba(255, 214, 180, 0.12);
   --sb-text: #F7EFE8;
-  --sb-text-muted: #B9ADA3;
-  --sb-text-faint: #8E837A;
+  --sb-text-muted: #D2C7BE;
+  --sb-text-faint: #ADA196;
   --sb-hover: rgba(255, 255, 255, 0.05);
   --sb-accent: #F28A3C;
   --sb-accent-strong: #F26B1D;
@@ -962,7 +962,7 @@
 
 .profile-input-icon {
   font-size: 14px;
-  color: #94A3B8;
+  color: var(--color-text-muted);
   margin-left: 8px;
 }
 
@@ -3176,7 +3176,7 @@
 }
 
 .user-date {
-  color: #94A3B8;
+  color: var(--color-text-muted);
   font-size: 11px;
 }
 
@@ -3213,7 +3213,7 @@
 .search-icon {
   font-size: 16px;
   margin-left: 10px;
-  color: #94A3B8;
+  color: var(--color-text-muted);
 }
 
 .search-bar-wrapper input {
@@ -3237,7 +3237,7 @@
 .clear-search-btn {
   background: none;
   border: none;
-  color: #94A3B8;
+  color: var(--color-text-muted);
   cursor: pointer;
   padding: 4px 8px;
   border-radius: 50%;
@@ -3382,14 +3382,14 @@
 .empty-table-cell {
   text-align: center;
   padding: 40px !important;
-  color: #94A3B8;
+  color: var(--color-text-muted);
   font-size: 14px;
 }
 
 .table-loading-box {
   padding: 30px;
   text-align: center;
-  color: #94A3B8;
+  color: var(--color-text-muted);
   background: #ffffff;
   border-radius: 10px;
   border: 1px solid #E2E8F0;
@@ -3402,7 +3402,7 @@
 }
 
 .text-muted {
-  color: #94A3B8;
+  color: var(--color-text-muted);
 }
 
 /* =========================================
@@ -3798,7 +3798,7 @@
 
 .license-modal-subtitle {
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--color-text-muted);
   margin: 0;
   font-weight: 500;
 }

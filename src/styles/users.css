@@ -957,7 +957,7 @@
   padding: 0;
   border: 0;
   background: transparent;
-  color: #94a3b8;
+  color: var(--color-text-muted);
   text-align: right;
 }
 
@@ -1165,7 +1165,7 @@
 }
 
 .users-job-option > span {
-  color: #94a3b8;
+  color: var(--color-text-muted);
   font-size: 22px;
 }
 
@@ -1592,7 +1592,7 @@
 
 .audit-item-time {
   font-size: 11.5px;
-  color: #94a3b8;
+  color: var(--color-text-muted);
   white-space: nowrap;
 }
 

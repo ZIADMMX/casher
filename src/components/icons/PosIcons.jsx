@@ -71,6 +71,7 @@ export const SlidersIcon = make(<><path d="M4 7h10M18 7h2M4 17h4M12 17h8" /><cir
 export const InfoIcon = make(<><circle cx="12" cy="12" r="9" /><path d="M12 8v5M12 16h.01" /></>);
 export const ChevronSideIcon = make(<path d="m15 6-6 6 6 6" />);
 export const DownloadIcon = make(<><path d="M12 4v11M7 10l5 5 5-5" /><path d="M4 19h16" /></>);
+export const UploadIcon = make(<><path d="M12 15V4M7 9l5-5 5 5" /><path d="M4 19h16" /></>);
 export const EyeIcon = make(<><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></>);
 export const TrendUpIcon = make(<><path d="m3 17 6-6 4 4 8-8" /><path d="M15 7h6v6" /></>);
 export const CurrencyIcon = make(<><path d="M12 3v18" /><path d="M17 7H9.5a3 3 0 0 0 0 6h5a3 3 0 0 1 0 6H6" /></>);
@@ -81,6 +82,18 @@ export const PencilIcon = make(<><path d="M4 20h4L19 9l-4-4L4 16z" /><path d="m1
 export const MapPinIcon = make(<><path d="M12 21s-7-6.2-7-12a7 7 0 0 1 14 0c0 5.8-7 12-7 12z" /><circle cx="12" cy="9" r="2.5" /></>);
 export const ShieldIcon = make(<><path d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6z" /><path d="m9 12 2 2 4-4" /></>);
 export const GiftIcon = make(<><rect x="3" y="8" width="18" height="4" rx="1" /><path d="M5 12v8h14v-8M12 8v12M12 8c-1.5-3-5-3-5-1s3 1 5 1zM12 8c1.5-3 5-3 5-1s-3 1-5 1z" /></>);
+export const UsersIcon = make(<><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20a6.5 6.5 0 0 1 13 0" /><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5a6.5 6.5 0 0 1 3.5 5.5" /></>);
+export const UserPlusIcon = make(<><circle cx="9" cy="8" r="4" /><path d="M2 21a7 7 0 0 1 14 0M19 8v6M16 11h6" /></>);
+export const BuildingIcon = make(<><path d="M5 21V4a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v17M15 9h3a1 1 0 0 1 1 1v11M3 21h18" /><path d="M9 7h2M9 11h2M9 15h2" /></>);
+export const KanbanIcon = make(<><rect x="3" y="4" width="5" height="16" rx="1" /><rect x="10" y="4" width="5" height="11" rx="1" /><rect x="17" y="4" width="4" height="7" rx="1" /></>);
+export const CalendarIcon = make(<><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /></>);
+export const BoltIcon = make(<path d="M13 2 4 14h7l-1 8 9-12h-7z" />);
+export const GridIcon = make(<><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></>);
+export const BriefcaseIcon = make(<><rect x="3" y="7" width="18" height="13" rx="2" /><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M3 13h18" /></>);
+export const PercentIcon = make(<><path d="M19 5 5 19" /><circle cx="7" cy="7" r="2.5" /><circle cx="17" cy="17" r="2.5" /></>);
+export const ArrowUpIcon = make(<path d="M12 19V5M6 11l6-6 6 6" />);
+export const ArrowDownIcon = make(<path d="M12 5v14M6 13l6 6 6-6" />);
+export const CallIcon = make(<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z" />);
 export const SheetIcon = make(<><rect x="4" y="3" width="16" height="18" rx="2" /><path d="M4 9h16M4 15h16M10 3v18" /></>);
 
 /* ---------- Product icons ---------- */
@@ -118,7 +131,7 @@ const LaptopIcon = make(<><rect x="4" y="5" width="16" height="11" rx="1" /><pat
 const WrenchIcon = make(<path d="M14 6a4 4 0 0 0 5 5l-9 9a2 2 0 0 1-3-3l9-9a4 4 0 0 0-2-2z" />);
 const BatteryIcon = make(<><rect x="2" y="7" width="17" height="10" rx="2" /><path d="M22 11v2M6 10v4M10 10v4" /></>);
 const DumbbellIcon = make(<><path d="M6 7v10M3 9v6M18 7v10M21 9v6M6 12h12" /></>);
-const TrophyIcon = make(<><path d="M8 3h8v6a4 4 0 0 1-8 0z" /><path d="M8 5H4a3 3 0 0 0 4 4M16 5h4a3 3 0 0 1-4 4M12 13v4M8 21h8M9 17h6" /></>);
+export const TrophyIcon = make(<><path d="M8 3h8v6a4 4 0 0 1-8 0z" /><path d="M8 5H4a3 3 0 0 0 4 4M16 5h4a3 3 0 0 1-4 4M12 13v4M8 21h8M9 17h6" /></>);
 const BreadIcon = make(<><path d="M5 11a4 4 0 0 1 2-7h10a4 4 0 0 1 2 7v9H5z" /><path d="M9 11v4M15 11v4" /></>);
 const EggIcon = make(<path d="M12 3c4 0 7 7 7 11a7 7 0 0 1-14 0c0-4 3-11 7-11z" />);
 const LemonIcon = make(<><ellipse cx="12" cy="12" rx="8" ry="6" transform="rotate(-30 12 12)" /><path d="M18 5l2-2M4 19l2-2" /></>);

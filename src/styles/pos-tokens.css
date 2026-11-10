@@ -29,7 +29,8 @@
 .prd-page,
 .roles-page,
 .prf-page,
-.prf-overlay {
+.prf-overlay,
+.crm-ds {
   /* ---- Palette (internal to this file) --------------------------------- */
   --ds-slate-0:   #FFFFFF;
   --ds-slate-50:  #F8FAFC;
@@ -173,7 +174,8 @@
 [data-theme="dark"] .prd-page,
 [data-theme="dark"] .roles-page,
 [data-theme="dark"] .prf-page,
-[data-theme="dark"] .prf-overlay {
+[data-theme="dark"] .prf-overlay,
+[data-theme="dark"] .crm-ds {
   --color-bg:            var(--ds-slate-900);
   --color-surface:       var(--ds-slate-800);
   --color-surface-muted: var(--ds-slate-700);
@@ -192,7 +194,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pos-page-wrapper, .inv-page, .rep-page, .err-screen, .kds-page, .prd-page, .roles-page, .prf-page, .prf-overlay { --duration-fast: 0ms; --duration-base: 0ms; }
+  .pos-page-wrapper, .inv-page, .rep-page, .err-screen, .kds-page, .prd-page, .roles-page, .prf-page, .prf-overlay, .crm-ds { --duration-fast: 0ms; --duration-base: 0ms; }
 }
 
 /* --------------------------------------------------------------------------

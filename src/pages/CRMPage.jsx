@@ -2,31 +2,113 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import CustomersPage from './CustomersPage.jsx';
 import SalesPipelineBoard from '../components/crm/SalesPipelineBoard.jsx';
 import CRMOperations from '../components/crm/CRMOperations.jsx';
+import CRMHeader from '../components/crm/CRMHeader.jsx';
 import * as crmApi from '../api/crm.js';
 import * as customersApi from '../api/customers.js';
+import {
+  AlertIcon, BarsIcon, BoltIcon, BriefcaseIcon, BuildingIcon, CalendarIcon, CashIcon,
+  ChevronSideIcon, ClockIcon, GridIcon, KanbanIcon, PercentIcon, PlusIcon, RefreshIcon,
+  SlidersIcon, TrendUpIcon, TrophyIcon, UserIcon, UserPlusIcon, UsersIcon, ArrowUpIcon, ArrowDownIcon,
+} from '../components/icons/PosIcons.jsx';
 import '../styles/crm.css';
+import '../styles/crm-overview.css';
 
 const VIEWS = [
-  { id: 'overview', label: 'نظرة عامة' },
-  { id: 'contacts', label: 'العملاء وCustomer 360°' },
-  { id: 'companies', label: 'الشركات والفروع' },
-  { id: 'leads', label: 'العملاء المحتملون' },
-  { id: 'pipeline', label: 'خط الصفقات (Kanban)' },
-  { id: 'tasks', label: 'الأنشطة والمهام' },
-  { id: 'fields', label: 'الحقول المخصصة' },
-  { id: 'automation', label: 'الأتمتة والتذكيرات' },
+  { id: 'overview', label: 'نظرة عامة', Icon: GridIcon },
+  { id: 'contacts', label: 'العملاء و Customer 360°', Icon: UserIcon },
+  { id: 'companies', label: 'الشركات والفروع', Icon: BuildingIcon },
+  { id: 'leads', label: 'العملاء المحتملون', Icon: UserPlusIcon },
+  { id: 'pipeline', label: 'خط الصفقات', Icon: KanbanIcon },
+  { id: 'tasks', label: 'الأنشطة والمهام', Icon: CalendarIcon },
+  { id: 'fields', label: 'الحقول المخصصة', Icon: SlidersIcon },
+  { id: 'automation', label: 'الأتمتة والتذكيرات', Icon: BoltIcon },
 ];
 
+const DEFAULT_STALE_DAYS = 7;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+const num = (value) => Number(value || 0).toLocaleString('ar-EG');
+
 function formatCurrency(value) {
-  return `${Number(value || 0).toLocaleString('ar-EG')} ج.م`;
+  return `${num(value)} ج.م`;
+}
+
+// SQLite CURRENT_TIMESTAMP is UTC "YYYY-MM-DD HH:MM:SS".
+function parseDbDate(value) {
+  if (!value) return null;
+  const date = new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(value) ? value : `${String(value).replace(' ', 'T')}Z`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function monthKey(date) {
+  return date.toISOString().slice(0, 7);
+}
+
+function initials(name) {
+  return String(name).trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('.');
+}
+
+const sumValue = (items) => items.reduce((total, item) => total + (Number(item.expected_value) || 0), 0);
+
+function Money({ value }) {
+  return <>{num(value)}<span className="crm-ov-unit">ج.م</span></>;
+}
+
+function KpiCard({ icon: Icon, tone, label, value, hint, trend }) {
+  return (
+    <article className="crm-ov-card crm-ov-kpi">
+      <span className="crm-ov-kpi-label">
+        <span className={`crm-ov-chip ${tone ? `crm-ov-chip--${tone}` : ''}`}><Icon size={18} /></span>
+        {label}
+      </span>
+      <strong className="crm-ov-kpi-value">{value}</strong>
+      <span className={`crm-ov-hint ${trend ? `crm-ov-hint--${trend}` : ''}`}>
+        {trend === 'up' && <ArrowUpIcon size={14} />}
+        {trend === 'down' && <ArrowDownIcon size={14} />}
+        {hint}
+      </span>
+    </article>
+  );
+}
+
+function BarRow({ label, meta, percent, tone = 100, variant, labelVariant, avatar }) {
+  return (
+    <li className="crm-ov-bar-row">
+      {avatar}
+      <div className="crm-ov-bar-body">
+        <div className={`crm-ov-bar-label ${labelVariant ? `crm-ov-bar-label--${labelVariant}` : ''}`}>
+          <span>{label}</span>
+          <span>{meta}</span>
+        </div>
+        <div className="crm-ov-track">
+          <div
+            className={`crm-ov-fill ${variant ? `crm-ov-fill--${variant}` : ''}`}
+            style={{ '--bar-w': `${Math.max(0, Math.min(100, percent))}%`, '--bar-tone': `${tone}%` }}
+          />
+        </div>
+      </div>
+    </li>
+  );
+}
+
+function EmptyPanel({ icon: Icon, title, text }) {
+  return (
+    <div className="crm-ov-empty">
+      <span className="crm-ov-chip crm-ov-chip--muted crm-ov-chip--lg"><Icon size={22} /></span>
+      <strong>{title}</strong>
+      <p>{text}</p>
+    </div>
+  );
 }
 
 function CRMPage() {
   const [activeView, setActiveView] = useState('overview');
+  const [openNewCustomer, setOpenNewCustomer] = useState(false);
   const [customers, setCustomers] = useState([]);
   const [leads, setLeads] = useState([]);
   const [opportunities, setOpportunities] = useState([]);
   const [pipelineStages, setPipelineStages] = useState([]);
+  const [automationRules, setAutomationRules] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -34,16 +116,19 @@ function CRMPage() {
     setLoading(true);
     setError('');
     try {
-      const [customerList, opportunityList, leadList, stageList] = await Promise.all([
+      const [customerList, opportunityList, leadList, stageList, ruleList] = await Promise.all([
         customersApi.getAllCustomersWithStats(),
         crmApi.getAllCRMOpportunities(),
         crmApi.getCRMLeads({}),
         crmApi.getCRMPipelineStages(),
+        // Optional: only drives the stale-days threshold and step 3, so it must not block the overview.
+        crmApi.getCRMAutomationRules().catch(() => []),
       ]);
       setCustomers(Array.isArray(customerList) ? customerList : []);
       setOpportunities(Array.isArray(opportunityList) ? opportunityList : []);
       setLeads(Array.isArray(leadList) ? leadList : []);
       setPipelineStages(Array.isArray(stageList) ? stageList : []);
+      setAutomationRules(Array.isArray(ruleList) ? ruleList : []);
     } catch (loadError) {
       console.error('Failed to load CRM overview:', loadError);
       setError(loadError.message || 'تعذر تحميل بيانات CRM');
@@ -56,27 +141,52 @@ function CRMPage() {
     loadOverview();
   }, [loadOverview]);
 
+  const staleRule = automationRules.find((rule) => rule.trigger_type === 'opportunity_stale');
+  const staleDays = Number(staleRule?.config?.days) || DEFAULT_STALE_DAYS;
+
   const metrics = useMemo(() => {
+    const now = new Date();
+    const thisMonth = monthKey(now);
+    const lastMonth = monthKey(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1)));
     const won = opportunities.filter((item) => item.stage === 'won');
     const lost = opportunities.filter((item) => item.stage === 'lost');
     const open = opportunities.filter((item) => !['won', 'lost'].includes(item.stage));
     const closedCount = won.length + lost.length;
+    const wonIn = (key) => sumValue(won.filter((item) => item.closed_at?.slice(0, 7) === key));
+    const monthlyWonValue = wonIn(thisMonth);
+    const lastMonthWonValue = wonIn(lastMonth);
+    const stale = open.filter((item) => {
+      const changedAt = parseDbDate(item.last_stage_changed_at || item.updated_at || item.created_at);
+      return changedAt && now - changedAt > staleDays * DAY_MS;
+    });
+    const activeLeads = leads.filter((item) => item.status !== 'converted' && item.status !== 'lost');
 
     return {
       customerCount: customers.length,
-      leadCount: leads.filter((item) => item.status !== 'converted' && item.status !== 'lost').length,
+      newCustomersThisMonth: customers.filter((item) => {
+        const createdAt = parseDbDate(item.created_at);
+        return createdAt && monthKey(createdAt) === thisMonth;
+      }).length,
+      leadCount: activeLeads.length,
+      untouchedLeadCount: activeLeads.filter((item) => item.status === 'new').length,
       openCount: open.length,
-      openValue: open.reduce((total, item) => total + (Number(item.expected_value) || 0), 0),
+      openStageCount: new Set(open.map((item) => item.pipeline_stage_id || item.stage)).size,
+      openValue: sumValue(open),
       forecastValue: open.reduce((total, item) => (
         total + (Number(item.expected_value) || 0) * (Number(item.probability) || 0) / 100
       ), 0),
-      wonValue: won.reduce((total, item) => total + (Number(item.expected_value) || 0), 0),
-      monthlyWonValue: won
-        .filter((item) => item.closed_at?.slice(0, 7) === new Date().toISOString().slice(0, 7))
-        .reduce((total, item) => total + (Number(item.expected_value) || 0), 0),
+      wonValue: sumValue(won),
+      wonCount: won.length,
+      closedCount,
+      monthlyWonValue,
+      monthlyChange: lastMonthWonValue
+        ? Math.round(((monthlyWonValue - lastMonthWonValue) / lastMonthWonValue) * 100)
+        : null,
       conversionRate: closedCount ? Math.round((won.length / closedCount) * 100) : 0,
+      staleCount: stale.length,
+      staleValue: sumValue(stale),
     };
-  }, [customers, leads, opportunities]);
+  }, [customers, leads, opportunities, staleDays]);
 
   const stageCounts = useMemo(() => (
     pipelineStages.map((stage) => ({
@@ -113,42 +223,92 @@ function CRMPage() {
       .sort((first, second) => second.count - first.count);
   }, [leads]);
 
+  const goTo = (view, { newCustomer = false } = {}) => {
+    setOpenNewCustomer(newCustomer);
+    setActiveView(view);
+  };
+
+  const isEmpty = !loading && !error && !customers.length && !leads.length && !opportunities.length;
+  const steps = [
+    {
+      title: 'سجّل عملاءك',
+      text: 'أضف العملاء يدوياً أو استورد ملف Excel جاهز بأسماء وأرقام العملاء.',
+      action: 'افتح شاشة العملاء',
+      view: 'contacts',
+      done: customers.length > 0,
+    },
+    {
+      title: 'اضبط مراحل البيع',
+      text: 'المراحل الافتراضية جاهزة: محتمل، مؤهل، عرض سعر، ناجحة، خاسرة. عدّلها على طريقة شغلك.',
+      action: 'افتح خط الصفقات',
+      view: 'pipeline',
+      done: opportunities.length > 0,
+    },
+    {
+      title: 'فعّل التذكير الآلي',
+      text: 'خلّي النظام ينبّه المسؤول لما صفقة تقف في مرحلتها أكتر من المدة اللي تحددها.',
+      action: 'افتح الأتمتة',
+      view: 'automation',
+      done: Boolean(staleRule?.is_enabled),
+    },
+  ];
+  const doneSteps = steps.filter((step) => step.done).length;
+  const nextStepIndex = steps.findIndex((step) => !step.done);
+
+  const show = (value) => (loading ? '—' : value);
+  const maxStage = Math.max(1, ...stageCounts.map((stage) => stage.count));
+  const maxSource = Math.max(1, ...leadSources.map((source) => source.count));
+  const maxWon = Math.max(1, ...teamPerformance.map((member) => member.wonValue));
+  // Fade bars by rank so the list reads like the reference (strongest first).
+  const rankTone = (index, count) => (count <= 1 ? 100 : Math.round(100 - (index / (count - 1)) * 55));
+
+  // Contacts and companies draw their own header (their actions live there) and place the tabs under it.
+  const ownHeader = activeView === 'contacts' || activeView === 'companies';
+  const tabs = (
+    <nav className="crm-ds crm-ov-tabs" aria-label="أقسام CRM">
+      {VIEWS.map(({ id, label, Icon }) => (
+        <button
+          key={id}
+          type="button"
+          className={`crm-ov-tab ${activeView === id ? 'is-active' : ''}`}
+          aria-current={activeView === id ? 'page' : undefined}
+          onClick={() => goTo(id)}
+        >
+          <Icon size={18} />
+          {label}
+        </button>
+      ))}
+    </nav>
+  );
+
   return (
     <div className="crm-page">
-      <header className="crm-page-header">
-        <div>
-          <h1>إدارة علاقات العملاء (Fox CRM)</h1>
-          <p>إدارة الحسابات، العملاء المحتملين، مسار الصفقات، والأنشطة في منصة موحدة.</p>
-        </div>
-        <div className="crm-header-actions">
-          <button type="button" className="secondary-btn" onClick={loadOverview} disabled={loading}>
+      {!ownHeader && (
+        <CRMHeader
+          icon={UsersIcon}
+          title="إدارة علاقات العملاء"
+          subtitle="الحسابات، العملاء المحتملون، مسار الصفقات والأنشطة في منصة واحدة."
+        >
+          <button type="button" className="crm-ov-btn" onClick={loadOverview} disabled={loading}>
+            <RefreshIcon size={18} />
             {loading ? 'جارٍ التحديث...' : 'تحديث البيانات'}
           </button>
-        </div>
-      </header>
-
-      <nav className="crm-view-tabs" aria-label="أقسام CRM">
-        {VIEWS.map((view) => (
-          <button
-            key={view.id}
-            type="button"
-            className={`crm-tab-btn ${activeView === view.id ? 'active-tab-btn' : ''}`}
-            aria-pressed={activeView === view.id}
-            onClick={() => setActiveView(view.id)}
-          >
-            {view.label}
+          <button type="button" className="crm-ov-btn crm-ov-btn--primary" onClick={() => goTo('contacts', { newCustomer: true })}>
+            <PlusIcon size={18} />
+            عميل جديد
           </button>
-        ))}
-      </nav>
+        </CRMHeader>
+      )}
+      {!ownHeader && tabs}
 
       {activeView === 'contacts' ? (
-        <CustomersPage crmMode />
+        <CustomersPage crmMode crmTabs={tabs} startWithForm={openNewCustomer} />
       ) : ['companies', 'leads', 'tasks', 'fields', 'automation'].includes(activeView) ? (
-        <CRMOperations section={activeView} />
+        <CRMOperations section={activeView} crmTabs={tabs} />
       ) : activeView === 'pipeline' ? (
         <SalesPipelineBoard />
       ) : (
-        <section className="crm-overview" aria-label="ملخص CRM">
+        <section className="crm-ds crm-ov" aria-label="ملخص CRM">
           {error && (
             <div className="crm-error-banner crm-overview-error" role="alert">
               <span>{error}</span>
@@ -156,115 +316,195 @@ function CRMPage() {
             </div>
           )}
 
-          <div className="crm-metrics-grid">
-            <article className="crm-metric-card">
-              <span className="crm-metric-label">العملاء المسجلون</span>
-              <strong className="crm-metric-value">{loading ? '—' : metrics.customerCount.toLocaleString('ar-EG')}</strong>
-            </article>
-            <article className="crm-metric-card">
-              <span className="crm-metric-label">عملاء محتملون (Leads)</span>
-              <strong className="crm-metric-value">{loading ? '—' : metrics.leadCount.toLocaleString('ar-EG')}</strong>
-            </article>
-            <article className="crm-metric-card">
-              <span className="crm-metric-label">الصفقات المفتوحة</span>
-              <strong className="crm-metric-value">{loading ? '—' : metrics.openCount.toLocaleString('ar-EG')}</strong>
-            </article>
-            <article className="crm-metric-card">
-              <span className="crm-metric-label">قيمة الصفقات المفتوحة</span>
-              <strong className="crm-metric-value">{loading ? '—' : formatCurrency(metrics.openValue)}</strong>
-            </article>
-            <article className="crm-metric-card">
-              <span className="crm-metric-label">التوقع المرجّح للمبيعات</span>
-              <strong className="crm-metric-value">{loading ? '—' : formatCurrency(metrics.forecastValue)}</strong>
-            </article>
-            <article className="crm-metric-card">
-              <span className="crm-metric-label">قيمة الصفقات الناجحة</span>
-              <strong className="crm-metric-value">{loading ? '—' : formatCurrency(metrics.wonValue)}</strong>
-            </article>
-            <article className="crm-metric-card">
-              <span className="crm-metric-label">مبيعات صفقات هذا الشهر</span>
-              <strong className="crm-metric-value">{loading ? '—' : formatCurrency(metrics.monthlyWonValue)}</strong>
-            </article>
-            <article className="crm-metric-card">
-              <span className="crm-metric-label">معدل الإغلاق الناجح</span>
-              <strong className="crm-metric-value">{loading ? '—' : `${metrics.conversionRate.toLocaleString('ar-EG')}٪`}</strong>
-            </article>
+          {isEmpty && (
+            <section className="crm-ov-card crm-ov-start" aria-labelledby="crm-start-title">
+              <div className="crm-ov-start-head">
+                <div>
+                  <h2 id="crm-start-title">ابدأ تشغيل الـ CRM في ٣ خطوات</h2>
+                  <p>لسه مفيش بيانات مسجّلة. كل مؤشر تحت هيتحرّك أول ما تخلّص الخطوات دي.</p>
+                </div>
+                <span className="crm-ov-pill">{num(doneSteps)} من ٣ مكتملة</span>
+              </div>
+              <ol className="crm-ov-steps">
+                {steps.map((step, index) => (
+                  <li
+                    key={step.view}
+                    className={`crm-ov-step ${step.done ? 'is-done' : ''} ${index === nextStepIndex ? 'is-next' : ''}`}
+                  >
+                    <h3><span className="crm-ov-step-num">{num(index + 1)}</span>{step.title}</h3>
+                    <p>{step.text}</p>
+                    <button type="button" className="crm-ov-link" onClick={() => goTo(step.view)}>
+                      {step.action}
+                      <ChevronSideIcon size={16} />
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          )}
+
+          {!loading && metrics.staleCount > 0 && (
+            <div className="crm-ov-alert" role="status">
+              <span className="crm-ov-chip crm-ov-chip--warning"><AlertIcon size={18} /></span>
+              <p>
+                <strong>{num(metrics.staleCount)} صفقات واقفة</strong>
+                {` في نفس المرحلة أكثر من ${num(staleDays)} أيام، بقيمة ${formatCurrency(metrics.staleValue)}. تواصل مع العملاء دول النهارده.`}
+              </p>
+              <button type="button" className="crm-ov-btn crm-ov-btn--sm" onClick={() => goTo('pipeline')}>
+                عرض الصفقات
+              </button>
+            </div>
+          )}
+
+          <h2 className="crm-ov-section-title">المؤشرات الأساسية</h2>
+          <div className="crm-ov-kpis">
+            <KpiCard
+              icon={UsersIcon}
+              label="العملاء المسجلون"
+              value={show(num(metrics.customerCount))}
+              hint={metrics.newCustomersThisMonth
+                ? `+${num(metrics.newCustomersThisMonth)} هذا الشهر`
+                : metrics.customerCount ? 'لا عملاء جدد هذا الشهر' : 'لم تبدأ التسجيل بعد'}
+              trend={metrics.newCustomersThisMonth ? 'up' : undefined}
+            />
+            <KpiCard
+              icon={UserPlusIcon}
+              label="عملاء محتملون (Leads)"
+              value={show(num(metrics.leadCount))}
+              hint={metrics.leadCount ? `${num(metrics.untouchedLeadCount)} منهم لم تتابع بعد` : 'لا توجد فرص مفتوحة'}
+            />
+            <KpiCard
+              icon={BriefcaseIcon}
+              label="الصفقات المفتوحة"
+              value={show(num(metrics.openCount))}
+              hint={metrics.openCount ? `موزعة على ${num(metrics.openStageCount)} مراحل` : 'لا توجد صفقات جارية'}
+            />
+            <KpiCard
+              icon={CashIcon}
+              label="قيمة الصفقات المفتوحة"
+              value={show(<Money value={metrics.openValue} />)}
+              hint="إجمالي ما هو قيد التفاوض"
+            />
+            <KpiCard
+              icon={TrophyIcon}
+              tone="success"
+              label="قيمة الصفقات الناجحة"
+              value={show(<Money value={metrics.wonValue} />)}
+              hint="إيراد محقق من البداية"
+            />
+            <KpiCard
+              icon={TrendUpIcon}
+              tone="info"
+              label="التوقع المرجّح للمبيعات"
+              value={show(<Money value={metrics.forecastValue} />)}
+              hint="قيمة الصفقات × نسبة الإغلاق"
+            />
+            <KpiCard
+              icon={CalendarIcon}
+              tone="muted"
+              label="مبيعات هذا الشهر"
+              value={show(<Money value={metrics.monthlyWonValue} />)}
+              hint={metrics.monthlyChange === null
+                ? 'صفقات أُغلقت خلال الشهر الحالي'
+                : `${metrics.monthlyChange >= 0 ? '+' : '−'}${num(Math.abs(metrics.monthlyChange))}٪ عن الشهر الماضي`}
+              trend={metrics.monthlyChange === null ? undefined : metrics.monthlyChange >= 0 ? 'up' : 'down'}
+            />
+            <KpiCard
+              icon={PercentIcon}
+              tone="muted"
+              label="معدل الإغلاق الناجح"
+              value={show(<>{num(metrics.conversionRate)}<span className="crm-ov-unit">٪</span></>)}
+              hint={metrics.closedCount
+                ? `${num(metrics.wonCount)} ناجحة من ${num(metrics.closedCount)} مغلقة`
+                : 'ناجحة ÷ (ناجحة + خاسرة)'}
+            />
           </div>
 
-          <div className="crm-overview-columns">
-            <section className="crm-overview-panel">
-              <div className="crm-panel-heading">
+          <div className="crm-ov-panels">
+            <section className="crm-ov-card crm-ov-panel">
+              <div className="crm-ov-panel-head">
                 <div>
                   <h2>توزيع مراحل المبيعات</h2>
-                  <p>الفرص المسجلة في خط الصفقات</p>
+                  <p>عدد الفرص في كل مرحلة</p>
                 </div>
-                <button type="button" className="secondary-btn" onClick={() => setActiveView('pipeline')}>
-                  فتح اللوحة
-                </button>
+                <button type="button" className="crm-ov-link" onClick={() => goTo('pipeline')}>فتح اللوحة</button>
               </div>
-              <div className="crm-stage-list">
-                {stageCounts.map((stage) => (
-                  <div className="crm-stage-row" key={stage.id}>
-                    <span>{stage.label}</span>
-                    <strong className="crm-badge open">{loading ? '—' : `${stage.count.toLocaleString('ar-EG')} صفقة`}</strong>
-                  </div>
-                ))}
-              </div>
+              <ul className="crm-ov-bars">
+                {stageCounts.map((stage, index) => {
+                  const key = stage.stage_key === 'won' || stage.stage_key === 'lost' ? stage.stage_key : undefined;
+                  return (
+                    <BarRow
+                      key={stage.id}
+                      label={stage.label}
+                      meta={show(`${num(stage.count)} صفقة`)}
+                      percent={(stage.count / maxStage) * 100}
+                      tone={key ? 100 : 45 + Math.min(index, 3) * 18}
+                      variant={key}
+                      labelVariant={key}
+                    />
+                  );
+                })}
+              </ul>
             </section>
 
-            <section className="crm-overview-panel">
-              <div className="crm-panel-heading">
+            <section className="crm-ov-card crm-ov-panel">
+              <div className="crm-ov-panel-head">
                 <div>
                   <h2>مصادر العملاء المحتملين</h2>
-                  <p>توزيع الـ Leads حسب القناة</p>
+                  <p>من أين يأتي الـ Leads</p>
                 </div>
               </div>
               {leadSources.length ? (
-                <div className="crm-stage-list">
-                  {leadSources.slice(0, 8).map((source) => (
-                    <div className="crm-stage-row" key={source.source}>
-                      <span>{source.source}</span>
-                      <strong>{source.count.toLocaleString('ar-EG')} عميل</strong>
-                    </div>
+                <ul className="crm-ov-bars">
+                  {leadSources.slice(0, 6).map((source, index, list) => (
+                    <BarRow
+                      key={source.source}
+                      label={source.source}
+                      meta={num(source.count)}
+                      percent={(source.count / maxSource) * 100}
+                      tone={rankTone(index, list.length)}
+                      variant="info"
+                    />
                   ))}
-                </div>
-              ) : <p className="crm-empty-state">لا توجد مصادر مسجلة بعد.</p>}
+                </ul>
+              ) : (
+                <EmptyPanel
+                  icon={ClockIcon}
+                  title="لا توجد مصادر مسجلة"
+                  text="حدّد مصدر كل عميل محتمل (إعلان، توصية، زيارة) عشان تعرف أي قناة بتجيب فلوس فعلاً."
+                />
+              )}
             </section>
 
-            <section className="crm-overview-panel">
-              <div className="crm-panel-heading">
+            <section className="crm-ov-card crm-ov-panel">
+              <div className="crm-ov-panel-head">
                 <div>
                   <h2>أداء فريق المبيعات</h2>
                   <p>قيمة الصفقات الرابحة حسب المسؤول</p>
                 </div>
               </div>
-              {teamPerformance.length === 0 ? (
-                <p className="crm-empty-state">{loading ? 'جارٍ تحميل البيانات...' : 'لا توجد صفقات مسجلة بعد.'}</p>
-              ) : (
-                <div className="crm-team-list">
-                  {teamPerformance.slice(0, 5).map((member) => (
-                    <div className="crm-team-row" key={member.name}>
-                      <div>
-                        <strong>{member.name}</strong>
-                        <span className="crm-team-deal-count">({member.count.toLocaleString('ar-EG')} صفقة)</span>
-                      </div>
-                      <strong className="crm-team-won-value">{formatCurrency(member.wonValue)}</strong>
-                    </div>
+              {teamPerformance.length ? (
+                <ul className="crm-ov-bars">
+                  {teamPerformance.slice(0, 5).map((member, index, list) => (
+                    <BarRow
+                      key={member.name}
+                      avatar={<span className={`crm-ov-avatar ${index === 0 ? 'is-top' : ''}`}>{initials(member.name)}</span>}
+                      label={member.name}
+                      meta={num(member.wonValue)}
+                      percent={(member.wonValue / maxWon) * 100}
+                      tone={rankTone(index, list.length)}
+                    />
                   ))}
-                </div>
+                </ul>
+              ) : (
+                <EmptyPanel
+                  icon={BarsIcon}
+                  title={loading ? 'جارٍ تحميل البيانات...' : 'لا توجد صفقات مسجلة'}
+                  text="أسند كل صفقة لمسؤول، وهتشوف هنا ترتيب الفريق بالقيمة المحصّلة."
+                />
               )}
             </section>
           </div>
-
-          <section className="crm-quick-actions">
-            <div>
-              <h2>ابدأ من سجل العميل الموحد (Customer 360°)</h2>
-              <p>سجل التفاعل الكامل، المشتريات، المديونيات، الملاحظات والفرص البيعية المرتبطة بكل عميل.</p>
-            </div>
-            <button type="button" className="primary-btn" onClick={() => setActiveView('contacts')}>
-              فتح سجل العملاء وCustomer 360°
-            </button>
-          </section>
         </section>
       )}
     </div>

@@ -36,6 +36,15 @@ describe('sectorIdentity utility', () => {
     expect(identity.primaryActionTitle).toContain('عميل');
   });
 
+  it('gives cafes their own menu wording on top of the retail base', () => {
+    const identity = getSectorIdentity('cafe_restaurant');
+    expect(identity.type).toBe('cafe');
+    expect(identity.isService).toBe(false);
+    expect(identity.itemsTitle).toContain('المنيو');
+    expect(identity.footerReadyText(3, 2)).toContain('المنيو');
+    expect(identity.stockColHeader).toBe('المخزون الأولي');
+  });
+
   it('returns retail identity as fallback for undefined or retail', () => {
     const identity = getSectorIdentity('retail');
     expect(identity.type).toBe('retail');

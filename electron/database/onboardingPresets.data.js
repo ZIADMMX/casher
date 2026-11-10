@@ -632,6 +632,7 @@ const RAW_SECTOR_PRESETS = [
         purchase_price: 50,
         stock_quantity: 999,
         low_stock_threshold: 0,
+        package: { type: 'time_based', duration_days: 30, total_credits: 0, max_freeze_days: 7 },
       },
       {
         name: 'اشتراك 3 شهور VIP شامل الساونا والجاكوزي',
@@ -640,6 +641,7 @@ const RAW_SECTOR_PRESETS = [
         purchase_price: 120,
         stock_quantity: 999,
         low_stock_threshold: 0,
+        package: { type: 'time_based', duration_days: 90, total_credits: 0, max_freeze_days: 15 },
       },
       {
         name: 'باقة 12 جلسة تدريب شخصي PT مع كابتن خاص',
@@ -648,6 +650,7 @@ const RAW_SECTOR_PRESETS = [
         purchase_price: 300,
         stock_quantity: 999,
         low_stock_threshold: 0,
+        package: { type: 'session_based', duration_days: 45, total_credits: 12, max_freeze_days: 10 },
       },
       {
         name: 'تذكرة دخول يوم واحد Day Pass',
@@ -656,6 +659,7 @@ const RAW_SECTOR_PRESETS = [
         purchase_price: 10,
         stock_quantity: 999,
         low_stock_threshold: 0,
+        package: { type: 'time_based', duration_days: 1, total_credits: 0, max_freeze_days: 0 },
       },
       {
         name: 'عبوة بروتين شيك شوكولاتة 330 مل جاهزة',

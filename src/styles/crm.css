@@ -9,70 +9,6 @@
   color: var(--color-text-primary);
 }
 
-/* --------------------------------------------------------------------------
-   Header & Tabs
-   -------------------------------------------------------------------------- */
-.crm-page-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 24px;
-}
-
-.crm-page-header h1 {
-  margin: 0;
-  font-size: 1.5rem;
-  font-weight: 800;
-  color: var(--color-text-primary);
-  letter-spacing: -0.02em;
-}
-
-.crm-page-header p {
-  margin: 6px 0 0;
-  color: var(--color-text-secondary);
-  font-size: 0.9rem;
-}
-
-.crm-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-/* Segmented / Pill Navigation Tabs */
-.crm-view-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 24px;
-  background: var(--color-surface-subtle);
-  padding: 6px;
-  border-radius: 14px;
-  border: 1px solid var(--color-border);
-}
-
-.crm-tab-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  border-radius: 10px;
-  border: none;
-  background: transparent;
-  color: var(--color-text-secondary);
-  font-family: inherit;
-  font-size: 0.88rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.crm-tab-btn:hover {
-  color: var(--color-text-primary);
-  background: color-mix(in srgb, var(--color-surface) 60%, transparent);
-}
-
 .active-tab-btn {
   background: var(--color-surface);
   color: var(--color-brand-700);
@@ -82,83 +18,12 @@
   border-radius: var(--radius-pill);
 }
 
-.crm-view-tabs .crm-tab-btn.active-tab-btn,
+
 .crm-drawer-tabs .crm-drawer-tab.active-tab-btn {
   background: var(--color-surface);
   color: var(--color-brand-700);
   box-shadow: var(--shadow-sm);
   border-color: transparent;
-}
-
-/* --------------------------------------------------------------------------
-   Metrics Grid & Cards
-   -------------------------------------------------------------------------- */
-.crm-metrics-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 16px;
-  margin-bottom: 24px;
-}
-
-.crm-metric-card {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  padding: 18px 20px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 14px;
-  box-shadow: 0 2px 6px rgba(var(--color-brand-rgb), 0.03);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-  overflow: hidden;
-}
-
-.crm-metric-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  right: 0;
-  left: 0;
-  height: 3px;
-  background: var(--color-border);
-  transition: background 0.2s ease;
-}
-
-.crm-metric-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(var(--color-brand-rgb), 0.06);
-}
-
-.crm-metric-card:hover::before {
-  background: var(--color-brand-600);
-}
-
-.crm-metric-label {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  color: var(--color-text-secondary);
-  font-size: 0.85rem;
-  font-weight: 600;
-  margin-bottom: 10px;
-}
-
-.crm-metric-value {
-  font-size: 1.45rem;
-  font-weight: 800;
-  color: var(--color-text-primary);
-  letter-spacing: -0.02em;
-}
-
-/* --------------------------------------------------------------------------
-   Overview Panels
-   -------------------------------------------------------------------------- */
-.crm-overview-columns {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 20px;
-  margin-bottom: 20px;
 }
 
 .crm-overview-panel {
@@ -192,68 +57,6 @@
   margin: 4px 0 0;
   font-size: 0.8rem;
   color: var(--color-text-secondary);
-}
-
-.crm-stage-list,
-.crm-team-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  flex: 1;
-}
-
-.crm-stage-row,
-.crm-team-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 12px;
-  background: var(--color-surface-subtle);
-  border-radius: 8px;
-  font-size: 0.88rem;
-  transition: background 0.15s ease;
-}
-
-.crm-stage-row:hover,
-.crm-team-row:hover {
-  background: var(--color-surface-subtle);
-}
-
-.crm-stage-row span,
-.crm-team-row span {
-  color: var(--color-text-secondary);
-  font-weight: 500;
-}
-
-.crm-stage-row strong,
-.crm-team-row strong {
-  color: var(--color-text-primary);
-  font-weight: 700;
-}
-
-.crm-quick-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  background: linear-gradient(135deg, var(--color-surface) 0%, var(--color-brand-50) 100%);
-  border: 1.5px solid var(--color-brand-200);
-  border-radius: 14px;
-  padding: 22px 24px;
-  margin-top: 20px;
-}
-
-.crm-quick-actions h2 {
-  margin: 0;
-  font-size: 1.15rem;
-  font-weight: 800;
-  color: var(--color-brand-700);
-}
-
-.crm-quick-actions p {
-  margin: 6px 0 0;
-  color: var(--color-brand-800);
-  font-size: 0.88rem;
 }
 
 /* --------------------------------------------------------------------------
@@ -833,15 +636,7 @@
 /* --------------------------------------------------------------------------
    Responsive Adaptations
    -------------------------------------------------------------------------- */
-@media (max-width: 992px) {
-  .crm-overview-columns {
-    grid-template-columns: 1fr;
-  }
-}
-
 @media (max-width: 768px) {
-  .crm-page-header,
-  .crm-quick-actions,
   .crm-toolbar {
     flex-direction: column;
     align-items: stretch;
@@ -940,20 +735,6 @@
 .crm-compact-button {
   padding: 4px 10px;
   font-size: var(--font-size-sm);
-}
-
-.crm-overview-error {
-  margin-bottom: var(--space-4);
-}
-
-.crm-team-deal-count {
-  margin-right: var(--space-2);
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-sm);
-}
-
-.crm-team-won-value {
-  color: var(--color-success-600);
 }
 
 .modal-overlay.crm-drawer-overlay {

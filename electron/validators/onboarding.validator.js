@@ -198,10 +198,27 @@ function validateProducts(products) {
       size: p.size ? sanitizeString(p.size, 30) : null,
       color: p.color ? sanitizeString(p.color, 30) : null,
       description: p.description ? sanitizeString(p.description, 255) : '',
+      package: validatePackage(p.package),
     });
   }
 
   return cleaned;
+}
+
+const PACKAGE_TYPES = new Set(['time_based', 'session_based', 'product_quota', 'membership']);
+
+// Gym membership terms carried by a product; anything malformed means "not a package".
+function validatePackage(pkg) {
+  if (!pkg || typeof pkg !== 'object' || !PACKAGE_TYPES.has(pkg.type)) return null;
+  const toInt = (v) => Math.max(0, Math.floor(Number(v) || 0));
+  const durationDays = toInt(pkg.duration_days);
+  if (durationDays < 1) return null;
+  return {
+    type: pkg.type,
+    duration_days: durationDays,
+    total_credits: toInt(pkg.total_credits),
+    max_freeze_days: toInt(pkg.max_freeze_days),
+  };
 }
 
 /**

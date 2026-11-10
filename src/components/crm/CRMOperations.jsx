@@ -3,6 +3,9 @@ import Input from '../ui/Input.jsx';
 import Badge from '../ui/Badge.jsx';
 import * as crmApi from '../../api/crm.js';
 import * as customersApi from '../../api/customers.js';
+import CRMHeader from './CRMHeader.jsx';
+import CRMCompaniesGrid from './CRMCompaniesGrid.jsx';
+import { BuildingIcon, PlusIcon, UploadIcon } from '../icons/PosIcons.jsx';
 
 const LEAD_STATUSES = [
   ['new', 'جديد', 'new'],
@@ -48,7 +51,7 @@ function closeActionMenu(event) {
   event.currentTarget.closest('details')?.removeAttribute('open');
 }
 
-function CRMOperations({ section }) {
+function CRMOperations({ section, crmTabs = null }) {
   const [companies, setCompanies] = useState([]);
   const [assignees, setAssignees] = useState([]);
   const [leads, setLeads] = useState([]);
@@ -349,6 +352,25 @@ function CRMOperations({ section }) {
 
   return (
     <section className="crm-operations">
+      {section === 'companies' && (
+        <>
+          <CRMHeader
+            icon={BuildingIcon}
+            title="الشركات والفروع"
+            subtitle="كل شركة وتحتها فروعها وجهات الاتصال المرتبطة بيها."
+          >
+            <button type="button" className="crm-ov-btn" onClick={() => exportRows('companies')}>
+              <UploadIcon size={18} />
+              تصدير البيانات
+            </button>
+            <button type="button" className="crm-ov-btn crm-ov-btn--primary" onClick={() => openModal('company')}>
+              <PlusIcon size={18} />
+              شركة جديدة
+            </button>
+          </CRMHeader>
+          {crmTabs}
+        </>
+      )}
       {/* Messages */}
       {error && (
         <div className="crm-error-banner" role="alert">
@@ -364,97 +386,25 @@ function CRMOperations({ section }) {
 
       {/* Section 1: Companies */}
       {section === 'companies' && (
-        <>
-          <div className="crm-toolbar">
-            <div className="crm-toolbar-left">
-              <div>
-                <h2 className="crm-operation-heading">{heading}</h2>
-                <p className="crm-operation-description">{subtitle}</p>
-              </div>
-            </div>
-            <div className="crm-toolbar-right">
-              <button type="button" className="secondary-btn" onClick={() => exportRows('companies')}>
-                تصدير البيانات
-              </button>
-              <button type="button" className="primary-btn" onClick={() => openModal('company')}>
-                + إضافة شركة جديدة
-              </button>
-            </div>
-          </div>
-
-          <div className="crm-table-card">
-            {loading ? (
-              <div className="crm-empty-state">جارٍ تحميل الشركات...</div>
-            ) : companies.length === 0 ? (
-              <div className="crm-empty-state">
-                <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                  <path d="M3 21h18M9 8h1m-1 4h1m-1 4h1m4-8h1m-1 4h1m-1 4h1M4 21V4a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v17" />
-                </svg>
-                <strong>لا توجد شركات مسجلة بعد</strong>
-                <p>ابدأ بإضافة أول شركة أو فرع لتنظيم شبكة عملائك ومؤسساتهم.</p>
-                <button type="button" className="primary-btn" onClick={() => openModal('company')}>
-                  + إضافة شركة جديدة
-                </button>
-              </div>
-            ) : (
-              <table className="crm-table">
-                <thead>
-                  <tr>
-                    <th>الشركة</th>
-                    <th>القطاع</th>
-                    <th>الهاتف</th>
-                    <th>البريد الإلكتروني</th>
-                    <th>المسؤول</th>
-                    <th>الإجراءات</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {companies.map((company) => (
-                    <tr key={company.id}>
-                      <td>
-                        <div className="crm-entity-cell">
-                          <div className="crm-avatar company" aria-hidden="true">
-                            {getInitials(company.name)}
-                          </div>
-                          <div className="crm-entity-info">
-                            <span className="crm-entity-title">{company.name}</span>
-                            <span className="crm-entity-subtitle">
-                              {company.parent_company_name ? `فرع من: ${company.parent_company_name}` : 'شركة رئيسية'}
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-                      <td>{company.industry || '—'}</td>
-                      <td>{company.phone || '—'}</td>
-                      <td>{company.email || '—'}</td>
-                      <td>
-                        {assignees.find((u) => u.id === company.owner_user_id)?.username || 'المستخدم الحالي'}
-                      </td>
-                      <td>
-                        <button
-                          type="button"
-                          className="secondary-btn crm-operation-compact-button"
-                          onClick={() => openModal('company', {
-                            id: company.id,
-                            name: company.name,
-                            parent_company_id: company.parent_company_id || '',
-                            industry: company.industry || '',
-                            phone: company.phone || '',
-                            email: company.email || '',
-                            website: company.website || '',
-                            owner_user_id: company.owner_user_id || '',
-                          })}
-                        >
-                          تعديل
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </>
+        <CRMCompaniesGrid
+          companies={companies}
+          loading={loading}
+          onAdd={() => openModal('company')}
+          onAddBranch={(company) => openModal('company', { parent_company_id: company.id })}
+          onEdit={(company) => openModal('company', {
+            id: company.id,
+            name: company.name,
+            parent_company_id: company.parent_company_id || '',
+            industry: company.industry || '',
+            phone: company.phone || '',
+            email: company.email || '',
+            website: company.website || '',
+            // Not editable in the modal, but the update query writes them, so carry them through.
+            address: company.address || '',
+            notes: company.notes || '',
+            owner_user_id: company.owner_user_id || '',
+          })}
+        />
       )}
 
       {/* Section 2: Leads */}

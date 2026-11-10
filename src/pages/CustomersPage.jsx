@@ -11,8 +11,11 @@ import Toast from '../components/ui/Toast.jsx';
 import LegalClientDetailsModal from '../components/legal/LegalClientDetailsModal.jsx';
 import * as crmApi from '../api/crm.js';
 import * as importExportApi from '../api/importExport.js';
+import CRMHeader from '../components/crm/CRMHeader.jsx';
+import CRMContactsTable from '../components/crm/CRMContactsTable.jsx';
+import { DownloadIcon, PlusIcon, UploadIcon, UserIcon } from '../components/icons/PosIcons.jsx';
 
-function CustomersPage({ crmMode = false, onNavigate }) {
+function CustomersPage({ crmMode = false, crmTabs = null, onNavigate, startWithForm = false }) {
   const { getTerm, configuration } = useBusinessProfile();
   const { settings } = useSettings();
   const { currentUser } = useUser();
@@ -45,7 +48,7 @@ function CustomersPage({ crmMode = false, onNavigate }) {
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 400);
   const isSearchPending = search !== debouncedSearch;
-  const [showForm, setShowForm] = useState(false);
+  const [showForm, setShowForm] = useState(startWithForm);
   const [showImportModal, setShowImportModal] = useState(false);
   const [form, setForm] = useState({
     name: '', phone: '', email: '', initialDebt: '', dueDate: '', debtNotes: '',
@@ -307,6 +310,31 @@ function CustomersPage({ crmMode = false, onNavigate }) {
         />
       )}
       {/* Header */}
+      {crmMode ? (
+        <>
+          <CRMHeader
+            icon={UserIcon}
+            title="جهات الاتصال و Customer 360°"
+            subtitle="سجلات العملاء، علاقاتهم بالشركات، وسجل التواصل في مكان واحد."
+          >
+            {isAdmin && (
+              <button type="button" className="crm-ov-btn" onClick={() => setShowImportModal(true)}>
+                <DownloadIcon size={18} />
+                استيراد Excel
+              </button>
+            )}
+            <button type="button" className="crm-ov-btn" onClick={handleExport}>
+              <UploadIcon size={18} />
+              تصدير
+            </button>
+            <button type="button" className="crm-ov-btn crm-ov-btn--primary" onClick={() => setShowForm((v) => !v)}>
+              <PlusIcon size={18} />
+              {showForm ? 'إغلاق النموذج' : 'عميل جديد'}
+            </button>
+          </CRMHeader>
+          {crmTabs}
+        </>
+      ) : (
       <div className="page-header-row">
         <div>
           <h1>{crmMode
@@ -345,6 +373,7 @@ function CustomersPage({ crmMode = false, onNavigate }) {
           </button>
         </div>
       </div>
+      )}
 
       {/* Main View Switcher Tabs */}
       {!crmMode && !isLawFirm && <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', borderBottom: '2px solid #e5e7eb', paddingBottom: '10px' }}>
@@ -477,7 +506,7 @@ function CustomersPage({ crmMode = false, onNavigate }) {
       ) : (
         <>
           {/* Stats Cards */}
-          {!isLawFirm && (
+          {!isLawFirm && !crmMode && (
             <div className="stats-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '15px' }}>
               <div className="stat-card">
                 <span className="stat-label">إجمالي العملاء المسجلين</span>
@@ -656,6 +685,22 @@ function CustomersPage({ crmMode = false, onNavigate }) {
             </form>
           )}
 
+          {crmMode ? (
+            <CRMContactsTable
+              customers={filtered}
+              totalCount={customers.length}
+              loading={loading}
+              search={search}
+              onSearch={setSearch}
+              searchPending={isSearchPending}
+              copiedPhone={copiedPhone}
+              onCopyPhone={handleCopyPhone}
+              onOpen360={setSelectedTimelineCustomer}
+              onAdd={() => setShowForm(true)}
+              onImport={isAdmin ? () => setShowImportModal(true) : null}
+            />
+          ) : (
+          <>
           {/* Search Bar */}
           <div className="search-bar-wrapper" aria-busy={isSearchPending}>
             <span className="search-icon">🔍</span>
@@ -819,6 +864,8 @@ function CustomersPage({ crmMode = false, onNavigate }) {
                 </tbody>
               </table>
             </div>
+          )}
+          </>
           )}
         </>
       )}

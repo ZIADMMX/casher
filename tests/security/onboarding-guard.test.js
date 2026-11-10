@@ -82,6 +82,10 @@ describe('Security: onboarding wizard guard', () => {
     authService.login('owner', 'secret123', 5);
     const result = await call('onboarding:provision', 5, { sector: 'retail' });
     expect(result.success).toBe(true);
+    expect(onboardingService.provisionSectorData).toHaveBeenCalledWith(
+      { sector: 'retail' },
+      { userId: 1, username: 'owner' },
+    );
   });
 
   test('a logged-in admin can change setup after it was completed', async () => {

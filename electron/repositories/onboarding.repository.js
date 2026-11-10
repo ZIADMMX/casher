@@ -1,4 +1,5 @@
 const { db } = require('../database/db');
+const subscriptionsRepo = require('./subscriptions.repository');
 
 /**
  * Onboarding Repository
@@ -404,20 +405,19 @@ function provisionSectorData({
       }
     }
 
-    // 6. إنشاء باقات الاشتراكات إذا كان النشاط صالة رياضية أو اشتراكات
+    // 6. باقات العضوية للجيم: من البنود اللي معاها شروط باقة، بالأسعار اللي العميل عدّلها
+    let createdPackagesCount = 0;
     if (sectorKey === 'subscriptions_gym') {
-      try {
-        const hasSubTable = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='subscription_plans'").get();
-        if (hasSubTable) {
-          const insertPlan = db.prepare(`
-            INSERT OR IGNORE INTO subscription_plans (name, price, duration_days, session_count, freeze_limit_days, description)
-            VALUES (?, ?, ?, ?, ?, ?)
-          `);
-          insertPlan.run('عضوية شهرية لياقة', 450, 30, 0, 7, 'دخول مفتوح لصالة اللياقة البدنية والحديد');
-          insertPlan.run('باقة 3 شهور بريميوم', 1100, 90, 0, 15, 'شامل اللياقة والساونا وجاكوزي');
-          insertPlan.run('باقة 12 حصة تدريب خاص PT', 1500, 45, 12, 10, 'مع كابتن خاص ومتابعة قياسات');
-        }
-      } catch {}
+      for (const p of finalProducts) {
+        if (!p.name || !p.package) continue;
+        subscriptionsRepo.createPackage({
+          name: p.name.trim(),
+          price: Number(p.selling_price) || 0,
+          description: p.description || '',
+          ...p.package,
+        });
+        createdPackagesCount++;
+      }
     }
 
     // 7. تسجيل سجل تدقيق أمني (Audit Log)
@@ -453,6 +453,7 @@ function provisionSectorData({
       store_name: storeName,
       categories_count: categoryMap.size,
       products_count: createdProductsCount,
+      packages_count: createdPackagesCount,
       addons_count: Array.isArray(addons) ? addons.length : 0,
       stations_count: Array.isArray(stations) ? stations.length : 0,
       primary_action_title: preset?.primary_action_title || 'استقبل أول طلب',

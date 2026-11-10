@@ -224,6 +224,42 @@ export function getSectorIdentity(sectorKey) {
         primaryActionTitle: 'استلام سيارة وفتح أمر إصلاح 🔧',
       };
 
+    case 'cafe_restaurant':
+      return {
+        ...getSectorIdentity('retail'),
+        type: 'cafe',
+        businessNamePrefix: 'مطعم / كافيه',
+        stepTitle: 'تجهيز المنيو ومحطات التحضير',
+        stepSubtitle: 'قمنا بتهيئة أقسام المنيو ومحطات المطبخ والبار وأصناف نموذجية. يمكنك تعديل الأسعار وتكلفة الخامات قبل البدء.',
+        logoTitle: 'شعار المطعم / الكافيه',
+        logoDesc: 'سيظهر على الفواتير وتذاكر المطبخ والمنيو',
+        categoriesTitle: 'أقسام المنيو ومحطات التحضير',
+        categoryPlaceholder: 'اسم القسم (مثال: مشروبات ساخنة، وجبات، حلويات...)',
+        categoryStationPlaceholder: 'محطة التحضير (مثال: المطبخ / البار)',
+        addCategoryBtn: '+ إضافة قسم منيو',
+        itemsTitle: 'أصناف المنيو والأسعار المقترحة',
+        itemsDesc: 'يمكنك تعديل سعر البيع وتكلفة الخامات لكل صنف مباشرة في الجدول',
+        searchPlaceholder: 'بحث في المنيو...',
+        filterAllText: 'كل أقسام المنيو',
+        addItemBtn: '+ إضافة صنف للمنيو',
+        itemColHeader: 'الصنف / الوجبة / المشروب',
+        categoryColHeader: 'قسم المنيو',
+        costColHeader: 'تكلفة الخامات (ج.م)',
+        newItemPlaceholder: 'اسم الصنف (مثال: لاتيه، برجر كلاسيك...)',
+        newCostPlaceholder: 'تكلفة الخامات (ج.م)',
+        kpi1Label: 'أصناف المنيو',
+        kpi1Unit: 'صنف',
+        kpi2Label: 'أقسام المنيو والمحطات',
+        kpi3Label: 'تكلفة الخامات الافتتاحية',
+        emptyMessage: 'لا توجد أصناف مطابقة في المنيو',
+        footerReadyText: (items, cats) => `جاهز للإنشاء: ${items} صنف في المنيو • ${cats} أقسام`,
+        successTitle: (name) => `مبروك! أصبح «${name}» جاهزاً لاستقبال الطلبات`,
+        successSubtitle: 'تم ضبط المنيو ومحطات التحضير والأسعار بنجاح.',
+        metric1Label: 'أقسام منيو ومحطات تحضير',
+        metric2Label: 'أصناف منيو بأسعار جاهزة',
+        primaryActionTitle: 'استقبل أول أوردر 🍽️',
+      };
+
     default: // retail, grocery, electronics, spare_parts, custom
       return {
         type: 'retail',

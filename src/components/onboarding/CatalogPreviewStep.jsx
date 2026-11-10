@@ -2,6 +2,26 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { getSectorIdentity } from '../../utils/sectorIdentity.js';
 import * as onboardingApi from '../../api/onboarding.js';
 
+const WEEK_DAYS = ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'];
+
+const CARD_ICON_PATHS = {
+  logo: <><circle cx="12" cy="12" r="9" /><circle cx="8.5" cy="10" r="1" /><circle cx="12" cy="7.5" r="1" /><circle cx="15.5" cy="10" r="1" /><path d="M12 21a2 2 0 0 1 0-4h1.5a2.5 2.5 0 0 0 0-5" /></>,
+  hours: <><circle cx="12" cy="12" r="9" /><polyline points="12 7 12 12 15 14" /></>,
+  categories: <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />,
+  addons: <><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></>,
+  items: <><path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z" /><circle cx="7.5" cy="7.5" r="1.2" /></>,
+};
+
+function CardIcon({ name }) {
+  return (
+    <span className="card-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        {CARD_ICON_PATHS[name]}
+      </svg>
+    </span>
+  );
+}
+
 /**
  * CatalogPreviewStep.jsx
  * الخطوة 2 من معالج التهيئة: الإعداد الجاهز والكتالوج المخصص
@@ -49,6 +69,7 @@ export default function CatalogPreviewStep({
   const [newProdSellPrice, setNewProdSellPrice] = useState('');
   const [newProdBuyPrice, setNewProdBuyPrice] = useState('');
   const [newProdStock, setNewProdStock] = useState('10');
+  const [newProdIsService, setNewProdIsService] = useState(false);
 
   const [showAddAddon, setShowAddAddon] = useState(false);
   const [newAddonName, setNewAddonName] = useState('');
@@ -131,7 +152,7 @@ export default function CatalogPreviewStep({
     let totalRetail = 0;
 
     for (const p of products) {
-      const isItemService = identity.isService || p.is_service || Number(p.stock_quantity) === 0;
+      const isItemService = Boolean(p.is_service);
       const qty = Number(p.stock_quantity) || 0;
       const sell = Number(p.selling_price) || 0;
       const buy = Number(p.purchase_price) || 0;
@@ -159,7 +180,7 @@ export default function CatalogPreviewStep({
       grossProfit: Math.round(grossProfit * 100) / 100,
       profitMargin,
     };
-  }, [products, categories, addons, identity.isService]);
+  }, [products, categories, addons]);
 
   // 3. Logo Upload Handling
   function handleLogoSelect(e) {
@@ -185,6 +206,15 @@ export default function CatalogPreviewStep({
       setError('تعذر قراءة ملف الصورة');
     };
     reader.readAsDataURL(file);
+  }
+
+  function toggleWorkingDay(day) {
+    setWorkingHours((prev) => {
+      const days = prev.days.includes(day)
+        ? prev.days.filter((d) => d !== day)
+        : WEEK_DAYS.filter((d) => d === day || prev.days.includes(d));
+      return { ...prev, days, closed_days: WEEK_DAYS.filter((d) => !days.includes(d)) };
+    });
   }
 
   function handleRemoveLogo() {
@@ -225,7 +255,8 @@ export default function CatalogPreviewStep({
     }
     const sellPrice = parseFloat(newProdSellPrice) || 0;
     const buyPrice = parseFloat(newProdBuyPrice) || 0;
-    const stock = identity.isService ? 0 : (parseInt(newProdStock, 10) || 0);
+    const isService = identity.isService || newProdIsService;
+    const stock = isService ? 0 : (parseInt(newProdStock, 10) || 0);
 
     const firstCatName = categories[0]?.name || (typeof categories[0] === 'string' ? categories[0] : 'عام');
 
@@ -235,8 +266,8 @@ export default function CatalogPreviewStep({
       selling_price: sellPrice,
       purchase_price: buyPrice,
       stock_quantity: stock,
-      low_stock_threshold: identity.isService ? 0 : 3,
-      is_service: identity.isService,
+      low_stock_threshold: isService ? 0 : 3,
+      is_service: isService,
     };
 
     setProducts((prev) => [newProduct, ...prev]);
@@ -245,6 +276,7 @@ export default function CatalogPreviewStep({
     setNewProdSellPrice('');
     setNewProdBuyPrice('');
     setNewProdStock(identity.isService ? '0' : '10');
+    setNewProdIsService(false);
     setShowAddProduct(false);
     setError('');
   }
@@ -302,6 +334,10 @@ export default function CatalogPreviewStep({
   function handleConfirmAndProceed() {
     if (products.length === 0) {
       setError(identity.isService ? 'يرجى الاحتفاظ بخدمة واحدة على الأقل أو إضافة خدمات جديدة للمتابعة' : 'يرجى الاحتفاظ بمنتج واحد على الأقل أو إضافة منتجات لبدء نشاطك');
+      return;
+    }
+    if (workingHours.days.length === 0) {
+      setError('اختر يوم عمل واحد على الأقل');
       return;
     }
 
@@ -410,7 +446,7 @@ export default function CatalogPreviewStep({
         <div className="catalog-section-card logo-card">
           <div className="card-header-line">
             <div className="card-title-group">
-              <span className="card-icon">🎨</span>
+              <CardIcon name="logo" />
               <h3 className="card-title">{identity.logoTitle}</h3>
             </div>
             <span className="card-badge optional">اختياري</span>
@@ -465,7 +501,7 @@ export default function CatalogPreviewStep({
         <div className="catalog-section-card hours-card">
           <div className="card-header-line">
             <div className="card-title-group">
-              <span className="card-icon">⏰</span>
+              <CardIcon name="hours" />
               <h3 className="card-title">مواعيد العمل واستقبال الطلبات</h3>
             </div>
           </div>
@@ -496,12 +532,21 @@ export default function CatalogPreviewStep({
 
             <div className="days-badge-container">
               <span className="days-label">أيام العمل:</span>
-              <div className="days-pills">
-                {workingHours.days.map((day) => (
-                  <span key={day} className="day-pill active">
-                    {day}
-                  </span>
-                ))}
+              <div className="days-pills" role="group" aria-label="أيام العمل">
+                {WEEK_DAYS.map((day) => {
+                  const isOpen = workingHours.days.includes(day);
+                  return (
+                    <button
+                      key={day}
+                      type="button"
+                      className={`day-pill ${isOpen ? 'active' : ''}`}
+                      aria-pressed={isOpen}
+                      onClick={() => toggleWorkingDay(day)}
+                    >
+                      {day}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -512,7 +557,7 @@ export default function CatalogPreviewStep({
       <div className="catalog-section-card">
         <div className="card-header-line">
           <div className="card-title-group">
-            <span className="card-icon">📂</span>
+            <CardIcon name="categories" />
             <h3 className="card-title">{identity.categoriesTitle}</h3>
             <span className="count-badge">{categories.length}</span>
           </div>
@@ -575,7 +620,7 @@ export default function CatalogPreviewStep({
         <div className="catalog-section-card">
           <div className="card-header-line">
             <div className="card-title-group">
-              <span className="card-icon">✨</span>
+              <CardIcon name="addons" />
               <h3 className="card-title">{identity.addonsTitle}</h3>
               <span className="count-badge">{addons.length}</span>
             </div>
@@ -636,7 +681,7 @@ export default function CatalogPreviewStep({
         <div className="table-top-bar">
           <div className="table-title-group">
             <div className="card-title-group">
-              <span className="card-icon">🏷️</span>
+              <CardIcon name="items" />
               <h3 className="card-title">{identity.itemsTitle}</h3>
             </div>
             <p className="card-desc">{identity.itemsDesc}</p>
@@ -728,8 +773,19 @@ export default function CatalogPreviewStep({
                 required
               />
               {!identity.isService && (
+                <label className="prod-form-check">
+                  <input
+                    type="checkbox"
+                    checked={newProdIsService}
+                    onChange={(e) => setNewProdIsService(e.target.checked)}
+                  />
+                  <span>خدمة (بدون مخزون)</span>
+                </label>
+              )}
+              {!identity.isService && !newProdIsService && (
                 <input
                   type="number"
+                  min="0"
                   placeholder="كمية المخزون"
                   value={newProdStock}
                   onChange={(e) => setNewProdStock(e.target.value)}
@@ -748,13 +804,13 @@ export default function CatalogPreviewStep({
           <table className="onboarding-table">
             <thead>
               <tr>
-                <th style={{ width: '32%' }}>{identity.itemColHeader}</th>
-                <th style={{ width: '18%' }}>{identity.categoryColHeader}</th>
-                <th style={{ width: '14%' }}>{identity.costColHeader}</th>
-                <th style={{ width: '14%' }}>{identity.priceColHeader}</th>
-                <th style={{ width: '10%' }}>{identity.stockColHeader}</th>
-                <th style={{ width: '8%' }}>{identity.profitColHeader}</th>
-                <th style={{ width: '4%' }}>حذف</th>
+                <th className="col-item">{identity.itemColHeader}</th>
+                <th>{identity.categoryColHeader}</th>
+                <th>{identity.costColHeader}</th>
+                <th>{identity.priceColHeader}</th>
+                <th>{identity.stockColHeader}</th>
+                <th>{identity.profitColHeader}</th>
+                <th><span className="sr-only">حذف</span></th>
               </tr>
             </thead>
             <tbody>
@@ -767,7 +823,7 @@ export default function CatalogPreviewStep({
               ) : (
                 filteredProducts.map((p, idx) => {
                   const realIndex = products.indexOf(p);
-                  const isServiceItem = identity.isService || p.is_service || Number(p.stock_quantity) === 0;
+                  const isServiceItem = Boolean(p.is_service);
                   const margin = p.selling_price > 0
                     ? (((p.selling_price - p.purchase_price) / p.selling_price) * 100).toFixed(0)
                     : 0;
@@ -790,6 +846,7 @@ export default function CatalogPreviewStep({
                           value={p.purchase_price}
                           onChange={(e) => handleProductPriceChange(realIndex, 'purchase_price', e.target.value)}
                           className="table-editable-input"
+                          aria-label={`${identity.costColHeader} - ${p.name}`}
                         />
                       </td>
                       <td>
@@ -800,6 +857,7 @@ export default function CatalogPreviewStep({
                           value={p.selling_price}
                           onChange={(e) => handleProductPriceChange(realIndex, 'selling_price', e.target.value)}
                           className="table-editable-input highlight"
+                          aria-label={`${identity.priceColHeader} - ${p.name}`}
                         />
                       </td>
                       <td>
@@ -814,6 +872,7 @@ export default function CatalogPreviewStep({
                             value={p.stock_quantity ?? 10}
                             onChange={(e) => handleProductStockChange(realIndex, e.target.value)}
                             className="table-editable-input"
+                            aria-label={`${identity.stockColHeader} - ${p.name}`}
                           />
                         )}
                       </td>
@@ -827,6 +886,7 @@ export default function CatalogPreviewStep({
                           type="button"
                           className="table-row-del-btn"
                           title="حذف هذا البند"
+                          aria-label={`حذف ${p.name}`}
                           onClick={() => handleDeleteProduct(realIndex)}
                         >
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

@@ -318,7 +318,7 @@
 
 .status-step-arrow {
   font-size: 1.2rem;
-  color: #9ca3af;
+  color: var(--color-text-muted);
   font-weight: bold;
 }
 

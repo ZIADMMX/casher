@@ -93,7 +93,11 @@ function registerOnboardingHandlers() {
   registerGuardedHandle('onboarding:provision', async (_event, payload) => {
     try {
       requireOnboardingMutationAllowed();
-      const summary = onboardingService.provisionSectorData(payload);
+      const session = authService.getCurrentSession();
+      const summary = onboardingService.provisionSectorData(payload, {
+        userId: session?.id ?? null,
+        username: session?.username,
+      });
       return { success: true, data: summary };
     } catch (err) {
       logError('OnboardingProvision', err);
