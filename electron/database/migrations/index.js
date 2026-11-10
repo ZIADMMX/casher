@@ -50,7 +50,7 @@ const { ensureKitchenLedger } = require('./kitchenLedger');
 const { ensureDiningTables, allowSplitPayments } = require('./diningTables');
 const { ensureRecipes } = require('./recipes');
 const { ensureProductLedger } = require('./productLedger');
-const { ensureSyncMetadata } = require('./syncMetadata');
+const { ensureSyncMetadata, ensureDeleteTombstones } = require('./syncMetadata');
 const { addColumnIfMissing } = require('./helpers');
 
 function runAllMigrations(dbInstance = db) {
@@ -280,6 +280,7 @@ function runAllMigrations(dbInstance = db) {
   ensureSalesLedgerGuards(dbInstance);
   ensureKitchenLedger(dbInstance);
   ensureProductLedger(dbInstance);
+  ensureDeleteTombstones(dbInstance);
 }
 
 module.exports = { runAllMigrations };

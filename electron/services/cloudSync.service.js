@@ -20,6 +20,8 @@ const BATCH_BYTES = 1.5 * 1024 * 1024;
 const KEY = /^fsk_[A-Za-z0-9_-]{43}$/;
 const SKIPPED_COLUMNS = new Set(['is_synced', 'synced_at']);
 const SQLITE_DATETIME = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(\.\d+)?$/;
+// Deleted rows (see ensureDeleteTombstones); pushed last, after the rows themselves.
+const TOMBSTONES = 'sync_tombstones';
 
 const status = { lastRunAt: null, lastSuccessAt: null, lastError: null, lastPushed: 0 };
 let running = null;
@@ -114,6 +116,11 @@ function toRecord(table, row) {
   return updatedAt ? { table, uuid: row.uuid, updated_at: updatedAt, data } : null;
 }
 
+function toTombstone(row) {
+  const updatedAt = toIso(row.updated_at);
+  return updatedAt ? { table: row.table_name, uuid: row.uuid, updated_at: updatedAt, deleted: true, data: {} } : null;
+}
+
 async function push(baseUrl, deviceKey, records) {
   let response;
   try {
@@ -138,7 +145,13 @@ async function push(baseUrl, deviceKey, records) {
 async function syncTable(database, table, config, version) {
   const cursorRow = database.prepare('SELECT updated_at, uuid FROM sync_cursors WHERE table_name = ?').get(table);
   let cursor = cursorRow || { updated_at: '', uuid: '' };
-  const select = database.prepare(`
+  const select = database.prepare(table === TOMBSTONES ? `
+    SELECT table_name, uuid, deleted_at AS updated_at FROM ${TOMBSTONES}
+    WHERE deleted_at < datetime('now', '-1 second')
+      AND (deleted_at > @updated_at OR (deleted_at = @updated_at AND uuid > @uuid))
+    ORDER BY deleted_at, uuid
+    LIMIT ${BATCH_ROWS}
+  ` : `
     SELECT * FROM ${table}
     WHERE uuid IS NOT NULL AND updated_at IS NOT NULL
       AND updated_at < datetime('now', '-1 second')
@@ -159,7 +172,7 @@ async function syncTable(database, table, config, version) {
     let bytes = 0;
     let last = null;
     for (const row of rows) {
-      const record = toRecord(table, row);
+      const record = table === TOMBSTONES ? toTombstone(row) : toRecord(table, row);
       const size = record ? Buffer.byteLength(JSON.stringify(record)) : 0;
       if (records.length > 0 && bytes + size > BATCH_BYTES) break;
       if (record) records.push(record);
@@ -182,7 +195,7 @@ async function runSync(database) {
   try {
     ensureCursorTable(database);
     let pushed = 0;
-    for (const table of SYNC_TABLES) {
+    for (const table of [...SYNC_TABLES, TOMBSTONES]) {
       if (!hasTable(database, table)) continue;
       const count = await syncTable(database, table, config, version);
       // The server changed mid-run: stop here and let the next run start over with the new one.

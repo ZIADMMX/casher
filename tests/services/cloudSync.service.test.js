@@ -146,3 +146,18 @@ test('network failures are reported in Arabic', async () => {
   global.fetch.mockRejectedValueOnce(timeout);
   await expect(cloudSync.syncOnce(db)).rejects.toThrow('خادم المزامنة اتأخر في الرد');
 });
+
+test('a deleted row is pushed once as a tombstone', async () => {
+  db.exec(`INSERT INTO product_variants (id, product_id, sku, purchase_price, selling_price, stock_quantity)
+    VALUES (2, 1, 'S-2', 50, 100, 3)`);
+  const { uuid } = db.prepare('SELECT uuid FROM product_variants WHERE id = 2').get();
+  db.prepare('DELETE FROM product_variants WHERE id = 2').run();
+  db.prepare('UPDATE sync_tombstones SET deleted_at = ? WHERE uuid = ?').run(OLD, uuid);
+
+  await cloudSync.syncOnce(db);
+  expect(pushedRecords()).toContainEqual(
+    { table: 'product_variants', uuid, updated_at: '2026-01-01T10:00:00.000Z', deleted: true, data: {} }
+  );
+  global.fetch.mockClear();
+  await expect(cloudSync.syncOnce(db)).resolves.toEqual({ pushed: 0 });
+});

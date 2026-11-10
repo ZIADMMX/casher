@@ -107,4 +107,28 @@ function ensureSyncMetadata(database) {
   }
 }
 
-module.exports = { ensureSyncMetadata, SYNC_TABLES };
+// A deleted row is gone, so the cursor can never see it. An AFTER DELETE trigger
+// leaves its uuid here and cloudSync pushes it as { deleted: true }.
+function ensureDeleteTombstones(database) {
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS sync_tombstones (
+      table_name TEXT NOT NULL,
+      uuid TEXT NOT NULL,
+      deleted_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (table_name, uuid)
+    )
+  `);
+  for (const table of SYNC_TABLES.filter((t) => hasTable(database, t))) {
+    database.exec(`
+      CREATE TRIGGER IF NOT EXISTS trg_${table}_sync_delete
+      AFTER DELETE ON ${table}
+      WHEN OLD.uuid IS NOT NULL AND OLD.uuid <> ''
+      BEGIN
+          INSERT OR REPLACE INTO sync_tombstones (table_name, uuid, deleted_at)
+          VALUES ('${table}', OLD.uuid, CURRENT_TIMESTAMP);
+      END;
+    `);
+  }
+}
+
+module.exports = { ensureSyncMetadata, ensureDeleteTombstones, SYNC_TABLES };
