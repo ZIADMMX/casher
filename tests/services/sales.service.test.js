@@ -25,6 +25,8 @@ jest.mock('../../electron/repositories/inventory.repository', () => ({
   applyStockChange: jest.fn(),
 }));
 jest.mock('../../electron/services/notifications.service', () => ({ notify: jest.fn() }));
+jest.mock('../../electron/services/subscriptions.service', () => ({ consumeCredit: jest.fn() }));
+jest.mock('../../electron/services/commissions.service', () => ({ evaluateSaleCommissions: jest.fn() }));
 jest.mock('../../electron/services/bundlePromotions.service', () => ({
   getBestBundlePromotion: jest.fn(() => null),
 }));
@@ -228,5 +230,52 @@ describe('sales.service.createSale', () => {
       paymentMethod: 'cash',
     });
     expect(result.totalAmount).toBe(9.99);
+  });
+});
+describe('sales.service.createSale packages and commissions', () => {
+  const subscriptionsService = require('../../electron/services/subscriptions.service');
+  const commissionsService = require('../../electron/services/commissions.service');
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    authService.getCurrentSession.mockReturnValue({ id: 7, username: 'cashier', role: 'cashier' });
+    shiftsRepo.getCurrentOpenShift.mockReturnValue({ id: 1, status: 'open' });
+    variantsRepo.getById.mockImplementation((id) => ({
+      id, product_id: 5, category_id: 3, selling_price: 19.99, stock_quantity: 10, low_stock_threshold: 0,
+    }));
+  });
+
+  test('refuses a negative package credit count, which would add credits', () => {
+    expect(() => createSale({
+      items: [{ variantId: 1, quantity: 1 }],
+      paymentMethod: 'cash',
+      subscriptionId: 9,
+      creditsDeducted: -5,
+    })).toThrow('عدد الجلسات المخصومة من الباقة غير صالح');
+    expect(salesRepo.createSale).not.toHaveBeenCalled();
+    expect(subscriptionsService.consumeCredit).not.toHaveBeenCalled();
+  });
+
+  test('fails the sale when the package cannot pay for it', () => {
+    subscriptionsService.consumeCredit.mockImplementation(() => {
+      throw new Error('رصيد الجلسات غير كافٍ');
+    });
+    expect(() => createSale({
+      items: [{ variantId: 1, quantity: 1 }],
+      paymentMethod: 'cash',
+      subscriptionId: 9,
+      creditsDeducted: 1,
+    })).toThrow('رصيد الجلسات غير كافٍ');
+    expect(commissionsService.evaluateSaleCommissions).not.toHaveBeenCalled();
+  });
+
+  test('pays commission on the catalog price, not the price the till sent', () => {
+    createSale({
+      items: [{ variantId: 1, quantity: 2, unitPrice: 999 }],
+      paymentMethod: 'cash',
+    });
+    const [saleData] = commissionsService.evaluateSaleCommissions.mock.calls[0];
+    expect(saleData.totalAmount).toBe(39.98);
+    expect(saleData.items[0]).toEqual(expect.objectContaining({ price: 19.99, productId: 5, categoryId: 3 }));
   });
 });

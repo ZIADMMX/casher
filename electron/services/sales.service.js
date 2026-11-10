@@ -179,7 +179,16 @@ function createSale({
           : undefined,
         modifiers,
         note: cleanNote(item.note),
+        // Product and category commission rules match on these catalog values.
+        productId: variant.product_id,
+        categoryId: variant.category_id,
       });
+    }
+
+    // Sent by the till: a negative or fractional count would add credits instead of using them.
+    const credits = subscriptionId ? Number(creditsDeducted || 1) : 0;
+    if (subscriptionId && (!Number.isSafeInteger(credits) || credits < 1)) {
+      throw new Error('عدد الجلسات المخصومة من الباقة غير صالح');
     }
 
     const normalizedDiscount = Number(discount);
@@ -235,21 +244,22 @@ function createSale({
       ? Math.round((afterDiscount * servicePercent / 100 + fixedCharge) * 100) / 100 : 0;
     const totalAmount = Math.round((afterDiscount + serviceCharge) * 100) / 100;
 
-    let resolvedCustomerId = customerId || null;
-    if (!resolvedCustomerId) {
-      if (customerPhone) {
-        const existing = customersRepo.getByPhone(customerPhone);
-        if (existing) {
-          resolvedCustomerId = existing.id;
-        } else if (paymentMethod === 'credit') {
-          resolvedCustomerId = customersRepo.create({ name: customerName.trim(), phone: customerPhone, email: null });
-        }
-      } else if (paymentMethod === 'credit' && customerName) {
-        resolvedCustomerId = customersRepo.create({ name: customerName.trim(), phone: null, email: null });
-      }
-    }
-
     const runTransaction = db.transaction(() => {
+      // A new credit customer is saved together with the sale, or not at all.
+      let resolvedCustomerId = customerId || null;
+      if (!resolvedCustomerId) {
+        if (customerPhone) {
+          const existing = customersRepo.getByPhone(customerPhone);
+          if (existing) {
+            resolvedCustomerId = existing.id;
+          } else if (paymentMethod === 'credit') {
+            resolvedCustomerId = customersRepo.create({ name: customerName.trim(), phone: customerPhone, email: null });
+          }
+        } else if (paymentMethod === 'credit' && customerName) {
+          resolvedCustomerId = customersRepo.create({ name: customerName.trim(), phone: null, email: null });
+        }
+      }
+
       const saleId = salesRepo.createSale({
         shiftId: activeShift ? activeShift.id : null,
         customerId: resolvedCustomerId,
@@ -300,6 +310,17 @@ function createSale({
         }
       }
 
+      // Inside the transaction: if the package cannot pay, the sale is not saved either.
+      if (subscriptionId) {
+        require('./subscriptions.service').consumeCredit(
+          subscriptionId,
+          credits,
+          session,
+          saleId,
+          `خصم رصيد باقة مع فاتورة #${saleId}`
+        );
+      }
+
       return saleId;
     });
 
@@ -337,26 +358,16 @@ function createSale({
       console.warn('تنبيه تسجيل حركة البيع في سجل التدقيق:', auditErr.message);
     }
 
-    // خصم رصيد الاشتراك/الباقة في حالة اختيار العميل لباقة جلسات أو رصيد
-    if (subscriptionId) {
-      try {
-        const subscriptionsService = require('./subscriptions.service');
-        subscriptionsService.consumeCredit(
-          subscriptionId,
-          Number(creditsDeducted || 1),
-          session,
-          saleId,
-          `خصم رصيد باقة مع فاتورة #${saleId}`
-        );
-      } catch (subErr) {
-        console.warn('تنبيه خصم رصيد الاشتراك:', subErr.message);
-      }
-    }
-
-    // تقييم وتدقيق العمولات التلقائية للموظف
+    // تقييم وتدقيق العمولات التلقائية للموظف، من الأسعار المعتمدة على الخادم لا من أسعار الشاشة
     try {
       const commissionsService = require('./commissions.service');
-      commissionsService.evaluateSaleCommissions({ items, discount, paymentMethod, customerId, customerName, customerPhone, dueDate }, saleId, session?.id);
+      commissionsService.evaluateSaleCommissions({
+        items: verifiedItems.map((item) => ({ ...item, price: item.unitPrice })),
+        totalAmount: afterDiscount,
+        // With a fully discounted sale totalAmount is 0, and the commission code falls back to items - discount.
+        discount: effectiveDiscount,
+        paymentMethod,
+      }, saleId, session?.id);
     } catch (e) {
       console.warn('تنبيه فحص العمولات:', e.message);
     }

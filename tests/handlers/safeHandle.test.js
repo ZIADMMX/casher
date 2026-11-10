@@ -57,6 +57,17 @@ describe('safeHandle IPC session context', () => {
     expect(handler).not.toHaveBeenCalled();
   });
 
+  test('lets a busy cashier ring up more than the 5-per-40s write limit', async () => {
+    const handler = jest.fn(() => 'sold');
+    authService.requirePermission.mockImplementation(() => {});
+    safeHandle('sales:create', handler);
+
+    for (let sale = 0; sale < 8; sale += 1) {
+      await expect(mockRegisteredHandlers.get('sales:create')({ sender: { id: 42 } }, {}))
+        .resolves.toBe('sold');
+    }
+  });
+
   test.each(['auth:login', 'central:request'])(
     'keeps %s outside the local session wrapper',
     async (channel) => {

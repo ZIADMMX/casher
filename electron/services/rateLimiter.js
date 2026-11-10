@@ -8,6 +8,15 @@ const ACTION_MAX_REQUESTS = 5;
 const MAX_CONCURRENT_REQUESTS = 50;
 const MAX_MEMORY_ACTION_KEYS = 10000;
 const PREFIX = 'rl';
+// The till repeats these with every customer; 5 per 40s would stop a busy cashier mid-queue.
+// They stay under the global per-IP limit and the concurrency cap.
+const HIGH_VOLUME_ACTIONS = new Set([
+  'sales:create',
+  'sales:updateKitchenOrderStatus',
+  'tables:openTab',
+  'POST /api/sales/create',
+  'POST /api/sales/kitchen-orders/status',
+]);
 const memoryStore = new Map();
 const actionMemoryStore = new Map();
 let activeRequests = 0;
@@ -172,6 +181,7 @@ async function checkRequestActionRateLimit(req, userId = null, options = {}) {
     ? `user:${userId}`
     : `ip:${getClientIp(req, options)}`;
   const action = `${method} ${normalizeActionPath(req.url)}`;
+  if (HIGH_VOLUME_ACTIONS.has(action)) return null;
   return checkActionRateLimit(identity, action);
 }
 
@@ -195,6 +205,7 @@ module.exports = {
   tryAcquireRequestSlot,
   ACTION_MAX_REQUESTS,
   ACTION_WINDOW_MS,
+  HIGH_VOLUME_ACTIONS,
   MAX_CONCURRENT_REQUESTS,
   MAX_REQUESTS,
 };

@@ -125,6 +125,13 @@ describe('rateLimiter (Redis implementation)', () => {
     expect(mockEval).not.toHaveBeenCalled();
   });
 
+  test('does not apply write-action limits to creating a sale', async () => {
+    const { checkRequestActionRateLimit } = require('../../electron/services/rateLimiter');
+    await expect(checkRequestActionRateLimit({ method: 'POST', url: '/api/sales/create' }, 7))
+      .resolves.toBeNull();
+    expect(mockEval).not.toHaveBeenCalled();
+  });
+
   test('caps concurrent requests and releases slots only once', () => {
     const { tryAcquireRequestSlot, MAX_CONCURRENT_REQUESTS } = require('../../electron/services/rateLimiter');
     const releases = Array.from({ length: MAX_CONCURRENT_REQUESTS }, () => tryAcquireRequestSlot());

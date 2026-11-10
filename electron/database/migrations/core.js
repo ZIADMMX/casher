@@ -108,17 +108,20 @@ function migrateSalesTable() {
           const variantDeleteAction = variantForeignKey?.on_delete?.toUpperCase();
 
           if (variantDeleteAction !== 'SET NULL') {
+            // Copy the table exactly as it is, changing only the variant key, so columns
+            // added later (unit_cost, modifiers, note) and their data survive the rebuild.
+            const oldSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='sale_items'").get().sql;
+            const renamedSql = oldSql.replace(/^CREATE TABLE\s+(?:IF NOT EXISTS\s+)?["`[]?sale_items["`\]]?/i, 'CREATE TABLE sale_items_new');
+            const newSql = renamedSql.replace(
+              /(FOREIGN KEY\s*\(\s*variant_id\s*\)\s*REFERENCES\s+["`[]?product_variants["`\]]?\s*\(\s*id\s*\))(\s+ON\s+DELETE\s+(?:SET\s+NULL|SET\s+DEFAULT|CASCADE|RESTRICT|NO\s+ACTION))?/i,
+              '$1 ON DELETE SET NULL'
+            );
+            if (renamedSql === oldSql || newSql === renamedSql) {
+              throw new Error('شكل جدول sale_items غير معروف، تعذر ترقيته');
+            }
+            db.exec('DROP TRIGGER IF EXISTS trg_restrict_variant_delete_with_history');
+            db.exec(newSql);
             db.exec(`
-              DROP TRIGGER IF EXISTS trg_restrict_variant_delete_with_history;
-              CREATE TABLE sale_items_new (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                sale_id INTEGER NOT NULL,
-                variant_id INTEGER,
-                quantity INTEGER NOT NULL,
-                unit_price REAL NOT NULL,
-                FOREIGN KEY (sale_id) REFERENCES sales(id) ON DELETE CASCADE,
-                FOREIGN KEY (variant_id) REFERENCES product_variants(id) ON DELETE SET NULL
-              );
               INSERT INTO sale_items_new SELECT * FROM sale_items;
               DROP TABLE sale_items;
               ALTER TABLE sale_items_new RENAME TO sale_items;

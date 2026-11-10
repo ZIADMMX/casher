@@ -24,7 +24,7 @@ function getStmts() {
       `),
       getByProductId: db.prepare('SELECT * FROM product_variants WHERE product_id = ?'),
       getById: db.prepare(`
-        SELECT pv.*, p.is_service
+        SELECT pv.*, p.is_service, p.category_id
         FROM product_variants pv
         JOIN products p ON p.id = pv.product_id
         WHERE pv.id = ?

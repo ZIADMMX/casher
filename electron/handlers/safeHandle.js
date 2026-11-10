@@ -4,7 +4,9 @@ const { getPermissionForChannel } = require('../security/permissions');
 const { requireActiveLicense } = require('../services/licenseGuard.service');
 const {
   checkActionRateLimit,
+  normalizeActionPath,
   tryAcquireRequestSlot,
+  HIGH_VOLUME_ACTIONS,
 } = require('../services/rateLimiter');
 
 const MUTATING_ACTION = /^(add|create|update|delete|remove|save|process|open|close|record|change|reset|import|restore|transfer|adjust|count|sync|submit|approve|reject|reschedule|cancel|receive|pay|activate|deactivate|generate|start|stop|set|toggle|assign|mark|clear|void|archive|complete|convert|reorder|move|anonymize|selectAttachment|checkIn|checkOut|clockIn|clockOut)/i;
@@ -15,9 +17,11 @@ function getRateLimitedAction(channel, args) {
     const request = args[0];
     const method = String(request?.method || 'GET').toUpperCase();
     if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) return null;
+    if (HIGH_VOLUME_ACTIONS.has(`${method} ${normalizeActionPath(request?.route)}`)) return null;
     return `${method} ${request?.route || '/'}`;
   }
 
+  if (HIGH_VOLUME_ACTIONS.has(channel)) return null;
   const action = channel.split(':').pop() || '';
   return MUTATING_ACTION.test(action) ? channel : null;
 }
