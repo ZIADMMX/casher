@@ -2,6 +2,7 @@
 const {
   getCaseLawyers,
   getAllCases,
+  getCaseStatusCounts,
   getCasesByClientId,
   getCaseById,
   createCase,
@@ -63,6 +64,7 @@ const {
 module.exports = {
   getCaseLawyers,
   getAllCases,
+  getCaseStatusCounts,
   getCasesByClientId,
   getCaseById,
   createCase,

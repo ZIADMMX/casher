@@ -1,0 +1,110 @@
+/* Shared dark header of the law-firm pages (cases + appointments) */
+.legal-hero {
+  --hero-bg: #111a2e;
+  --hero-text: #ffffff;
+  --hero-muted: #c3cad8;
+  --hero-tab: #e4e8ef;
+  --hero-line: rgba(255, 255, 255, 0.22);
+  --hero-hover: rgba(255, 255, 255, 0.08);
+  --hero-primary: #f2600c;
+  --hero-primary-hover: #d94d00;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 22px 24px 18px;
+  border-radius: 18px;
+  color: var(--hero-text);
+  background: var(--hero-bg);
+  box-shadow: 0 10px 30px rgba(17, 26, 46, 0.18);
+  direction: rtl;
+}
+
+.legal-hero-top,
+.legal-hero-title,
+.legal-hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.legal-hero-top {
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.legal-hero-title { gap: 16px; }
+.legal-hero-actions { flex-wrap: wrap; }
+
+.legal-hero h1 {
+  margin: 0;
+  color: var(--hero-text);
+  font-size: 1.55rem;
+  font-weight: 800;
+}
+
+.legal-hero p {
+  margin: 4px 0 0;
+  color: var(--hero-muted);
+  font-size: 0.92rem;
+}
+
+.legal-hero-mark {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: var(--hero-primary);
+}
+
+/* Beats page-level icon colors (e.g. .law-firm-appointments .legal-appointment-icon). */
+.legal-hero .legal-hero-mark .legal-appointment-icon,
+.legal-hero .legal-hero-button .legal-appointment-icon { color: var(--hero-text); }
+
+.legal-hero-button,
+.legal-hero-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  border-radius: 10px;
+  font-family: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.legal-hero-button {
+  padding: 0 20px;
+  border: 1px solid var(--hero-line);
+  color: var(--hero-text);
+  background: transparent;
+  font-size: 14px;
+}
+
+.legal-hero-button:hover:not(:disabled) { background: var(--hero-hover); }
+.legal-hero-button:disabled { opacity: 0.6; cursor: wait; }
+.legal-hero-button.primary { border-color: var(--hero-primary); background: var(--hero-primary); }
+.legal-hero-button.primary:hover:not(:disabled) { border-color: var(--hero-primary-hover); background: var(--hero-primary-hover); }
+
+.legal-hero-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.legal-hero-tabs button {
+  padding: 0 22px;
+  border: none;
+  color: var(--hero-tab);
+  background: transparent;
+  font-size: 14.5px;
+}
+
+.legal-hero-tabs button:hover { background: var(--hero-hover); }
+.legal-hero-tabs button.active { color: var(--hero-text); background: var(--hero-primary); cursor: default; }
+
+.legal-hero button:focus-visible {
+  outline: 2px solid var(--hero-primary);
+  outline-offset: 2px;
+}

@@ -76,6 +76,19 @@ function saveResource(data) {
   });
 }
 
+// A lawyer or hall with booked sessions keeps its history: it is switched off instead of deleted.
+function removeResource(id) {
+  requireAdmin();
+  const resourceId = positiveInteger(id, 'معرف المورد');
+  if (!appointmentsRepo.getResourceById(resourceId)) throw new Error('المورد غير موجود');
+  if (appointmentsRepo.countResourceAppointments(resourceId) > 0) {
+    appointmentsRepo.deactivateResource(resourceId);
+    return { deleted: false, deactivated: true };
+  }
+  appointmentsRepo.removeResource(resourceId);
+  return { deleted: true, deactivated: false };
+}
+
 function getServices({ activeOnly = false } = {}) {
   requireAuth();
   return appointmentsRepo.getServices({ activeOnly: Boolean(activeOnly) });
@@ -111,8 +124,20 @@ function saveService(data) {
   });
 }
 
-function saveHoliday(data) {
+// A session type with bookings keeps them valid: it is switched off instead of deleted.
+function removeService(id) {
   requireAdmin();
+  const serviceId = positiveInteger(id, 'معرف الخدمة');
+  if (!appointmentsRepo.getServices().some((service) => service.id === serviceId)) throw new Error('الخدمة غير موجودة');
+  if (appointmentsRepo.countServiceAppointments(serviceId) > 0) {
+    appointmentsRepo.deactivateService(serviceId);
+    return { deleted: false, deactivated: true };
+  }
+  appointmentsRepo.removeService(serviceId);
+  return { deleted: true, deactivated: false };
+}
+
+function normalizeHoliday(data) {
   const resourceId = data.resourceId == null || data.resourceId === ''
     ? null
     : positiveInteger(data.resourceId, 'معرف المورد');
@@ -129,7 +154,40 @@ function saveHoliday(data) {
   }
   const name = String(data.name || '').trim();
   if (!name) throw new Error('وصف الإجازة مطلوب');
-  return appointmentsRepo.createHoliday({ resourceId, startDate, endDate, startTime, endTime, name });
+  return { resourceId, startDate, endDate, startTime, endTime, name };
+}
+
+function saveHoliday(data) {
+  requireAdmin();
+  const holiday = normalizeHoliday(data);
+  if (data.id == null || data.id === '') return appointmentsRepo.createHoliday(holiday);
+  const id = positiveInteger(data.id, 'معرف الإجازة');
+  if (!appointmentsRepo.getHolidayById(id)) throw new Error('الإجازة غير موجودة');
+  appointmentsRepo.updateHoliday({ id, ...holiday });
+  return id;
+}
+
+/** Booked or confirmed sessions that fall inside an unavailability period (checked before saving it). */
+function findHolidayConflicts(data) {
+  requireAuth();
+  const { resourceId, startDate, endDate, startTime, endTime } = normalizeHoliday({ ...data, name: '-' }); // the reason is not needed to look for clashes
+  // Pad by a day each side so the UTC bounds cover the whole local range; the exact check is below.
+  const from = new Date(`${startDate}T00:00`);
+  from.setDate(from.getDate() - 1);
+  const to = new Date(`${endDate}T00:00`);
+  to.setDate(to.getDate() + 2);
+  return appointmentsRepo.getAppointments({ from: from.toISOString(), to: to.toISOString() })
+    .filter((appointment) => {
+      if (!['booked', 'confirmed'].includes(appointment.status)) return false;
+      if (resourceId && appointment.resource_id !== resourceId) return false;
+      const start = localDateParts(new Date(appointment.start_at));
+      const end = localDateParts(new Date(appointment.end_at));
+      if (start.date < startDate || start.date > endDate) return false;
+      return !startTime || (start.time < endTime && end.time > startTime);
+    })
+    .map(({ id, customer_name, service_name, resource_name, start_at }) => ({
+      id, customer_name, service_name, resource_name, start_at,
+    }));
 }
 
 function removeHoliday(id) {
@@ -307,10 +365,13 @@ module.exports = {
   getResources,
   getResource,
   saveResource,
+  removeResource,
   getServices,
   saveService,
+  removeService,
   getHolidays,
   saveHoliday,
+  findHolidayConflicts,
   removeHoliday,
   createAppointment,
   getAppointments,

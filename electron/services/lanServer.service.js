@@ -507,6 +507,11 @@ async function handleApiRequest(req, res) {
       return sendJSON(res, 200, appointmentsService.saveResource(await parseBody(req)));
     }
 
+    if (pathname === '/api/appointments/resources/delete' && method === 'POST') {
+      const body = await parseBody(req);
+      return sendJSON(res, 200, appointmentsService.removeResource(body.id));
+    }
+
     const appointmentResourceMatch = pathname.match(/^\/api\/appointments\/resources\/(\d+)$/);
     if (appointmentResourceMatch && method === 'GET') {
       return sendJSON(res, 200, appointmentsService.getResource(Number(appointmentResourceMatch[1])));
@@ -534,6 +539,15 @@ async function handleApiRequest(req, res) {
     if (pathname === '/api/appointments/holidays/delete' && method === 'POST') {
       const body = await parseBody(req);
       return sendJSON(res, 200, appointmentsService.removeHoliday(body.id));
+    }
+
+    if (pathname === '/api/appointments/holidays/conflicts' && method === 'POST') {
+      return sendJSON(res, 200, appointmentsService.findHolidayConflicts(await parseBody(req)));
+    }
+
+    if (pathname === '/api/appointments/services/delete' && method === 'POST') {
+      const body = await parseBody(req);
+      return sendJSON(res, 200, appointmentsService.removeService(body.id));
     }
 
     if (pathname === '/api/appointments/list' && method === 'GET') {

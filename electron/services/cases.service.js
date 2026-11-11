@@ -51,6 +51,13 @@ function createCase(data) {
   if (data.paid_amount != null && (!Number.isFinite(Number(data.paid_amount)) || Number(data.paid_amount) < 0)) {
     throw new Error('المبلغ المسدد مقدمًا غير صالح');
   }
+  const contractAmount = Number(data.contract_amount || 0);
+  if (!Number.isFinite(contractAmount) || contractAmount < 0) {
+    throw new Error('إجمالي أتعاب العقد غير صالح');
+  }
+  if (contractAmount > 0 && Number(data.paid_amount || 0) > contractAmount) {
+    throw new Error('الدفعة المقدمة أكبر من إجمالي أتعاب العقد');
+  }
 
   return casesRepo.createCase(data);
 }
@@ -60,6 +67,10 @@ function updateCase(id, data) {
     throw new Error('يتم تعديل المسدد من الأتعاب عبر سجل الحركات المالية');
   }
   if (!id) throw new Error('معرف القضية مطلوب');
+  if (Object.hasOwn(data, 'contract_amount')
+    && (!Number.isFinite(Number(data.contract_amount || 0)) || Number(data.contract_amount || 0) < 0)) {
+    throw new Error('إجمالي أتعاب العقد غير صالح');
+  }
   if (Object.hasOwn(data, 'case_number') && !data.case_number?.trim()) {
     throw new Error('رقم القضية مطلوب');
   }
@@ -86,6 +97,10 @@ function updateCase(id, data) {
 function deleteCase(id) {
   if (!id) throw new Error('معرف القضية مطلوب');
   return casesRepo.deleteCase(id);
+}
+
+function getCaseStatusCounts(filters) {
+  return casesRepo.getCaseStatusCounts(filters || {});
 }
 
 function getCasesSummaryStats() {
@@ -592,6 +607,7 @@ module.exports = {
   updateCase,
   deleteCase,
   getCasesSummaryStats,
+  getCaseStatusCounts,
   getCasesByClientId,
   getLegalClientInteractions,
   addLegalClientInteraction,

@@ -335,6 +335,7 @@ exportEmployees: () => ipcRenderer.invoke('export:employees'),
   updateCase: (id, data) => ipcRenderer.invoke('cases:updateCase', { id, data }),
   deleteCase: (id) => ipcRenderer.invoke('cases:deleteCase', id),
   getCasesSummaryStats: () => ipcRenderer.invoke('cases:getCasesSummaryStats'),
+  getCaseStatusCounts: (filters) => ipcRenderer.invoke('cases:getCaseStatusCounts', filters),
   getCasesByClientId: (clientId) => ipcRenderer.invoke('cases:getCasesByClientId', clientId),
   getLegalClientInteractions: (customerId) => ipcRenderer.invoke('cases:getLegalClientInteractions', customerId),
   addLegalClientInteraction: (data) => ipcRenderer.invoke('cases:addLegalClientInteraction', data),
@@ -535,6 +536,7 @@ exportEmployees: () => ipcRenderer.invoke('export:employees'),
   },
   getAppointmentResource: (id) => invokeRemoteOrLocal('GET', `/api/appointments/resources/${id}`, 'appointments:getResource', undefined, id),
   saveAppointmentResource: (data) => invokeRemoteOrLocal('POST', '/api/appointments/resources', 'appointments:saveResource', data, data),
+  removeAppointmentResource: (id) => invokeRemoteOrLocal('POST', '/api/appointments/resources/delete', 'appointments:removeResource', { id }, id),
   getAppointmentServices: (filters = {}) => {
     const query = new URLSearchParams({ activeOnly: String(Boolean(filters.activeOnly)) }).toString();
     return invokeRemoteOrLocal('GET', `/api/appointments/services?${query}`, 'appointments:getServices', undefined, filters);
@@ -549,6 +551,8 @@ exportEmployees: () => ipcRenderer.invoke('export:employees'),
   },
   saveAppointmentHoliday: (data) => invokeRemoteOrLocal('POST', '/api/appointments/holidays', 'appointments:saveHoliday', data, data),
   removeAppointmentHoliday: (id) => invokeRemoteOrLocal('POST', '/api/appointments/holidays/delete', 'appointments:removeHoliday', { id }, id),
+  getAppointmentHolidayConflicts: (data) => invokeRemoteOrLocal('POST', '/api/appointments/holidays/conflicts', 'appointments:holidayConflicts', data, data),
+  removeAppointmentService: (id) => invokeRemoteOrLocal('POST', '/api/appointments/services/delete', 'appointments:removeService', { id }, id),
   getAppointments: (filters = {}) => {
     const params = new URLSearchParams();
     for (const key of ['from', 'to', 'status']) {

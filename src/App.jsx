@@ -58,6 +58,7 @@ function AppContent() {
   const [activePage, setActivePage] = useState(defaultPage);
   const [caseToOpen, setCaseToOpen] = useState(null);
   const [openNewCaseOnLoad, setOpenNewCaseOnLoad] = useState(false);
+  const [appointmentsTab, setAppointmentsTab] = useState('appointments');
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [licenseStatus, setLicenseStatus] = useState(null);
@@ -65,6 +66,7 @@ function AppContent() {
   function navigateToPage(page, options = {}) {
     setCaseToOpen(page === 'cases' ? options.caseId || null : null);
     setOpenNewCaseOnLoad(page === 'cases' && options.createCase === true);
+    setAppointmentsTab(page === 'appointments' && options.tab ? options.tab : 'appointments');
     setActivePage(page);
   }
 
@@ -271,7 +273,7 @@ function AppContent() {
       case 'branches':
         return <InventoryManagementPage />;
       case 'appointments':
-        return <AppointmentsPage />;
+        return <AppointmentsPage key={appointmentsTab} initialTab={appointmentsTab} onNavigate={navigateToPage} />;
       case 'pos':
         return (
           <POSPage onNavigate={setActivePage} />
@@ -319,6 +321,7 @@ function AppContent() {
       case 'cases':
         return (
           <CasesPage
+            onNavigate={navigateToPage}
             initialCaseId={caseToOpen}
             openCreateOnMount={openNewCaseOnLoad}
             onInitialActionHandled={() => {

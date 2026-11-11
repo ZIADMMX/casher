@@ -1,13 +1,39 @@
 const { db } = require('../database/db');
 
 function getResources({ activeOnly = false } = {}) {
-  return db.prepare(`
+  const resources = db.prepare(`
     SELECT r.*,
       (SELECT COUNT(*) FROM appointment_working_hours h WHERE h.resource_id = r.id) AS working_days
     FROM appointment_resources r
     ${activeOnly ? 'WHERE r.is_active = 1' : ''}
     ORDER BY r.name COLLATE NOCASE
   `).all();
+  const hoursByResource = new Map();
+  for (const { resource_id: resourceId, ...hours } of db.prepare(`
+    SELECT resource_id, weekday, start_time, end_time FROM appointment_working_hours ORDER BY weekday
+  `).all()) {
+    if (!hoursByResource.has(resourceId)) hoursByResource.set(resourceId, []);
+    hoursByResource.get(resourceId).push(hours);
+  }
+  for (const resource of resources) resource.workingHours = hoursByResource.get(resource.id) || [];
+  return resources;
+}
+
+function countResourceAppointments(id) {
+  return db.prepare('SELECT COUNT(*) AS total FROM appointments WHERE resource_id = ?').get(id).total;
+}
+
+function deactivateResource(id) {
+  return db.prepare('UPDATE appointment_resources SET is_active = 0 WHERE id = ?').run(id);
+}
+
+// Children are removed explicitly too, so nothing is orphaned if foreign_keys could not be enabled.
+function removeResource(id) {
+  return db.transaction(() => {
+    db.prepare('DELETE FROM appointment_working_hours WHERE resource_id = ?').run(id);
+    db.prepare('DELETE FROM appointment_holidays WHERE resource_id = ?').run(id);
+    return db.prepare('DELETE FROM appointment_resources WHERE id = ?').run(id);
+  })();
 }
 
 function getResourceById(id) {
@@ -69,6 +95,30 @@ function saveService({ id, name, durationMinutes, bufferMinutes, price, resource
       (name, duration_minutes, buffer_minutes, price, resource_type, description)
     VALUES (?, ?, ?, ?, ?, ?)
   `).run(name, durationMinutes, bufferMinutes, price, resourceType || null, description || null).lastInsertRowid;
+}
+
+function countServiceAppointments(id) {
+  return db.prepare('SELECT COUNT(*) AS total FROM appointments WHERE service_id = ?').get(id).total;
+}
+
+function deactivateService(id) {
+  return db.prepare('UPDATE appointment_services SET is_active = 0 WHERE id = ?').run(id);
+}
+
+function removeService(id) {
+  return db.prepare('DELETE FROM appointment_services WHERE id = ?').run(id);
+}
+
+function getHolidayById(id) {
+  return db.prepare('SELECT * FROM appointment_holidays WHERE id = ?').get(id);
+}
+
+function updateHoliday({ id, resourceId, startDate, endDate, startTime, endTime, name }) {
+  return db.prepare(`
+    UPDATE appointment_holidays
+    SET resource_id = ?, start_date = ?, end_date = ?, start_time = ?, end_time = ?, name = ?
+    WHERE id = ?
+  `).run(resourceId || null, startDate, endDate, startTime || null, endTime || null, name, id);
 }
 
 function getHolidays({ fromDate, toDate } = {}) {
@@ -217,10 +267,18 @@ module.exports = {
   getResources,
   getResourceById,
   saveResource,
+  countResourceAppointments,
+  deactivateResource,
+  removeResource,
   getServices,
   saveService,
+  countServiceAppointments,
+  deactivateService,
+  removeService,
   getHolidays,
+  getHolidayById,
   createHoliday,
+  updateHoliday,
   removeHoliday,
   getAppointments,
   getAppointment,

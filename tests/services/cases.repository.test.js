@@ -195,6 +195,44 @@ describe('cases repository updates', () => {
 
   afterAll(() => db.close());
 
+  test('next session is the earliest scheduled one still ahead, with its reason', () => {
+    db.exec(`
+      INSERT INTO court_sessions (case_id, session_date, status, session_reason) VALUES
+        (1, datetime('now', 'localtime', '-2 hours'), 'scheduled', 'فاتت'),
+        (1, datetime('now', 'localtime', '+1 day'), 'postponed', 'مؤجلة'),
+        (1, datetime('now', 'localtime', '+3 days'), 'scheduled', 'مرافعة'),
+        (1, datetime('now', 'localtime', '+40 days'), 'scheduled', 'حجز للحكم');
+    `);
+    const [legalCase] = casesRepository.getAllCases();
+    expect(legalCase.next_session_reason).toBe('مرافعة');
+    expect(legalCase.next_session_date).toBe(db.prepare("SELECT session_date FROM court_sessions WHERE session_reason = 'مرافعة'").get().session_date);
+    expect(casesRepository.getCasesByClientId(1)[0].next_session_date).toBe(legalCase.next_session_date);
+    // Only the scheduled session inside the next 30 days counts as upcoming.
+    expect(casesRepository.getCasesSummaryStats().next_hearings_count).toBe(1);
+  });
+
+  test('rejects an opening payment above the agreed fees', () => {
+    const base = { case_number: 'NEW-1', court_name: 'محكمة', client_id: 1, opponent_name: 'خصم', subject: 'موضوع' };
+    expect(() => casesService.createCase({ ...base, contract_amount: 1000, paid_amount: 1500 })).toThrow('أكبر من إجمالي');
+    expect(() => casesService.createCase({ ...base, contract_amount: -5 })).toThrow('غير صالح');
+    expect(casesService.createCase({ ...base, contract_amount: 1000, paid_amount: 1000 }).paid_amount).toBe(1000);
+    expect(() => casesService.updateCase(1, { contract_amount: -1 })).toThrow('غير صالح');
+  });
+
+  test('counts cases per status with the list search and type filters', () => {
+    db.exec(`
+      INSERT INTO legal_cases (id, case_number, court_name, client_id, opponent_name, subject, case_type, status) VALUES
+        (2, 'CASE-2', 'محكمة', 1, 'خصم', 'موضوع', 'commercial', 'closed'),
+        (3, 'CASE-3', 'محكمة', 1, 'شركة النور', 'موضوع', 'commercial', 'appealed');
+    `);
+    expect(casesRepository.getCaseStatusCounts()).toEqual({ all: 3, active: 1, adjourned: 0, judged: 0, appealed: 1, closed: 1 });
+    expect(casesRepository.getCaseStatusCounts({ case_type: 'commercial', status: 'closed' }))
+      .toEqual({ all: 2, active: 0, adjourned: 0, judged: 0, appealed: 1, closed: 1 });
+    expect(casesRepository.getCaseStatusCounts({ search: 'النور' }).all).toBe(1);
+    expect(casesRepository.getAllCases({ case_type: 'commercial', status: 'closed' }).map((c) => c.id)).toEqual([2]);
+    expect(casesRepository.getCasesSummaryStats().appealed_cases).toBe(1);
+  });
+
   test('lists only active team members and supports clearing case assignment', () => {
     expect(casesRepository.getCaseLawyers().map((lawyer) => lawyer.id)).toEqual([1]);
 

@@ -3,6 +3,12 @@ import { useBusinessProfile } from '../contexts/BusinessProfileContext.jsx';
 import * as customersApi from '../api/customers.js';
 import * as inventoryApi from '../api/inventory.js';
 import * as subscriptionsApi from '../api/subscriptions.js';
+import LegalIcon from '../components/legal/LegalIcon.jsx';
+import LegalHero from '../components/legal/LegalHero.jsx';
+import LegalScheduleTab from '../components/legal/LegalScheduleTab.jsx';
+import LegalResourcesTab from '../components/legal/LegalResourcesTab.jsx';
+import LegalServicesTab from '../components/legal/LegalServicesTab.jsx';
+import LegalHolidaysTab from '../components/legal/LegalHolidaysTab.jsx';
 import '../styles/appointments.css';
 
 const GYM_RESOURCE_TYPES = [
@@ -41,36 +47,6 @@ const GYM_STATUS_LABELS = {
   no_show: 'لم يحضر ⚠️',
   converted: 'محول لطلب خدمة 📑',
 };
-
-function LegalIcon({ name, size = 18 }) {
-  const paths = {
-    scale: <><path d="M12 3v18M5 7h14M5 7l-3 6h6L5 7Zm14 0-3 6h6l-3-6ZM8 21h8" /></>,
-    calendar: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 10h18" /></>,
-    clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
-    person: <><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></>,
-    wallet: <><rect x="3" y="5" width="18" height="15" rx="2" /><path d="M3 9h18M16 14h.01" /></>,
-    briefcase: <><rect x="3" y="7" width="18" height="14" rx="2" /><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 12h18" /></>,
-    check: <><path d="m5 12 4 4L19 6" /></>,
-    alert: <><path d="m12 3 9 18H3l9-18Z" /><path d="M12 9v4M12 17h.01" /></>,
-  };
-  return (
-    <svg
-      className="legal-appointment-icon"
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      focusable="false"
-    >
-      {paths[name]}
-    </svg>
-  );
-}
 
 const DAYS = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
 
@@ -133,24 +109,21 @@ const blankAppointment = () => ({
   notes: '',
 });
 
-function AppointmentsPage() {
+function AppointmentsPage({ onNavigate, initialTab = 'appointments' }) {
   const { configuration } = useBusinessProfile();
   const isLawFirm = configuration?.profile?.key === 'law_firm';
   const resourceTypes = isLawFirm ? LAW_FIRM_RESOURCE_TYPES : GYM_RESOURCE_TYPES;
   const text = useCallback((gym, lawFirm) => (isLawFirm ? lawFirm : gym), [isLawFirm]);
-  const tabs = isLawFirm ? [
-    ['appointments', 'جدول الجلسات والاستشارات'],
-    ['resources', 'المحامون وقاعات الجلسات'],
-    ['services', 'أنواع الجلسات والخدمات القانونية'],
-    ['holidays', 'أوقات عدم التوفر'],
-  ] : [
+  // Gym tabs; the law-firm sections live in LegalHero.
+  const tabs = [
     ['appointments', 'جدول حصص وتدريبات المشتركين'],
     ['resources', 'الكباتن والمدربين والصالات'],
     ['services', 'أنواع الحصص والجلسات'],
     ['holidays', 'مواعيد العمل وإجازات الكباتن'],
   ];
   const defaultResourceType = isLawFirm ? 'employee' : 'trainer';
-  const [tab, setTab] = useState('appointments');
+  const resourceLabel = (type) => resourceTypes.find(([value]) => value === type)?.[1] || type;
+  const [tab, setTab] = useState(initialTab);
   const [resources, setResources] = useState([]);
   const [services, setServices] = useState([]);
   const [holidays, setHolidays] = useState([]);
@@ -247,10 +220,12 @@ function AppointmentsPage() {
     setNotice('');
     try {
       await action();
-      setNotice(successMessage);
+      setNotice(typeof successMessage === 'function' ? successMessage() : successMessage);
       await loadData();
+      return true;
     } catch (actionError) {
       setError(actionError instanceof Error ? actionError.message : 'تعذر تنفيذ العملية');
+      return false;
     } finally {
       setBusy(false);
     }
@@ -262,7 +237,7 @@ function AppointmentsPage() {
       .filter((hours) => hours.enabled)
       .map(({ weekday, startTime, endTime }) => ({ weekday, startTime, endTime }));
     
-    await runAction(
+    const saved = await runAction(
       () => inventoryApi.saveAppointmentResource({
         ...resourceForm,
         workingHours,
@@ -271,27 +246,27 @@ function AppointmentsPage() {
         ? text('تم تحديث بيانات الكابتن وساعات عمله', 'تم تحديث بيانات المورد وأوقات عمله')
         : text('تمت إضافة الكابتن وساعات عمله بنجاح', 'تمت إضافة المورد وأوقات عمله بنجاح')
     );
-    setResourceForm(blankResource(defaultResourceType));
+    if (saved) setResourceForm(blankResource(defaultResourceType));
   }
 
   async function submitService(event) {
     event.preventDefault();
-    await runAction(
+    const saved = await runAction(
       () => inventoryApi.saveAppointmentService(serviceForm),
       serviceForm.id
         ? text('تم تحديث الخدمة/الحصة بنجاح', 'تم تحديث الخدمة القانونية بنجاح')
         : text('تمت إضافة الحصة بنجاح', 'تمت إضافة الخدمة القانونية بنجاح')
     );
-    setServiceForm(blankService(defaultResourceType));
+    if (saved) setServiceForm(blankService(defaultResourceType));
   }
 
   async function submitHoliday(event) {
     event.preventDefault();
-    await runAction(
+    const saved = await runAction(
       () => inventoryApi.saveAppointmentHoliday(holidayForm),
       text('تم تسجيل إجازة الكابتن بنجاح', 'تم تسجيل وقت عدم التوفر بنجاح')
     );
-    setHolidayForm(blankHoliday());
+    if (saved) setHolidayForm(blankHoliday());
   }
 
   async function submitAppointment(event) {
@@ -299,7 +274,7 @@ function AppointmentsPage() {
     if (!appointmentForm.serviceId) return setError(text('الرجاء اختيار الخدمة/الحصة أولاً', 'الرجاء اختيار الجلسة أو الخدمة القانونية أولاً'));
     if (!appointmentForm.resourceId) return setError(text('الرجاء اختيار المدرب/الكابتن المسؤول', 'الرجاء اختيار المحامي أو المسؤول عن الموعد'));
 
-    await runAction(
+    const saved = await runAction(
       async () => {
         // Create appointment in database
         const appt = await inventoryApi.createAppointment({
@@ -327,20 +302,21 @@ function AppointmentsPage() {
       },
       text('تم تأكيد حجز الحصة بنجاح وإشعار الكابتن والمشترك!', 'تم تأكيد الموعد وإشعار المحامي والموكل!'),
     );
+    if (!saved) return;
     setAppointmentForm(blankAppointment());
     setActiveSubscription(null);
   }
 
   async function submitReschedule(event, appointmentId) {
     event.preventDefault();
-    await runAction(
+    const saved = await runAction(
       () => inventoryApi.rescheduleAppointment(appointmentId, {
         startAt: rescheduleForm.startAt,
         resourceId: Number(rescheduleForm.resourceId),
       }),
       text('تم تغيير وتأكيد موعد الحصة الجديد بنجاح', 'تم تعديل الموعد وتأكيده بنجاح'),
     );
-    setRescheduleForm(null);
+    if (saved) setRescheduleForm(null);
   }
 
   function beginReschedule(appointment) {
@@ -389,48 +365,69 @@ function AppointmentsPage() {
 
   return (
     <section className={`appointments-page${isLawFirm ? ' law-firm-appointments' : ''}`} dir="rtl">
-      {/* Header */}
-      <header className="appointments-header">
-        <div>
-          <h1>
-            {isLawFirm && <LegalIcon name="scale" size={22} />}
-            {text('🏋️‍♂️ حجز الحصص والكباتن واشتراكات الجيم', 'المواعيد والجلسات القانونية')}
-          </h1>
-          <p>{text(
-            'إدارة حصص التدريب الشخصي (PT)، الكلاسات الجماعية، وربطها المباشر بباقات واشتراكات الأعضاء.',
-            'تنظيم جلسات المحاكم واستشارات الموكلين، وتحديد المحامي أو القاعة والوقت المناسب.'
-          )}</p>
-        </div>
-        <button type="button" className="appointment-button secondary" onClick={loadData} disabled={busy}>
-          {isLawFirm && <LegalIcon name="calendar" />}
-          {isLawFirm ? 'تحديث الجدول' : '🔄 تحديث الجدول'}
-        </button>
-      </header>
+      {isLawFirm ? (
+        <LegalHero
+          title="المواعيد والجلسات القانونية"
+          subtitle="جلسات المحاكم واستشارات الموكلين في مكان واحد"
+          active={tab}
+          onSelect={(key) => (key === 'cases' ? onNavigate?.('cases') : setTab(key))}
+          actions={(
+            <button type="button" className="legal-hero-button" onClick={loadData} disabled={busy || loading}>
+              <LegalIcon name="refresh" size={17} />
+              تحديث الجدول
+            </button>
+          )}
+        />
+      ) : (
+        <header className="appointments-header">
+          <div>
+            <h1>🏋️‍♂️ حجز الحصص والكباتن واشتراكات الجيم</h1>
+            <p>إدارة حصص التدريب الشخصي (PT)، الكلاسات الجماعية، وربطها المباشر بباقات واشتراكات الأعضاء.</p>
+          </div>
+          <button type="button" className="appointment-button secondary" onClick={loadData} disabled={busy}>
+            🔄 تحديث الجدول
+          </button>
+        </header>
+      )}
 
       {/* Alerts */}
       {error && <div className="appointment-alert error" role="alert">{isLawFirm ? <LegalIcon name="alert" /> : '❌'} {error}</div>}
       {notice && <div className="appointment-alert success" role="status">{isLawFirm ? <LegalIcon name="check" /> : '✅'} {notice}</div>}
 
       {/* Navigation Tabs */}
-      <nav className="appointments-tabs" aria-label={text('مواعيد الجيم والاشتراكات', 'المواعيد والجلسات القانونية')}>
-      {tabs.map(([key, label]) => (
-          <button
-            key={key}
-            type="button"
-            className={tab === key ? 'active' : ''}
-            onClick={() => setTab(key)}
-          >
-            {label}
-          </button>
-        ))}
-      </nav>
+      {!isLawFirm && (
+        <nav className="appointments-tabs" aria-label="مواعيد الجيم والاشتراكات">
+          {tabs.map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              className={tab === key ? 'active' : ''}
+              onClick={() => setTab(key)}
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
+      )}
 
       {loading ? (
         <div className="appointment-empty">{text('جاري تحميل جدول الجيم والمشتركين...', 'جاري تحميل المواعيد والموكلين...')}</div>
       ) : (
         <>
           {/* TAB 1: APPOINTMENTS */}
-          {tab === 'appointments' && (
+          {tab === 'appointments' && isLawFirm && (
+            <LegalScheduleTab
+              appointments={appointments}
+              services={activeServices}
+              resources={activeResources}
+              customers={customers}
+              busy={busy}
+              runAction={runAction}
+              setError={setError}
+              resourceLabel={resourceLabel}
+            />
+          )}
+          {tab === 'appointments' && !isLawFirm && (
             <div className="appointment-layout">
               {/* Create Appointment Form */}
               <form className="appointment-card" onSubmit={submitAppointment}>
@@ -695,7 +692,10 @@ function AppointmentsPage() {
           )}
 
           {/* TAB 2: BOOKABLE RESOURCES */}
-          {tab === 'resources' && (
+          {tab === 'resources' && isLawFirm && (
+            <LegalResourcesTab resources={resources} busy={busy} runAction={runAction} resourceLabel={resourceLabel} />
+          )}
+          {tab === 'resources' && !isLawFirm && (
             <div className="appointment-layout">
               <form className="appointment-card" onSubmit={submitResource}>
                 <h2>{resourceForm.id
@@ -803,7 +803,10 @@ function AppointmentsPage() {
           )}
 
           {/* TAB 3: BOOKABLE SERVICES */}
-          {tab === 'services' && (
+          {tab === 'services' && isLawFirm && (
+            <LegalServicesTab services={services} busy={busy} runAction={runAction} resourceTypes={resourceTypes} resourceLabel={resourceLabel} />
+          )}
+          {tab === 'services' && !isLawFirm && (
             <div className="appointment-layout">
               <form className="appointment-card" onSubmit={submitService}>
                 <h2>{serviceForm.id
@@ -885,7 +888,10 @@ function AppointmentsPage() {
           )}
 
           {/* TAB 4: HOLIDAYS */}
-          {tab === 'holidays' && (
+          {tab === 'holidays' && isLawFirm && (
+            <LegalHolidaysTab holidays={holidays} resources={resources} busy={busy} runAction={runAction} setError={setError} />
+          )}
+          {tab === 'holidays' && !isLawFirm && (
             <div className="appointment-layout">
               <form className="appointment-card" onSubmit={submitHoliday}>
                 <h2>{text('إجازات الكباتن والصيانة الاستثنائية', 'أوقات عدم التوفر والاستثناءات')}</h2>

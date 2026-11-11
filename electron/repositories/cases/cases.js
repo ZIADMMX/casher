@@ -15,63 +15,84 @@ function getCaseLawyers() {
   `).all();
 }
 
+// Session dates are saved as local "YYYY-MM-DDTHH:mm", so they are compared with local now.
+const NEXT_SESSION_WHERE = `s.case_id = c.id AND s.status = 'scheduled'
+        AND datetime(s.session_date) >= datetime('now', 'localtime')`;
+
+function caseFilterSql({ search, status, case_type, lawyer_id, client_id } = {}, { withStatus = true } = {}) {
+  let sql = '';
+  const params = [];
+  if (search) {
+    sql += ` AND (
+      c.case_number LIKE ? OR
+      c.court_name LIKE ? OR
+      c.subject LIKE ? OR
+      c.opponent_name LIKE ? OR
+      cust.name LIKE ?
+    )`;
+    const s = `%${search}%`;
+    params.push(s, s, s, s, s);
+  }
+  if (withStatus && status && status !== 'all') {
+    sql += ' AND c.status = ?';
+    params.push(status);
+  }
+  if (case_type && case_type !== 'all') {
+    sql += ' AND c.case_type = ?';
+    params.push(case_type);
+  }
+  if (lawyer_id) {
+    sql += ' AND c.assigned_lawyer_id = ?';
+    params.push(lawyer_id);
+  }
+  if (client_id) {
+    sql += ' AND c.client_id = ?';
+    params.push(client_id);
+  }
+  return { sql, params };
+}
+
 function getAllCases(filters = {}) {
-  const { search, status, case_type, lawyer_id, client_id, limit = 100, offset = 0 } = filters;
-  
-  let query = `
-    SELECT 
+  const { limit = 100, offset = 0 } = filters;
+  const where = caseFilterSql(filters);
+  return db.prepare(`
+    SELECT
       c.*,
       cust.name as client_name,
       cust.phone as client_phone,
       u.full_name as assigned_lawyer_name,
       (SELECT COUNT(*) FROM court_sessions s WHERE s.case_id = c.id) as sessions_count,
-      (SELECT session_date FROM court_sessions s WHERE s.case_id = c.id AND s.session_date >= date('now') ORDER BY s.session_date ASC LIMIT 1) as next_session_date,
+      (SELECT s.session_date FROM court_sessions s WHERE ${NEXT_SESSION_WHERE}
+        ORDER BY datetime(s.session_date) ASC LIMIT 1) as next_session_date,
+      (SELECT s.session_reason FROM court_sessions s WHERE ${NEXT_SESSION_WHERE}
+        ORDER BY datetime(s.session_date) ASC LIMIT 1) as next_session_reason,
       (SELECT COUNT(*) FROM case_documents d WHERE d.case_id = c.id) as documents_count,
       (SELECT COALESCE(SUM(f.amount), 0) FROM case_financials f WHERE f.case_id = c.id AND f.type = 'retainer_deposit') as total_retainers,
       (SELECT COALESCE(SUM(f.amount), 0) FROM case_financials f WHERE f.case_id = c.id AND f.type NOT IN ('retainer_deposit', 'fee_payment')) as total_expenses
     FROM legal_cases c
     LEFT JOIN customers cust ON c.client_id = cust.id
     LEFT JOIN users u ON c.assigned_lawyer_id = u.id
-    WHERE 1=1
-  `;
-  const params = [];
+    WHERE 1=1 ${where.sql}
+    ORDER BY c.updated_at DESC LIMIT ? OFFSET ?
+  `).all(...where.params, limit, offset);
+}
 
-  if (search) {
-    query += ` AND (
-      c.case_number LIKE ? OR 
-      c.court_name LIKE ? OR 
-      c.subject LIKE ? OR 
-      c.opponent_name LIKE ? OR 
-      cust.name LIKE ?
-    )`;
-    const s = `%${search}%`;
-    params.push(s, s, s, s, s);
+/** Case count per status for the same search/type filters as the list (the status filter itself is ignored). */
+function getCaseStatusCounts(filters = {}) {
+  const where = caseFilterSql(filters, { withStatus: false });
+  const rows = db.prepare(`
+    SELECT c.status, COUNT(*) AS total
+    FROM legal_cases c
+    LEFT JOIN customers cust ON c.client_id = cust.id
+    WHERE 1=1 ${where.sql}
+    GROUP BY c.status
+  `).all(...where.params);
+  const counts = { all: 0, active: 0, adjourned: 0, judged: 0, appealed: 0, closed: 0 };
+  for (const row of rows) {
+    counts[row.status] = row.total;
+    counts.all += row.total;
   }
-
-  if (status && status !== 'all') {
-    query += ` AND c.status = ?`;
-    params.push(status);
-  }
-
-  if (case_type && case_type !== 'all') {
-    query += ` AND c.case_type = ?`;
-    params.push(case_type);
-  }
-
-  if (lawyer_id) {
-    query += ` AND c.assigned_lawyer_id = ?`;
-    params.push(lawyer_id);
-  }
-
-  if (client_id) {
-    query += ` AND c.client_id = ?`;
-    params.push(client_id);
-  }
-
-  query += ` ORDER BY c.updated_at DESC LIMIT ? OFFSET ?`;
-  params.push(limit, offset);
-
-  return db.prepare(query).all(...params);
+  return counts;
 }
 
 function getCasesByClientId(clientId) {
@@ -82,9 +103,8 @@ function getCasesByClientId(clientId) {
       u.full_name AS assigned_lawyer_name,
       (SELECT COUNT(*) FROM court_sessions s WHERE s.case_id = c.id) AS sessions_count,
       (SELECT s.session_date FROM court_sessions s
-        WHERE s.case_id = c.id AND datetime(s.session_date) >= datetime('now', 'localtime')
-          AND s.status = 'scheduled'
-        ORDER BY s.session_date ASC LIMIT 1) AS next_session_date
+        WHERE ${NEXT_SESSION_WHERE}
+        ORDER BY datetime(s.session_date) ASC LIMIT 1) AS next_session_date
     FROM legal_cases c
     LEFT JOIN users u ON u.id = c.assigned_lawyer_id
     WHERE c.client_id = ?
@@ -207,16 +227,20 @@ function getCasesSummaryStats() {
       SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active_cases,
       SUM(CASE WHEN status = 'adjourned' THEN 1 ELSE 0 END) as adjourned_cases,
       SUM(CASE WHEN status = 'judged' THEN 1 ELSE 0 END) as judged_cases,
+      SUM(CASE WHEN status = 'appealed' THEN 1 ELSE 0 END) as appealed_cases,
       SUM(CASE WHEN status = 'closed' THEN 1 ELSE 0 END) as closed_cases,
       COALESCE(SUM(contract_amount), 0) as total_contracts_value,
       COALESCE(SUM(paid_amount), 0) as total_paid_fees
     FROM legal_cases
   `).get();
 
+  // Scheduled sessions from now until 30 days ahead, the same rule as each case's next session.
   const nextHearingsCount = db.prepare(`
-    SELECT COUNT(*) as count 
-    FROM court_sessions 
-    WHERE date(session_date) >= date('now')
+    SELECT COUNT(*) as count
+    FROM court_sessions
+    WHERE status = 'scheduled'
+      AND datetime(session_date) >= datetime('now', 'localtime')
+      AND datetime(session_date) < datetime('now', 'localtime', '+30 days')
   `).get().count;
 
   return {
@@ -228,6 +252,7 @@ function getCasesSummaryStats() {
 module.exports = {
   getCaseLawyers,
   getAllCases,
+  getCaseStatusCounts,
   getCasesByClientId,
   getCaseById,
   createCase,

@@ -1,30 +1,15 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import foxLogo from '../assets/fox-logo.png';
 import '../styles/cases.css';
 import CaseDetailsModal from '../components/legal/CaseDetailsModal.jsx';
 import DailyDocketModal from '../components/legal/DailyDocketModal.jsx';
+import LegalHero from '../components/legal/LegalHero.jsx';
+import CaseFormModal from '../components/legal/CaseFormModal.jsx';
 import { useUser } from '../contexts/UserContext.jsx';
 import * as customersApi from '../api/customers.js';
 import * as legalApi from '../api/legal.js';
-
-const CASE_TYPES = [
-  { key: 'all', label: 'جميع الأنواع' },
-  { key: 'civil', label: 'مدني وتعويضات' },
-  { key: 'commercial', label: 'تجاري وشركات' },
-  { key: 'criminal', label: 'جنائي وجنح' },
-  { key: 'labor', label: 'عمالي ومنازعات عمل' },
-  { key: 'family', label: 'أسرة وأحوال شخصية' },
-  { key: 'contracts', label: 'استشارات وعقود' },
-];
-
-const STATUS_FILTERS = [
-  { key: 'all', label: 'جميع الحالات' },
-  { key: 'active', label: 'متداولة' },
-  { key: 'adjourned', label: 'مؤجلة' },
-  { key: 'judged', label: 'محكوم بها' },
-  { key: 'appealed', label: 'مستأنفة' },
-  { key: 'closed', label: 'منتهية ومحفوظة' },
-];
+import {
+  CASE_STATUSES, CASE_TYPES, CLIENT_ROLE_LABELS, feeProgress, formatMoney, nextSessionInfo,
+} from '../utils/legalCases.js';
 
 const ICON_PATHS = {
   scale: <><path d="M12 3v18M5 7h14M5 7l-3 6h6L5 7Zm14 0-3 6h6l-3-6ZM8 21h8" /></>,
@@ -37,6 +22,10 @@ const ICON_PATHS = {
   open: <><path d="M14 4h6v6M20 4l-9 9" /><path d="M18 13v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h5" /></>,
   edit: <><path d="m15 5 4 4M4 20l4-.8L19 8a2.1 2.1 0 0 0-3-3L5 16l-1 4Z" /></>,
   close: <><path d="M5 12h14M13 6l6 6-6 6" /></>,
+  eye: <><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" /></>,
+  calendar: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 10h18" /></>,
+  calendarPlus: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 10h18M12 13v5M9.5 15.5h5" /></>,
+  cash: <><rect x="3" y="6" width="18" height="12" rx="2" /><circle cx="12" cy="12" r="2.5" /><path d="M6 9v.01M18 15v.01" /></>,
   empty: <><path d="M4 6h16M6 6l1 14h10l1-14M9 6V4h6v2M10 10v6M14 10v6" /></>,
   filter: <><path d="M4 6h16M7 12h10M10 18h4" /><circle cx="8" cy="6" r="1.5" /><circle cx="15" cy="12" r="1.5" /></>,
 };
@@ -84,6 +73,7 @@ function getEmptyCaseForm(currentUserId = '') {
 }
 
 export default function CasesPage({
+  onNavigate,
   initialCaseId = null,
   openCreateOnMount = false,
   onInitialActionHandled,
@@ -91,6 +81,7 @@ export default function CasesPage({
   const { currentUser } = useUser();
   const [cases, setCases] = useState([]);
   const [stats, setStats] = useState(null);
+  const [statusCounts, setStatusCounts] = useState(null);
   const [customers, setCustomers] = useState([]);
   const [lawyers, setLawyers] = useState([]);
   const [courts, setCourts] = useState([]);
@@ -110,6 +101,8 @@ export default function CasesPage({
   const [showDocketModal, setShowDocketModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingCaseId, setEditingCaseId] = useState(null);
+  const [caseFormError, setCaseFormError] = useState('');
+  const [savingCase, setSavingCase] = useState(false);
 
   const [createForm, setCreateForm] = useState(() => getEmptyCaseForm(currentUser?.id));
 
@@ -126,6 +119,11 @@ export default function CasesPage({
         });
         if (requestId !== casesRequestId.current) return;
         setCases(data || []);
+      }
+      if (legalApi.getCaseStatusCounts.isAvailable()) {
+        const counts = await legalApi.getCaseStatusCounts({ search, case_type: typeFilter });
+        if (requestId !== casesRequestId.current) return;
+        setStatusCounts(counts);
       }
       if (legalApi.getCasesSummaryStats.isAvailable()) {
         const s = await legalApi.getCasesSummaryStats();
@@ -177,14 +175,28 @@ export default function CasesPage({
   }, [initialCaseId, onInitialActionHandled, openCreateOnMount]);
 
   // Handle Create Case
+  function closeCaseForm() {
+    setShowCreateModal(false);
+    setEditingCaseId(null);
+    setCaseFormError('');
+  }
+
   async function handleCreateCase(e) {
     e.preventDefault();
-    if (!createForm.case_number?.trim()) return alert('رقم القضية مطلوب');
-    if (!createForm.court_name?.trim()) return alert('اسم المحكمة مطلوب');
-    if (!createForm.client_id) return alert('يرجى اختيار الموكّل');
-    if (!createForm.opponent_name?.trim()) return alert('اسم الخصم مطلوب');
-    if (!createForm.subject?.trim()) return alert('موضوع الدعوى مطلوب');
+    const contract = Number(createForm.contract_amount || 0);
+    const paid = Number(createForm.paid_amount || 0);
+    const problem = (!createForm.case_number?.trim() && 'رقم القضية مطلوب')
+      || (!createForm.court_name?.trim() && 'اسم المحكمة مطلوب')
+      || (!createForm.client_id && 'يرجى اختيار الموكّل')
+      || (!createForm.assigned_lawyer_id && 'يرجى اختيار المحامي المسؤول عن الملف')
+      || (!createForm.opponent_name?.trim() && 'اسم الخصم مطلوب')
+      || (!createForm.subject?.trim() && 'موضوع الدعوى مطلوب')
+      || ((contract < 0 || paid < 0) && 'المبالغ لا يمكن أن تكون بالسالب')
+      || (!editingCaseId && contract > 0 && paid > contract && 'الدفعة المقدمة أكبر من إجمالي أتعاب العقد');
+    if (problem) return setCaseFormError(problem);
 
+    setSavingCase(true);
+    setCaseFormError('');
     try {
       const { paid_amount: initialPayment, ...caseData } = createForm;
       const payload = {
@@ -197,12 +209,13 @@ export default function CasesPage({
       } else {
         await legalApi.createCase(payload);
       }
-      setShowCreateModal(false);
-      setEditingCaseId(null);
+      closeCaseForm();
       setCreateForm(getEmptyCaseForm(currentUser?.id));
       await loadData();
     } catch (err) {
-      alert(`خطأ أثناء ${editingCaseId ? 'تعديل' : 'حفظ'} القضية: ${err.message}`);
+      setCaseFormError(`خطأ أثناء ${editingCaseId ? 'تعديل' : 'حفظ'} القضية: ${err.message}`);
+    } finally {
+      setSavingCase(false);
     }
   }
 
@@ -211,6 +224,7 @@ export default function CasesPage({
       const legalCase = await legalApi.getCaseById(id);
       if (!legalCase) throw new Error('ملف القضية غير موجود');
       setEditingCaseId(id);
+      setCaseFormError('');
       setCreateForm({
         ...getEmptyCaseForm(currentUser?.id),
         ...legalCase,
@@ -227,18 +241,6 @@ export default function CasesPage({
     }
   }
 
-  async function handleCloseCase(id, caseNum) {
-    if (!window.confirm(`هل تريد إغلاق القضية رقم (${caseNum})؟ سيبقى الملف وسجلاته محفوظة.`)) {
-      return;
-    }
-    try {
-      await legalApi.deleteCase(id);
-      await loadData();
-    } catch (err) {
-      alert('تعذر إغلاق القضية: ' + err.message);
-    }
-  }
-
   const activeFiltersCount = Number(Boolean(searchInput.trim()))
     + Number(statusFilter !== 'all')
     + Number(typeFilter !== 'all');
@@ -250,534 +252,227 @@ export default function CasesPage({
     setTypeFilter('all');
   }
 
+  const openCreate = () => {
+    setEditingCaseId(null);
+    setCaseFormError('');
+    setCreateForm(getEmptyCaseForm(currentUser?.id));
+    setShowCreateModal(true);
+  };
+  const openCase = (id, tab) => {
+    setSelectedCaseTab(tab);
+    setSelectedCaseId(id);
+  };
+
   return (
-    <div className="cases-page-container">
-      <div className="cases-header">
-        <div className="cases-title-area">
-          <div className="cases-brand-row">
-            <img src={foxLogo} alt="FoxCloud" className="cases-brand-logo" />
-            <span className="cases-brand-name">FOX CLOUD</span>
-            <span className="cases-brand-divider" />
-            <span className="cases-brand-sector"><LegalIcon name="scale" size={15} /> منظومة المحاماة</span>
-          </div>
-          <h1>إدارة ملفات القضايا</h1>
-          <p>مركز موحّد لمتابعة الدعاوى والجلسات والمحاكم والأتعاب والأرشيف القضائي.</p>
-        </div>
-        <div className="cases-actions-area">
-          <button
-            type="button"
-            className="btn-secondary-legal"
-            onClick={() => setShowDocketModal(true)}
-          >
-            <LegalIcon name="docket" size={17} /> رول جلسات اليوم
-          </button>
-          <button
-            type="button"
-            className="btn-primary-legal"
-            onClick={() => {
-              setEditingCaseId(null);
-              setCreateForm(getEmptyCaseForm(currentUser?.id));
-              setShowCreateModal(true);
-            }}
-          >
-            <LegalIcon name="add" size={18} /> قيد قضية جديدة
-          </button>
-        </div>
-      </div>
-
-      <div className="cases-stats-row">
-        <button type="button" className="stat-card-legal stat-card-action" onClick={clearFilters}>
-          <div className="stat-icon-wrapper blue"><LegalIcon name="folder" /></div>
-          <div className="stat-content">
-            <span className="stat-label">إجمالي ملفات القضايا</span>
-            <span className="stat-number">{stats?.total_cases || 0}</span>
-          </div>
-          <span className="stat-card-hint">عرض الكل</span>
-        </button>
-        <button type="button" className="stat-card-legal stat-card-action" onClick={() => { setStatusFilter('active'); setTypeFilter('all'); }}>
-          <div className="stat-icon-wrapper emerald"><LegalIcon name="scale" /></div>
-          <div className="stat-content">
-            <span className="stat-label">قضايا متداولة بالجلسات</span>
-            <span className="stat-number">{stats?.active_cases || 0}</span>
-          </div>
-          <span className="stat-card-hint">القضايا النشطة</span>
-        </button>
-        <button type="button" className="stat-card-legal stat-card-action" onClick={() => setShowDocketModal(true)}>
-          <div className="stat-icon-wrapper amber"><LegalIcon name="courthouse" /></div>
-          <div className="stat-content">
-            <span className="stat-label">جلسات قادمة مجدولة</span>
-            <span className="stat-number">{stats?.next_hearings_count || 0}</span>
-          </div>
-          <span className="stat-card-hint">فتح الرول</span>
-        </button>
-        <div className="stat-card-legal">
-          <div className="stat-icon-wrapper purple"><LegalIcon name="wallet" /></div>
-          <div className="stat-content">
-            <span className="stat-label">إجمالي الأتعاب المحصلة</span>
-            <span className="stat-number">{(stats?.total_paid_fees || 0).toLocaleString('ar-EG')} <small>ج.م</small></span>
-          </div>
-        </div>
-      </div>
-
-      <div className="cases-filters-bar">
-        <div className="search-input-wrapper">
-          <span className="search-icon-inside"><LegalIcon name="search" size={18} /></span>
-          <input
-            type="search"
-            placeholder="ابحث برقم القضية، اسم المحكمة، الموكّل، أو الخصم..."
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            aria-label="البحث في ملفات القضايا"
-          />
-        </div>
-
-        <select
-          value={typeFilter}
-          onChange={(e) => setTypeFilter(e.target.value)}
-          className="filter-select"
-        >
-          {CASE_TYPES.map((t) => (
-            <option key={t.key} value={t.key}>{t.label}</option>
-          ))}
-        </select>
-
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="filter-select"
-        >
-          {STATUS_FILTERS.map((s) => (
-            <option key={s.key} value={s.key}>{s.label}</option>
-          ))}
-        </select>
-        {activeFiltersCount > 0 && (
-          <button type="button" className="cases-clear-filters" onClick={clearFilters}>
-            مسح الفلاتر <span>{activeFiltersCount}</span>
-          </button>
+    <div className="cases-page-container legal-cases-page">
+      <LegalHero
+        title="إدارة ملفات القضايا"
+        subtitle="الدعاوى والجلسات والمحاكم والأتعاب والأرشيف القضائي"
+        active="cases"
+        onSelect={(key) => onNavigate?.('appointments', { tab: key })}
+        actions={(
+          <>
+            <button type="button" className="legal-hero-button" onClick={() => setShowDocketModal(true)}>
+              <LegalIcon name="docket" size={17} /> رول جلسات اليوم
+            </button>
+            <button type="button" className="legal-hero-button primary" onClick={openCreate}>
+              <LegalIcon name="add" size={18} /> قيد قضية جديدة
+            </button>
+          </>
         )}
-        <div className="cases-results-count" aria-live="polite">
-          {loading ? 'جارٍ تحديث النتائج...' : `${cases.length} ملف`}
+      />
+
+      <div className="legal-cases-stats">
+        <button type="button" className="legal-cases-stat" onClick={clearFilters}>
+          <span className="legal-cases-stat-icon orange"><LegalIcon name="folder" /></span>
+          <span className="legal-cases-stat-body">
+            <span className="legal-cases-stat-label">إجمالي ملفات القضايا</span>
+            <strong>{stats?.total_cases || 0} <small>ملف</small></strong>
+            <span className="legal-cases-stat-note">منها {stats?.closed_cases || 0} منتهية</span>
+          </span>
+        </button>
+        <button type="button" className="legal-cases-stat" onClick={() => { setStatusFilter('active'); setTypeFilter('all'); }}>
+          <span className="legal-cases-stat-icon green"><LegalIcon name="scale" /></span>
+          <span className="legal-cases-stat-body">
+            <span className="legal-cases-stat-label">قضايا متداولة</span>
+            <strong>{stats?.active_cases || 0} <small>ملف</small></strong>
+            <span className="legal-cases-stat-note">قيد التداول أمام المحاكم</span>
+          </span>
+        </button>
+        <button type="button" className="legal-cases-stat" onClick={() => setShowDocketModal(true)}>
+          <span className="legal-cases-stat-icon blue"><LegalIcon name="calendar" /></span>
+          <span className="legal-cases-stat-body">
+            <span className="legal-cases-stat-label">جلسات قادمة</span>
+            <strong>{stats?.next_hearings_count || 0} <small>جلسة</small></strong>
+            <span className="legal-cases-stat-note">خلال 30 يومًا</span>
+          </span>
+        </button>
+        <div className="legal-cases-stat">
+          <span className="legal-cases-stat-icon yellow"><LegalIcon name="cash" /></span>
+          <span className="legal-cases-stat-body">
+            <span className="legal-cases-stat-label">الأتعاب المحصّلة</span>
+            <strong>{formatMoney(stats?.total_paid_fees)} <small>ج.م</small></strong>
+            <span className="legal-cases-stat-note">من إجمالي {formatMoney(stats?.total_contracts_value)} ج.م</span>
+          </span>
         </div>
       </div>
 
-      {loadError && (
-        <div className="cases-load-error" role="alert">
-          <span>تعذر تحميل بيانات القضايا: {loadError}</span>
-          <button type="button" onClick={loadData}>إعادة المحاولة</button>
+      <section className="legal-cases-panel">
+        <div className="legal-cases-panel-head">
+          <h2>ملفات القضايا <small>({cases.length} ملف)</small></h2>
+          <div className="legal-cases-filters">
+            <label className="legal-cases-search">
+              <LegalIcon name="search" size={18} />
+              <input
+                type="search"
+                placeholder="ابحث برقم القضية أو الموكّل أو الخصم..."
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                aria-label="البحث في ملفات القضايا"
+              />
+            </label>
+            <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} aria-label="نوع القضية">
+              {CASE_TYPES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
+            </select>
+          </div>
         </div>
-      )}
 
-      <div className="cases-table-wrapper">
-        <table className="cases-table">
-          <thead>
-            <tr>
-              <th>رقم القضية</th>
-              <th>المحكمة والدائرة</th>
-              <th>الموكّل (صفته)</th>
-              <th>المحامي المسؤول</th>
-              <th>الخصم</th>
-              <th>موضوع الدعوى</th>
-              <th>الأتعاب (المسدد / الإجمالي)</th>
-              <th>الجلسة القادمة</th>
-              <th>الحالة</th>
-              <th style={{ textAlign: 'center' }}>الإجراءات</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
+        <div className="legal-cases-chips" role="group" aria-label="تصفية حسب الحالة">
+          {[['all', 'الكل'], ...CASE_STATUSES].map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              className={statusFilter === key ? 'active' : ''}
+              aria-pressed={statusFilter === key}
+              onClick={() => setStatusFilter(key)}
+            >
+              {label} <span>{statusCounts?.[key] ?? 0}</span>
+            </button>
+          ))}
+        </div>
+
+        {loadError && (
+          <div className="cases-load-error" role="alert">
+            <span>تعذر تحميل بيانات القضايا: {loadError}</span>
+            <button type="button" onClick={loadData}>إعادة المحاولة</button>
+          </div>
+        )}
+
+        <div className="legal-cases-table-wrap">
+          <table className="legal-cases-table">
+            <thead>
               <tr>
-                <td colSpan="10" className="cases-loading-cell">
-                  <span className="cases-loading-spinner" />
-                  <span>{cases.length ? 'جارٍ تحديث ملفات القضايا...' : 'جارٍ تحميل ملفات القضايا...'}</span>
-                </td>
+                <th>القضية</th>
+                <th>المحكمة والدائرة</th>
+                <th>الأطراف</th>
+                <th>المحامي المسؤول</th>
+                <th>الجلسة القادمة</th>
+                <th>الأتعاب</th>
+                <th>الحالة</th>
+                <th><span className="legal-cases-sr">الإجراءات</span></th>
               </tr>
-            ) : cases.length === 0 ? (
-              <tr>
-                <td colSpan="10" className="cases-empty-cell">
-                  <span className="cases-empty-icon"><LegalIcon name="empty" size={30} /></span>
-                  <strong>{activeFiltersCount ? 'لا توجد ملفات مطابقة' : 'ابدأ أول ملف قضية في مكتبك'}</strong>
-                  <p>{activeFiltersCount ? 'جرّب تغيير كلمات البحث أو إزالة بعض الفلاتر.' : 'سجّل بيانات القضية والمحكمة والموكّل لتبدأ متابعة الجلسات والمستندات.'}</p>
-                  {activeFiltersCount ? (
-                    <button type="button" className="cases-empty-action" onClick={clearFilters}>إزالة الفلاتر</button>
-                  ) : (
-                    <button type="button" className="cases-empty-action" onClick={() => {
-                      setEditingCaseId(null);
-                      setCreateForm(getEmptyCaseForm(currentUser?.id));
-                      setShowCreateModal(true);
-                    }}><LegalIcon name="add" size={16} /> قيد قضية جديدة</button>
-                  )}
-                </td>
-              </tr>
-            ) : (
-              cases.map((c) => (
-                <tr key={c.id}>
-                  <td>
-                    <span className="case-num-badge">{c.case_number}</span>
-                  </td>
-                  <td>
-                    <div className="court-info">
-                      <span className="court-name-bold">
-                        {courts.find((court) => String(court.id) === String(c.court_id))?.name || c.court_name}
-                      </span>
-                      {c.circuit_name && <span className="circuit-sub">{c.circuit_name}</span>}
-                    </div>
-                  </td>
-                  <td>
-                    <div>
-                      <strong style={{ color: '#0f172a' }}>{c.client_name || 'غير محدد'}</strong>
-                      <div>
-                        <span className={`party-tag ${c.client_role === 'plaintiff' ? 'plaintiff' : 'defendant'}`}>
-                          {c.client_role === 'plaintiff' ? 'مدعي' : 'مدعى عليه'}
-                        </span>
-                      </div>
-                    </div>
-                  </td>
-                  <td>{c.assigned_lawyer_name || 'غير معين'}</td>
-                  <td>
-                    <span style={{ color: '#b91c1c', fontWeight: 600 }}>{c.opponent_name}</span>
-                  </td>
-                  <td style={{ maxWidth: '240px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {c.subject}
-                  </td>
-                  <td>
-                    <div style={{ fontSize: '0.85rem' }}>
-                      <strong style={{ color: '#059669' }}>{(c.paid_amount || 0).toLocaleString()}</strong> / {(c.contract_amount || 0).toLocaleString()} EGP
-                    </div>
-                  </td>
-                  <td>
-                    {c.next_session_date ? (
-                      <span style={{ color: '#1d4ed8', fontWeight: 700 }}>
-                        {new Date(c.next_session_date).toLocaleDateString('ar-EG')}
-                      </span>
-                    ) : (
-                      <span style={{ color: '#94a3b8' }}>لا توجد</span>
-                    )}
-                  </td>
-                  <td>
-                    <span className={`status-badge ${c.status}`}>
-                      {STATUS_FILTERS.find((status) => status.key === c.status)?.label || c.status}
-                    </span>
-                  </td>
-                  <td>
-                    <div className="table-actions" style={{ justifyContent: 'center' }}>
-                      <button
-                        type="button"
-                        className="btn-icon-action primary-action"
-                        onClick={() => {
-                          setSelectedCaseTab('details');
-                          setSelectedCaseId(c.id);
-                        }}
-                        title="فتح ملف القضية الكامل"
-                      >
-                        <LegalIcon name="open" size={15} /> فتح الملف
-                      </button>
-                      <button
-                        type="button"
-                        className="btn-icon-action"
-                        onClick={() => {
-                          setSelectedCaseTab('tasks');
-                          setSelectedCaseId(c.id);
-                        }}
-                        title="فتح مهام ومتابعات القضية"
-                      >
-                        مهام المتابعة
-                      </button>
-                      <button
-                        type="button"
-                        className="btn-icon-action"
-                        onClick={() => handleEditCase(c.id)}
-                        title="تعديل بيانات القضية"
-                      >
-                        <LegalIcon name="edit" size={15} /> تعديل
-                      </button>
-                      <button
-                        type="button"
-                        className="btn-icon-action danger-action"
-                        onClick={() => handleCloseCase(c.id, c.case_number)}
-                        title="إغلاق القضية مع الاحتفاظ بسجلاتها"
-                      >
-                        <LegalIcon name="close" size={15} /> إغلاق
-                      </button>
-                    </div>
+            </thead>
+            <tbody>
+              {loading && !cases.length ? (
+                <tr>
+                  <td colSpan="8" className="cases-loading-cell">
+                    <span className="cases-loading-spinner" />
+                    <span>جارٍ تحميل ملفات القضايا...</span>
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* MODAL 1: Create Case Modal */}
-      {showCreateModal && (
-        <div className="legal-modal-overlay" onClick={() => {
-          setShowCreateModal(false);
-          setEditingCaseId(null);
-        }}>
-          <div className="legal-modal-container legal-case-create-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '850px' }}>
-            <div className="legal-modal-header">
-              <h2><LegalIcon name={editingCaseId ? 'edit' : 'scale'} size={21} /> {editingCaseId ? 'تعديل بيانات القضية' : 'قيد وتوثيق ملف قضية جديدة'}</h2>
-              <button type="button" className="modal-close-btn" onClick={() => {
-                setShowCreateModal(false);
-                setEditingCaseId(null);
-              }}>✕</button>
-            </div>
-            <form className="legal-case-create-form" onSubmit={handleCreateCase}>
-              <div className="legal-modal-body">
-                <div className="form-grid-2">
-                  <div className="form-group">
-                    <label>رقم القضية الرسمي *</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="مثال: 1250 لسنة 2026 مدني كلي"
-                      value={createForm.case_number}
-                      onChange={(e) => setCreateForm({ ...createForm, case_number: e.target.value })}
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label htmlFor="case-court">المحكمة *</label>
-                    <select
-                      id="case-court"
-                      value={createForm.court_id || (createForm.court_name ? 'manual' : '')}
-                      onChange={(e) => {
-                        const selectedId = e.target.value;
-                        if (selectedId === 'manual') {
-                          setCreateForm({ ...createForm, court_id: '', court_name: '' });
-                        } else if (!selectedId) {
-                          setCreateForm({ ...createForm, court_id: '', court_name: '' });
-                        } else {
-                          const selectedCourt = courts.find((court) => String(court.id) === selectedId);
-                          setCreateForm({
-                            ...createForm,
-                            court_id: selectedId,
-                            court_name: selectedCourt?.name || createForm.court_name,
-                          });
-                        }
-                      }}
-                    >
-                      <option value="">اختر المحكمة</option>
-                      {courts.map((court) => (
-                        <option key={court.id} value={court.id}>{court.name}</option>
-                      ))}
-                      {createForm.court_id && !courts.some((court) => String(court.id) === String(createForm.court_id)) && (
-                        <option value={createForm.court_id}>{createForm.court_name} (المحكمة الحالية)</option>
-                      )}
-                      <option value="manual">إدخال اسم يدويًا</option>
-                    </select>
-                    {(!createForm.court_id || createForm.court_id === 'manual') && (
-                      <input
-                        type="text"
-                        required
-                        maxLength={180}
-                        placeholder="اكتب اسم المحكمة"
-                        aria-label="اسم المحكمة"
-                        value={createForm.court_name}
-                        onChange={(e) => setCreateForm({ ...createForm, court_id: '', court_name: e.target.value })}
-                      />
+              ) : cases.length === 0 ? (
+                <tr>
+                  <td colSpan="8" className="cases-empty-cell">
+                    <span className="cases-empty-icon"><LegalIcon name="empty" size={30} /></span>
+                    <strong>{activeFiltersCount ? 'لا توجد ملفات مطابقة' : 'ابدأ أول ملف قضية في مكتبك'}</strong>
+                    <p>{activeFiltersCount ? 'جرّب تغيير كلمات البحث أو إزالة بعض الفلاتر.' : 'سجّل بيانات القضية والمحكمة والموكّل لتبدأ متابعة الجلسات والمستندات.'}</p>
+                    {activeFiltersCount ? (
+                      <button type="button" className="cases-empty-action" onClick={clearFilters}>إزالة الفلاتر</button>
+                    ) : (
+                      <button type="button" className="cases-empty-action" onClick={openCreate}><LegalIcon name="add" size={16} /> قيد قضية جديدة</button>
                     )}
-                  </div>
-
-                  <div className="form-group">
-                    <label>الدائرة المختصة</label>
-                    <input
-                      type="text"
-                      placeholder="مثال: دائرة 3 تعويضات"
-                      value={createForm.circuit_name}
-                      onChange={(e) => setCreateForm({ ...createForm, circuit_name: e.target.value })}
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label>نوع القضية</label>
-                    <select
-                      value={createForm.case_type}
-                      onChange={(e) => setCreateForm({ ...createForm, case_type: e.target.value })}
-                    >
-                      <option value="civil">مدني وتعويضات</option>
-                      <option value="commercial">تجاري واقتصادي</option>
-                      <option value="criminal">جنائي وجنح</option>
-                      <option value="labor">عمالي ومنازعات عمل</option>
-                      <option value="family">أسرة وأحوال شخصية</option>
-                      <option value="contracts">عقود واستشارات</option>
-                    </select>
-                  </div>
-
-                  <div className="form-group">
-                    <label>المحامي المسؤول</label>
-                    <select
-                      value={createForm.assigned_lawyer_id}
-                      onChange={(e) => setCreateForm({ ...createForm, assigned_lawyer_id: e.target.value })}
-                    >
-                      <option value="">غير معين</option>
-                      {lawyers.map((lawyer) => (
-                        <option key={lawyer.id} value={lawyer.id}>
-                          {lawyer.full_name || [lawyer.first_name, lawyer.last_name].filter(Boolean).join(' ') || lawyer.username}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="form-group">
-                    <label>الموكّل (العميل) *</label>
-                    <select
-                      required
-                      value={createForm.client_id}
-                      onChange={(e) => setCreateForm({ ...createForm, client_id: e.target.value })}
-                    >
-                      <option value="">-- اختر الموكّل من القائمة --</option>
-                      {customers.map((c) => (
-                        <option key={c.id} value={c.id}>{c.name} {c.phone ? `(${c.phone})` : ''}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="form-group">
-                    <label>صفة الموكّل في الدعوى</label>
-                    <select
-                      value={createForm.client_role}
-                      onChange={(e) => setCreateForm({ ...createForm, client_role: e.target.value })}
-                    >
-                      <option value="plaintiff">مدعي / طالب / مستأنف</option>
-                      <option value="defendant">مدعى عليه / مطلوب ضده / مستأنف ضده</option>
-                    </select>
-                  </div>
-
-                  <div className="form-group">
-                    <label>اسم الخصم (الطرف الآخر) *</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="اسم الخصم أو اسم الشركة الخصم"
-                      value={createForm.opponent_name}
-                      onChange={(e) => setCreateForm({ ...createForm, opponent_name: e.target.value })}
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label>محامي الخصم</label>
-                    <input
-                      type="text"
-                      placeholder="اسم محامي الخصم إن وجد"
-                      value={createForm.opponent_lawyer}
-                      onChange={(e) => setCreateForm({ ...createForm, opponent_lawyer: e.target.value })}
-                    />
-                  </div>
-
-                  <div className="form-group full-width">
-                    <label>موضوع الدعوى والطلبات *</label>
-                    <textarea
-                      rows="2"
-                      required
-                      placeholder="ملخص موضوع الدعوى والطلبات الختامية..."
-                      value={createForm.subject}
-                      onChange={(e) => setCreateForm({ ...createForm, subject: e.target.value })}
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label>إجمالي أتعاب العقد (EGP)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      placeholder="0.00"
-                      value={createForm.contract_amount}
-                      onChange={(e) => setCreateForm({ ...createForm, contract_amount: e.target.value })}
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label>نظام الأتعاب</label>
-                    <select
-                      value={createForm.billing_type}
-                      onChange={(e) => setCreateForm({ ...createForm, billing_type: e.target.value })}
-                    >
-                      <option value="fixed">مقطوعة</option>
-                      <option value="hourly">بالساعة</option>
-                      <option value="contingency">نسبة من المحكوم به</option>
-                    </select>
-                  </div>
-
-                  {createForm.billing_type === 'hourly' && (
-                    <div className="form-group">
-                      <label>سعر الساعة (EGP)</label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={createForm.hourly_rate}
-                        onChange={(e) => setCreateForm({ ...createForm, hourly_rate: e.target.value })}
-                      />
-                    </div>
-                  )}
-
-                  {editingCaseId && (
-                    <div className="form-group">
-                      <label>حالة القضية</label>
-                      <select
-                        value={createForm.status}
-                        onChange={(e) => setCreateForm({ ...createForm, status: e.target.value })}
-                      >
-                        {STATUS_FILTERS.filter((status) => status.key !== 'all').map((status) => (
-                          <option key={status.key} value={status.key}>{status.label}</option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-
-                  {!editingCaseId ? (
-                    <div className="form-group">
-                      <label>دفعة الأتعاب عند فتح الملف (EGP)</label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        placeholder="0.00"
-                        value={createForm.paid_amount}
-                        onChange={(e) => setCreateForm({ ...createForm, paid_amount: e.target.value })}
-                      />
-                      <small>سيتم تسجيلها تلقائيًا كحركة مالية وإيصال في سجل القضية.</small>
-                    </div>
-                  ) : (
-                    <div className="form-group">
-                      <label>المسدد من الأتعاب</label>
-                      <div className="case-paid-amount-note">
-                        {(Number(createForm.paid_amount) || 0).toLocaleString('ar-EG')} EGP
-                        <small>لتعديل المبلغ، أضف أو عدّل حركة «سداد أتعاب» من الملف المالي للقضية.</small>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="form-group full-width">
-                    <label>رقم التوكيل ومكتب التوثيق</label>
-                    <input
-                      type="text"
-                      placeholder="مثال: توكيل رسمي عام قضايا رقم 1452 ب لسنة 2026 توثيق الأهرام"
-                      value={createForm.power_of_attorney_num}
-                      onChange={(e) => setCreateForm({ ...createForm, power_of_attorney_num: e.target.value })}
-                    />
-                  </div>
-
-                  <div className="form-group full-width">
-                    <label>ملاحظات القضية</label>
-                    <textarea
-                      rows="2"
-                      value={createForm.notes || ''}
-                      onChange={(e) => setCreateForm({ ...createForm, notes: e.target.value })}
-                    />
-                  </div>
-                </div>
-              </div>
-              <div className="legal-modal-footer">
-                <button type="button" className="btn-secondary-legal" onClick={() => {
-                  setShowCreateModal(false);
-                  setEditingCaseId(null);
-                }}>إلغاء</button>
-                <button type="submit" className="btn-primary-legal">{editingCaseId ? 'حفظ التعديلات' : 'حفظ وقيد القضية'}</button>
-              </div>
-            </form>
-          </div>
+                  </td>
+                </tr>
+              ) : (
+                cases.map((c) => {
+                  const fee = feeProgress(c);
+                  const next = nextSessionInfo(c);
+                  const statusLabel = CASE_STATUSES.find(([key]) => key === c.status)?.[1] || c.status;
+                  return (
+                    <tr key={c.id}>
+                      <td>
+                        <strong className="legal-cases-number">{c.case_number}</strong>
+                        <span className="legal-cases-sub">{CASE_TYPES.find((t) => t.key === c.case_type)?.label || c.case_type}</span>
+                      </td>
+                      <td>
+                        <span className="legal-cases-strong">{courts.find((court) => String(court.id) === String(c.court_id))?.name || c.court_name}</span>
+                        {c.circuit_name && <span className="legal-cases-sub">{c.circuit_name}</span>}
+                      </td>
+                      <td>
+                        <span className="legal-cases-party client">
+                          {c.client_name || 'غير محدد'} <small>({CLIENT_ROLE_LABELS[c.client_role] || c.client_role})</small>
+                        </span>
+                        <span className="legal-cases-party opponent">ضد {c.opponent_name}</span>
+                      </td>
+                      <td><span className="legal-cases-strong">{c.assigned_lawyer_name || 'غير معيّن'}</span></td>
+                      <td>
+                        {next.label
+                          ? <span className="legal-cases-date">{next.label}</span>
+                          : <span className="legal-cases-date none">—</span>}
+                        <span className="legal-cases-sub">{next.note}</span>
+                      </td>
+                      <td className="legal-cases-fees">
+                        {fee.total > 0 ? (
+                          <>
+                            <span><strong>{formatMoney(fee.paid)}</strong> / {formatMoney(fee.total)} ج.م</span>
+                            <span className={`legal-cases-bar${fee.settled ? ' settled' : ''}`} role="img" aria-label={`مسدد ${fee.percent}%`}>
+                              <span style={{ inlineSize: `${fee.percent}%` }} />
+                            </span>
+                            <span className="legal-cases-sub">{fee.settled ? 'مسدد بالكامل' : `متبقٍ ${formatMoney(fee.remaining)} ج.م`}</span>
+                          </>
+                        ) : (
+                          <>
+                            <span><strong>{formatMoney(fee.paid)}</strong> ج.م</span>
+                            <span className="legal-cases-sub">{c.billing_type === 'hourly' ? 'أتعاب بالساعة' : 'بدون أتعاب متفق عليها'}</span>
+                          </>
+                        )}
+                      </td>
+                      <td><span className={`legal-cases-status ${c.status}`}>{statusLabel}</span></td>
+                      <td>
+                        <div className="legal-cases-actions">
+                          <button type="button" title="فتح ملف القضية" aria-label={`فتح ملف القضية ${c.case_number}`} onClick={() => openCase(c.id, 'details')}>
+                            <LegalIcon name="eye" size={18} />
+                          </button>
+                          <button type="button" title="جلسات القضية" aria-label={`جلسات القضية ${c.case_number}`} onClick={() => openCase(c.id, 'sessions')}>
+                            <LegalIcon name="calendarPlus" size={18} />
+                          </button>
+                          <button type="button" title="تعديل بيانات القضية" aria-label={`تعديل القضية ${c.case_number}`} onClick={() => handleEditCase(c.id)}>
+                            <LegalIcon name="edit" size={18} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
         </div>
+      </section>
+
+      {showCreateModal && (
+        <CaseFormModal
+          form={createForm}
+          setForm={setCreateForm}
+          editing={Boolean(editingCaseId)}
+          courts={courts}
+          customers={customers}
+          lawyers={lawyers}
+          saving={savingCase}
+          error={caseFormError}
+          onSubmit={handleCreateCase}
+          onClose={closeCaseForm}
+        />
       )}
 
       {/* MODAL 2: Full Case Details & Tabs Modal */}

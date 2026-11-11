@@ -39,6 +39,10 @@ function registerCasesHandlers() {
     return casesService.deleteCase(id);
   });
 
+  safeHandle('cases:getCaseStatusCounts', (event, filters) => {
+    return casesService.getCaseStatusCounts(filters || {});
+  });
+
   safeHandle('cases:getCasesSummaryStats', () => {
     return casesService.getCasesSummaryStats();
   });

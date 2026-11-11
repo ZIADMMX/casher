@@ -594,3 +594,663 @@
   align-items: center;
   gap: 9px;
 }
+
+/* ── Law firm: sessions schedule and lawyers & halls ─────────────────────── */
+.law-firm-appointments {
+  --law-ink: #172033;
+  --law-muted: #667085;
+  --law-faint: #98a2b3;
+  --law-line: #e4e8ef;
+  --law-soft: #f6f8fb;
+  --law-soft-strong: #eef1f6;
+  --law-navy: #111a2e;
+  --law-primary: #f2600c;
+  --law-primary-strong: #c2410c;
+  --law-primary-deep: #9a3412;
+  --law-primary-soft: #fff4ed;
+  --law-primary-line: #f6b18b;
+  --law-success: #067647;
+  --law-success-soft: #ecfdf3;
+  --law-warning: #b54708;
+  --law-warning-soft: #fef6dc;
+  --law-danger: #b42318;
+  --law-danger-soft: #fef3f2;
+  --law-danger-line: #fecdca;
+  --law-info: #1849a9;
+  --law-info-soft: #eaf1ff;
+  --law-on-dark: #ffffff;
+  --law-surface: #ffffff;
+  --law-radius: 14px;
+  --law-radius-sm: 10px;
+}
+
+.legal-schedule-heading,
+.legal-hours-heading,
+.legal-resource-head,
+.legal-session-row,
+.legal-session-title,
+.legal-form-actions,
+.legal-resource-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.legal-schedule-heading,
+.legal-hours-heading {
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.legal-day-nav button,
+.legal-week-strip button,
+.legal-chips button,
+.legal-segmented button,
+.legal-kind-picker button,
+.legal-session-actions button {
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.law-firm-appointments button:focus-visible,
+.law-firm-appointments input:focus-visible,
+.law-firm-appointments select:focus-visible,
+.law-firm-appointments textarea:focus-visible {
+  outline: 2px solid var(--law-primary);
+  outline-offset: 2px;
+}
+
+/* Layouts: the form sits on the start (right) side in RTL */
+.legal-schedule-layout,
+.legal-resources-layout {
+  display: grid;
+  align-items: start;
+  gap: 22px;
+}
+
+.legal-schedule-layout { grid-template-columns: minmax(320px, 0.75fr) minmax(0, 1.8fr); }
+.legal-resources-layout { grid-template-columns: minmax(340px, 1fr) minmax(0, 2fr); }
+
+@media (max-width: 1100px) {
+  .legal-schedule-layout,
+  .legal-resources-layout { grid-template-columns: minmax(0, 1fr); }
+}
+
+.law-firm-appointments .legal-booking-form h2,
+.law-firm-appointments .legal-resource-form h2,
+.law-firm-appointments .legal-schedule-heading h2 {
+  margin: 0;
+  padding: 0;
+  border: none;
+  font-size: 1.3rem;
+  font-weight: 800;
+}
+
+.legal-schedule-heading h2 small {
+  color: var(--law-muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.law-firm-appointments .legal-schedule-heading p {
+  margin: 4px 0 0;
+  color: var(--law-muted);
+  font-size: 0.92rem;
+}
+
+/* Booking form steps */
+.legal-form-step {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--law-line);
+}
+
+.legal-form-step:last-of-type { border-bottom: none; padding-bottom: 0; }
+
+.law-firm-appointments .legal-form-step h3 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  color: var(--law-ink);
+  font-size: 0.98rem;
+}
+
+.legal-step-number {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  color: var(--law-primary-strong);
+  background: var(--law-primary-soft);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.legal-form-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.law-firm-appointments .legal-required { color: var(--law-danger); }
+
+.legal-segmented {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  padding: 5px;
+  border-radius: var(--law-radius-sm);
+  background: var(--law-soft-strong);
+}
+
+.legal-segmented button {
+  min-height: 44px;
+  border: none;
+  border-radius: 8px;
+  color: var(--law-muted);
+  background: transparent;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.legal-segmented button.active {
+  color: var(--law-ink);
+  background: var(--law-surface);
+  box-shadow: 0 1px 4px rgba(16, 24, 40, 0.1);
+}
+
+.law-firm-appointments .legal-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--law-muted);
+  font-size: 12.5px;
+}
+
+.law-firm-appointments .legal-hint .legal-appointment-icon { color: var(--law-muted); }
+
+.legal-input-suffix { position: relative; display: block; }
+.law-firm-appointments .legal-input-suffix input { padding-inline-end: 48px; }
+
+.legal-input-suffix span {
+  position: absolute;
+  inset-inline-end: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--law-faint);
+  font-size: 13px;
+  pointer-events: none;
+}
+
+.law-firm-appointments .legal-booking-form input:not([type="checkbox"]),
+.law-firm-appointments .legal-booking-form select,
+.law-firm-appointments .legal-resource-form input:not([type="checkbox"]),
+.law-firm-appointments .legal-search {
+  min-height: 46px;
+  border-radius: var(--law-radius-sm);
+  background: var(--law-surface);
+}
+
+.legal-form-actions { flex-wrap: wrap; }
+
+.legal-booking-form .legal-form-actions .primary,
+.legal-resource-form .legal-form-actions .primary {
+  flex: 1;
+  min-height: 50px;
+  font-size: 15px;
+}
+
+.law-firm-appointments .legal-form-actions .appointment-button { min-height: 44px; }
+.law-firm-appointments .legal-form-actions .appointment-button.primary { background: var(--law-primary-strong); }
+.law-firm-appointments .legal-form-actions .appointment-button.primary:hover:not(:disabled) { background: var(--law-primary-deep); }
+
+/* Schedule */
+.legal-day-nav { display: flex; gap: 8px; }
+
+.legal-day-nav button {
+  min-width: 46px;
+  min-height: 46px;
+  padding: 0 18px;
+  border: 1px solid var(--law-line);
+  border-radius: var(--law-radius-sm);
+  color: var(--law-ink);
+  background: var(--law-surface);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.legal-day-nav button:hover { border-color: var(--law-primary-line); background: var(--law-primary-soft); }
+.law-firm-appointments .legal-day-nav .legal-appointment-icon { color: var(--law-ink); }
+
+.legal-week-strip {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.legal-week-strip button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-height: 72px;
+  padding: 10px 4px;
+  border: 1px solid var(--law-line);
+  border-radius: var(--law-radius-sm);
+  color: var(--law-muted);
+  background: var(--law-surface);
+  font-size: 13px;
+}
+
+.legal-week-strip button strong { color: var(--law-ink); font-size: 1.35rem; }
+.legal-week-strip button:hover { border-color: var(--law-primary-line); }
+.legal-week-strip button.today:not(.active) { border-color: var(--law-primary); }
+.legal-week-strip button.active { border-color: var(--law-primary-strong); color: var(--law-on-dark); background: var(--law-primary-strong); }
+.legal-week-strip button.active strong { color: var(--law-on-dark); }
+
+.legal-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.legal-stats div {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 18px 20px;
+  border-radius: var(--law-radius-sm);
+  background: var(--law-soft);
+}
+
+.legal-stats span { color: var(--law-muted); font-size: 13.5px; }
+.legal-stats strong { color: var(--law-ink); font-size: 1.6rem; font-weight: 800; }
+.legal-stats .confirmed strong { color: var(--law-success); }
+.legal-stats .pending strong { color: var(--law-warning); }
+
+.legal-chips { display: flex; flex-wrap: wrap; gap: 10px; }
+
+.legal-chips button {
+  min-height: 44px;
+  padding: 0 22px;
+  border: 1px solid var(--law-line);
+  border-radius: 999px;
+  color: var(--law-ink);
+  background: var(--law-surface);
+  font-size: 14.5px;
+  font-weight: 700;
+}
+
+.legal-chips button:hover { border-color: var(--law-primary-line); }
+.legal-chips button.active { border-color: var(--law-navy); color: var(--law-on-dark); background: var(--law-navy); }
+
+.legal-session-list { display: flex; flex-direction: column; gap: 14px; }
+
+.legal-session {
+  border: 1px solid var(--law-line);
+  border-radius: var(--law-radius);
+  background: var(--law-surface);
+}
+
+.legal-session:hover { border-color: var(--law-primary-line); }
+.legal-session-row { gap: 18px; padding: 16px 18px; }
+
+.legal-session-time {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 112px;
+  padding: 10px 12px;
+  border-radius: var(--law-radius-sm);
+  background: var(--law-primary-soft);
+}
+
+.legal-session-time strong { color: var(--law-primary-strong); font-size: 1.15rem; font-weight: 800; }
+.legal-session-time span { color: var(--law-muted); font-size: 12.5px; }
+
+.legal-session-body { flex: 1; min-width: 0; }
+.legal-session-title { flex-wrap: wrap; gap: 10px; }
+.legal-session-title strong { color: var(--law-ink); font-size: 1.08rem; font-weight: 800; }
+
+.law-firm-appointments .legal-session-body p {
+  margin: 6px 0 0;
+  color: var(--law-muted);
+  font-size: 13.5px;
+}
+
+.legal-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.legal-badge.confirmed,
+.legal-badge.completed { color: var(--law-success); background: var(--law-success-soft); }
+.legal-badge.pending { color: var(--law-warning); background: var(--law-warning-soft); }
+.legal-badge.missed { color: var(--law-danger); background: var(--law-danger-soft); }
+.legal-badge.muted { color: var(--law-muted); background: var(--law-soft-strong); }
+
+.legal-session-actions { display: flex; gap: 6px; margin-inline-start: auto; }
+
+.legal-session-actions button {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: var(--law-radius-sm);
+  background: transparent;
+}
+
+.legal-session-actions button:hover { background: var(--law-soft); }
+.law-firm-appointments .legal-session-actions .legal-appointment-icon { color: var(--law-ink); }
+.law-firm-appointments .legal-session-actions .danger .legal-appointment-icon,
+.law-firm-appointments .appointment-button.danger .legal-appointment-icon { color: var(--law-danger); }
+.legal-session-actions .danger:hover { background: var(--law-danger-soft); }
+
+.legal-session-edit {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  padding: 16px 18px;
+  border-top: 1px solid var(--law-line);
+  border-radius: 0 0 var(--law-radius) var(--law-radius);
+  background: var(--law-soft);
+}
+
+.legal-session-edit .legal-form-actions { grid-column: 1 / -1; }
+
+/* Lawyers & halls */
+.legal-field { display: flex; flex-direction: column; gap: 8px; }
+
+.legal-field-label {
+  color: var(--law-muted);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.legal-kind-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+  gap: 10px;
+}
+
+.legal-kind-picker button {
+  min-height: 50px;
+  border: 1px solid var(--law-line);
+  border-radius: var(--law-radius-sm);
+  color: var(--law-ink);
+  background: var(--law-surface);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.legal-kind-picker button:hover { border-color: var(--law-primary-line); }
+.legal-kind-picker button.active { border-color: var(--law-primary); color: var(--law-primary-strong); background: var(--law-primary-soft); }
+
+.law-firm-appointments label.legal-check-row {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  color: var(--law-ink);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.legal-resource-form > .legal-check-row {
+  min-height: 50px;
+  padding: 0 16px;
+  border-radius: var(--law-radius-sm);
+  background: var(--law-soft);
+}
+
+.legal-hours-heading {
+  padding-top: 16px;
+  border-top: 1px solid var(--law-line);
+}
+
+.law-firm-appointments .legal-hours-heading h3 { margin: 0; color: var(--law-ink); font-size: 1.05rem; }
+
+.legal-hours-list { display: flex; flex-direction: column; gap: 8px; }
+
+.legal-hours-row {
+  display: grid;
+  grid-template-columns: minmax(96px, 1fr) minmax(0, 1.3fr) auto minmax(0, 1.3fr);
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: var(--law-radius-sm);
+  background: var(--law-soft);
+}
+
+.legal-hours-row > span { color: var(--law-muted); font-size: 13px; }
+.legal-hours-row.off .legal-check-row { color: var(--law-muted); }
+.law-firm-appointments .legal-hours-row input[type="time"] { min-height: 44px; background: var(--law-surface); }
+.law-firm-appointments .legal-hours-row input[type="time"]:disabled { color: var(--law-faint); background: var(--law-soft-strong); }
+
+.law-firm-appointments .legal-search { max-width: 280px; }
+
+.legal-resource-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr));
+  gap: 16px;
+}
+
+.legal-resource-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid var(--law-line);
+  border-radius: var(--law-radius);
+  background: var(--law-surface);
+}
+
+.legal-resource-card:hover { border-color: var(--law-primary-line); }
+.legal-resource-card.editing { border-color: var(--law-primary); box-shadow: 0 0 0 3px rgba(242, 96, 12, 0.12); }
+.legal-resource-head { align-items: flex-start; }
+.legal-resource-head > div { flex: 1; min-width: 0; }
+.legal-resource-head strong { color: var(--law-ink); font-size: 1.08rem; font-weight: 800; }
+
+.law-firm-appointments .legal-resource-head p {
+  margin: 4px 0 0;
+  color: var(--law-muted);
+  font-size: 13.5px;
+}
+
+.legal-avatar {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 50px;
+  height: 50px;
+  border-radius: 12px;
+  color: var(--law-primary-strong);
+  background: var(--law-primary-soft);
+  font-size: 1.3rem;
+  font-weight: 800;
+}
+
+.legal-avatar.chair { color: var(--law-info); background: var(--law-info-soft); }
+
+.legal-avatar.room,
+.legal-avatar.car,
+.legal-avatar.device,
+.legal-avatar.other { color: var(--law-ink); background: var(--law-soft-strong); }
+
+.law-firm-appointments .legal-resource-hours {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: var(--law-radius-sm);
+  color: var(--law-ink);
+  background: var(--law-soft);
+  font-size: 13.5px;
+}
+
+.law-firm-appointments .legal-resource-hours .legal-appointment-icon { color: var(--law-ink); }
+
+.legal-resource-actions > .appointment-button:first-child { flex: 1; min-height: 46px; }
+
+.law-firm-appointments .legal-resource-actions > .danger {
+  display: grid;
+  place-items: center;
+  width: 50px;
+  min-height: 46px;
+  padding: 0;
+}
+
+.law-firm-appointments .appointment-button.danger:hover:not(:disabled) { border-color: var(--law-danger-line); background: var(--law-danger-soft); }
+
+@media (max-width: 640px) {
+  .legal-week-strip { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+  .legal-stats,
+  .legal-session-edit,
+  .legal-form-row { grid-template-columns: minmax(0, 1fr); }
+
+  .legal-session-row { flex-wrap: wrap; }
+  .legal-hours-row { grid-template-columns: 1fr 1fr; }
+  .legal-hours-row > span { display: none; }
+}
+
+/* Law firm: session types and unavailability tabs */
+.legal-duration-picker {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(48px, 0.5fr)) minmax(120px, 1.6fr);
+  gap: 10px;
+}
+
+.legal-duration-picker > button {
+  min-height: 48px;
+  border: 1px solid var(--law-line);
+  border-radius: var(--law-radius-sm);
+  color: var(--law-ink);
+  background: var(--law-surface);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.legal-duration-picker > button:hover { border-color: var(--law-primary-line); }
+.legal-duration-picker > button.active { border-color: var(--law-primary); color: var(--law-primary-strong); background: var(--law-primary-soft); }
+
+.law-firm-appointments .legal-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  padding: 12px 16px;
+  border-radius: var(--law-radius-sm);
+  color: var(--law-primary-strong);
+  background: var(--law-primary-soft);
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+.law-firm-appointments .legal-note .legal-appointment-icon { margin-top: 2px; color: currentColor; }
+.law-firm-appointments .legal-note.warning { color: var(--law-warning); background: var(--law-warning-soft); }
+
+.legal-resource-form > .legal-check-box {
+  min-height: 52px;
+  padding: 0 16px;
+  border-radius: var(--law-radius-sm);
+  background: var(--law-soft);
+}
+
+.legal-time-box {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  border-radius: var(--law-radius);
+  background: var(--law-soft);
+}
+
+.law-firm-appointments .legal-time-box input[type="time"]:disabled,
+.law-firm-appointments .legal-resource-form input[type="date"]:disabled {
+  color: var(--law-faint);
+  background: var(--law-soft-strong);
+}
+
+.legal-field > textarea { margin-top: 4px; }
+
+.legal-segmented.compact { display: inline-grid; grid-template-columns: repeat(2, auto); }
+.legal-segmented.compact button { padding: 0 20px; }
+
+.law-firm-appointments .legal-holiday { border-inline-start: 3px solid var(--law-primary); }
+.law-firm-appointments .legal-session.editing { border-color: var(--law-primary); box-shadow: 0 0 0 3px rgba(242, 96, 12, 0.12); }
+
+.legal-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--law-line);
+  border-radius: var(--law-radius);
+}
+
+.legal-table {
+  inline-size: 100%;
+  min-inline-size: 640px;
+  border-collapse: collapse;
+}
+
+.legal-table th {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--law-line);
+  color: var(--law-muted);
+  background: var(--law-soft);
+  font-size: 14px;
+  font-weight: 700;
+  text-align: start;
+  white-space: nowrap;
+}
+
+.legal-table td {
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--law-line);
+  color: var(--law-ink);
+  font-size: 14.5px;
+  vertical-align: middle;
+}
+
+.legal-table tbody tr:last-child td { border-bottom: none; }
+.legal-table tbody tr:hover td,
+.legal-table tbody tr.editing td { background: var(--law-primary-soft); }
+.legal-table td strong { color: var(--law-ink); font-weight: 800; }
+.legal-table td.muted { color: var(--law-muted); }
+
+.legal-table-sub {
+  display: block;
+  margin-top: 4px;
+  color: var(--law-muted);
+  font-size: 13px;
+}
+
+.legal-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .legal-duration-picker { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .legal-duration-picker > .legal-input-suffix { grid-column: 1 / -1; }
+}

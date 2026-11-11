@@ -14,6 +14,7 @@ export const createCase = bridgeMethod('createCase');
 export const updateCase = bridgeMethod('updateCase');
 export const deleteCase = bridgeMethod('deleteCase');
 export const getCasesSummaryStats = bridgeMethod('getCasesSummaryStats');
+export const getCaseStatusCounts = bridgeMethod('getCaseStatusCounts');
 export const getCasesByClientId = bridgeMethod('getCasesByClientId');
 export const getLegalClientInteractions = bridgeMethod('getLegalClientInteractions');
 export const addLegalClientInteraction = bridgeMethod('addLegalClientInteraction');
