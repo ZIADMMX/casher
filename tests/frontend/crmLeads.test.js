@@ -43,3 +43,11 @@ describe('CRM leads list', () => {
     expect(agoText(14)).toBe('منذ ١٤ يوم');
   });
 });
+
+describe('WhatsApp click-to-chat link', () => {
+  test('turns a local number into the international one and encodes the message', async () => {
+    const { whatsappUrl } = await import('../../src/utils/whatsapp.js');
+    expect(whatsappUrl('0101 445 7781')).toBe('https://wa.me/201014457781');
+    expect(whatsappUrl('+20 101 445 7781', 'أهلاً يا فندم')).toBe(`https://wa.me/201014457781?text=${encodeURIComponent('أهلاً يا فندم')}`);
+  });
+});

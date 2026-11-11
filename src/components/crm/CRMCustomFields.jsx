@@ -1,4 +1,6 @@
-import { BriefcaseIcon, BuildingIcon, PlusIcon, SlidersIcon, UserIcon, UserPlusIcon } from '../icons/PosIcons.jsx';
+import {
+  ArrowDownIcon, ArrowUpIcon, BriefcaseIcon, BuildingIcon, PencilIcon, PlusIcon, SlidersIcon, TrashIcon, UserIcon, UserPlusIcon,
+} from '../icons/PosIcons.jsx';
 import { num } from './crmFormat.js';
 
 export const FIELD_ENTITIES = [
@@ -8,15 +10,16 @@ export const FIELD_ENTITIES = [
   { id: 'lead', label: 'العملاء المحتملون', Icon: UserPlusIcon, form: 'نموذج العميل المحتمل' },
 ];
 
-// The four types the database accepts (crm_custom_fields.field_type); each keeps one color everywhere.
+// The types the service lets you create; each keeps one color everywhere.
 export const FIELD_TYPES = {
   text: { label: 'نص', tone: 'muted' },
   number: { label: 'رقم', tone: 'info' },
+  select: { label: 'قائمة اختيار', tone: 'success' },
   date: { label: 'تاريخ', tone: 'warning' },
   boolean: { label: 'نعم / لا', tone: 'primary' },
 };
 
-function CRMCustomFields({ entity, onEntity, fieldsByEntity, loading, onAdd }) {
+function CRMCustomFields({ entity, onEntity, fieldsByEntity, loading, onAdd, onEdit, onDelete, onMove }) {
   const current = FIELD_ENTITIES.find((item) => item.id === entity) || FIELD_ENTITIES[0];
   const fields = fieldsByEntity[current.id] || [];
 
@@ -42,7 +45,7 @@ function CRMCustomFields({ entity, onEntity, fieldsByEntity, loading, onAdd }) {
       <section className="crm-ov-card crm-cf-main" aria-labelledby="crm-cf-title">
         <header className="crm-cf-head">
           <h2 id="crm-cf-title">حقول {current.label}</h2>
-          <p>الحقول دي بتظهر في {current.form} بالترتيب اللي اتضافت بيه.</p>
+          <p>الحقول دي بتظهر في {current.form} بالترتيب ده. غيّر الترتيب بالأسهم.</p>
         </header>
 
         {loading ? (
@@ -62,18 +65,37 @@ function CRMCustomFields({ entity, onEntity, fieldsByEntity, loading, onAdd }) {
         ) : (
           <>
             <ul className="crm-cf-list">
-              {fields.map((field) => {
+              {fields.map((field, index) => {
                 const type = FIELD_TYPES[field.field_type] || FIELD_TYPES.text;
                 return (
                   <li key={field.id} className="crm-cf-row">
+                    <div className="crm-cf-order">
+                      <button type="button" className="crm-cf-arrow" disabled={index === 0} onClick={() => onMove(field, -1)} aria-label={`تحريك ${field.label} لأعلى`}>
+                        <ArrowUpIcon size={14} />
+                      </button>
+                      <button type="button" className="crm-cf-arrow" disabled={index === fields.length - 1} onClick={() => onMove(field, 1)} aria-label={`تحريك ${field.label} لأسفل`}>
+                        <ArrowDownIcon size={14} />
+                      </button>
+                    </div>
                     <div className="crm-cf-name">
                       <strong>{field.label}</strong>
                       <code dir="ltr">{field.field_key}</code>
+                      {field.field_type === 'select' && field.options?.length > 0 && (
+                        <span className="crm-cf-options">{field.options.join(' · ')}</span>
+                      )}
                     </div>
                     <span className={`crm-ct-badge crm-ct-badge--${type.tone}`}>{type.label}</span>
                     <span className={`crm-ct-badge crm-ct-badge--${field.is_required ? 'primary' : 'muted'}`}>
                       {field.is_required ? 'مطلوب' : 'اختياري'}
                     </span>
+                    <div className="crm-ct-actions">
+                      <button type="button" className="crm-ct-icon-btn" onClick={() => onEdit(field)} title="تعديل الحقل" aria-label={`تعديل ${field.label}`}>
+                        <PencilIcon size={16} />
+                      </button>
+                      <button type="button" className="crm-ct-icon-btn crm-cf-delete" onClick={() => onDelete(field)} title="حذف الحقل" aria-label={`حذف ${field.label}`}>
+                        <TrashIcon size={16} />
+                      </button>
+                    </div>
                   </li>
                 );
               })}

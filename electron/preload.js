@@ -221,6 +221,11 @@ exportEmployees: () => ipcRenderer.invoke('export:employees'),
     ipcRenderer.on('notification:received', subscription);
     return () => ipcRenderer.removeListener('notification:received', subscription);
   },
+  onNotificationClicked: (callback) => {
+    const subscription = (_event, notification) => callback(notification);
+    ipcRenderer.on('notification:clicked', subscription);
+    return () => ipcRenderer.removeListener('notification:clicked', subscription);
+  },
 
   // Restaurant Tables
   getTables: () => ipcRenderer.invoke('tables:getTables'),
@@ -422,7 +427,11 @@ exportEmployees: () => ipcRenderer.invoke('export:employees'),
   createCRMPipelineStage: (data) => ipcRenderer.invoke('crm:createPipelineStage', data),
   updateCRMPipelineStage: (data) => ipcRenderer.invoke('crm:updatePipelineStage', data),
   createCRMAdvancedOpportunity: (data) => ipcRenderer.invoke('crm:createAdvancedOpportunity', data),
-  moveCRMOpportunity: (opportunityId, stageId) => ipcRenderer.invoke('crm:moveOpportunity', { opportunity_id: opportunityId, stage_id: stageId }),
+  getDailyMessages: () => ipcRenderer.invoke('crm:getDailyMessages'),
+  markDailyMessageSent: (kind, refId) => ipcRenderer.invoke('crm:markDailyMessageSent', { kind, refId }),
+  getDailyMessageTemplates: () => ipcRenderer.invoke('crm:getDailyMessageTemplates'),
+  saveDailyMessageTemplates: (templates) => ipcRenderer.invoke('crm:saveDailyMessageTemplates', templates),
+  moveCRMOpportunity: (opportunityId, stageId, lostReason) => ipcRenderer.invoke('crm:moveOpportunity', { opportunity_id: opportunityId, stage_id: stageId, lost_reason: lostReason }),
   assignCRMOpportunity: (opportunityId, ownerUserId) => ipcRenderer.invoke('crm:assignOpportunity', {
     opportunity_id: opportunityId,
     owner_user_id: ownerUserId || null,
@@ -446,6 +455,9 @@ exportEmployees: () => ipcRenderer.invoke('export:employees'),
   anonymizeCRMCustomer: (customerId) => ipcRenderer.invoke('crm:anonymizeCustomer', customerId),
   createCRMCustomField: (data) => ipcRenderer.invoke('crm:createCustomField', data),
   getCRMCustomFields: (entityType) => ipcRenderer.invoke('crm:getCustomFields', entityType),
+  updateCRMCustomField: (data) => ipcRenderer.invoke('crm:updateCustomField', data),
+  deleteCRMCustomField: (fieldId) => ipcRenderer.invoke('crm:deleteCustomField', fieldId),
+  reorderCRMCustomFields: (entityType, orderedIds) => ipcRenderer.invoke('crm:reorderCustomFields', { entityType, orderedIds }),
   setCRMCustomFieldValues: (entityType, recordId, values) => ipcRenderer.invoke('crm:setCustomFieldValues', { entityType, recordId, values }),
   getCRMCustomFieldValues: (entityType, recordId) => ipcRenderer.invoke('crm:getCustomFieldValues', { entityType, recordId }),
   getCRMAutomationRules: () => ipcRenderer.invoke('crm:getAutomationRules'),

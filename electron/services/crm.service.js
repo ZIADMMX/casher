@@ -124,7 +124,8 @@ function checkDueReminders() {
       type: 'warning',
       title: 'تذكير CRM مستحق الآن',
       message: `${activity.title}${activity.details ? ` — ${activity.details}` : ''}`,
-      linkPage: 'crm'
+      linkPage: 'crm',
+      desktop: true
     });
     if (notification) advancedCRMRepo.markActivityReminderSent(activity.id);
   }
@@ -135,7 +136,8 @@ function checkDueReminders() {
       type: 'warning',
       title: 'صفقة تحتاج إلى متابعة',
       message: `الصفقة "${opportunity.title}" مع ${opportunity.customer_name} متوقفة منذ ${opportunity.stale_days} أيام.`,
-      linkPage: 'crm'
+      linkPage: 'crm',
+      desktop: true
     });
     if (notification) advancedCRMRepo.markOpportunityStaleReminderSent(opportunity.id);
   }

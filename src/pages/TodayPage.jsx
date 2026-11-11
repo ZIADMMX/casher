@@ -5,6 +5,7 @@ import { useUser } from '../contexts/UserContext.jsx';
 import LawFirmTodayPage from '../components/legal/LawFirmTodayPage.jsx';
 import ShiftOpenModal from '../components/pos/ShiftOpenModal.jsx';
 import ShiftCloseModal from '../components/pos/ShiftCloseModal.jsx';
+import DailyMessagesCard from '../components/DailyMessagesCard.jsx';
 import {
   ArrowDownIcon, ArrowUpIcon, BagIcon, BoltIcon, CalendarIcon, CarIcon, CardIcon, CashIcon,
   CheckIcon, ClockIcon, LockIcon, PlusIcon, PulseIcon, ReceiptIcon, RefreshIcon, ScaleIcon,
@@ -17,6 +18,7 @@ import * as inventoryApi from '../api/inventory.js';
 import * as reportsApi from '../api/reports.js';
 import * as salonApi from '../api/salon.js';
 import * as shiftsApi from '../api/shifts.js';
+import { whatsappUrl } from '../utils/whatsapp.js';
 import '../styles/today.css';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -55,11 +57,7 @@ export function bucketAppointments(appointments, now) {
   };
 }
 
-// shortcut: assumes Egyptian local numbers (01xxxxxxxxx), add a country setting if the app sells abroad.
-export const whatsappUrl = (phone) => {
-  const digits = String(phone).replace(/\D/g, '');
-  return `https://wa.me/${digits.startsWith('0') ? `20${digits.slice(1)}` : digits}`;
-};
+export { whatsappUrl };
 
 const PAYMENT_LABELS = { card: 'شبكة', credit: 'آجل', wallet: 'محفظة' };
 
@@ -695,6 +693,8 @@ function SectorTodayPage({ onNavigate, currentUser }) {
               )}
             </div>
           </div>
+
+          <DailyMessagesCard />
 
           <div className="today-white-card customer-health-card">
             <div className="today-white-card-header">

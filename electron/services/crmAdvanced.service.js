@@ -5,7 +5,7 @@ const RECORD_TYPES = new Set(['customer', 'company', 'lead', 'opportunity']);
 const LEAD_STATUSES = new Set(['new', 'contacted', 'qualified', 'converted', 'lost']);
 const STAGE_OUTCOMES = new Set(['open', 'won', 'lost']);
 const ACTIVITY_TYPES = new Set(['call', 'meeting', 'task', 'email', 'note']);
-const FIELD_TYPES = new Set(['text', 'number', 'date', 'boolean']);
+const FIELD_TYPES = new Set(['text', 'number', 'date', 'boolean', 'select']);
 
 function requireObject(value, label) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -201,7 +201,9 @@ function normalizeLead(data, userId) {
     source: optionalText(data.source, 'مصدر العميل المحتمل', 100),
     status,
     notes: optionalText(data.notes, 'الملاحظات', 5000),
+    expected_value: finiteNumber(data.expected_value, 'القيمة المتوقعة', 0),
   };
+  if (!Number.isFinite(lead.expected_value) || lead.expected_value < 0) throw new Error('القيمة المتوقعة غير صحيحة');
   return { ...lead, owner_user_id: validateOwner(data.owner_user_id) || userId || null };
 }
 
@@ -251,6 +253,7 @@ function importLeads(rows, userId) {
         email: row['البريد الإلكتروني'] ?? row.email,
         source: row['المصدر'] ?? row.source,
         notes: row['ملاحظات'] ?? row.notes,
+        expected_value: row['القيمة المتوقعة'] ?? row.expected_value,
       }, userId));
     } catch (error) {
       errors.push({ row: index + 2, message: error.message });
@@ -367,6 +370,8 @@ function moveOpportunity(data, userId) {
   const opportunity = repo.moveOpportunity({
     opportunityId: requireId(data?.opportunity_id, 'الصفقة'),
     stageId: requireId(data?.stage_id, 'المرحلة'),
+    // Kept only when the deal lands in a lost stage (the repository clears it otherwise).
+    lostReason: optionalText(data.lost_reason, 'سبب الخسارة', 200),
   }, userId);
   crmCache.invalidate();
   return opportunity;
@@ -559,7 +564,8 @@ function createCustomField(data) {
   if (!label || !key || !/^[a-z][a-z0-9_]*$/.test(key)) {
     throw new Error('مفتاح الحقل مطلوب ويجب أن يبدأ بحرف إنجليزي صغير');
   }
-  if (!FIELD_TYPES.has(data.field_type || 'text')) throw new Error('نوع الحقل غير مدعوم');
+  const fieldType = data.field_type || 'text';
+  if (!FIELD_TYPES.has(fieldType)) throw new Error('نوع الحقل غير مدعوم');
   if (data.is_required !== undefined && typeof data.is_required !== 'boolean') {
     throw new Error('حالة إلزامية الحقل غير صحيحة');
   }
@@ -567,9 +573,53 @@ function createCustomField(data) {
     entity_type: entityType,
     field_key: key,
     label,
-    field_type: data.field_type || 'text',
+    field_type: fieldType,
     is_required: Boolean(data.is_required),
+    options: fieldType === 'select' ? normalizeFieldOptions(data.options) : null,
   });
+}
+
+/** A choice list needs 1–50 distinct, non-empty choices of up to 60 characters. */
+function normalizeFieldOptions(options) {
+  if (!Array.isArray(options)) throw new Error('اختيارات القائمة مطلوبة');
+  const cleaned = options.map((option) => (typeof option === 'string' ? option.trim() : ''));
+  if (cleaned.some((option) => !option || option.length > 60)) {
+    throw new Error('كل اختيار لازم يكون نص من حرف لـ 60 حرف');
+  }
+  if (cleaned.length < 1 || cleaned.length > 50) throw new Error('القائمة لازم يكون فيها من اختيار لـ 50 اختيار');
+  if (new Set(cleaned).size !== cleaned.length) throw new Error('في اختيار مكرر في القائمة');
+  return cleaned;
+}
+
+function updateCustomField(data) {
+  requireObject(data, 'بيانات الحقل المخصص');
+  const id = requireId(data?.id, 'الحقل المخصص');
+  const existing = repo.getCustomFieldById(id);
+  if (!existing) throw new Error('الحقل المخصص غير موجود');
+  const label = optionalText(data.label, 'اسم الحقل', 80);
+  if (!label) throw new Error('اسم الحقل مطلوب');
+  if (typeof data.is_required !== 'boolean') throw new Error('حالة إلزامية الحقل غير صحيحة');
+  return repo.updateCustomField({
+    id,
+    label,
+    is_required: data.is_required,
+    options: existing.field_type === 'select' ? normalizeFieldOptions(data.options) : null,
+  });
+}
+
+function deleteCustomField(fieldId) {
+  return repo.deleteCustomField(requireId(fieldId, 'الحقل المخصص'));
+}
+
+function reorderCustomFields(entityType, orderedIds) {
+  if (!RECORD_TYPES.has(entityType)) throw new Error('نوع السجل غير صحيح');
+  if (!Array.isArray(orderedIds) || orderedIds.length > 200) throw new Error('ترتيب الحقول غير صحيح');
+  const ids = orderedIds.map((id) => requireId(id, 'الحقل المخصص'));
+  const known = new Set(repo.getCustomFields(entityType).map((field) => field.id));
+  if (ids.length !== known.size || new Set(ids).size !== ids.length || ids.some((id) => !known.has(id))) {
+    throw new Error('ترتيب الحقول لازم يشمل كل حقول النوع ده مرة واحدة');
+  }
+  return repo.reorderCustomFields(entityType, ids);
 }
 
 function getCustomFields(entityType) {
@@ -616,6 +666,10 @@ function setCustomFieldValues(entityType, recordId, values, userId) {
       throw new Error(`قيمة الحقل "${field.label}" يجب أن تكون نعم أو لا`);
     }
     if (field.field_type === 'date') normalizeDate(value, `قيمة الحقل "${field.label}"`);
+    // An empty choice means "not chosen yet".
+    if (field.field_type === 'select' && value !== '' && !(field.options || []).includes(value)) {
+      throw new Error(`قيمة الحقل "${field.label}" لازم تكون من الاختيارات المتاحة`);
+    }
   }
   if (!repo.recordExists(entityType, id)) throw new Error('السجل غير موجود');
   repo.setCustomFieldValues(entityType, id, normalizedValues, userId);
@@ -675,6 +729,9 @@ module.exports = {
   anonymizeCustomer,
   createCustomField,
   getCustomFields,
+  updateCustomField,
+  deleteCustomField,
+  reorderCustomFields,
   setCustomFieldValues,
   getCustomFieldValues,
   getAutomationRules,

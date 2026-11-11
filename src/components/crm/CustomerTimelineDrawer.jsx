@@ -2,7 +2,13 @@ import { useState, useEffect, useCallback } from 'react';
 import Input from '../ui/Input.jsx';
 import * as crmApi from '../../api/crm.js';
 import * as customersApi from '../../api/customers.js';
+import {
+  BriefcaseIcon, CallIcon, CloseIcon, ClockIcon, ShieldIcon, StarIcon,
+} from '../icons/PosIcons.jsx';
+import { agoText, daysBetween, initials, money, num, parseDbDate } from './crmFormat.js';
+import { openWhatsapp } from '../../utils/whatsapp.js';
 import '../../styles/crm.css';
+import '../../styles/crm-overview.css';
 
 const INTERACTION_TYPES = [
   { value: 'call', label: 'مكالمة هاتفية' },
@@ -13,19 +19,51 @@ const INTERACTION_TYPES = [
 ];
 
 const STAGES = [
-  { value: 'lead', label: 'عميل محتمل (Lead)' },
-  { value: 'qualified', label: 'مؤهل (Qualified)' },
-  { value: 'proposal', label: 'عرض سعر (Proposal)' },
-  { value: 'won', label: 'صفقة ناجحة (Won)' },
-  { value: 'lost', label: 'صفقة خاسرة (Lost)' }
+  { value: 'lead', label: 'عميل محتمل' },
+  { value: 'qualified', label: 'مؤهل' },
+  { value: 'proposal', label: 'عرض سعر' },
+  { value: 'won', label: 'صفقة ناجحة' },
+  { value: 'lost', label: 'صفقة خاسرة' }
 ];
 
+// Same labels and tones as the contacts table; the stored values stay English.
 const TIERS = [
-  { value: 'Regular', label: 'عادي (Regular)' },
-  { value: 'Silver', label: 'فضي (Silver)' },
-  { value: 'Gold', label: 'ذهبي (Gold)' },
-  { value: 'VIP', label: 'كبار الشخصيات (VIP)' }
+  { value: 'Regular', label: 'عميل عادي', tone: 'info' },
+  { value: 'Silver', label: 'عميل متكرر', tone: 'warning' },
+  { value: 'Gold', label: 'عميل مميز', tone: 'success' },
+  { value: 'VIP', label: 'كبار العملاء', tone: 'primary' }
 ];
+
+const TABS = [
+  { id: 'timeline', label: 'السجل الزمني', Icon: ClockIcon },
+  { id: 'add_interaction', label: 'تسجيل تواصل', Icon: CallIcon },
+  { id: 'add_opportunity', label: 'صفقة جديدة', Icon: BriefcaseIcon },
+  { id: 'edit_rating', label: 'التقييم والتصنيف', Icon: StarIcon },
+  { id: 'crm_details', label: 'بيانات CRM والخصوصية', Icon: ShieldIcon, crmOnly: true },
+];
+
+const MARKER_TONES = { sale: 'success', payment: 'info', return: 'warning', debt: 'warning', complaint: 'warning' };
+const CONTACT_TYPES = new Set(['call', 'note', 'message', 'complaint', 'offer']);
+
+/** The four numbers on top of the 360° window, from the unified timeline. */
+export function summarizeTimeline(timeline, now = new Date()) {
+  const summary = { sales: 0, salesTotal: 0, contacts: 0, lastContactDays: null };
+  timeline.forEach((item) => {
+    if (item.type === 'sale') {
+      summary.sales += 1;
+      summary.salesTotal += Number(item.amount) || 0;
+    } else if (item.type === 'return') {
+      summary.salesTotal -= Number(item.amount) || 0;
+    }
+    if (CONTACT_TYPES.has(item.type)) {
+      summary.contacts += 1;
+      const at = parseDbDate(item.created_at);
+      const days = at ? daysBetween(at, now) : null;
+      if (days !== null && (summary.lastContactDays === null || days < summary.lastContactDays)) summary.lastContactDays = days;
+    }
+  });
+  return summary;
+}
 
 function RenderItemIcon({ type }) {
   const iconProps = { width: 14, height: 14, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" };
@@ -162,6 +200,13 @@ function CustomerTimelineDrawer({ customer, onClose, onCustomerUpdated, crmMode 
     customer?.sms_consent,
     fetchCRMDetails,
   ]);
+
+  // Escape closes the window, unless the privacy confirmation is open on top of it.
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape' && !confirmAnonymize) onClose(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose, confirmAnonymize]);
 
   const handleAddInteraction = async (e) => {
     e.preventDefault();
@@ -300,71 +345,75 @@ function CustomerTimelineDrawer({ customer, onClose, onCustomerUpdated, crmMode 
     }
   };
 
+  const tierInfo = TIERS.find((item) => item.value === (customer?.tier || 'Regular')) || TIERS[0];
+  const customerRating = customer?.rating || 5;
+  const summary = summarizeTimeline(timeline);
+  const show = (value) => (loading ? '—' : value);
+
   return (
     <div className="modal-overlay crm-drawer-overlay" onClick={onClose}>
       <div
         className="modal-box crm-drawer-box"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="crm-drawer-title"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="modal-header crm-drawer-header">
-          <div>
-            <h3 className="crm-drawer-title">
-              السجل الموحد للعميل: {customer?.name}
-            </h3>
+          <span className="crm-ov-avatar crm-drawer-avatar" aria-hidden="true">{initials(customer?.name)}</span>
+          <div className="crm-drawer-heading">
+            <h3 id="crm-drawer-title" className="crm-drawer-title">{customer?.name}</h3>
             <div className="crm-drawer-meta">
-              <span>الهاتف: {customer?.phone || 'بدون هاتف'}</span>
-              <span>التقييم: {customer?.rating || 5} / 5</span>
-              <span className="badge badge-primary">{customer?.tier || 'Regular'}</span>
+              <span className="crm-drawer-phone">{customer?.phone || 'بدون هاتف'}</span>
+              <span className={`crm-ct-badge crm-ct-badge--${tierInfo.tone}`}>{tierInfo.label}</span>
+              <span className="crm-drawer-stars" role="img" aria-label={`التقييم ${customerRating} من 5`}>
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <StarIcon key={star} size={14} className={star <= customerRating ? 'is-on' : ''} />
+                ))}
+              </span>
             </div>
           </div>
-          <button type="button" className="modal-close-btn" onClick={onClose}>✕</button>
+          {customer?.phone && (
+            <button
+              type="button"
+              className="crm-ov-btn crm-ov-btn--sm"
+              onClick={() => openWhatsapp(customer.phone, `أهلاً ${customer.name}،`)}
+            >
+              <CallIcon size={16} />
+              واتساب
+            </button>
+          )}
+          <button type="button" className="modal-close-btn" aria-label="إغلاق" onClick={onClose}>
+            <CloseIcon size={18} />
+          </button>
+        </div>
+
+        <div className="crm-drawer-summary">
+          <div><span>إجمالي المشتريات</span><strong>{show(money(summary.salesTotal))}</strong></div>
+          <div><span>عدد الفواتير</span><strong>{show(num(summary.sales))}</strong></div>
+          <div><span>مرات التواصل</span><strong>{show(num(summary.contacts))}</strong></div>
+          <div>
+            <span>آخر تواصل</span>
+            <strong>{show(summary.lastContactDays === null ? 'لا يوجد' : agoText(summary.lastContactDays))}</strong>
+          </div>
         </div>
 
         {/* Tab Buttons */}
-        <div className="crm-drawer-tabs" role="tablist" aria-label="سجل العميل">
-          <button 
-            type="button" 
-            className={`secondary-btn crm-drawer-tab ${activeTab === 'timeline' ? 'active-tab-btn' : ''}`}
-            aria-pressed={activeTab === 'timeline'}
-            onClick={() => setActiveTab('timeline')}
-          >
-            السجل الزمني الموحد (Timeline)
-          </button>
-          <button 
-            type="button" 
-            className={`secondary-btn crm-drawer-tab ${activeTab === 'add_interaction' ? 'active-tab-btn' : ''}`}
-            aria-pressed={activeTab === 'add_interaction'}
-            onClick={() => setActiveTab('add_interaction')}
-          >
-            + تسجيل تواصل / ملاحظة
-          </button>
-          <button 
-            type="button" 
-            className={`secondary-btn crm-drawer-tab ${activeTab === 'add_opportunity' ? 'active-tab-btn' : ''}`}
-            aria-pressed={activeTab === 'add_opportunity'}
-            onClick={() => setActiveTab('add_opportunity')}
-          >
-            + فرصة بيع جديدة
-          </button>
-          <button 
-            type="button" 
-            className={`secondary-btn crm-drawer-tab ${activeTab === 'edit_rating' ? 'active-tab-btn' : ''}`}
-            aria-pressed={activeTab === 'edit_rating'}
-            onClick={() => setActiveTab('edit_rating')}
-          >
-            التقييم والتصنيف
-          </button>
-          {crmMode && (
+        <div className="crm-ov-tabs crm-drawer-tabs" role="tablist" aria-label="سجل العميل">
+          {TABS.filter((tab) => crmMode || !tab.crmOnly).map(({ id, label, Icon }) => (
             <button
+              key={id}
               type="button"
-              className={`secondary-btn crm-drawer-tab ${activeTab === 'crm_details' ? 'active-tab-btn' : ''}`}
-              aria-pressed={activeTab === 'crm_details'}
-              onClick={() => setActiveTab('crm_details')}
+              role="tab"
+              className={`crm-ov-tab ${activeTab === id ? 'is-active' : ''}`}
+              aria-selected={activeTab === id}
+              onClick={() => setActiveTab(id)}
             >
-              بيانات CRM والخصوصية
+              <Icon size={16} />
+              {label}
             </button>
-          )}
+          ))}
         </div>
 
         {error && (
@@ -384,8 +433,14 @@ function CustomerTimelineDrawer({ customer, onClose, onCustomerUpdated, crmMode 
                   جاري تحميل السجل الزمني الموحد...
                 </div>
               ) : timeline.length === 0 ? (
-                <div className="crm-empty-state">
-                  لا توجد تفاعلات أو سجلات سابقة لهذا العميل.
+                <div className="crm-ov-empty crm-ct-empty">
+                  <span className="crm-ov-chip crm-ov-chip--lg"><ClockIcon size={22} /></span>
+                  <strong>لسه مفيش سجل للعميل ده</strong>
+                  <p>أي فاتورة أو مكالمة أو ملاحظة هتظهر هنا بالترتيب.</p>
+                  <button type="button" className="crm-ov-btn crm-ov-btn--primary" onClick={() => setActiveTab('add_interaction')}>
+                    <CallIcon size={18} />
+                    تسجيل أول تواصل
+                  </button>
                 </div>
               ) : (
                 <div className="crm-timeline">
@@ -394,7 +449,9 @@ function CustomerTimelineDrawer({ customer, onClose, onCustomerUpdated, crmMode 
                   {timeline.map((item, idx) => (
                     <div key={`${item.kind}-${item.id}-${idx}`} className="crm-timeline-item">
                       <span className="crm-timeline-marker">
-                        <RenderItemIcon type={item.type} />
+                        <span className={`crm-ov-chip crm-ov-chip--${MARKER_TONES[item.type] || 'muted'}`}>
+                          <RenderItemIcon type={item.type} />
+                        </span>
                       </span>
 
                       <div className="crm-timeline-card">
@@ -403,7 +460,7 @@ function CustomerTimelineDrawer({ customer, onClose, onCustomerUpdated, crmMode 
                             {item.title}
                           </span>
                           <span className="crm-timeline-date">
-                            {new Date(item.created_at).toLocaleString('ar-EG')}
+                            {parseDbDate(item.created_at)?.toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' })}
                           </span>
                         </div>
 
@@ -416,7 +473,7 @@ function CustomerTimelineDrawer({ customer, onClose, onCustomerUpdated, crmMode 
                         <div className="crm-timeline-meta">
                           {item.amount != null && item.amount > 0 && (
                             <span className="crm-timeline-amount">
-                              {Number(item.amount).toLocaleString()} ج.م
+                              {money(item.amount)}
                             </span>
                           )}
                           {item.follow_up_date && (
@@ -442,7 +499,7 @@ function CustomerTimelineDrawer({ customer, onClose, onCustomerUpdated, crmMode 
           {activeTab === 'add_interaction' && (
             <form onSubmit={handleAddInteraction} className="crm-drawer-form">
               <div>
-                <label className="crm-drawer-field-label">نوع التفاعل:</label>
+                <label className="crm-drawer-field-label">نوع التفاعل</label>
                 <select 
                   value={interactionForm.type} 
                   onChange={(e) => setInteractionForm({ ...interactionForm, type: e.target.value })}
@@ -455,7 +512,7 @@ function CustomerTimelineDrawer({ customer, onClose, onCustomerUpdated, crmMode 
               </div>
 
               <div>
-                <label className="crm-drawer-field-label">الموضوع / العنوان الرئيسي <span className="crm-required">*</span>:</label>
+                <label className="crm-drawer-field-label">الموضوع / العنوان الرئيسي <span className="crm-required">*</span></label>
                 <input 
                   type="text" 
                   placeholder="مثال: مكالمة استفسار عن منتج جديد، أو متابعة تحصيل"
@@ -467,7 +524,7 @@ function CustomerTimelineDrawer({ customer, onClose, onCustomerUpdated, crmMode 
               </div>
 
               <div>
-                <label className="crm-drawer-field-label">التفاصيل والملاحظات:</label>
+                <label className="crm-drawer-field-label">التفاصيل والملاحظات</label>
                 <textarea 
                   rows="4" 
                   placeholder="اكتب ملخص ما تم مناقشته مع العميل..."
@@ -478,7 +535,7 @@ function CustomerTimelineDrawer({ customer, onClose, onCustomerUpdated, crmMode 
               </div>
 
               <div>
-                <label className="crm-drawer-field-label">تاريخ تذكير المتابعة القادمة (اختياري):</label>
+                <label className="crm-drawer-field-label">تاريخ تذكير المتابعة القادمة (اختياري)</label>
                 <input 
                   type="date" 
                   value={interactionForm.follow_up_date}
@@ -498,7 +555,7 @@ function CustomerTimelineDrawer({ customer, onClose, onCustomerUpdated, crmMode 
           {activeTab === 'add_opportunity' && (
             <form onSubmit={handleCreateOpportunity} className="crm-drawer-form">
               <div>
-                <label className="crm-drawer-field-label">عنوان صفقة البيع <span className="crm-required">*</span>:</label>
+                <label className="crm-drawer-field-label">عنوان صفقة البيع <span className="crm-required">*</span></label>
                 <input 
                   type="text" 
                   placeholder="مثال: توريد كمية أجهزة للمكتب، أو اتفاقية سنوية"
@@ -511,7 +568,7 @@ function CustomerTimelineDrawer({ customer, onClose, onCustomerUpdated, crmMode 
 
               <div className="crm-drawer-two-column">
                 <div>
-                  <label className="crm-drawer-field-label">مرحلة الصفقة:</label>
+                  <label className="crm-drawer-field-label">مرحلة الصفقة</label>
                   <select 
                     value={oppForm.stage} 
                     onChange={(e) => setOppForm({ ...oppForm, stage: e.target.value })}
@@ -524,7 +581,7 @@ function CustomerTimelineDrawer({ customer, onClose, onCustomerUpdated, crmMode 
                 </div>
 
                 <div>
-                  <label className="crm-drawer-field-label">القيمة المتوقعة (ج.م):</label>
+                  <label className="crm-drawer-field-label">القيمة المتوقعة (ج.م)</label>
                   <input 
                     type="number" 
                     min="0" 
@@ -538,7 +595,7 @@ function CustomerTimelineDrawer({ customer, onClose, onCustomerUpdated, crmMode 
               </div>
 
               <div>
-                <label className="crm-drawer-field-label">تاريخ الإغلاق المتوقع:</label>
+                <label className="crm-drawer-field-label">تاريخ الإغلاق المتوقع</label>
                 <input 
                   type="date" 
                   value={oppForm.expected_close_date}
@@ -548,7 +605,7 @@ function CustomerTimelineDrawer({ customer, onClose, onCustomerUpdated, crmMode 
               </div>
 
               <div>
-                <label className="crm-drawer-field-label">ملاحظات ومستجدات الصفقة:</label>
+                <label className="crm-drawer-field-label">ملاحظات ومستجدات الصفقة</label>
                 <textarea 
                   rows="3" 
                   placeholder="ملاحظات حول العرض المقدم أو الشروط..."
@@ -569,7 +626,7 @@ function CustomerTimelineDrawer({ customer, onClose, onCustomerUpdated, crmMode 
           {activeTab === 'edit_rating' && (
             <form onSubmit={handleUpdateRatingAndTier} className="crm-drawer-form">
               <div>
-                <label className="crm-drawer-field-label">تصنيف العميل (Customer Tier):</label>
+                <label className="crm-drawer-field-label">تصنيف العميل</label>
                 <select 
                   value={tier}
                   onChange={(e) => setTier(e.target.value)}
@@ -582,7 +639,7 @@ function CustomerTimelineDrawer({ customer, onClose, onCustomerUpdated, crmMode 
               </div>
 
               <div>
-                <label className="crm-drawer-field-label">تقييم العميل (من 1 إلى 5 نجوم):</label>
+                <label className="crm-drawer-field-label">تقييم العميل (من 1 إلى 5 نجوم)</label>
                 <div className="crm-rating-stars">
                   {[1, 2, 3, 4, 5].map(star => (
                     <span 
@@ -652,6 +709,19 @@ function CustomerTimelineDrawer({ customer, onClose, onCustomerUpdated, crmMode 
                                 />
                                 نعم / مفعل
                               </label>
+                            ) : field.field_type === 'select' ? (
+                              <select
+                                className="crm-form-select"
+                                value={customFieldValues[field.field_key] || ''}
+                                onChange={(event) => setCustomFieldValues({
+                                  ...customFieldValues,
+                                  [field.field_key]: event.target.value,
+                                })}
+                                required={Boolean(field.is_required)}
+                              >
+                                <option value="">اختر...</option>
+                                {(field.options || []).map((option) => <option key={option} value={option}>{option}</option>)}
+                              </select>
                             ) : (
                               <Input
                                 className="crm-form-input"

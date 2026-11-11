@@ -21,6 +21,7 @@ import PageTutorial from './components/PageTutorial.jsx';
 import { hasPermission } from './utils/accessControl.js';
 import * as inventoryApi from './api/inventory.js';
 import * as licenseApi from './api/license.js';
+import * as notificationsApi from './api/notifications.js';
 import PageErrorBoundary from './components/system/PageErrorBoundary.jsx';
 
 // التحميل الكسول للصفحات الإدارية لتسريع فتح البرنامج وتقليل حجم الحزمة الأولى
@@ -66,6 +67,14 @@ function AppContent() {
     setOpenNewCaseOnLoad(page === 'cases' && options.createCase === true);
     setActivePage(page);
   }
+
+  // Clicking a Windows notification opens the page it points to.
+  useEffect(() => {
+    if (!notificationsApi.onNotificationClicked.isAvailable()) return undefined;
+    return notificationsApi.onNotificationClicked((notification) => {
+      if (notification?.link_page) setActivePage(notification.link_page);
+    });
+  }, []);
 
   const checkLicense = useCallback(async () => {
     setLicenseError('');

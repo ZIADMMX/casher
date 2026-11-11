@@ -1,16 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Input from '../ui/Input.jsx';
-import Badge from '../ui/Badge.jsx';
 import * as crmApi from '../../api/crm.js';
 import * as customersApi from '../../api/customers.js';
 import CRMHeader from './CRMHeader.jsx';
 import CRMCompaniesGrid from './CRMCompaniesGrid.jsx';
 import CRMLeadsList, { LEAD_STATUSES } from './CRMLeadsList.jsx';
-import CRMCustomFields, { FIELD_ENTITIES } from './CRMCustomFields.jsx';
+import CRMCustomFields, { FIELD_ENTITIES, FIELD_TYPES } from './CRMCustomFields.jsx';
 import CRMAutomationPanel, { DEFAULT_STALE_RULE } from './CRMAutomationPanel.jsx';
+import CRMActivitiesList from './CRMActivitiesList.jsx';
+import CRMModal from './CRMModal.jsx';
 import {
-  BoltIcon, BuildingIcon, DownloadIcon, PlusIcon, SlidersIcon, UploadIcon, UserPlusIcon,
+  BoltIcon, BuildingIcon, CalendarIcon, DownloadIcon, PlusIcon, SlidersIcon, UploadIcon, UserPlusIcon,
 } from '../icons/PosIcons.jsx';
+
+const EMPTY_FIELD_FORM = { label: '', field_key: '', field_type: 'text', is_required: false, optionsText: '' };
 
 function IconBuilding() {
   return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v8h4"/><path d="M18 9h2a2 2 0 0 1 2 2v11h-4"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/></svg>;
@@ -55,7 +58,8 @@ function CRMOperations({ section, crmTabs = null }) {
   // All four entity types load together so the side list can show each one's field count.
   const [fieldsByEntity, setFieldsByEntity] = useState({});
   const [fieldEntity, setFieldEntity] = useState('customer');
-  const [fieldForm, setFieldForm] = useState({ label: '', field_key: '', field_type: 'text', is_required: false });
+  const [fieldForm, setFieldForm] = useState(EMPTY_FIELD_FORM);
+  const [fieldToDelete, setFieldToDelete] = useState(null);
   const [automationRule, setAutomationRule] = useState(DEFAULT_STALE_RULE);
   const [form, setForm] = useState({});
   const [error, setError] = useState('');
@@ -273,20 +277,69 @@ function CRMOperations({ section, crmTabs = null }) {
     }
   };
 
-  const createCustomField = async (event) => {
+  const reloadFields = async () => {
+    const entityFields = await crmApi.getCRMCustomFields(fieldEntity);
+    setFieldsByEntity((current) => ({ ...current, [fieldEntity]: entityFields || [] }));
+  };
+
+  const openFieldModal = (field = null) => {
+    setFieldForm(field
+      ? { ...field, is_required: Boolean(field.is_required), optionsText: (field.options || []).join('\n') }
+      : EMPTY_FIELD_FORM);
+    openModal('field');
+  };
+
+  // One window adds a field or edits one; a choice list takes one choice per line.
+  const saveCustomField = async (event) => {
     event.preventDefault();
+    const options = fieldForm.field_type === 'select'
+      ? fieldForm.optionsText.split('\n').map((line) => line.trim()).filter(Boolean)
+      : undefined;
     try {
-      await crmApi.createCRMCustomField({
-        ...fieldForm,
-        entity_type: fieldEntity,
-      });
-      setFieldForm({ label: '', field_key: '', field_type: 'text', is_required: false });
+      if (fieldForm.id) {
+        await crmApi.updateCRMCustomField({ id: fieldForm.id, label: fieldForm.label, is_required: fieldForm.is_required, options });
+      } else {
+        await crmApi.createCRMCustomField({
+          label: fieldForm.label,
+          field_key: fieldForm.field_key,
+          field_type: fieldForm.field_type,
+          is_required: fieldForm.is_required,
+          options,
+          entity_type: fieldEntity,
+        });
+      }
+      setMessage(fieldForm.id ? 'تم تعديل الحقل المخصص.' : 'تم إضافة الحقل المخصص بنجاح.');
+      setFieldForm(EMPTY_FIELD_FORM);
       closeModal();
-      const entityFields = await crmApi.getCRMCustomFields(fieldEntity);
-      setFieldsByEntity((current) => ({ ...current, [fieldEntity]: entityFields || [] }));
-      setMessage('تم إضافة الحقل المخصص بنجاح.');
+      await reloadFields();
     } catch (fieldError) {
-      setError(fieldError.message || 'تعذر إنشاء الحقل');
+      setError(fieldError.message || 'تعذر حفظ الحقل');
+    }
+  };
+
+  const deleteCustomField = async () => {
+    if (!fieldToDelete) return;
+    try {
+      await crmApi.deleteCRMCustomField(fieldToDelete.id);
+      setFieldToDelete(null);
+      await reloadFields();
+      setMessage('تم حذف الحقل المخصص وقيمه.');
+    } catch (deleteError) {
+      setError(deleteError.message || 'تعذر حذف الحقل');
+    }
+  };
+
+  const moveCustomField = async (field, step) => {
+    const ids = (fieldsByEntity[fieldEntity] || []).map((item) => item.id);
+    const from = ids.indexOf(field.id);
+    const to = from + step;
+    if (from < 0 || to < 0 || to >= ids.length) return;
+    [ids[from], ids[to]] = [ids[to], ids[from]];
+    try {
+      const ordered = await crmApi.reorderCRMCustomFields(fieldEntity, ids);
+      setFieldsByEntity((current) => ({ ...current, [fieldEntity]: ordered || [] }));
+    } catch (orderError) {
+      setError(orderError.message || 'تعذر تغيير ترتيب الحقول');
     }
   };
 
@@ -328,28 +381,23 @@ function CRMOperations({ section, crmTabs = null }) {
     }
   };
 
-  const heading = section === 'companies'
-    ? 'الشركات والفروع'
-    : section === 'leads'
-      ? 'العملاء المحتملون'
-      : section === 'fields'
-        ? 'حقول CRM المخصصة'
-        : section === 'automation'
-          ? 'الأتمتة والتذكيرات'
-        : 'الأنشطة والمهام';
-
-  const subtitle = section === 'companies'
-    ? 'إدارة حسابات الشركات والمؤسسات والفروع التابعة لها'
-    : section === 'leads'
-      ? 'متابعة العملاء المحتملين وتأهيلهم للتحول لصفقات ناجحة'
-      : section === 'fields'
-        ? 'تخصيص البيانات وإضافة حقول إضافية لجهات الاتصال والصفقات'
-        : section === 'automation'
-          ? 'إعداد القواعد الذكية والتنبيهات الدورية لتجنب ركود الصفقات'
-        : 'تنظيم المهام اليومية، المكالمات والاجتماعات للمتابعة الدورية';
-
   return (
     <section className="crm-operations">
+      {section === 'tasks' && (
+        <>
+          <CRMHeader icon={CalendarIcon} title="الأنشطة والمهام" subtitle="مكالماتك ومواعيدك مترتبة باليوم — كل مهمة مربوطة بعميل أو صفقة.">
+            <button type="button" className="crm-ov-btn" onClick={() => exportRows('activities')}>
+              <UploadIcon size={18} />
+              تصدير الأنشطة
+            </button>
+            <button type="button" className="crm-ov-btn crm-ov-btn--primary" onClick={() => openModal('task')}>
+              <PlusIcon size={18} />
+              نشاط / مهمة جديدة
+            </button>
+          </CRMHeader>
+          {crmTabs}
+        </>
+      )}
       {section === 'companies' && (
         <>
           <CRMHeader
@@ -372,7 +420,7 @@ function CRMOperations({ section, crmTabs = null }) {
       {section === 'fields' && (
         <>
           <CRMHeader icon={SlidersIcon} title="الحقول المخصصة" subtitle="ضيف بيانات خاصة بنشاطك على سجلات العملاء والصفقات.">
-            <button type="button" className="crm-ov-btn crm-ov-btn--primary" onClick={() => openModal('field')}>
+            <button type="button" className="crm-ov-btn crm-ov-btn--primary" onClick={() => openFieldModal()}>
               <PlusIcon size={18} />
               حقل مخصص جديد
             </button>
@@ -487,6 +535,7 @@ function CRMOperations({ section, crmTabs = null }) {
             status: lead.status || 'new',
             owner_user_id: lead.owner_user_id || '',
             notes: lead.notes || '',
+            expected_value: lead.expected_value || '',
           })}
           onDelete={(lead) => setLeadToDelete({ id: lead.id, name: lead.name })}
           onStatusChange={(lead, nextStatus) => updateLeadStatus(lead.id, nextStatus)}
@@ -495,94 +544,12 @@ function CRMOperations({ section, crmTabs = null }) {
 
       {/* Section 3: Tasks & Activities */}
       {section === 'tasks' && (
-        <>
-          <div className="crm-toolbar">
-            <div className="crm-toolbar-left">
-              <div>
-                <h2 className="crm-operation-heading">{heading}</h2>
-                <p className="crm-operation-description">{subtitle}</p>
-              </div>
-            </div>
-            <div className="crm-toolbar-right">
-              <button type="button" className="secondary-btn" onClick={() => exportRows('activities')}>
-                تصدير الأنشطة
-              </button>
-              <button type="button" className="primary-btn" onClick={() => openModal('task')}>
-                + تسجيل نشاط / مهمة جديدة
-              </button>
-            </div>
-          </div>
-
-          <div className="crm-table-card">
-            {loading ? (
-              <div className="crm-empty-state">جارٍ تحميل المهام والأنشطة...</div>
-            ) : activities.length === 0 ? (
-              <div className="crm-empty-state">
-                <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                  <path d="M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />
-                </svg>
-                <strong>لا توجد أنشطة أو مهام مسجلة</strong>
-                <p>سجل مكالماتك ومواعيد اجتماعاتك لتنظيم يومك وزيادة الإنتاجية.</p>
-                <button type="button" className="primary-btn" onClick={() => openModal('task')}>
-                  + تسجيل أول نشاط
-                </button>
-              </div>
-            ) : (
-              <table className="crm-table">
-                <thead>
-                  <tr>
-                    <th>النشاط</th>
-                    <th>النوع</th>
-                    <th>الموعد</th>
-                    <th>التفاصيل</th>
-                    <th>المسؤول</th>
-                    <th>الحالة</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {activities.map((activity) => (
-                    <tr key={activity.id}>
-                      <td>
-                        <div className="crm-entity-cell">
-                          <div className="crm-avatar activity">
-                            {activity.activity_type === 'call' ? 'اتصال' : activity.activity_type === 'meeting' ? 'لقاء' : 'مهمة'}
-                          </div>
-                          <div className="crm-entity-info">
-                            <span className="crm-entity-title">{activity.title}</span>
-                            <span className="crm-entity-subtitle">{activity.customer_name ? `العميل: ${activity.customer_name}` : 'نشاط داخلي'}</span>
-                          </div>
-                        </div>
-                      </td>
-                      <td>
-                        <Badge variant="info">
-                          {activity.activity_type === 'call' ? 'مكالمة' : activity.activity_type === 'meeting' ? 'اجتماع' : activity.activity_type === 'email' ? 'بريد' : 'مهمة'}
-                        </Badge>
-                      </td>
-                      <td>{activity.due_at ? new Date(activity.due_at).toLocaleDateString('ar-EG') : 'بدون موعد'}</td>
-                      <td className="crm-activity-details-cell">
-                        {activity.details || '—'}
-                      </td>
-                      <td>{activity.owner_username || 'غير معيّن'}</td>
-                      <td>
-                        {activity.status === 'open' ? (
-                          <button
-                            type="button"
-                            className="secondary-btn crm-complete-button"
-                            onClick={() => completeActivity(activity.id)}
-                          >
-                            ✓ إكمال
-                          </button>
-                        ) : (
-                          <Badge variant="success">مكتمل</Badge>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </>
+        <CRMActivitiesList
+          activities={activities}
+          loading={loading}
+          onAdd={() => openModal('task')}
+          onComplete={completeActivity}
+        />
       )}
 
       {/* Section 4: Custom Fields */}
@@ -592,7 +559,10 @@ function CRMOperations({ section, crmTabs = null }) {
           onEntity={setFieldEntity}
           fieldsByEntity={fieldsByEntity}
           loading={loading}
-          onAdd={() => openModal('field')}
+          onAdd={() => openFieldModal()}
+          onEdit={openFieldModal}
+          onDelete={setFieldToDelete}
+          onMove={moveCustomField}
         />
       )}
 
@@ -607,12 +577,12 @@ function CRMOperations({ section, crmTabs = null }) {
 
       {/* Company Modal */}
       {activeModal === 'company' && (
-        <div className="crm-modal-backdrop" onClick={closeModal}>
-          <div className="crm-modal-box" onClick={(e) => e.stopPropagation()}>
-            <div className="crm-modal-header">
-              <h3>{form.id ? 'تعديل بيانات الشركة' : 'إضافة شركة / فرع جديد'}</h3>
-              <button type="button" className="crm-modal-close" onClick={closeModal}>✕</button>
-            </div>
+        <CRMModal
+          icon={BuildingIcon}
+          title={form.id ? 'تعديل بيانات الشركة' : 'إضافة شركة / فرع جديد'}
+          subtitle="الشركة بتجمع عملاءها وصفقاتها في مكان واحد. الاسم بس هو المطلوب."
+          onClose={closeModal}
+        >
             <form onSubmit={submitCompany}>
               <div className="crm-modal-body">
                 <div className="crm-form-grid">
@@ -669,18 +639,17 @@ function CRMOperations({ section, crmTabs = null }) {
                 <button type="submit" className="primary-btn">{form.id ? 'حفظ التعديلات' : 'إضافة الشركة'}</button>
               </div>
             </form>
-          </div>
-        </div>
+        </CRMModal>
       )}
 
       {/* Lead Modal */}
       {activeModal === 'lead' && (
-        <div className="crm-modal-backdrop" onClick={closeModal}>
-          <div className="crm-modal-box" onClick={(e) => e.stopPropagation()}>
-            <div className="crm-modal-header">
-              <h3>{form.id ? 'تعديل بيانات العميل المحتمل' : 'تسجيل عميل محتمل جديد (Lead)'}</h3>
-              <button type="button" className="crm-modal-close" onClick={closeModal}>✕</button>
-            </div>
+        <CRMModal
+          icon={UserPlusIcon}
+          title={form.id ? 'تعديل بيانات العميل المحتمل' : 'تسجيل عميل محتمل جديد'}
+          subtitle="شخص مهتم لسه ما اشتراش. لما يشتري حوّله لعميل من القائمة."
+          onClose={closeModal}
+        >
             <form onSubmit={submitLead}>
               <div className="crm-modal-body">
                 <div className="crm-form-grid">
@@ -719,6 +688,10 @@ function CRMOperations({ section, crmTabs = null }) {
                       <Input className="crm-form-input" value={form.source || ''} onChange={updateForm('source')} placeholder="إحالة، إعلان فيسبوك، معرض..." />
                     </div>
                   </div>
+                  <div className="crm-form-group">
+                    <label className="crm-form-label">القيمة المتوقعة (ج.م)</label>
+                    <Input className="crm-form-input" type="number" min="0" step="0.01" value={form.expected_value ?? ''} onChange={updateForm('expected_value')} placeholder="0" />
+                  </div>
                   {form.id && (
                     <div className="crm-form-group">
                       <label className="crm-form-label">حالة العميل المحتمل</label>
@@ -745,18 +718,17 @@ function CRMOperations({ section, crmTabs = null }) {
                 <button type="submit" className="primary-btn">{form.id ? 'حفظ التعديلات' : 'حفظ العميل المحتمل'}</button>
               </div>
             </form>
-          </div>
-        </div>
+        </CRMModal>
       )}
 
       {/* Task Modal */}
       {activeModal === 'task' && (
-        <div className="crm-modal-backdrop" onClick={closeModal}>
-          <div className="crm-modal-box" onClick={(e) => e.stopPropagation()}>
-            <div className="crm-modal-header">
-              <h3>تسجيل نشاط / تذكير جديد</h3>
-              <button type="button" className="crm-modal-close" onClick={closeModal}>✕</button>
-            </div>
+        <CRMModal
+          icon={CalendarIcon}
+          title="تسجيل نشاط / تذكير جديد"
+          subtitle="حدد موعد وهيظهر في جدول المتابعة يوم ما ييجي."
+          onClose={closeModal}
+        >
             <form onSubmit={submitActivity}>
               <div className="crm-modal-body">
                 <div className="crm-form-grid">
@@ -815,19 +787,18 @@ function CRMOperations({ section, crmTabs = null }) {
                 <button type="submit" className="primary-btn">حفظ النشاط</button>
               </div>
             </form>
-          </div>
-        </div>
+        </CRMModal>
       )}
 
-      {/* Field Modal */}
+      {/* Field Modal: add, or edit the label / required / choices of an existing field */}
       {activeModal === 'field' && (
-        <div className="crm-modal-backdrop" onClick={closeModal}>
-          <div className="crm-modal-box" onClick={(e) => e.stopPropagation()}>
-            <div className="crm-modal-header">
-              <h3>إضافة حقل مخصص لـ{FIELD_ENTITIES.find((item) => item.id === fieldEntity)?.label}</h3>
-              <button type="button" className="crm-modal-close" onClick={closeModal}>✕</button>
-            </div>
-            <form onSubmit={createCustomField}>
+        <CRMModal
+          icon={SlidersIcon}
+          title={fieldForm.id ? `تعديل الحقل «${fieldForm.label}»` : `إضافة حقل مخصص لـ${FIELD_ENTITIES.find((item) => item.id === fieldEntity)?.label}`}
+          subtitle="الحقل هيظهر في ملف كل سجل من النوع ده."
+          onClose={closeModal}
+        >
+            <form onSubmit={saveCustomField}>
               <div className="crm-modal-body">
                 <div className="crm-form-grid">
                   <div className="crm-form-group">
@@ -836,16 +807,14 @@ function CRMOperations({ section, crmTabs = null }) {
                   </div>
                   <div className="crm-form-group">
                     <label className="crm-form-label">المفتاح البرمجي (English) <span className="required">*</span></label>
-                    <Input className="crm-form-input" value={fieldForm.field_key} onChange={(e) => setFieldForm({ ...fieldForm, field_key: e.target.value })} required pattern="[a-z][a-z0-9_]*" maxLength={40} placeholder="tax_number" />
+                    <Input className="crm-form-input" value={fieldForm.field_key} onChange={(e) => setFieldForm({ ...fieldForm, field_key: e.target.value })} required pattern="[a-z][a-z0-9_]*" maxLength={40} placeholder="tax_number" disabled={Boolean(fieldForm.id)} />
                   </div>
                   <div className="crm-form-group">
                     <label className="crm-form-label">نوع البيانات</label>
-                    <select className="crm-form-select" value={fieldForm.field_type} onChange={(e) => setFieldForm({ ...fieldForm, field_type: e.target.value })}>
-                      <option value="text">نص (Text)</option>
-                      <option value="number">رقم (Number)</option>
-                      <option value="date">تاريخ (Date)</option>
-                      <option value="boolean">نعم / لا (Boolean)</option>
+                    <select className="crm-form-select" value={fieldForm.field_type} onChange={(e) => setFieldForm({ ...fieldForm, field_type: e.target.value })} disabled={Boolean(fieldForm.id)}>
+                      {Object.entries(FIELD_TYPES).map(([value, { label }]) => <option key={value} value={value}>{label}</option>)}
                     </select>
+                    {fieldForm.id && <small className="crm-form-hint">المفتاح والنوع مش بيتغيروا بعد الإنشاء عشان القيم المحفوظة.</small>}
                   </div>
                   <div className="crm-form-group crm-field-required-group">
                     <label className="crm-form-checkbox-label crm-field-required-label">
@@ -853,14 +822,49 @@ function CRMOperations({ section, crmTabs = null }) {
                       <strong>حقل مطلوب وإلزامي</strong>
                     </label>
                   </div>
+                  {fieldForm.field_type === 'select' && (
+                    <div className="crm-form-group full-width">
+                      <label className="crm-form-label" htmlFor="crm-field-options">الاختيارات (كل اختيار في سطر) <span className="required">*</span></label>
+                      <textarea
+                        id="crm-field-options"
+                        className="crm-form-textarea"
+                        rows="4"
+                        required
+                        value={fieldForm.optionsText}
+                        onChange={(e) => setFieldForm({ ...fieldForm, optionsText: e.target.value })}
+                        placeholder={'كاش\nآجل\nتحويل بنكي'}
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="crm-modal-footer">
                 <button type="button" className="secondary-btn" onClick={closeModal}>إلغاء</button>
-                <button type="submit" className="primary-btn">إنشاء الحقل</button>
+                <button type="submit" className="primary-btn">{fieldForm.id ? 'حفظ التعديل' : 'إنشاء الحقل'}</button>
               </div>
             </form>
-          </div>
+        </CRMModal>
+      )}
+
+      {fieldToDelete && (
+        <div className="crm-modal-backdrop crm-delete-backdrop" onClick={() => setFieldToDelete(null)}>
+          <section
+            className="crm-confirm-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="crm-delete-field-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h3 id="crm-delete-field-title">حذف الحقل المخصص</h3>
+            <p>
+              سيتم حذف الحقل «{fieldToDelete.label}» وكل القيم المسجلة فيه لكل السجلات. لا يمكن التراجع عن هذا الإجراء.
+            </p>
+            {error && <div className="crm-error-banner" role="alert">{error}</div>}
+            <div className="crm-drawer-actions">
+              <button type="button" className="secondary-btn" onClick={() => setFieldToDelete(null)}>إلغاء</button>
+              <button type="button" className="crm-confirm-danger" onClick={deleteCustomField}>حذف نهائي</button>
+            </div>
+          </section>
         </div>
       )}
 

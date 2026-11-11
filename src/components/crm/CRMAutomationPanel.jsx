@@ -9,10 +9,9 @@ const STEPS = [
   'بيبعت تنبيه واحد لكل صفقة واقفة، ويتصفّر لما تحرّكها أو تغيّر القاعدة.',
 ];
 
-// WhatsApp and email are shown so the owner knows they are planned, but they cannot be turned on yet.
-const UNAVAILABLE_CHANNELS = [
-  ['رسالة واتساب للمسؤول', 'غير متاحة حالياً — محتاجة ربط رقم واتساب الأعمال.'],
-  ['ملخص يومي بالبريد', 'غير متاح حالياً — رسالة واحدة الساعة ٩ الصبح بكل الصفقات الواقفة.'],
+// Always available and free; shown so the owner knows how the alert reaches people.
+const FREE_CHANNELS = [
+  ['واتساب بضغطة واحدة', 'من كارت الصفقة أو العميل المحتمل: زرار واتساب بيفتح المحادثة والرسالة مكتوبة، وإنت بس تدوس إرسال. مجاني ومن غير ربط.'],
 ];
 
 function CRMAutomationPanel({ rule, onChange, onSubmit }) {
@@ -52,21 +51,22 @@ function CRMAutomationPanel({ rule, onChange, onSubmit }) {
               onChange={(event) => onChange({ ...rule, is_enabled: event.target.checked })}
             />
             <span>
-              <strong>إشعار داخل النظام</strong>
-              <small>بيظهر في جرس الإشعارات فور تجاوز المدة.</small>
+              <strong>إشعار داخل النظام + إشعار ويندوز</strong>
+              <small>بيظهر في جرس الإشعارات، وكمان كإشعار على الشاشة حتى لو البرنامج متصغّر.</small>
             </span>
             <span className={`crm-ct-badge crm-ct-badge--${rule.is_enabled ? 'success' : 'muted'}`}>
               {rule.is_enabled ? 'مفعّل' : 'متوقف'}
             </span>
           </label>
-          {UNAVAILABLE_CHANNELS.map(([title, hint]) => (
-            <label key={title} className="crm-au-channel is-disabled">
-              <input type="checkbox" checked={false} disabled readOnly />
+          {FREE_CHANNELS.map(([title, hint]) => (
+            <div key={title} className="crm-au-channel is-info">
+              <span className="crm-au-channel-dot" aria-hidden="true" />
               <span>
                 <strong>{title}</strong>
                 <small>{hint}</small>
               </span>
-            </label>
+              <span className="crm-ct-badge crm-ct-badge--success">متاح دايماً</span>
+            </div>
           ))}
         </fieldset>
 

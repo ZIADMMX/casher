@@ -1,4 +1,49 @@
 const { db } = require('../connection');
+const { assertNoNewForeignKeyViolations, foreignKeyViolationCounts } = require('./helpers');
+
+// 'file' is allowed by the schema now so the next type does not need another table rebuild;
+// the service decides which types can actually be created.
+const CUSTOM_FIELD_TYPES_SQL = "'text', 'number', 'date', 'boolean', 'select', 'file'";
+
+/**
+ * Databases created before choice lists have crm_custom_fields with a CHECK that only allows four
+ * types, and SQLite cannot alter a CHECK. Rebuild the table once, keeping ids so stored values stay linked.
+ */
+function upgradeCustomFieldsTable(database) {
+  const table = database.prepare(`
+    SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'crm_custom_fields'
+  `).get();
+  if (!table || table.sql.includes("'select'")) return;
+
+  const foreignKeysWereOn = database.pragma('foreign_keys', { simple: true }) === 1;
+  const fkBefore = foreignKeyViolationCounts(database);
+  database.pragma('foreign_keys = OFF');
+  try {
+    database.transaction(() => {
+      database.exec(`
+        CREATE TABLE crm_custom_fields_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          entity_type TEXT NOT NULL CHECK(entity_type IN ('customer', 'company', 'lead', 'opportunity')),
+          field_key TEXT NOT NULL,
+          label TEXT NOT NULL,
+          field_type TEXT NOT NULL DEFAULT 'text' CHECK(field_type IN (${CUSTOM_FIELD_TYPES_SQL})),
+          is_required INTEGER NOT NULL DEFAULT 0,
+          options_json TEXT,
+          display_order INTEGER NOT NULL DEFAULT 0,
+          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(entity_type, field_key)
+        );
+        INSERT INTO crm_custom_fields_new (id, entity_type, field_key, label, field_type, is_required, display_order, created_at)
+        SELECT id, entity_type, field_key, label, field_type, is_required, id, created_at FROM crm_custom_fields;
+        DROP TABLE crm_custom_fields;
+        ALTER TABLE crm_custom_fields_new RENAME TO crm_custom_fields;
+      `);
+      assertNoNewForeignKeyViolations(fkBefore, 'crm_custom_fields', database);
+    })();
+  } finally {
+    if (foreignKeysWereOn) database.pragma('foreign_keys = ON');
+  }
+}
 
 function migrateCRMTables() {
   db.exec(`
@@ -199,8 +244,10 @@ function migrateAdvancedCRMTables(database = db) {
       entity_type TEXT NOT NULL CHECK(entity_type IN ('customer', 'company', 'lead', 'opportunity')),
       field_key TEXT NOT NULL,
       label TEXT NOT NULL,
-      field_type TEXT NOT NULL DEFAULT 'text' CHECK(field_type IN ('text', 'number', 'date', 'boolean')),
+      field_type TEXT NOT NULL DEFAULT 'text' CHECK(field_type IN (${CUSTOM_FIELD_TYPES_SQL})),
       is_required INTEGER NOT NULL DEFAULT 0,
+      options_json TEXT,
+      display_order INTEGER NOT NULL DEFAULT 0,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(entity_type, field_key)
     );
@@ -293,7 +340,36 @@ function migrateAdvancedCRMTables(database = db) {
   `);
 }
 
+/** v25: choice-list custom fields (with order), a lead's expected value, and why a deal was lost. */
+function migrateCRMFieldsAndValues(database = db) {
+  upgradeCustomFieldsTable(database);
+  const addColumn = (table, name, definition) => {
+    const columns = database.prepare(`PRAGMA table_info(${table})`).all();
+    if (!columns.some((column) => column.name === name)) {
+      database.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${definition}`);
+    }
+  };
+  addColumn('crm_leads', 'expected_value', 'REAL NOT NULL DEFAULT 0');
+  addColumn('crm_opportunities', 'lost_reason', 'TEXT');
+}
+
 module.exports = {
   migrateCRMTables,
   migrateAdvancedCRMTables,
+  migrateCRMFieldsAndValues,
+  migrateDailyMessages,
 };
+
+// Which "today's messages" rows were sent over WhatsApp, so a row is not offered twice.
+function migrateDailyMessages(database = db) {
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS daily_messages_sent (
+      kind TEXT NOT NULL,
+      ref_id INTEGER NOT NULL,
+      sent_on TEXT NOT NULL,
+      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      sent_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (kind, ref_id, sent_on)
+    );
+  `);
+}

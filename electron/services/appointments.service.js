@@ -296,6 +296,7 @@ function checkDueReminders(now = new Date()) {
         title: 'تذكير بموعد قريب',
         message: `موعد ${appointment.service_name} للعميل ${appointment.customer_name} لدى ${appointment.resource_name} في ${dateText}`,
         linkPage: 'appointments',
+        desktop: true,
       });
     } catch {}
   }

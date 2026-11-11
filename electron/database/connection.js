@@ -24,7 +24,7 @@ if (userDataDir !== ':memory:' && !fs.existsSync(userDataDir)) {
   try { fs.mkdirSync(userDataDir, { recursive: true }); } catch {}
 }
 const dbPath = userDataDir === ':memory:' ? ':memory:' : path.join(userDataDir, 'shop.db');
-const DATABASE_SCHEMA_VERSION = 24;
+const DATABASE_SCHEMA_VERSION = 26;
 const SALES_SCHEMA_VERSION = 6;
 
 const DATABASE_LOCK_TIMEOUT_MS = 30000;

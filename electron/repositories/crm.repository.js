@@ -211,8 +211,8 @@ function getRawTimelineElementsForCustomer(customerId) {
       'opportunity' as type,
       created_at,
       expected_value as amount,
-      'مرحلة: ' || stage as detail_meta,
-      'مرحلة: ' || stage as details,
+      'مرحلة: ' || COALESCE((SELECT label FROM crm_pipeline_stages ps WHERE ps.id = crm_opportunities.pipeline_stage_id), stage) as detail_meta,
+      'مرحلة: ' || COALESCE((SELECT label FROM crm_pipeline_stages ps WHERE ps.id = crm_opportunities.pipeline_stage_id), stage) as details,
       'فرصة بيع: ' || title as title
     FROM crm_opportunities
     WHERE customer_id = ?

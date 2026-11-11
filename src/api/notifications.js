@@ -8,3 +8,4 @@ export const markNotificationAsRead = bridgeMethod('markNotificationAsRead');
 export const markAllNotificationsAsRead = bridgeMethod('markAllNotificationsAsRead');
 export const clearAllNotifications = bridgeMethod('clearAllNotifications');
 export const onNotificationReceived = bridgeMethod('onNotificationReceived');
+export const onNotificationClicked = bridgeMethod('onNotificationClicked');

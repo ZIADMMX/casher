@@ -3,6 +3,9 @@ import CustomersPage from './CustomersPage.jsx';
 import SalesPipelineBoard from '../components/crm/SalesPipelineBoard.jsx';
 import CRMOperations from '../components/crm/CRMOperations.jsx';
 import CRMHeader from '../components/crm/CRMHeader.jsx';
+import DailyMessagesCard from '../components/DailyMessagesCard.jsx';
+import { useBusinessProfile } from '../contexts/BusinessProfileContext.jsx';
+import { useSettings } from '../contexts/SettingsContext.jsx';
 import * as crmApi from '../api/crm.js';
 import * as customersApi from '../api/customers.js';
 import {
@@ -103,6 +106,10 @@ function EmptyPanel({ icon: Icon, title, text }) {
 
 function CRMPage() {
   const [activeView, setActiveView] = useState('overview');
+  const { configuration } = useBusinessProfile();
+  const { settings } = useSettings();
+  // The CRM sector has no Today page, so today's messages live on its overview instead.
+  const isCrmSector = (configuration?.profile?.key || settings?.business_type || settings?.onboarding_sector) === 'crm';
   const [openNewCustomer, setOpenNewCustomer] = useState(false);
   const [customers, setCustomers] = useState([]);
   const [leads, setLeads] = useState([]);
@@ -263,7 +270,8 @@ function CRMPage() {
   const rankTone = (index, count) => (count <= 1 ? 100 : Math.round(100 - (index / (count - 1)) * 55));
 
   // These views draw their own header (their actions live there) and place the tabs under it.
-  const ownHeader = ['contacts', 'companies', 'leads', 'pipeline', 'fields', 'automation'].includes(activeView);
+  // Every view except the overview draws its own header (its actions live there) and places the tabs under it.
+  const ownHeader = activeView !== 'overview';
   const tabs = (
     <nav className="crm-ds crm-ov-tabs" aria-label="أقسام CRM">
       {VIEWS.map(({ id, label, Icon }) => (
@@ -315,6 +323,8 @@ function CRMPage() {
               <button type="button" className="secondary-btn" onClick={loadOverview}>إعادة المحاولة</button>
             </div>
           )}
+
+          {isCrmSector && <DailyMessagesCard />}
 
           {isEmpty && (
             <section className="crm-ov-card crm-ov-start" aria-labelledby="crm-start-title">

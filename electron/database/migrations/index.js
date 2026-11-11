@@ -31,6 +31,8 @@ const {
 const {
   migrateCRMTables,
   migrateAdvancedCRMTables,
+  migrateCRMFieldsAndValues,
+  migrateDailyMessages,
 } = require('./crm');
 const {
   migrateCasesTables,
@@ -274,6 +276,18 @@ function runAllMigrations(dbInstance = db) {
     allowSplitPayments(dbInstance);
     dbInstance.pragma('user_version = 24');
     console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 24 (تقسيم فاتورة الطاولة).');
+  }
+
+  if (currentVersion < 25) {
+    migrateCRMFieldsAndValues(dbInstance);
+    dbInstance.pragma('user_version = 25');
+    console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 25 (قوائم اختيار للحقول المخصصة وقيمة العميل المحتمل وسبب الخسارة).');
+  }
+
+  if (currentVersion < 26) {
+    migrateDailyMessages(dbInstance);
+    dbInstance.pragma('user_version = 26');
+    console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 26 (رسائل اليوم).');
   }
 
   // Earlier steps may rebuild the sales tables; make sure the guards exist at the end.

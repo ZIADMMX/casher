@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { PlusIcon, SearchIcon, UserPlusIcon } from '../icons/PosIcons.jsx';
-import { agoText, daysBetween, dueText, initials, num, parseDbDate } from './crmFormat.js';
+import { agoText, daysBetween, dueText, initials, money, num, parseDbDate } from './crmFormat.js';
+import { openWhatsapp } from '../../utils/whatsapp.js';
 
 export const LEAD_STATUSES = [
   ['new', 'جديد', 'muted'],
@@ -213,12 +214,26 @@ function CRMLeadsList({
                   <dd className={`crm-ld-next--${info.nextStep.tone}`}>{info.nextStep.text}</dd>
                 </dl>
                 <dl className="crm-ld-field">
+                  <dt>القيمة المتوقعة</dt>
+                  <dd className="crm-ld-value">{Number(lead.expected_value) > 0 ? money(lead.expected_value) : '—'}</dd>
+                </dl>
+                <dl className="crm-ld-field">
                   <dt>المسؤول</dt>
                   <dd>{lead.owner_username || 'غير معيّن'}</dd>
                 </dl>
                 <div className="crm-ld-actions">
                   {!converted && (
                     <>
+                      {lead.phone && (
+                        <button
+                          type="button"
+                          className="crm-ov-btn crm-ld-wa"
+                          onClick={() => openWhatsapp(lead.phone, `أهلاً ${lead.name}، بتواصل مع حضرتك بخصوص طلبك.`)}
+                          title="يفتح واتساب والرسالة جاهزة — إنت بس تدوس إرسال"
+                        >
+                          واتساب
+                        </button>
+                      )}
                       <button type="button" className="crm-ov-btn" onClick={() => onLogActivity(lead)}>سجل نشاط</button>
                       <button type="button" className="crm-ov-btn crm-ov-btn--primary" onClick={() => onConvert(lead)}>حوّل لعميل</button>
                       <details className="crm-ld-menu">

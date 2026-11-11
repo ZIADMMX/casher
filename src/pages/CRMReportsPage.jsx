@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import * as crmApi from '../api/crm.js';
 import * as customersApi from '../api/customers.js';
+import CRMHeader from '../components/crm/CRMHeader.jsx';
+import {
+  BriefcaseIcon, ChartIcon, PercentIcon, RefreshIcon, TrendUpIcon, UserPlusIcon, UsersIcon,
+} from '../components/icons/PosIcons.jsx';
+import { num } from '../components/crm/crmFormat.js';
+import '../styles/crm-overview.css';
 import '../styles/crm-reports.css';
 
 function formatCurrency(value) {
@@ -88,137 +94,129 @@ function CRMReportsPage() {
         .map(([source, count]) => ({ source, count }))
         .sort((first, second) => second.count - first.count),
       team: [...team.values()].sort((first, second) => second.wonValue - first.wonValue),
+      lossReasons: [...lost.reduce((map, item) => {
+        const reason = item.lost_reason?.trim() || 'بدون سبب';
+        return map.set(reason, (map.get(reason) || 0) + 1);
+      }, new Map())]
+        .map(([reason, count]) => ({ reason, count }))
+        .sort((first, second) => second.count - first.count),
     };
   }, [leads, opportunities, stages]);
 
-  const maxStageCount = Math.max(...report.stageCounts.map((stage) => stage.count), 1);
+  const show = (value) => (loading ? '—' : value);
+  const activeLeads = leads.filter((lead) => !['converted', 'lost'].includes(lead.status)).length;
+  const kpis = [
+    { label: 'إجمالي جهات الاتصال', Icon: UsersIcon, value: num(customers.length), hint: 'العملاء المسجلون في CRM' },
+    { label: 'عملاء محتملون نشطون', Icon: UserPlusIcon, value: num(activeLeads), hint: 'فرص تحتاج إلى متابعة' },
+    { label: 'الصفقات المفتوحة', Icon: BriefcaseIcon, value: num(report.openCount), hint: `${formatCurrency(report.openValue)} قيمة متوقعة` },
+    { label: 'التوقع المرجّح', Icon: TrendUpIcon, value: formatCurrency(report.forecastValue), hint: 'بحسب احتمالات إغلاق الصفقات' },
+    { label: 'معدل نجاح الإغلاق', Icon: PercentIcon, value: `${num(report.conversionRate)}٪`, hint: `${formatCurrency(report.wonValue)} قيمة الصفقات الرابحة` },
+  ];
 
   return (
-    <main className="crm-reports">
-      <header className="crm-reports-header">
-        <div>
-          <span className="crm-reports-eyebrow">FOX.CLOUD · CRM</span>
-          <h1>تقارير وتحليلات العملاء</h1>
-          <p>ملخص العملاء المحتملين والصفقات ومصادر التواصل وأداء الفريق.</p>
-        </div>
-        <button type="button" className="secondary-btn" onClick={loadReports} disabled={loading}>
+    <main className="crm-ds crm-reports">
+      <CRMHeader
+        icon={ChartIcon}
+        title="تقارير وتحليلات العملاء"
+        subtitle="ملخص العملاء المحتملين والصفقات ومصادر التواصل وأداء الفريق."
+      >
+        <button type="button" className="crm-ov-btn" onClick={loadReports} disabled={loading}>
+          <RefreshIcon size={18} />
           {loading ? 'جارٍ التحديث...' : 'تحديث التقارير'}
         </button>
-      </header>
+      </CRMHeader>
 
       {error && (
         <div className="crm-reports-error" role="alert">
           <span>{error}</span>
-          <button type="button" className="secondary-btn" onClick={loadReports} disabled={loading}>
+          <button type="button" className="crm-ov-btn crm-ov-btn--sm" onClick={loadReports} disabled={loading}>
             إعادة المحاولة
           </button>
         </div>
       )}
 
-      <section className="crm-reports-metrics" aria-label="المؤشرات الرئيسية">
-        <article className="crm-report-metric">
-          <span>إجمالي جهات الاتصال</span>
-          <strong>{loading ? '—' : customers.length.toLocaleString('ar-EG')}</strong>
-          <small>العملاء المسجلون في CRM</small>
-        </article>
-        <article className="crm-report-metric">
-          <span>عملاء محتملون نشطون</span>
-          <strong>
-            {loading ? '—' : leads.filter((lead) => !['converted', 'lost'].includes(lead.status)).length.toLocaleString('ar-EG')}
-          </strong>
-          <small>فرص تحتاج إلى متابعة</small>
-        </article>
-        <article className="crm-report-metric">
-          <span>الصفقات المفتوحة</span>
-          <strong>{loading ? '—' : report.openCount.toLocaleString('ar-EG')}</strong>
-          <small>{loading ? '—' : formatCurrency(report.openValue)} قيمة متوقعة</small>
-        </article>
-        <article className="crm-report-metric crm-report-metric-accent">
-          <span>التوقع المرجّح</span>
-          <strong>{loading ? '—' : formatCurrency(report.forecastValue)}</strong>
-          <small>بحسب احتمالات إغلاق الصفقات</small>
-        </article>
-        <article className="crm-report-metric">
-          <span>معدل نجاح الإغلاق</span>
-          <strong>{loading ? '—' : `${report.conversionRate.toLocaleString('ar-EG')}٪`}</strong>
-          <small>{loading ? '—' : formatCurrency(report.wonValue)} قيمة الصفقات الرابحة</small>
-        </article>
+      <section className="crm-ov-kpis crm-reports-kpis" aria-label="المؤشرات الرئيسية">
+        {kpis.map(({ label, Icon, value, hint }) => (
+          <article key={label} className="crm-ov-card crm-ov-kpi">
+            <span className="crm-ov-kpi-label">
+              <span className="crm-ov-chip"><Icon size={18} /></span>
+              {label}
+            </span>
+            <strong className="crm-ov-kpi-value crm-reports-kpi-value">{show(value)}</strong>
+            <span className="crm-ov-hint">{show(hint)}</span>
+          </article>
+        ))}
       </section>
 
-      <section className="crm-reports-columns">
-        <article className="crm-report-panel crm-report-pipeline">
-          <div className="crm-report-panel-heading">
-            <div>
-              <h2>مسار الصفقات</h2>
-              <p>توزيع الفرص حسب المرحلة الحالية</p>
-            </div>
-            <span className="crm-report-count">{opportunities.length.toLocaleString('ar-EG')} صفقة</span>
-          </div>
-          {report.stageCounts.length ? (
-            <div className="crm-report-stage-list">
-              {report.stageCounts.map((stage) => (
-                <div className="crm-report-stage" key={stage.id}>
-                  <div className="crm-report-stage-meta">
-                    <strong>{stage.label}</strong>
-                    <span>{stage.count.toLocaleString('ar-EG')} · {formatCurrency(stage.value)}</span>
-                  </div>
-                  <div className="crm-report-bar-track">
-                    <span style={{ width: `${(stage.count / maxStageCount) * 100}%` }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="crm-report-empty">{loading ? 'جارٍ تحميل المراحل...' : 'لا توجد مراحل أو صفقات مسجلة بعد.'}</p>
-          )}
-        </article>
-
-        <article className="crm-report-panel">
-          <div className="crm-report-panel-heading">
-            <div>
-              <h2>مصادر العملاء المحتملين</h2>
-              <p>القنوات التي يصل منها عملاؤك</p>
-            </div>
-          </div>
-          {report.sources.length ? (
-            <div className="crm-report-list">
-              {report.sources.slice(0, 7).map((source) => (
-                <div className="crm-report-list-row" key={source.source}>
-                  <span>{source.source}</span>
-                  <strong>{source.count.toLocaleString('ar-EG')}</strong>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="crm-report-empty">{loading ? 'جارٍ تحميل المصادر...' : 'لا توجد مصادر مسجلة بعد.'}</p>
-          )}
-        </article>
-
-        <article className="crm-report-panel">
-          <div className="crm-report-panel-heading">
-            <div>
-              <h2>أداء فريق المبيعات</h2>
-              <p>الصفقات المسندة وقيمة الإغلاقات الناجحة</p>
-            </div>
-          </div>
-          {report.team.length ? (
-            <div className="crm-report-list">
-              {report.team.slice(0, 7).map((member) => (
-                <div className="crm-report-list-row crm-report-team-row" key={member.name}>
-                  <div>
-                    <strong>{member.name}</strong>
-                    <small>{member.count.toLocaleString('ar-EG')} صفقة</small>
-                  </div>
-                  <span>{formatCurrency(member.wonValue)}</span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="crm-report-empty">{loading ? 'جارٍ تحميل أداء الفريق...' : 'لا توجد صفقات مسجلة بعد.'}</p>
-          )}
-        </article>
+      <section className="crm-ov-panels crm-reports-panels">
+        <ReportPanel
+          title="مسار الصفقات"
+          subtitle="توزيع الصفقات حسب المرحلة الحالية"
+          count={`${num(opportunities.length)} صفقة`}
+          rows={report.stageCounts.map((stage) => ({
+            key: stage.id, label: stage.label, count: stage.count, meta: `${num(stage.count)} · ${formatCurrency(stage.value)}`,
+            tone: stage.outcome === 'won' ? 'won' : stage.outcome === 'lost' ? 'lost' : '',
+          }))}
+          empty={loading ? 'جارٍ تحميل المراحل...' : 'لا توجد مراحل أو صفقات مسجلة بعد.'}
+        />
+        <ReportPanel
+          title="مصادر العملاء المحتملين"
+          subtitle="القنوات التي يصل منها عملاؤك"
+          rows={report.sources.slice(0, 7).map(({ source, count }) => ({ key: source, label: source, count, meta: num(count), tone: 'info' }))}
+          empty={loading ? 'جارٍ تحميل المصادر...' : 'لا توجد مصادر مسجلة بعد.'}
+        />
+        <ReportPanel
+          title="أسباب خسارة الصفقات"
+          subtitle="من السبب اللي بيتكتب وقت نقل الصفقة لخاسرة"
+          rows={report.lossReasons.slice(0, 7).map(({ reason, count }) => ({ key: reason, label: reason, count, meta: num(count), tone: 'lost' }))}
+          empty={loading ? 'جارٍ التحميل...' : 'مفيش صفقات خاسرة لحد دلوقتي.'}
+        />
+        <ReportPanel
+          title="أداء فريق المبيعات"
+          subtitle="قيمة الصفقات الرابحة لكل مسؤول"
+          rows={report.team.slice(0, 7).map((member) => ({
+            key: member.name, label: member.name, count: member.wonValue,
+            meta: `${num(member.count)} صفقة · ${formatCurrency(member.wonValue)}`, tone: 'won',
+          }))}
+          empty={loading ? 'جارٍ تحميل أداء الفريق...' : 'لا توجد صفقات مسجلة بعد.'}
+        />
       </section>
     </main>
+  );
+}
+
+/** One card of labelled bars, each bar relative to the largest row. */
+function ReportPanel({ title, subtitle, count, rows, empty }) {
+  const max = Math.max(...rows.map((row) => row.count), 1);
+  return (
+    <article className="crm-ov-card crm-ov-panel">
+      <div className="crm-ov-panel-head">
+        <div>
+          <h2>{title}</h2>
+          <p>{subtitle}</p>
+        </div>
+        {count && <span className="crm-ov-pill">{count}</span>}
+      </div>
+      {rows.length ? (
+        <ul className="crm-ov-bars">
+          {rows.map((row) => (
+            <li key={row.key} className="crm-ov-bar-row">
+              <div className="crm-ov-bar-body">
+                <div className="crm-ov-bar-label"><span>{row.label}</span><span>{row.meta}</span></div>
+                <div className="crm-ov-track">
+                  <div
+                    className={`crm-ov-fill ${row.tone ? `crm-ov-fill--${row.tone}` : ''}`}
+                    style={{ '--bar-w': `${(row.count / max) * 100}%` }}
+                  />
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="crm-report-empty">{empty}</p>
+      )}
+    </article>
   );
 }
 

@@ -2,8 +2,12 @@ import { useState, useEffect } from 'react';
 import * as crmApi from '../../api/crm.js';
 import * as customersApi from '../../api/customers.js';
 import CRMHeader from './CRMHeader.jsx';
-import { ClockIcon, KanbanIcon, PlusIcon, SlidersIcon } from '../icons/PosIcons.jsx';
+import {
+  AlertIcon, BriefcaseIcon, ClockIcon, KanbanIcon, PlusIcon, SlidersIcon,
+} from '../icons/PosIcons.jsx';
+import CRMModal from './CRMModal.jsx';
 import { agoText, daysBetween, initials, money, num, parseDbDate, shortDate } from './crmFormat.js';
+import { openWhatsapp } from '../../utils/whatsapp.js';
 import '../../styles/crm-overview.css';
 
 const DEFAULT_STALE_DAYS = 7;
@@ -25,6 +29,7 @@ function SalesPipelineBoard({ crmTabs = null }) {
   const [stageDrafts, setStageDrafts] = useState({});
   const [deal, setDeal] = useState(EMPTY_DEAL);
   const [staleDays, setStaleDays] = useState(DEFAULT_STALE_DAYS);
+  const [lostMove, setLostMove] = useState(null); // { oppId, stageId, reason } while asking why a deal was lost
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [message, setMessage] = useState(null);
@@ -77,9 +82,19 @@ function SalesPipelineBoard({ crmTabs = null }) {
     setShowDealModal(true);
   };
 
-  const handleStageChange = async (oppId, stageId) => {
+  // A move into a lost stage first asks why, so the board can show the reason on the card.
+  const handleStageChange = (oppId, stageId) => {
+    const target = stages.find((stage) => Number(stage.id) === Number(stageId));
+    if (target?.outcome === 'lost') {
+      setLostMove({ oppId, stageId, reason: '' });
+      return undefined;
+    }
+    return moveDeal(oppId, stageId);
+  };
+
+  const moveDeal = async (oppId, stageId, lostReason) => {
     try {
-      await crmApi.moveCRMOpportunity(Number(oppId), Number(stageId));
+      await crmApi.moveCRMOpportunity(Number(oppId), Number(stageId), lostReason || undefined);
       await fetchOpportunities();
       setMessage('تم تحديث مرحلة الصفقة بنجاح.');
       setTimeout(() => setMessage(null), 3000);
@@ -331,6 +346,15 @@ function SalesPipelineBoard({ crmTabs = null }) {
                                   ))}
                                 </select>
                               </label>
+                              {opp.customer_phone && (
+                                <button
+                                  type="button"
+                                  className="crm-pl-menu-wa"
+                                  onClick={() => openWhatsapp(opp.customer_phone, `أهلاً ${opp.customer_name}، بتابع مع حضرتك بخصوص ${opp.title}.`)}
+                                >
+                                  رسالة واتساب للعميل
+                                </button>
+                              )}
                             </div>
                           </details>
                         </div>
@@ -339,7 +363,9 @@ function SalesPipelineBoard({ crmTabs = null }) {
                           <span className="crm-ov-avatar crm-pl-avatar" title={opp.assigned_username || 'غير معيّن'}>
                             {opp.assigned_username ? initials(opp.assigned_username) : '—'}
                           </span>
-                          {outcome !== 'open' && closedAt ? (
+                          {outcome === 'lost' && opp.lost_reason ? (
+                            <span className="crm-pl-reason">سبب الخسارة: {opp.lost_reason}</span>
+                          ) : outcome !== 'open' && closedAt ? (
                             <span className="crm-pl-age">أُغلقت {shortDate(closedAt)}</span>
                           ) : (
                             <span className={stale ? 'crm-pl-age is-stale' : 'crm-pl-age'} title="المدة في المرحلة الحالية">
@@ -367,14 +393,54 @@ function SalesPipelineBoard({ crmTabs = null }) {
           MODALS
          ========================================================================= */}
 
+      {lostMove && (
+        <CRMModal
+          className="crm-lost-modal"
+          icon={AlertIcon}
+          title="ليه الصفقة دي خسرت؟"
+          subtitle="السبب بيظهر في التقارير عشان تعرف بتخسر فين."
+          onClose={() => setLostMove(null)}
+        >
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const { oppId, stageId, reason } = lostMove;
+              setLostMove(null);
+              moveDeal(oppId, stageId, reason.trim());
+            }}
+          >
+            <div className="crm-modal-body">
+              <label className="crm-form-label" htmlFor="crm-lost-reason">سبب الخسارة (اختياري)</label>
+              <input
+                id="crm-lost-reason"
+                className="crm-form-input"
+                maxLength={200}
+                autoFocus
+                list="crm-lost-reasons"
+                value={lostMove.reason}
+                onChange={(e) => setLostMove({ ...lostMove, reason: e.target.value })}
+                placeholder="مثال: السعر، اختار منافس، الميزانية اتأجلت"
+              />
+              <datalist id="crm-lost-reasons">
+                {['السعر', 'اختار منافس', 'الميزانية اتأجلت', 'مفيش رد'].map((item) => <option key={item} value={item} />)}
+              </datalist>
+            </div>
+            <div className="crm-modal-footer">
+              <button type="button" className="secondary-btn" onClick={() => setLostMove(null)}>إلغاء</button>
+              <button type="submit" className="primary-btn">نقل لخاسرة</button>
+            </div>
+          </form>
+        </CRMModal>
+      )}
+
       {/* Create Opportunity Deal Modal */}
       {showDealModal && (
-        <div className="crm-modal-backdrop" onClick={() => setShowDealModal(false)}>
-          <div className="crm-modal-box" onClick={(e) => e.stopPropagation()}>
-            <div className="crm-modal-header">
-              <h3>إضافة فرصة بيع جديدة (New Deal)</h3>
-              <button type="button" className="crm-modal-close" onClick={() => setShowDealModal(false)}>✕</button>
-            </div>
+        <CRMModal
+          icon={BriefcaseIcon}
+          title="إضافة صفقة جديدة"
+          subtitle="الصفقة هتبدأ في أول مرحلة، وتقدر تسحبها بين المراحل بعد كده."
+          onClose={() => setShowDealModal(false)}
+        >
             <form onSubmit={createOpportunity}>
               <div className="crm-modal-body">
                 <div className="crm-form-grid">
@@ -460,22 +526,22 @@ function SalesPipelineBoard({ crmTabs = null }) {
                 <button type="submit" className="primary-btn">إنشاء الصفقة</button>
               </div>
             </form>
-          </div>
-        </div>
+        </CRMModal>
       )}
 
       {/* Manage Stages Modal */}
       {showStageModal && (
-        <div className="crm-modal-backdrop" onClick={() => setShowStageModal(false)}>
-          <div className="crm-modal-box crm-stages-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="crm-modal-header">
-              <h3>إدارة مراحل خط المبيعات (Pipeline Stages)</h3>
-              <button type="button" className="crm-modal-close" onClick={() => setShowStageModal(false)}>✕</button>
-            </div>
+        <CRMModal
+          className="crm-stages-modal"
+          icon={SlidersIcon}
+          title="إدارة مراحل خط الصفقات"
+          subtitle="الاحتمالية بتحسب قيمة الصفقات المتوقعة. المرحلة الموقوفة بتختفي من اللوحة."
+          onClose={() => setShowStageModal(false)}
+        >
             <div className="crm-modal-body">
               {/* Add Stage Form */}
               <form onSubmit={createStage} className="crm-add-stage-form">
-                <h4 className="crm-form-section-heading">+ إضافة مرحلة جديدة</h4>
+                <h4 className="crm-form-section-heading">إضافة مرحلة جديدة</h4>
                 <div className="crm-form-grid">
                   <div className="crm-form-group">
                     <label className="crm-form-label">اسم المرحلة <span className="required">*</span></label>
@@ -508,8 +574,8 @@ function SalesPipelineBoard({ crmTabs = null }) {
                       onChange={(e) => setNewStageOutcome(e.target.value)}
                     >
                       <option value="open">مرحلة تفاوض مفتوحة</option>
-                      <option value="won">صفقة رابحة (Won)</option>
-                      <option value="lost">صفقة خاسرة (Lost)</option>
+                      <option value="won">صفقة رابحة</option>
+                      <option value="lost">صفقة خاسرة</option>
                     </select>
                   </div>
                   <div className="crm-form-group crm-form-submit">
@@ -522,8 +588,8 @@ function SalesPipelineBoard({ crmTabs = null }) {
 
               {/* Stages List */}
               <h4 className="crm-form-section-heading">المراحل الحالية</h4>
-              <div className="crm-table-card">
-                <table className="crm-table">
+              <div className="crm-table-card crm-ct-scroll">
+                <table className="crm-ct-table">
                   <thead>
                     <tr>
                       <th>اسم المرحلة</th>
@@ -539,7 +605,7 @@ function SalesPipelineBoard({ crmTabs = null }) {
                       return (
                         <tr key={stage.id}>
                           <td>
-                            <input
+                            <input className="crm-form-input crm-compact-input" aria-label="اسم المرحلة"
                               value={draft.label}
                               onChange={(e) => setStageDrafts({
                                 ...stageDrafts,
@@ -598,8 +664,7 @@ function SalesPipelineBoard({ crmTabs = null }) {
                 تم
               </button>
             </div>
-          </div>
-        </div>
+        </CRMModal>
       )}
     </div>
   );

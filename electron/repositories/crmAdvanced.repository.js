@@ -65,11 +65,12 @@ function createCompany(data, userId) {
 
 function createLead(data, userId) {
   const result = db.prepare(`
-    INSERT INTO crm_leads (name, phone, email, company_id, source, status, owner_user_id, notes)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO crm_leads (name, phone, email, company_id, source, status, owner_user_id, notes, expected_value)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     data.name, data.phone || null, data.email || null, data.company_id || null,
-    data.source || null, data.status || 'new', data.owner_user_id || userId || null, data.notes || null
+    data.source || null, data.status || 'new', data.owner_user_id || userId || null, data.notes || null,
+    data.expected_value || 0
   );
   const id = Number(result.lastInsertRowid);
   recordAudit('lead', id, 'created', { source: data.source, status: data.status }, userId);
@@ -85,11 +86,11 @@ function updateLead(data, userId) {
   db.prepare(`
     UPDATE crm_leads
     SET name = ?, phone = ?, email = ?, company_id = ?, source = ?, status = ?,
-        owner_user_id = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
+        owner_user_id = ?, notes = ?, expected_value = ?, updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
   `).run(
     data.name, data.phone, data.email, data.company_id, data.source, data.status,
-    data.owner_user_id, data.notes, data.id
+    data.owner_user_id, data.notes, data.expected_value || 0, data.id
   );
   recordAudit('lead', data.id, 'updated', { name: data.name, status: data.status }, userId);
   return db.prepare('SELECT * FROM crm_leads WHERE id = ?').get(data.id);
@@ -127,11 +128,12 @@ function deleteLead(leadId, userId) {
 function createLeads(data, userId) {
   const insertLeads = db.transaction((leads) => leads.map((lead) => {
     const result = db.prepare(`
-      INSERT INTO crm_leads (name, phone, email, company_id, source, status, owner_user_id, notes)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO crm_leads (name, phone, email, company_id, source, status, owner_user_id, notes, expected_value)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       lead.name, lead.phone || null, lead.email || null, lead.company_id || null,
-      lead.source || null, lead.status || 'new', lead.owner_user_id || userId || null, lead.notes || null
+      lead.source || null, lead.status || 'new', lead.owner_user_id || userId || null, lead.notes || null,
+      lead.expected_value || 0
     );
     const id = Number(result.lastInsertRowid);
     recordAudit('lead', id, 'created', { source: lead.source, status: lead.status }, userId);
@@ -269,6 +271,7 @@ function moveOpportunity(data, userId) {
     SET stage = ?, pipeline_stage_id = ?, probability = ?, last_stage_changed_at = CURRENT_TIMESTAMP,
         updated_at = CURRENT_TIMESTAMP, updated_by = ?,
         closed_at = CASE WHEN ? IN ('won', 'lost') THEN CURRENT_TIMESTAMP ELSE NULL END,
+        lost_reason = ?,
         stage_stale_reminded_at = NULL
     WHERE id = ?
   `).run(
@@ -277,6 +280,7 @@ function moveOpportunity(data, userId) {
     stage.probability,
     userId || null,
     stage.outcome,
+    stage.outcome === 'lost' ? data.lostReason || null : null,
     data.opportunityId
   );
   recordAudit('opportunity', data.opportunityId, 'stage_changed', { pipeline_stage_id: stage.id }, userId);
@@ -394,7 +398,16 @@ function createActivity(data, userId) {
 
 function getActivities(filters = {}) {
   let query = `
-    SELECT activity.*, users.username AS owner_username
+    SELECT activity.*, users.username AS owner_username,
+      CASE activity.record_type
+        WHEN 'customer' THEN (SELECT name FROM customers WHERE id = activity.record_id)
+        WHEN 'company' THEN (SELECT name FROM crm_companies WHERE id = activity.record_id)
+        WHEN 'lead' THEN (SELECT name FROM crm_leads WHERE id = activity.record_id)
+        WHEN 'opportunity' THEN (SELECT title FROM crm_opportunities WHERE id = activity.record_id)
+      END AS record_name,
+      CASE WHEN activity.record_type = 'opportunity'
+        THEN (SELECT expected_value FROM crm_opportunities WHERE id = activity.record_id)
+      END AS record_value
     FROM crm_activities activity
     LEFT JOIN users ON users.id = activity.owner_user_id
     WHERE 1 = 1
@@ -661,16 +674,62 @@ function anonymizeCustomer(customerId, userId) {
 
 function createCustomField(data) {
   const result = db.prepare(`
-    INSERT INTO crm_custom_fields (entity_type, field_key, label, field_type, is_required)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(data.entity_type, data.field_key, data.label, data.field_type, data.is_required ? 1 : 0);
+    INSERT INTO crm_custom_fields (entity_type, field_key, label, field_type, is_required, options_json, display_order)
+    VALUES (?, ?, ?, ?, ?, ?,
+      (SELECT COALESCE(MAX(display_order), 0) + 1 FROM crm_custom_fields WHERE entity_type = ?))
+  `).run(
+    data.entity_type, data.field_key, data.label, data.field_type, data.is_required ? 1 : 0,
+    data.options ? JSON.stringify(data.options) : null, data.entity_type
+  );
   return Number(result.lastInsertRowid);
+}
+
+function parseCustomField(field) {
+  if (!field) return field;
+  let options = null;
+  if (field.options_json) {
+    try {
+      options = JSON.parse(field.options_json);
+    } catch (error) {
+      throw new Error(`تعذر قراءة اختيارات الحقل "${field.label}": ${error.message}`);
+    }
+  }
+  return { ...field, options };
 }
 
 function getCustomFields(entityType) {
   return db.prepare(`
-    SELECT * FROM crm_custom_fields WHERE entity_type = ? ORDER BY id
-  `).all(entityType);
+    SELECT * FROM crm_custom_fields WHERE entity_type = ? ORDER BY display_order, id
+  `).all(entityType).map(parseCustomField);
+}
+
+function getCustomFieldById(id) {
+  return parseCustomField(db.prepare('SELECT * FROM crm_custom_fields WHERE id = ?').get(id));
+}
+
+// Key and type stay fixed: stored values were validated against them.
+function updateCustomField(data) {
+  const result = db.prepare(`
+    UPDATE crm_custom_fields SET label = ?, is_required = ?, options_json = ? WHERE id = ?
+  `).run(data.label, data.is_required ? 1 : 0, data.options ? JSON.stringify(data.options) : null, data.id);
+  if (!result.changes) throw new Error('الحقل المخصص غير موجود');
+  return getCustomFieldById(data.id);
+}
+
+// Stored values go with the field (crm_custom_field_values has ON DELETE CASCADE).
+function deleteCustomField(id) {
+  const result = db.prepare('DELETE FROM crm_custom_fields WHERE id = ?').run(id);
+  if (!result.changes) throw new Error('الحقل المخصص غير موجود');
+  return { deleted: true };
+}
+
+function reorderCustomFields(entityType, orderedIds) {
+  const reorder = db.transaction(() => {
+    const save = db.prepare('UPDATE crm_custom_fields SET display_order = ? WHERE id = ? AND entity_type = ?');
+    orderedIds.forEach((id, index) => save.run(index + 1, id, entityType));
+  });
+  reorder();
+  return getCustomFields(entityType);
 }
 
 function setCustomFieldValues(entityType, recordId, values, userId) {
@@ -762,6 +821,10 @@ module.exports = {
   anonymizeCustomer,
   createCustomField,
   getCustomFields,
+  getCustomFieldById,
+  updateCustomField,
+  deleteCustomField,
+  reorderCustomFields,
   setCustomFieldValues,
   getCustomFieldValues,
   recordExists,

@@ -30,7 +30,9 @@
 .roles-page,
 .prf-page,
 .prf-overlay,
-.crm-ds {
+.crm-ds,
+.crm-modal-backdrop,
+.crm-drawer-overlay {
   /* ---- Palette (internal to this file) --------------------------------- */
   --ds-slate-0:   #FFFFFF;
   --ds-slate-50:  #F8FAFC;
@@ -194,7 +196,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pos-page-wrapper, .inv-page, .rep-page, .err-screen, .kds-page, .prd-page, .roles-page, .prf-page, .prf-overlay, .crm-ds { --duration-fast: 0ms; --duration-base: 0ms; }
+  .pos-page-wrapper, .inv-page, .rep-page, .err-screen, .kds-page, .prd-page, .roles-page, .prf-page, .prf-overlay, .crm-ds, .crm-modal-backdrop, .crm-drawer-overlay { --duration-fast: 0ms; --duration-base: 0ms; }
 }
 
 /* --------------------------------------------------------------------------

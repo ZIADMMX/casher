@@ -1,9 +1,10 @@
-const { BrowserWindow } = require('electron');
+const { BrowserWindow, Notification } = require('electron');
 const NotificationsRepository = require('../repositories/notifications.repository');
 const { logError } = require('./logger.service');
 
 const NotificationsService = {
-  notify({ userId = null, type, title, message, linkPage = null }) {
+  // desktop: also show a Windows notification, for reminders that matter while the app is minimized.
+  notify({ userId = null, type, title, message, linkPage = null, desktop = false }) {
     if (!type || !title || !message) {
       console.warn('تنبيه: محاولة إنشاء إشعار بدون بيانات مكتملة');
       return null;
@@ -24,6 +25,17 @@ const NotificationsService = {
         if (win && !win.isDestroyed()) {
           win.webContents.send('notification:received', notification);
         }
+      }
+
+      if (desktop && Notification?.isSupported?.()) {
+        const toast = new Notification({ title, body: message });
+        toast.on('click', () => {
+          const win = windows.find((item) => item && !item.isDestroyed());
+          if (!win) return;
+          if (win.isMinimized()) win.restore();
+          win.focus();
+        });
+        toast.show();
       }
 
       return notification;

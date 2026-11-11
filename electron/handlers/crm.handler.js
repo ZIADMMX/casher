@@ -7,6 +7,7 @@ const { dialog } = require('electron');
 const { readTableFile } = require('../services/excel.util');
 const { exportToExcelOrCsv } = require('../services/export.service');
 const crmAttachments = require('../services/crmAttachments.service');
+const dailyMessages = require('../services/dailyMessages.service');
 
 function registerCRMHandlers() {
   const userId = () => authService.getCurrentSession()?.id || null;
@@ -79,6 +80,10 @@ function registerCRMHandlers() {
   safeHandle('crm:createPipelineStage', (event, data) => advancedCRM.createPipelineStage(data, userId()));
   safeHandle('crm:updatePipelineStage', (event, data) => advancedCRM.updatePipelineStage(data, userId()));
   safeHandle('crm:createAdvancedOpportunity', (event, data) => advancedCRM.createOpportunity(data, userId()));
+  safeHandle('crm:getDailyMessages', () => dailyMessages.getToday());
+  safeHandle('crm:markDailyMessageSent', (event, { kind, refId } = {}) => dailyMessages.markSent(kind, refId, userId()));
+  safeHandle('crm:getDailyMessageTemplates', () => dailyMessages.getTemplates());
+  safeHandle('crm:saveDailyMessageTemplates', (event, templates) => dailyMessages.saveTemplates(templates));
   safeHandle('crm:moveOpportunity', (event, data) => advancedCRM.moveOpportunity(data, userId()));
   safeHandle('crm:assignOpportunity', (event, data) => advancedCRM.assignOpportunity(data, userId()));
   safeHandle('crm:getActivities', (event, filters) => advancedCRM.getActivities(filters));
@@ -129,6 +134,15 @@ function registerCRMHandlers() {
   });
   safeHandle('crm:createCustomField', (event, data) => advancedCRM.createCustomField(data));
   safeHandle('crm:getCustomFields', (event, entityType) => advancedCRM.getCustomFields(entityType));
+  safeHandle('crm:updateCustomField', (event, data) => advancedCRM.updateCustomField(data));
+  // Deleting a field also deletes every value stored in it.
+  safeHandle('crm:deleteCustomField', (event, fieldId) => {
+    authService.requireAdmin();
+    return advancedCRM.deleteCustomField(fieldId);
+  });
+  safeHandle('crm:reorderCustomFields', (event, { entityType, orderedIds }) => (
+    advancedCRM.reorderCustomFields(entityType, orderedIds)
+  ));
   safeHandle('crm:setCustomFieldValues', (event, data) => (
     advancedCRM.setCustomFieldValues(data.entityType, data.recordId, data.values, userId())
   ));
@@ -187,6 +201,7 @@ function registerCRMHandlers() {
         'الشركة': lead.company_name || '',
         'المصدر': lead.source || '',
         'الحالة': lead.status,
+        'القيمة المتوقعة': lead.expected_value || 0,
         'المسؤول': lead.owner_username || '',
       }));
       sheetName = 'Leads';

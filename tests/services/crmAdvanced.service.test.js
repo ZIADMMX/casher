@@ -23,6 +23,12 @@ jest.mock('../../electron/repositories/crmAdvanced.repository', () => ({
   isActiveUser: jest.fn((id) => id === 2 || id === 4),
   updateCompany: jest.fn((data) => data),
   updateLead: jest.fn((data) => data),
+  createCustomField: jest.fn(() => 61),
+  getCustomFieldValues: jest.fn(() => ({})),
+  getCustomFieldById: jest.fn(),
+  updateCustomField: jest.fn((data) => data),
+  reorderCustomFields: jest.fn(() => []),
+  moveOpportunity: jest.fn((data) => data),
 }));
 
 jest.mock('../../electron/services/crm.cache', () => ({
@@ -200,5 +206,56 @@ describe('Advanced CRM assignment', () => {
       1
     );
     expect(crmCache.invalidate).toHaveBeenCalledTimes(1);
+  });
+});
+
+
+describe('Advanced CRM custom fields, lead value and lost reason', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  test('a choice list needs distinct, non-empty choices', () => {
+    const base = { entity_type: 'customer', field_key: 'payment', label: 'طريقة الدفع', field_type: 'select' };
+    expect(() => crmAdvanced.createCustomField({ ...base, options: [] })).toThrow('من اختيار لـ 50');
+    expect(() => crmAdvanced.createCustomField({ ...base, options: ['كاش', 'كاش'] })).toThrow('مكرر');
+    expect(() => crmAdvanced.createCustomField({ ...base, options: ['كاش', ' '] })).toThrow('من حرف لـ 60');
+    crmAdvanced.createCustomField({ ...base, options: [' كاش ', 'آجل'] });
+    expect(repo.createCustomField).toHaveBeenCalledWith(expect.objectContaining({ options: ['كاش', 'آجل'] }));
+    expect(() => crmAdvanced.createCustomField({ ...base, field_type: 'file' })).toThrow('نوع الحقل غير مدعوم');
+  });
+
+  test('a saved value of a choice list must be one of its choices', () => {
+    repo.getCustomFields.mockReturnValue([{ id: 1, field_key: 'payment', label: 'طريقة الدفع', field_type: 'select', options: ['كاش'] }]);
+    expect(() => crmAdvanced.setCustomFieldValues('customer', 3, { payment: 'شيك' }, 1)).toThrow('من الاختيارات المتاحة');
+    crmAdvanced.setCustomFieldValues('customer', 3, { payment: 'كاش' }, 1);
+    expect(repo.setCustomFieldValues).toHaveBeenCalled();
+    repo.getCustomFields.mockReturnValue([]);
+  });
+
+  test('updating a field keeps its type and only validates choices for lists', () => {
+    repo.getCustomFieldById.mockReturnValue({ id: 4, field_type: 'text' });
+    crmAdvanced.updateCustomField({ id: 4, label: 'جديد', is_required: true, options: ['x'] });
+    expect(repo.updateCustomField).toHaveBeenCalledWith({ id: 4, label: 'جديد', is_required: true, options: null });
+  });
+
+  test('reordering must list every field of the type exactly once', () => {
+    repo.getCustomFields.mockReturnValue([{ id: 1 }, { id: 2 }]);
+    expect(() => crmAdvanced.reorderCustomFields('customer', [1])).toThrow('كل حقول');
+    expect(() => crmAdvanced.reorderCustomFields('customer', [1, 1])).toThrow('كل حقول');
+    crmAdvanced.reorderCustomFields('customer', [2, 1]);
+    expect(repo.reorderCustomFields).toHaveBeenCalledWith('customer', [2, 1]);
+    repo.getCustomFields.mockReturnValue([]);
+  });
+
+  test('a lead keeps its expected value and rejects a negative one', () => {
+    crmAdvanced.createLead({ name: 'Lead', expected_value: '45000' }, 2);
+    expect(repo.createLead).toHaveBeenCalledWith(expect.objectContaining({ expected_value: 45000 }), 2);
+    expect(() => crmAdvanced.createLead({ name: 'Lead', expected_value: -1 }, 2)).toThrow('القيمة المتوقعة');
+  });
+
+  test('moving a deal passes the lost reason through', () => {
+    crmAdvanced.moveOpportunity({ opportunity_id: 9, stage_id: 5, lost_reason: '  السعر ' }, 1);
+    expect(repo.moveOpportunity).toHaveBeenCalledWith({ opportunityId: 9, stageId: 5, lostReason: 'السعر' }, 1);
   });
 });
