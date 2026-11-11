@@ -17,6 +17,7 @@ export const FIELD_TYPES = {
   select: { label: 'قائمة اختيار', tone: 'success' },
   date: { label: 'تاريخ', tone: 'warning' },
   boolean: { label: 'نعم / لا', tone: 'primary' },
+  file: { label: 'ملف مرفق', tone: 'info' },
 };
 
 function CRMCustomFields({ entity, onEntity, fieldsByEntity, loading, onAdd, onEdit, onDelete, onMove }) {

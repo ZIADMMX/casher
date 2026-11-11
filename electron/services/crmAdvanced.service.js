@@ -5,7 +5,7 @@ const RECORD_TYPES = new Set(['customer', 'company', 'lead', 'opportunity']);
 const LEAD_STATUSES = new Set(['new', 'contacted', 'qualified', 'converted', 'lost']);
 const STAGE_OUTCOMES = new Set(['open', 'won', 'lost']);
 const ACTIVITY_TYPES = new Set(['call', 'meeting', 'task', 'email', 'note']);
-const FIELD_TYPES = new Set(['text', 'number', 'date', 'boolean', 'select']);
+const FIELD_TYPES = new Set(['text', 'number', 'date', 'boolean', 'select', 'file']);
 
 function requireObject(value, label) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -672,6 +672,14 @@ function setCustomFieldValues(entityType, recordId, values, userId) {
     }
   }
   if (!repo.recordExists(entityType, id)) throw new Error('السجل غير موجود');
+  // A file field holds the id of an attachment of this same record.
+  for (const [key, value] of Object.entries(normalizedValues)) {
+    if (fieldByKey.get(key).field_type !== 'file' || !value) continue;
+    const attachment = repo.getAttachmentById(Number(value));
+    if (!attachment || attachment.record_type !== entityType || attachment.record_id !== id) {
+      throw new Error(`الملف المختار للحقل "${fieldByKey.get(key).label}" مش مرفق بالسجل ده`);
+    }
+  }
   repo.setCustomFieldValues(entityType, id, normalizedValues, userId);
   return repo.getCustomFieldValues(entityType, id);
 }

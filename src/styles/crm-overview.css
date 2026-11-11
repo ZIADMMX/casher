@@ -1779,3 +1779,8 @@
 .crm-drawer-overlay .crm-timeline-details { color: var(--color-text-muted); }
 .crm-drawer-overlay .crm-timeline-amount { color: var(--color-primary); font-family: var(--font-numeric); font-weight: var(--weight-heavy); }
 .crm-drawer-overlay .crm-danger-outline-btn { border-color: var(--color-danger); color: var(--color-danger-text); }
+
+/* File custom field in the 360° window: file name (opens it), then change / remove. */
+.crm-file-field { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.crm-drawer-overlay .crm-file-field-name { max-width: 100%; color: var(--color-primary); }
+.crm-file-field-name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

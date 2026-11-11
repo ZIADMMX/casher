@@ -3,7 +3,7 @@ import Input from '../ui/Input.jsx';
 import * as crmApi from '../../api/crm.js';
 import * as customersApi from '../../api/customers.js';
 import {
-  BriefcaseIcon, CallIcon, CloseIcon, ClockIcon, ShieldIcon, StarIcon,
+  BriefcaseIcon, CallIcon, CloseIcon, ClockIcon, FileTextIcon, ShieldIcon, StarIcon,
 } from '../icons/PosIcons.jsx';
 import { agoText, daysBetween, initials, money, num, parseDbDate } from './crmFormat.js';
 import { openWhatsapp } from '../../utils/whatsapp.js';
@@ -91,6 +91,24 @@ function RenderItemIcon({ type }) {
     default:
       return <svg {...iconProps}><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" /><polyline points="13 2 13 9 20 9" /></svg>;
   }
+}
+
+function FileFieldInput({ attachments, value, onPick, onOpen, onClear }) {
+  const file = value ? attachments.find((item) => String(item.id) === String(value)) : null;
+  return (
+    <div className="crm-file-field">
+      {file ? (
+        <button type="button" className="secondary-btn crm-file-field-name" onClick={() => onOpen(file.id)} title="فتح الملف">
+          <FileTextIcon size={16} />
+          <span>{file.file_name}</span>
+        </button>
+      ) : (
+        <span className="crm-muted-meta">{value ? 'الملف ده اتشال من المرفقات' : 'مفيش ملف'}</span>
+      )}
+      <button type="button" className="secondary-btn" onClick={onPick}>{value ? 'تغيير' : 'اختار ملف'}</button>
+      {value && <button type="button" className="secondary-btn" onClick={onClear}>إزالة</button>}
+    </div>
+  );
 }
 
 function CustomerTimelineDrawer({ customer, onClose, onCustomerUpdated, crmMode = false, isAdmin = false }) {
@@ -306,6 +324,18 @@ function CustomerTimelineDrawer({ customer, onClose, onCustomerUpdated, crmMode 
     try {
       const result = await crmApi.selectCRMFileAttachment('customer', customer.id);
       if (result && !result.canceled) await fetchCRMDetails();
+    } catch (attachmentError) {
+      setError(attachmentError.message || 'تعذر حفظ الملف المرفق');
+    }
+  };
+
+  // A file field stores the id of a new attachment of this customer; saved with the other fields.
+  const pickFieldFile = async (fieldKey) => {
+    try {
+      const result = await crmApi.selectCRMFileAttachment('customer', customer.id);
+      if (!result || result.canceled) return;
+      setCustomFieldValues((values) => ({ ...values, [fieldKey]: String(result.id) }));
+      setCrmAttachments(await crmApi.getCRMAttachments('customer', customer.id) || []);
     } catch (attachmentError) {
       setError(attachmentError.message || 'تعذر حفظ الملف المرفق');
     }
@@ -709,6 +739,14 @@ function CustomerTimelineDrawer({ customer, onClose, onCustomerUpdated, crmMode 
                                 />
                                 نعم / مفعل
                               </label>
+                            ) : field.field_type === 'file' ? (
+                              <FileFieldInput
+                                attachments={crmAttachments}
+                                value={customFieldValues[field.field_key] || ''}
+                                onPick={() => pickFieldFile(field.field_key)}
+                                onOpen={openAttachment}
+                                onClear={() => setCustomFieldValues({ ...customFieldValues, [field.field_key]: '' })}
+                              />
                             ) : field.field_type === 'select' ? (
                               <select
                                 className="crm-form-select"

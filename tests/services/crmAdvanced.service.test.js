@@ -222,7 +222,7 @@ describe('Advanced CRM custom fields, lead value and lost reason', () => {
     expect(() => crmAdvanced.createCustomField({ ...base, options: ['كاش', ' '] })).toThrow('من حرف لـ 60');
     crmAdvanced.createCustomField({ ...base, options: [' كاش ', 'آجل'] });
     expect(repo.createCustomField).toHaveBeenCalledWith(expect.objectContaining({ options: ['كاش', 'آجل'] }));
-    expect(() => crmAdvanced.createCustomField({ ...base, field_type: 'file' })).toThrow('نوع الحقل غير مدعوم');
+    expect(() => crmAdvanced.createCustomField({ ...base, field_type: 'image' })).toThrow('نوع الحقل غير مدعوم');
   });
 
   test('a saved value of a choice list must be one of its choices', () => {
@@ -230,6 +230,17 @@ describe('Advanced CRM custom fields, lead value and lost reason', () => {
     expect(() => crmAdvanced.setCustomFieldValues('customer', 3, { payment: 'شيك' }, 1)).toThrow('من الاختيارات المتاحة');
     crmAdvanced.setCustomFieldValues('customer', 3, { payment: 'كاش' }, 1);
     expect(repo.setCustomFieldValues).toHaveBeenCalled();
+    repo.getCustomFields.mockReturnValue([]);
+  });
+
+  test('a file field only takes an attachment of the same record', () => {
+    repo.getCustomFields.mockReturnValue([{ id: 2, field_key: 'contract', label: 'العقد', field_type: 'file' }]);
+    repo.getAttachmentById = jest.fn((id) => ({ 7: { record_type: 'customer', record_id: 3 }, 8: { record_type: 'customer', record_id: 4 } })[id]);
+    expect(() => crmAdvanced.setCustomFieldValues('customer', 3, { contract: '8' }, 1)).toThrow('مش مرفق بالسجل ده');
+    expect(() => crmAdvanced.setCustomFieldValues('customer', 3, { contract: '99' }, 1)).toThrow('مش مرفق بالسجل ده');
+    crmAdvanced.setCustomFieldValues('customer', 3, { contract: '7' }, 1);
+    crmAdvanced.setCustomFieldValues('customer', 3, { contract: '' }, 1); // cleared
+    expect(repo.setCustomFieldValues).toHaveBeenCalledTimes(2);
     repo.getCustomFields.mockReturnValue([]);
   });
 
