@@ -130,15 +130,16 @@ describe('CRM Service Unit Tests', () => {
       { id: 8, title: 'مكالمة متابعة', owner_user_id: 2 }
     ]);
     advancedCRMRepo.getStaleOpportunities.mockReturnValueOnce([
-      { id: 9, title: 'تجديد عقد', customer_name: 'عميل', user_id: 3 }
+      { id: 9, title: 'تجديد عقد', customer_name: 'عميل', user_id: 3, stale_days: 10 }
     ]);
 
     crmService.checkDueReminders();
 
     expect(advancedCRMRepo.markActivityReminderSent).toHaveBeenCalledWith(8);
     expect(advancedCRMRepo.markOpportunityStaleReminderSent).toHaveBeenCalledWith(9);
+    // The message uses the configured threshold, not a fixed seven days.
     expect(notificationsService.notify).toHaveBeenCalledWith(expect.objectContaining({
-      message: expect.stringContaining('متوقفة منذ 7 أيام'),
+      message: expect.stringContaining('متوقفة منذ 10 أيام'),
       linkPage: 'crm'
     }));
   });

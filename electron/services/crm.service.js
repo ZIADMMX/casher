@@ -134,7 +134,7 @@ function checkDueReminders() {
       userId: opportunity.user_id || null,
       type: 'warning',
       title: 'صفقة تحتاج إلى متابعة',
-      message: `الصفقة "${opportunity.title}" مع ${opportunity.customer_name} متوقفة منذ 7 أيام.`,
+      message: `الصفقة "${opportunity.title}" مع ${opportunity.customer_name} متوقفة منذ ${opportunity.stale_days} أيام.`,
       linkPage: 'crm'
     });
     if (notification) advancedCRMRepo.markOpportunityStaleReminderSent(opportunity.id);

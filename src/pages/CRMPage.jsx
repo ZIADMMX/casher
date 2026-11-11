@@ -263,7 +263,7 @@ function CRMPage() {
   const rankTone = (index, count) => (count <= 1 ? 100 : Math.round(100 - (index / (count - 1)) * 55));
 
   // These views draw their own header (their actions live there) and place the tabs under it.
-  const ownHeader = ['contacts', 'companies', 'leads', 'pipeline'].includes(activeView);
+  const ownHeader = ['contacts', 'companies', 'leads', 'pipeline', 'fields', 'automation'].includes(activeView);
   const tabs = (
     <nav className="crm-ds crm-ov-tabs" aria-label="أقسام CRM">
       {VIEWS.map(({ id, label, Icon }) => (

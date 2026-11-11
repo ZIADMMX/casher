@@ -320,13 +320,13 @@ function getStaleOpportunities() {
   }
   return db.prepare(`
     SELECT opportunity.id, opportunity.title, opportunity.user_id, opportunity.expected_value,
-      customer.name AS customer_name, opportunity.last_stage_changed_at
+      customer.name AS customer_name, opportunity.last_stage_changed_at, ? AS stale_days
     FROM crm_opportunities opportunity
     JOIN customers customer ON customer.id = opportunity.customer_id
     WHERE opportunity.stage NOT IN ('won', 'lost')
       AND opportunity.last_stage_changed_at <= datetime('now', ?)
       AND opportunity.stage_stale_reminded_at IS NULL
-  `).all(`-${days} days`);
+  `).all(days, `-${days} days`);
 }
 
 function markOpportunityStaleReminderSent(id) {

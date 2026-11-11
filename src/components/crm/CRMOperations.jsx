@@ -6,7 +6,11 @@ import * as customersApi from '../../api/customers.js';
 import CRMHeader from './CRMHeader.jsx';
 import CRMCompaniesGrid from './CRMCompaniesGrid.jsx';
 import CRMLeadsList, { LEAD_STATUSES } from './CRMLeadsList.jsx';
-import { BuildingIcon, DownloadIcon, PlusIcon, UploadIcon, UserPlusIcon } from '../icons/PosIcons.jsx';
+import CRMCustomFields, { FIELD_ENTITIES } from './CRMCustomFields.jsx';
+import CRMAutomationPanel, { DEFAULT_STALE_RULE } from './CRMAutomationPanel.jsx';
+import {
+  BoltIcon, BuildingIcon, DownloadIcon, PlusIcon, SlidersIcon, UploadIcon, UserPlusIcon,
+} from '../icons/PosIcons.jsx';
 
 function IconBuilding() {
   return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v8h4"/><path d="M18 9h2a2 2 0 0 1 2 2v11h-4"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/></svg>;
@@ -48,10 +52,11 @@ function CRMOperations({ section, crmTabs = null }) {
   const [source, setSource] = useState('');
   const [owner, setOwner] = useState('');
   const [savedFilters, setSavedFilters] = useState([]);
-  const [customFields, setCustomFields] = useState([]);
+  // All four entity types load together so the side list can show each one's field count.
+  const [fieldsByEntity, setFieldsByEntity] = useState({});
   const [fieldEntity, setFieldEntity] = useState('customer');
   const [fieldForm, setFieldForm] = useState({ label: '', field_key: '', field_type: 'text', is_required: false });
-  const [automationRule, setAutomationRule] = useState({ days: 7, is_enabled: true });
+  const [automationRule, setAutomationRule] = useState(DEFAULT_STALE_RULE);
   const [form, setForm] = useState({});
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
@@ -97,7 +102,10 @@ function CRMOperations({ section, crmTabs = null }) {
       ['tasks', 'leads'].includes(section) ? crmApi.getCRMActivities({}) : Promise.resolve([]),
       section === 'tasks' ? customersApi.getAllCustomersWithStats() : Promise.resolve([]),
       section === 'leads' ? crmApi.getCRMSavedFilters('lead') : Promise.resolve([]),
-      section === 'fields' ? crmApi.getCRMCustomFields(fieldEntity) : Promise.resolve([]),
+      section === 'fields'
+        ? Promise.all(FIELD_ENTITIES.map(({ id }) => crmApi.getCRMCustomFields(id)))
+          .then((lists) => Object.fromEntries(FIELD_ENTITIES.map(({ id }, index) => [id, lists[index] || []])))
+        : Promise.resolve({}),
       // Leads read the stale-days threshold; it is optional there, so a failure must not hide the list.
       section === 'automation' ? crmApi.getCRMAutomationRules()
         : section === 'leads' ? crmApi.getCRMAutomationRules().catch(() => []) : Promise.resolve([]),
@@ -109,7 +117,7 @@ function CRMOperations({ section, crmTabs = null }) {
       setActivities(activityRows || []);
       setCustomers(customerRows || []);
       setSavedFilters(filters || []);
-      setCustomFields(fields || []);
+      setFieldsByEntity(fields || {});
       const staleRule = (rules || []).find((rule) => rule.trigger_type === 'opportunity_stale');
       if (staleRule) {
         setAutomationRule({ days: staleRule.config.days, is_enabled: Boolean(staleRule.is_enabled) });
@@ -121,7 +129,7 @@ function CRMOperations({ section, crmTabs = null }) {
       if (active) setLoading(false);
     });
     return () => { active = false; };
-  }, [section, search, fieldEntity]);
+  }, [section, search]);
 
   const companyOptions = useMemo(() => companies.map((company) => (
     <option value={company.id} key={company.id}>{company.name}</option>
@@ -274,7 +282,8 @@ function CRMOperations({ section, crmTabs = null }) {
       });
       setFieldForm({ label: '', field_key: '', field_type: 'text', is_required: false });
       closeModal();
-      setCustomFields(await crmApi.getCRMCustomFields(fieldEntity));
+      const entityFields = await crmApi.getCRMCustomFields(fieldEntity);
+      setFieldsByEntity((current) => ({ ...current, [fieldEntity]: entityFields || [] }));
       setMessage('تم إضافة الحقل المخصص بنجاح.');
     } catch (fieldError) {
       setError(fieldError.message || 'تعذر إنشاء الحقل');
@@ -357,6 +366,23 @@ function CRMOperations({ section, crmTabs = null }) {
               شركة جديدة
             </button>
           </CRMHeader>
+          {crmTabs}
+        </>
+      )}
+      {section === 'fields' && (
+        <>
+          <CRMHeader icon={SlidersIcon} title="الحقول المخصصة" subtitle="ضيف بيانات خاصة بنشاطك على سجلات العملاء والصفقات.">
+            <button type="button" className="crm-ov-btn crm-ov-btn--primary" onClick={() => openModal('field')}>
+              <PlusIcon size={18} />
+              حقل مخصص جديد
+            </button>
+          </CRMHeader>
+          {crmTabs}
+        </>
+      )}
+      {section === 'automation' && (
+        <>
+          <CRMHeader icon={BoltIcon} title="الأتمتة والتذكيرات" subtitle="خلّي النظام هو اللي يفكّر المسؤولين بالصفقات الواقفة، بدل المتابعة اليدوية." />
           {crmTabs}
         </>
       )}
@@ -561,119 +587,18 @@ function CRMOperations({ section, crmTabs = null }) {
 
       {/* Section 4: Custom Fields */}
       {section === 'fields' && (
-        <>
-          <div className="crm-toolbar">
-            <div className="crm-toolbar-left">
-              <label className="crm-form-label crm-filter-label">
-                نوع السجل المستهدف:
-              </label>
-              <select
-                className="crm-select-filter"
-                value={fieldEntity}
-                onChange={(event) => setFieldEntity(event.target.value)}
-              >
-                <option value="customer">جهات الاتصال (Customers)</option>
-                <option value="company">الشركات (Companies)</option>
-                <option value="lead">العملاء المحتملون (Leads)</option>
-                <option value="opportunity">الصفقات (Opportunities)</option>
-              </select>
-            </div>
-            <div className="crm-toolbar-right">
-              <button type="button" className="primary-btn" onClick={() => openModal('field')}>
-                + إضافة حقل مخصص
-              </button>
-            </div>
-          </div>
-
-          <div className="crm-table-card">
-            {customFields.length === 0 ? (
-              <div className="crm-empty-state">
-                <p>لا توجد حقول مخصصة لهذا النوع حتى الآن.</p>
-                <button type="button" className="primary-btn" onClick={() => openModal('field')}>
-                  + إضافة حقل مخصص
-                </button>
-              </div>
-            ) : (
-              <table className="crm-table">
-                <thead>
-                  <tr>
-                    <th>اسم الحقل</th>
-                    <th>المفتاح البرمجي</th>
-                    <th>نوع البيانات</th>
-                    <th>الحالة</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {customFields.map((field) => (
-                    <tr key={field.id}>
-                      <td className="crm-custom-field-label">{field.label}</td>
-                      <td>
-                        <code className="crm-field-key">
-                          {field.field_key}
-                        </code>
-                      </td>
-                      <td>{field.field_type}</td>
-                      <td>
-                        <span className={`crm-badge ${field.is_required ? 'lost' : 'open'}`}>
-                          {field.is_required ? 'إلزامي' : 'اختياري'}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </>
+        <CRMCustomFields
+          entity={fieldEntity}
+          onEntity={setFieldEntity}
+          fieldsByEntity={fieldsByEntity}
+          loading={loading}
+          onAdd={() => openModal('field')}
+        />
       )}
 
       {/* Section 5: Automation */}
       {section === 'automation' && (
-        <div className="crm-automation-container">
-          <div className="crm-overview-panel">
-            <div className="crm-panel-heading">
-              <div>
-                <h2>قواعد المتابعة والتذكير الآلي</h2>
-                <p>إرسال تنبيهات ذكية للمسؤولين عند ركود الصفقات دون تحديث.</p>
-              </div>
-            </div>
-            <form onSubmit={saveAutomationRule} className="crm-automation-form">
-              <div className="crm-form-group">
-                <label className="crm-form-label">
-                  تنبيه عند توقف الصفقة في نفس المرحلة لأكثر من (بالأيام):
-                </label>
-                <Input
-                  className="crm-form-input"
-                  type="number"
-                  min="1"
-                  max="365"
-                  value={automationRule.days}
-                  onChange={(event) => setAutomationRule({ ...automationRule, days: event.target.value })}
-                  required
-                />
-              </div>
-
-              <label className="crm-form-checkbox-label">
-                <input
-                  type="checkbox"
-                  checked={automationRule.is_enabled}
-                  onChange={(event) => setAutomationRule({ ...automationRule, is_enabled: event.target.checked })}
-                />
-                <strong>تفعيل إرسال إشعار فوري للمسؤول عند تجاوز المدة</strong>
-              </label>
-
-              <div className="crm-automation-info">
-                <strong>آلية العمل:</strong> يقوم النظام بالتحقق اليومي من الصفقات المفتوحة، وفي حال لم تتحرك الصفقة للمرحلة التالية خلال المدة المحددة، يُرسل إشعار تلقائي لمدير المبيعات ومسؤول الصفقة لمتابعة العميل.
-              </div>
-
-              <div className="crm-details-submit">
-                <button type="submit" className="primary-btn">
-                  حفظ إعدادات الأتمتة
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <CRMAutomationPanel rule={automationRule} onChange={setAutomationRule} onSubmit={saveAutomationRule} />
       )}
 
       {/* =========================================================================
@@ -899,7 +824,7 @@ function CRMOperations({ section, crmTabs = null }) {
         <div className="crm-modal-backdrop" onClick={closeModal}>
           <div className="crm-modal-box" onClick={(e) => e.stopPropagation()}>
             <div className="crm-modal-header">
-              <h3>إضافة حقل مخصص لـ {fieldEntity}</h3>
+              <h3>إضافة حقل مخصص لـ{FIELD_ENTITIES.find((item) => item.id === fieldEntity)?.label}</h3>
               <button type="button" className="crm-modal-close" onClick={closeModal}>✕</button>
             </div>
             <form onSubmit={createCustomField}>

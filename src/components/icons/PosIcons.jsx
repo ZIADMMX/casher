@@ -54,6 +54,7 @@ export const ScaleIcon = make(<><path d="M12 3v18M7 21h10M5 7h14" /><path d="m5 
 export const TableIcon = make(<><path d="M3 9h18M5 9v11M19 9v11" /><path d="M8 9V5h8v4" /></>);
 export const TagIcon = make(<><path d="M3 12V3h9l9 9-9 9z" /><circle cx="7.5" cy="7.5" r="1.5" /></>);
 export const BagIcon = make(<><path d="M5 8h14l-1 13H6z" /><path d="M9 8V6a3 3 0 0 1 6 0v2" /></>);
+export const BellIcon = make(<><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /></>);
 export const AlertIcon = make(<><path d="M12 3 2 21h20z" /><path d="M12 10v5M12 18h.01" /></>);
 export const PlayIcon = make(<path d="M7 4v16l13-8z" />);
 export const LogoutIcon = make(<><path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4" /><path d="M10 17l-5-5 5-5M5 12h11" /></>);
