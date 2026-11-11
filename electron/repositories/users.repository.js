@@ -48,7 +48,18 @@ function getAll() {
     SELECT
       u.id, u.username, u.role, u.system_role_key, u.full_name, u.first_name, u.last_name, u.phone, u.email,
       u.job_title, u.specialty, u.working_hours, u.profile_image, u.pay_type, u.pay_amount,
-      u.commission_rate, u.notes, u.is_active, u.created_at,
+      u.commission_rate, u.notes, u.is_active, u.created_at, u.scheduled_start, u.scheduled_end,
+      EXISTS(
+        SELECT 1 FROM attendance_records a
+        WHERE a.user_id = u.id
+          AND a.attendance_date = DATE('now', 'localtime')
+          AND a.check_out IS NOT NULL
+      ) AS checked_out_today,
+      EXISTS(
+        SELECT 1 FROM leave_requests l
+        WHERE l.user_id = u.id AND l.status = 'approved'
+          AND l.start_date <= DATE('now', 'localtime') AND l.end_date >= DATE('now', 'localtime')
+      ) AS on_leave,
       EXISTS(
         SELECT 1 FROM attendance_records a
         WHERE a.user_id = u.id

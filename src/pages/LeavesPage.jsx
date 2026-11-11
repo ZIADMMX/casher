@@ -1,7 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { formatProductImageUrl } from '../utils/media.js';
 import * as attendanceApi from '../api/attendance.js';
 import * as usersApi from '../api/users.js';
+import { HrEmpty, HrHeader, HrStat } from '../components/hr/HrLayout.jsx';
+import { CalendarIcon, CheckIcon, ClockIcon, CloseIcon, PlusIcon } from '../components/icons/PosIcons.jsx';
+import { LEAVE_FILTERS, filterLeaves, leaveDays, localDateString, summarizeLeaves } from '../utils/hrStats.js';
 import '../styles/leaves.css';
 
 const EMPTY_FORM = {
@@ -10,6 +13,12 @@ const EMPTY_FORM = {
   endDate: '',
   reason: '',
   autoApprove: false,
+};
+
+const STATUS_META = {
+  pending: { label: 'بانتظار الرد', tone: 'warning' },
+  approved: { label: 'مقبولة', tone: 'success' },
+  rejected: { label: 'مرفوضة', tone: 'danger' },
 };
 
 function getEmployeeName(request) {
@@ -28,43 +37,26 @@ function formatDate(value) {
   });
 }
 
-function isCurrentlyOnLeave(request, today) {
-  return request.status === 'approved'
-    && request.start_date <= today
-    && request.end_date >= today;
+function formatDays(days) {
+  if (days === 1) return 'يوم واحد';
+  if (days === 2) return 'يومين';
+  return `${days.toLocaleString('ar-EG')} ${days <= 10 ? 'أيام' : 'يوم'}`;
 }
 
-function getTodayDate() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-}
-
-function LeaveStat({ label, value, tone }) {
-  return (
-    <article className={`leaves-stat-card is-${tone}`}>
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </article>
-  );
-}
-
-export default function LeavesPage() {
+export default function LeavesPage({ onNavigate }) {
   const [items, setItems] = useState([]);
-  const [stats, setStats] = useState({
-    pending: 0,
-    approved: 0,
-    currentlyOnLeave: 0,
-    rejected: 0,
-  });
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState('all');
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [processingId, setProcessingId] = useState(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
-  const today = getTodayDate();
+  const today = localDateString();
+  const stats = useMemo(() => summarizeLeaves(items, today), [items, today]);
+  const visibleItems = useMemo(() => filterLeaves(items, statusFilter), [items, statusFilter]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -74,11 +66,10 @@ export default function LeavesPage() {
         attendanceApi.getLeaveRequests(),
         usersApi.getAllUsers(),
       ]);
-      if (!leaveData || !Array.isArray(leaveData.items) || !leaveData.stats || !Array.isArray(userData)) {
+      if (!leaveData || !Array.isArray(leaveData.items) || !Array.isArray(userData)) {
         throw new Error('استجابة بيانات الإجازات غير مكتملة.');
       }
       setItems(leaveData.items);
-      setStats(leaveData.stats);
       setEmployees(userData.filter((user) => user.is_active));
     } catch (requestError) {
       setError(requestError.message || 'تعذر تحميل بيانات الإجازات.');
@@ -90,6 +81,11 @@ export default function LeavesPage() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  function openForm() {
+    setShowForm(true);
+    setError('');
+  }
 
   function updateForm(field, value) {
     setForm((current) => ({ ...current, [field]: value }));
@@ -149,131 +145,145 @@ export default function LeavesPage() {
   }
 
   return (
-    <div className="leaves-page">
-      <header className="leaves-heading">
-        <div>
-          <span className="leaves-eyebrow">فريق العمل</span>
-          <h1>إدارة الإجازات</h1>
-          <p>تابع طلبات الإجازة وراجع الموافقات وحالة الموظفين.</p>
-        </div>
-        <button type="button" className="leaves-add-button" onClick={() => { setShowForm(true); setError(''); }}>
-          <span aria-hidden="true">+</span>
-          طلب إجازة جديدة
-        </button>
-      </header>
-
-      <section className="leaves-stats" aria-label="إحصائيات الإجازات">
-        <LeaveStat label="الطلبات المعلقة" value={stats.pending} tone="pending" />
-        <LeaveStat label="الطلبات المقبولة" value={stats.approved} tone="approved" />
-        <LeaveStat label="في إجازة حاليًا" value={stats.currentlyOnLeave} tone="current" />
-        <LeaveStat label="الطلبات المرفوضة" value={stats.rejected} tone="rejected" />
-      </section>
-
-      {(error || notice) && (
-        <p className={`leaves-alert ${error ? 'is-error' : 'is-success'}`} role={error ? 'alert' : 'status'}>
-          {error || notice}
-        </p>
-      )}
-
-      <section className="leaves-list-panel">
-        <header className="leaves-list-heading">
-          <div>
-            <h2>طلبات الإجازات</h2>
-            <p>{items.length} طلب{items.length === 1 ? '' : 'ات'} مسجل</p>
-          </div>
-          <button type="button" className="leaves-refresh-button" onClick={loadData} disabled={loading}>
-            {loading ? 'جارٍ التحديث...' : 'تحديث'}
+    <div className="hr-page">
+      <HrHeader
+        active="leaves"
+        onNavigate={onNavigate}
+        title="إدارة الإجازات"
+        subtitle="تابع طلبات الإجازة، وافق أو ارفض، واعرف مين مش موجود النهارده."
+        actions={(
+          <button type="button" className="hr-btn is-primary" onClick={openForm}>
+            <PlusIcon size={18} /> طلب إجازة جديد
           </button>
-        </header>
+        )}
+      />
 
-        <div className="leaves-table-wrap">
-          <table className="leaves-table">
-            <thead>
-              <tr>
-                <th>الموظف</th>
-                <th>نطاق الإجازة</th>
-                <th>السبب</th>
-                <th>تاريخ الطلب</th>
-                <th>الحالة</th>
-                <th>الإجراء</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan="6" className="leaves-empty">جارٍ تحميل طلبات الإجازات...</td></tr>
-              ) : items.length ? items.map((request) => {
-                const employeeName = getEmployeeName(request);
-                const currentLeave = isCurrentlyOnLeave(request, today);
-                const statusLabel = {
-                  pending: 'معلق',
-                  approved: 'مقبول',
-                  rejected: 'مرفوض',
-                }[request.status] || 'غير معروف';
-                return (
-                  <tr key={request.id}>
-                    <td>
-                      <div className="leaves-employee-cell">
-                        {request.profile_image ? (
-                          <img src={formatProductImageUrl(request.profile_image)} alt="" />
-                        ) : (
-                          <span className="leaves-avatar" aria-hidden="true">{employeeName.charAt(0)}</span>
-                        )}
-                        <span>
-                          <strong>{employeeName}</strong>
-                          <small>{request.job_title || request.username}</small>
-                        </span>
-                      </div>
-                    </td>
-                    <td>
-                      <div className="leaves-date-range">
-                        <strong>{formatDate(request.start_date)}</strong>
-                        <span>إلى</span>
-                        <strong>{formatDate(request.end_date)}</strong>
-                      </div>
-                    </td>
-                    <td><span className="leaves-reason" title={request.reason}>{request.reason}</span></td>
-                    <td>{formatDate(request.created_at?.slice(0, 10))}</td>
-                    <td>
-                      <div className="leaves-status-cell">
-                        <span className={`leaves-status is-${request.status}`}>{statusLabel}</span>
-                        {currentLeave && <small className="leaves-current-label">في إجازة الآن</small>}
-                      </div>
-                    </td>
-                    <td>
-                      {request.status === 'pending' ? (
-                        <div className="leaves-row-actions">
-                          <button
-                            type="button"
-                            className="is-approve"
-                            onClick={() => handleDecision(request.id, 'approved')}
-                            disabled={processingId === request.id}
-                          >
-                            {processingId === request.id ? '...' : 'قبول'}
-                          </button>
-                          <button
-                            type="button"
-                            className="is-reject"
-                            onClick={() => handleDecision(request.id, 'rejected')}
-                            disabled={processingId === request.id}
-                          >
-                            رفض
-                          </button>
-                        </div>
-                      ) : (
-                        <span className="leaves-review-meta">
-                          {request.reviewed_by_username ? `بواسطة ${request.reviewed_by_username}` : '—'}
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              }) : (
-                <tr><td colSpan="6" className="leaves-empty">لا توجد طلبات إجازات حتى الآن.</td></tr>
+      <div className="hr-body">
+        <section className="hr-stats" aria-label="إحصائيات الإجازات">
+          <HrStat Icon={ClockIcon} tone="warning" label="طلبات بانتظار الرد" value={stats.pending} note={stats.pending ? 'محتاجة موافقتك' : 'مفيش طلبات معلّقة'} />
+          <HrStat Icon={CheckIcon} tone="success" label="الطلبات المقبولة" value={stats.approved} note="خلال آخر ٣٠ يومًا" />
+          <HrStat Icon={CalendarIcon} tone="info" label="في إجازة حاليًا" value={stats.onLeaveNow} note={stats.onLeaveNow ? 'غايبين النهارده بإجازة' : 'كل الفريق على رأس العمل'} />
+          <HrStat Icon={CloseIcon} tone="danger" label="الطلبات المرفوضة" value={stats.rejected} note="خلال آخر ٣٠ يومًا" />
+        </section>
+
+        {!showForm && (error || notice) && (
+          <p className={`hr-alert ${error ? 'is-error' : 'is-success'}`} role={error ? 'alert' : 'status'}>
+            {error || notice}
+          </p>
+        )}
+
+        <section className="hr-card">
+          <header className="hr-card-head">
+            <div>
+              <h2>طلبات الإجازات</h2>
+              <p>{items.length.toLocaleString('ar-EG')} طلبات مسجّلة</p>
+            </div>
+            <div className="hr-filters" role="group" aria-label="تصفية حسب الحالة">
+              {LEAVE_FILTERS.map((filter) => (
+                <button
+                  key={filter.key}
+                  type="button"
+                  className={`hr-filter${statusFilter === filter.key ? ' is-active' : ''}`}
+                  aria-pressed={statusFilter === filter.key}
+                  onClick={() => setStatusFilter(filter.key)}
+                >
+                  {filter.label}
+                </button>
+              ))}
+            </div>
+          </header>
+
+          <div className="hr-table-wrap">
+            <table className="hr-table">
+              <thead>
+                <tr>
+                  <th>الموظف</th>
+                  <th>نطاق الإجازة</th>
+                  <th>المدة</th>
+                  <th>السبب</th>
+                  <th>تاريخ الطلب</th>
+                  <th>الحالة</th>
+                </tr>
+              </thead>
+              {!loading && visibleItems.length > 0 && (
+                <tbody>
+                  {visibleItems.map((request) => {
+                    const employeeName = getEmployeeName(request);
+                    const status = STATUS_META[request.status] || { label: 'غير معروف', tone: 'muted' };
+                    const onLeaveNow = request.status === 'approved' && request.start_date <= today && request.end_date >= today;
+                    return (
+                      <tr key={request.id}>
+                        <td>
+                          <div className="hr-person">
+                            {request.profile_image
+                              ? <img className="hr-avatar" src={formatProductImageUrl(request.profile_image)} alt="" />
+                              : <span className="hr-avatar" aria-hidden="true">{employeeName.charAt(0).toUpperCase()}</span>}
+                            <span>
+                              <strong>{employeeName}</strong>
+                              <small>{request.job_title || request.username}</small>
+                            </span>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="hr-stack">
+                            <strong>{formatDate(request.start_date)}</strong>
+                            <small>إلى {formatDate(request.end_date)}</small>
+                          </div>
+                        </td>
+                        <td>{formatDays(leaveDays(request.start_date, request.end_date))}</td>
+                        <td><span title={request.reason}>{request.reason}</span></td>
+                        <td>{formatDate(request.created_at?.slice(0, 10))}</td>
+                        <td>
+                          {request.status === 'pending' ? (
+                            <div className="hr-row-actions is-start">
+                              <button
+                                type="button"
+                                className="hr-btn is-success is-sm"
+                                onClick={() => handleDecision(request.id, 'approved')}
+                                disabled={processingId === request.id}
+                              >
+                                {processingId === request.id ? '...' : 'قبول'}
+                              </button>
+                              <button
+                                type="button"
+                                className="hr-btn is-sm"
+                                onClick={() => handleDecision(request.id, 'rejected')}
+                                disabled={processingId === request.id}
+                              >
+                                رفض
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="hr-pills">
+                              <span className={`hr-pill is-${status.tone}`}>{status.label}</span>
+                              {onLeaveNow && <span className="hr-pill is-info">في إجازة الآن</span>}
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
               )}
-            </tbody>
-          </table>
-        </div>
-      </section>
+            </table>
+          </div>
+
+          {loading ? (
+            <p className="hr-loading">جارٍ تحميل طلبات الإجازات...</p>
+          ) : !items.length ? (
+            <HrEmpty
+              Icon={CalendarIcon}
+              title="مفيش طلبات إجازة لحد دلوقتي"
+              text="أي طلب إجازة — سواء سجّلته أنت للموظف أو طلبه هو — هيظهر هنا، ولما توافق عليه هيتخصم تلقائيًا من سجل الحضور."
+            >
+              <button type="button" className="hr-btn is-primary" onClick={openForm}>تسجيل إجازة لموظف</button>
+              <button type="button" className="hr-btn" onClick={() => onNavigate?.('attendance')}>عرض سجل الحضور</button>
+            </HrEmpty>
+          ) : !visibleItems.length && (
+            <p className="hr-loading">مفيش طلبات بالحالة دي.</p>
+          )}
+        </section>
+      </div>
 
       {showForm && (
         <div className="modal-overlay leaves-modal-overlay" onClick={closeForm}>
@@ -287,8 +297,8 @@ export default function LeavesPage() {
           >
             <header className="leaves-modal-heading">
               <div>
-                <span className="leaves-eyebrow">فريق العمل</span>
-                <h2 id="leave-request-title">طلب إجازة جديدة</h2>
+                <span className="leaves-eyebrow">شؤون الموظفين</span>
+                <h2 id="leave-request-title">طلب إجازة جديد</h2>
                 <p>حدد الموظف والفترة، ثم اختر طريقة التعامل مع الطلب.</p>
               </div>
               <button type="button" onClick={closeForm} aria-label="إغلاق" disabled={saving}>×</button>

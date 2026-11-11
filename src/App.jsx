@@ -288,13 +288,13 @@ function AppContent() {
       case 'users':
         return (
           <PageErrorBoundary key={activePage} pageName="users">
-            <UsersPage currentUser={currentUser} />
+            <UsersPage currentUser={currentUser} onNavigate={setActivePage} />
           </PageErrorBoundary>
         );
       case 'attendance':
-        return <AttendancePage />;
+        return <AttendancePage onNavigate={setActivePage} />;
       case 'leaves':
-        return <LeavesPage />;
+        return <LeavesPage onNavigate={setActivePage} />;
       case 'settings':
         return <SettingsPage />;
       case 'profile':
@@ -304,7 +304,7 @@ function AppContent() {
       case 'roles':
         return <RolesPage />;
       case 'salaries':
-        return <SalariesPage />;
+        return <SalariesPage onNavigate={setActivePage} />;
       case 'workflows':
         return <WorkflowsPage />;
       case 'cases':

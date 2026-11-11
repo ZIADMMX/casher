@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { isBridgeAvailable } from '../api/bridge.js';
 import * as payrollApi from '../api/payroll.js';
 import * as usersApi from '../api/users.js';
+import { HrHeader } from '../components/hr/HrLayout.jsx';
+import { PlusIcon } from '../components/icons/PosIcons.jsx';
 import '../styles/salaries.css';
 
 const MONTHS = [
@@ -19,7 +21,7 @@ const MONTHS = [
   { value: 12, label: 'ديسمبر' },
 ];
 
-export default function SalariesPage() {
+export default function SalariesPage({ onNavigate }) {
   const [activeTab, setActiveTab] = useState('periods'); // 'periods' | 'advances'
   const [periods, setPeriods] = useState([]);
   const [selectedPeriod, setSelectedPeriod] = useState(null);
@@ -174,35 +176,24 @@ export default function SalariesPage() {
     .reduce((sum, i) => sum + (i.net_salary || 0), 0) || 0;
 
   return (
+    <div className="hr-page">
+      <HrHeader
+        active="salaries"
+        onNavigate={onNavigate}
+        title="الرواتب والمستحقات"
+        subtitle="أنشئ وتتبع رواتب فريقك والبدلات والسلف في مكان واحد."
+        actions={(
+          <>
+            <button type="button" className="hr-btn" onClick={() => setShowAdvanceModal(true)}>
+              تسجيل سلفة لموظف
+            </button>
+            <button type="button" className="hr-btn is-primary" onClick={() => setShowGenerateModal(true)}>
+              <PlusIcon size={18} /> مسير راتب جديد
+            </button>
+          </>
+        )}
+      />
     <div className="salaries-page-container">
-      {/* Header Card */}
-      <div className="salaries-header-card">
-        <div className="salaries-title-wrap">
-          <div className="salaries-title-icon">👛</div>
-          <div>
-            <h1>نظام الرواتب والمستحقات</h1>
-            <p>أنشئ وتتبع رواتب فريقك والبدلات والسلف في مكان واحد</p>
-          </div>
-        </div>
-
-        <div className="salaries-actions-group">
-          <button
-            type="button"
-            className="secondary-btn-salaries"
-            onClick={() => setShowAdvanceModal(true)}
-          >
-            + تسجيل سلفة لموظف
-          </button>
-          <button
-            type="button"
-            className="primary-btn-salaries"
-            onClick={() => setShowGenerateModal(true)}
-          >
-            + مسير راتب جديد
-          </button>
-        </div>
-      </div>
-
       {/* Messages */}
       {error && (
         <div style={{ background: '#FEE2E2', border: '1px solid #FECACA', color: '#DC2626', padding: '10px 16px', borderRadius: '10px', fontSize: '13px' }}>
@@ -690,6 +681,7 @@ export default function SalariesPage() {
           </div>
         </div>
       )}
+    </div>
     </div>
   );
 }

@@ -42,6 +42,8 @@ export const CardIcon = make(<><rect x="2" y="5" width="20" height="14" rx="2" /
 export const ClockIcon = make(<><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>);
 export const PrinterIcon = make(<><path d="M6 9V3h12v6" /><rect x="3" y="9" width="18" height="8" rx="2" /><path d="M7 14h10v7H7z" /></>);
 export const LockIcon = make(<><rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></>);
+export const UnlockIcon = make(<><rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 7.5-2" /></>);
+export const CarIcon = make(<><path d="M5 17h14v-4l-2-5H7l-2 5z" /><path d="M5 13h14M5 17v2M19 17v2" /><circle cx="8" cy="15" r=".6" /><circle cx="16" cy="15" r=".6" /></>);
 export const PlusIcon = make(<path d="M12 5v14M5 12h14" />);
 export const MinusIcon = make(<path d="M5 12h14" />);
 export const ReceiptIcon = make(<><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z" /><path d="M9 7h6M9 11h6M9 15h4" /></>);

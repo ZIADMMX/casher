@@ -7,6 +7,11 @@ import * as importExportApi from '../api/importExport.js';
 import * as salesApi from '../api/sales.js';
 import * as shiftsApi from '../api/shifts.js';
 import * as usersApi from '../api/users.js';
+import { HrHeader, HrStat } from '../components/hr/HrLayout.jsx';
+import {
+  AlertIcon, CalendarIcon, CheckIcon, DownloadIcon, PlusIcon, SearchIcon, ShieldIcon, UserIcon, UsersIcon,
+} from '../components/icons/PosIcons.jsx';
+import { countWithoutShift, employeeCountLabel, todayAttendanceLabel } from '../utils/hrStats.js';
 import '../styles/users.css';
 
 const EMPTY_CASHIER_FORM = {
@@ -35,15 +40,6 @@ const EMPLOYEE_WIZARD_STEPS = [
   'نظام الأجر',
   'بيانات الدخول',
 ];
-
-function getAvatarColor(username) {
-  const colors = ['#F2600C', '#00B894', '#6C5CE7', '#E17055', '#E84393', '#0984E3'];
-  let hash = 0;
-  for (let i = 0; i < username.length; i++) {
-    hash = username.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return colors[Math.abs(hash) % colors.length];
-}
 
 function formatAmount(value) {
   return `${Number(value || 0).toLocaleString('ar-EG', { maximumFractionDigits: 2 })} ج.م`;
@@ -131,7 +127,7 @@ async function loadLegacyUserDetails(user) {
   };
 }
 
-function UsersPage({ currentUser }) {
+function UsersPage({ currentUser, onNavigate }) {
   const { users, addCashier, removeUser, toggleActive, resetPassword, fetchUsers, loading, error } = useUsers();
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY_CASHIER_FORM);
@@ -212,14 +208,17 @@ function UsersPage({ currentUser }) {
         || (user.job_title || '').toLocaleLowerCase().includes(query)
         || String(user.id).includes(query);
       const matchesStatus = statusFilter === 'all'
-        || (statusFilter === 'pending_invites' && user.invite_pending === true);
+        || (statusFilter === 'present' && user.is_present)
+        || (statusFilter === 'no_shift' && !(user.scheduled_start && user.scheduled_end))
+        || (statusFilter === 'inactive' && !user.is_active);
       return matchesSearch && matchesStatus;
     });
   }, [displayUsers, search, statusFilter]);
 
   const activeCount = displayUsers.filter((user) => user.is_active).length;
   const presentCount = displayUsers.filter((user) => user.is_present).length;
-  const onLeaveCount = displayUsers.filter((user) => user.on_leave === true).length;
+  const onLeaveCount = displayUsers.filter((user) => user.on_leave).length;
+  const missingShiftCount = countWithoutShift(displayUsers);
 
   function updateForm(field, value) {
     setForm((previous) => ({ ...previous, [field]: value }));
@@ -631,32 +630,53 @@ function UsersPage({ currentUser }) {
   }
 
   return (
-    <div className="users-page-container">
-      <div className="users-page-heading">
-        <div>
-          <h1>فريق العمل</h1>
-          <p className="page-subtitle">إدارة الموظفين والحسابات ومعلومات الدوام</p>
-        </div>
-        <div className="users-heading-actions">
-          {(canImportEmployees || canExportEmployees) && (
-            <button type="button" className="users-secondary-action" onClick={() => { setShowTransferModal(true); setTransferError(''); setTransferResult(null); }}>
-              استيراد / تصدير
-            </button>
-          )}
-          {canManageEmployees && (
-            <button type="button" className="primary-btn" onClick={() => { setShowForm(true); setWizardStep(0); setWizardError(''); }}>
-              + إضافة موظف
-            </button>
-          )}
-        </div>
-      </div>
+    <div className="hr-page">
+      <HrHeader
+        active="users"
+        onNavigate={onNavigate}
+        title="فريق العمل"
+        subtitle="كل موظف ودوره وحسابه وحالة دوامه في مكان واحد."
+        actions={(
+          <>
+            {(canImportEmployees || canExportEmployees) && (
+              <button type="button" className="hr-btn" onClick={() => { setShowTransferModal(true); setTransferError(''); setTransferResult(null); }}>
+                <DownloadIcon size={18} /> استيراد / تصدير
+              </button>
+            )}
+            {canManageEmployees && (
+              <button type="button" className="hr-btn is-primary" onClick={() => { setShowForm(true); setWizardStep(0); setWizardError(''); }}>
+                <PlusIcon size={18} /> إضافة موظف
+              </button>
+            )}
+          </>
+        )}
+      />
 
-      <div className="users-overview">
-        <Metric label="إجمالي الموظفين" value={displayUsers.length} />
-        <Metric label="الحاضرون الآن" value={presentCount} note="بناءً على سجل الحضور اليوم" />
-        <Metric label="في إجازة" value={onLeaveCount} note="لا توجد سجلات إجازات بعد" />
-        <Metric label="الحسابات النشطة" value={activeCount} />
-      </div>
+      <div className="hr-body">
+      <section className="hr-stats" aria-label="ملخص الفريق">
+        <HrStat Icon={UsersIcon} tone="brand" label="إجمالي الموظفين" value={displayUsers.length} note={`${employeeCountLabel(displayUsers.length)} مسجّل`} />
+        <HrStat Icon={UserIcon} tone="success" label="الحاضرون الآن" value={presentCount} total={displayUsers.length} note="حسب سجل حضور اليوم" />
+        <HrStat Icon={CalendarIcon} tone="info" label="في إجازة" value={onLeaveCount} note={onLeaveCount ? 'إجازات معتمدة النهارده' : 'لا توجد إجازات مسجّلة'} />
+        <HrStat
+          Icon={ShieldIcon}
+          tone="neutral"
+          label="الحسابات النشطة"
+          value={activeCount}
+          total={displayUsers.length}
+          note={activeCount === displayUsers.length ? 'لا توجد حسابات موقوفة' : `${displayUsers.length - activeCount} حساب موقوف`}
+        />
+      </section>
+
+      {missingShiftCount > 0 && (
+        <div className="hr-banner" role="status">
+          <span className="hr-banner-icon"><AlertIcon size={22} /></span>
+          <div>
+            <strong>وردية غير محددة لـ {employeeCountLabel(missingShiftCount)}</strong>
+            <p>من غير بداية ونهاية للوردية، النظام مش هيقدر يحسب التأخير ولا الوقت الإضافي.</p>
+          </div>
+          <button type="button" className="hr-btn is-warning is-sm" onClick={() => onNavigate?.('attendance')}>تحديد الورديات</button>
+        </div>
+      )}
 
       {showForm && (
         <div className="modal-overlay users-wizard-overlay" onClick={closeAddEmployee}>
@@ -1042,138 +1062,125 @@ function UsersPage({ currentUser }) {
         </div>
       )}
 
-      <div className="users-toolbar">
-        <label className="users-search">
-          <span aria-hidden="true">⌕</span>
-          <input
-            type="search"
-            placeholder="ابحث بالاسم أو الهاتف أو التخصص..."
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          />
-        </label>
-        <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} aria-label="تصفية الموظفين">
-          <option value="all">كل الموظفين</option>
-          <option value="pending_invites">دعوات معلقة</option>
-        </select>
-        <span className="users-result-count">{filteredUsers.length} من {displayUsers.length}</span>
-      </div>
+      {(error && !showForm) && <p className="hr-alert is-error" role="alert">{error}</p>}
 
-      {statusFilter === 'pending_invites' && (
-        <p className="users-feature-note" role="status">
-          الدعوات المعلقة غير متاحة بعد؛ لا توجد دعوات لعرضها.
-        </p>
-      )}
-
-      {(error && !showForm) && <p className="form-error">{error}</p>}
-
-      {loading ? (
-        <p className="users-empty-state">جاري تحميل المستخدمين...</p>
-      ) : filteredUsers.length ? (
-        <div className="users-table-wrap">
-          <table className="users-team-table">
-            <thead>
-              <tr>
-                <th>الموظف</th>
-                <th>المسمى والدور</th>
-                <th>ساعات العمل</th>
-                <th>الحضور</th>
-                <th>الحساب</th>
-                <th>الإجراءات</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredUsers.map((user) => (
-                <tr key={user.id} className={!user.is_active ? 'is-disabled' : ''}>
-                  <td>
-                    <div className="users-employee-cell">
-                      {user.profile_image ? (
-                        <img
-                          src={formatProductImageUrl(user.profile_image)}
-                          alt=""
-                          className="users-employee-avatar users-employee-photo"
-                        />
-                      ) : (
-                        <div
-                          className="users-employee-avatar"
-                          style={{ backgroundColor: getAvatarColor(user.username) }}
-                          aria-hidden="true"
-                        >
-                          {(user.full_name || user.username).trim().charAt(0).toUpperCase()}
-                        </div>
-                      )}
-                      <div className="users-employee-identity">
-                        <strong>{user.full_name || user.username}</strong>
-                        <span>@{user.username}</span>
-                        <span dir="ltr">{user.phone || '—'}</span>
-                      </div>
-                    </div>
-                  </td>
-                  <td>
-                    <div className="users-employee-role">
-                      <strong>{user.job_title || (user.role === 'admin' ? 'مدير النظام' : 'موظف')}</strong>
-                      <span>{user.role === 'admin' ? 'صلاحية مدير النظام' : 'صلاحية موظف'}</span>
-                      {user.specialty && <small>{user.specialty}</small>}
-                    </div>
-                  </td>
-                  <td>{user.working_hours || 'غير محددة'}</td>
-                  <td>
-                    <span className={`users-presence ${user.is_present ? 'is-present' : ''}`}>
-                      <span />
-                      {user.is_present ? 'حاضر' : 'غير مسجل'}
-                    </span>
-                  </td>
-                  <td>
-                    {user.id === currentUser?.id ? (
-                      <span className="users-account-self">حسابك</span>
-                    ) : !canManageEmployees ? (
-                      <span className={`users-account-state ${user.is_active ? 'is-active' : ''}`}>
-                        {user.is_active ? 'نشط' : 'معطل'}
-                      </span>
-                    ) : (
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={Boolean(user.is_active)}
-                        className={`users-account-toggle ${user.is_active ? 'is-on' : ''}`}
-                        onClick={() => handleToggleActive(user)}
-                        aria-label={`${user.is_active ? 'تعطيل' : 'تفعيل'} حساب ${user.full_name || user.username}`}
-                        title={user.is_active ? 'تعطيل الحساب' : 'تفعيل الحساب'}
-                      >
-                        <span />
-                      </button>
-                    )}
-                    <span className={`users-account-state ${user.is_active ? 'is-active' : ''}`}>
-                      {user.is_active ? 'نشط' : 'معطل'}
-                    </span>
-                  </td>
-                  <td>
-                    <div className="users-row-actions">
-                      <button type="button" onClick={() => openDetails(user)}>الملف</button>
-                      {canManageEmployees && user.id !== currentUser?.id && (
-                        <button
-                          type="button"
-                          className="is-danger"
-                          onClick={() => handleRemove(user)}
-                          aria-label={`حذف حساب ${user.full_name || user.username}`}
-                        >
-                          حذف
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <section className="hr-card">
+        <div className="hr-toolbar">
+          <label className="hr-search">
+            <SearchIcon size={18} />
+            <input
+              className="hr-input"
+              type="search"
+              placeholder="ابحث بالاسم أو الهاتف أو المسمى الوظيفي"
+              aria-label="بحث في الموظفين"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </label>
+          <span className="hr-toolbar-label">عرض</span>
+          <select className="hr-select" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} aria-label="تصفية الموظفين">
+            <option value="all">كل الموظفين</option>
+            <option value="present">الحاضرون الآن</option>
+            <option value="no_shift">بدون وردية</option>
+            <option value="inactive">حسابات موقوفة</option>
+          </select>
+          <span className="hr-count">عرض {filteredUsers.length} من {displayUsers.length}</span>
         </div>
-      ) : (
-        <p className="users-empty-state">
-          {statusFilter === 'pending_invites'
-            ? 'لا توجد دعوات معلقة.'
-            : 'لا يوجد موظفون مطابقون للبحث.'}
-        </p>
-      )}
+
+        {loading ? (
+          <p className="hr-loading">جاري تحميل الموظفين...</p>
+        ) : filteredUsers.length ? (
+          <div className="hr-table-wrap">
+            <table className="hr-table">
+              <thead>
+                <tr>
+                  <th>الموظف</th>
+                  <th>المسمى والصلاحية</th>
+                  <th>الوردية</th>
+                  <th>حضور اليوم</th>
+                  <th>الحساب</th>
+                  <th><span className="sr-only">الإجراءات</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredUsers.map((user) => {
+                  const name = user.full_name || user.username;
+                  const presence = todayAttendanceLabel(user);
+                  const canManageRow = canManageEmployees && user.id !== currentUser?.id;
+                  return (
+                    <tr key={user.id} className={!user.is_active ? 'is-muted' : ''}>
+                      <td>
+                        <div className="hr-person">
+                          {user.profile_image
+                            ? <img className="hr-avatar" src={formatProductImageUrl(user.profile_image)} alt="" />
+                            : <span className="hr-avatar" aria-hidden="true">{name.trim().charAt(0).toUpperCase()}</span>}
+                          <span>
+                            <strong>{name}</strong>
+                            <small dir="auto">@{user.username}{user.phone ? ` · ${user.phone}` : ''}</small>
+                          </span>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="hr-stack">
+                          <strong>{user.job_title || (user.role === 'admin' ? 'مدير النظام' : 'موظف')}</strong>
+                          <small>{user.role === 'admin' ? 'كل الصلاحيات مفعّلة' : 'صلاحيات حسب الدور'}</small>
+                        </div>
+                      </td>
+                      <td>
+                        {user.scheduled_start && user.scheduled_end ? (
+                          <span dir="ltr">{user.scheduled_start} – {user.scheduled_end}</span>
+                        ) : (
+                          <button type="button" className="hr-link" onClick={() => onNavigate?.('attendance')}>
+                            <PlusIcon size={16} /> تحديد وردية
+                          </button>
+                        )}
+                      </td>
+                      <td><span className={`hr-pill is-dot is-${presence.tone}`}>{presence.label}</span></td>
+                      <td>
+                        {user.is_active
+                          ? <span className="hr-pill is-success"><CheckIcon size={14} /> نشط</span>
+                          : <span className="hr-pill is-danger">موقوف</span>}
+                      </td>
+                      <td className="hr-cell-end">
+                        <div className="hr-row-actions">
+                          <button type="button" className="hr-btn is-sm" onClick={() => openDetails(user)}>فتح الملف</button>
+                          {canManageRow && (
+                            <>
+                              <button
+                                type="button"
+                                className="hr-btn is-sm is-icon"
+                                popoverTarget={`hr-menu-${user.id}`}
+                                style={{ anchorName: `--hr-menu-${user.id}` }}
+                                aria-label={`إجراءات ${name}`}
+                              >
+                                …
+                              </button>
+                              {/* popover renders in the top layer, so the table scroller can't clip it */}
+                              <div id={`hr-menu-${user.id}`} popover="auto" className="hr-menu-list" style={{ positionAnchor: `--hr-menu-${user.id}` }}>
+                                <button type="button" popoverTarget={`hr-menu-${user.id}`} popoverTargetAction="hide" onClick={() => handleToggleActive(user)}>
+                                  {user.is_active ? 'إيقاف الحساب' : 'تفعيل الحساب'}
+                                </button>
+                                <button type="button" className="is-danger" popoverTarget={`hr-menu-${user.id}`} popoverTargetAction="hide" onClick={() => handleRemove(user)}>
+                                  حذف الموظف
+                                </button>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="hr-loading">{displayUsers.length ? 'مفيش موظفين مطابقين للبحث.' : 'لسه مفيش موظفين. ابدأ بإضافة أول موظف.'}</p>
+        )}
+
+        <p className="hr-card-foot">اضغط على <strong>فتح الملف</strong> لمراجعة مبيعات الموظف ووردياته وسجل حركاته.</p>
+      </section>
+      </div>
 
       {selectedUser && (
         <div className="modal-overlay users-detail-overlay" onClick={closeDetails}>
