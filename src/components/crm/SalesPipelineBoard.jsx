@@ -1,12 +1,20 @@
 import { useState, useEffect } from 'react';
 import * as crmApi from '../../api/crm.js';
 import * as customersApi from '../../api/customers.js';
+import CRMHeader from './CRMHeader.jsx';
+import { ClockIcon, KanbanIcon, PlusIcon, SlidersIcon } from '../icons/PosIcons.jsx';
+import { agoText, daysBetween, initials, money, num, parseDbDate, shortDate } from './crmFormat.js';
+import '../../styles/crm-overview.css';
 
-function formatCurrency(val) {
-  return `${Number(val || 0).toLocaleString('ar-EG')} ج.م`;
+const DEFAULT_STALE_DAYS = 7;
+const EMPTY_DEAL = { title: '', customer_id: '', expected_value: '', owner_user_id: '', expected_close_date: '', notes: '', pipeline_stage_id: '' };
+
+function daysInStage(opp) {
+  const changedAt = parseDbDate(opp.last_stage_changed_at || opp.updated_at || opp.created_at);
+  return changedAt ? daysBetween(changedAt) : 0;
 }
 
-function SalesPipelineBoard() {
+function SalesPipelineBoard({ crmTabs = null }) {
   const [opportunities, setOpportunities] = useState([]);
   const [stages, setStages] = useState([]);
   const [customers, setCustomers] = useState([]);
@@ -15,7 +23,8 @@ function SalesPipelineBoard() {
   const [newStageProbability, setNewStageProbability] = useState(30);
   const [newStageOutcome, setNewStageOutcome] = useState('open');
   const [stageDrafts, setStageDrafts] = useState({});
-  const [deal, setDeal] = useState({ title: '', customer_id: '', expected_value: '', owner_user_id: '', expected_close_date: '', notes: '' });
+  const [deal, setDeal] = useState(EMPTY_DEAL);
+  const [staleDays, setStaleDays] = useState(DEFAULT_STALE_DAYS);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [message, setMessage] = useState(null);
@@ -54,7 +63,19 @@ function SalesPipelineBoard() {
     customersApi.getAllCustomersWithStats()
       .then((list) => setCustomers(list || []))
       .catch((err) => setError(err.message || 'تعذر تحميل قائمة العملاء'));
+    // Optional: only sets the "stale deal" threshold, so a failure keeps the default.
+    crmApi.getCRMAutomationRules()
+      .then((rules) => {
+        const days = Number((rules || []).find((rule) => rule.trigger_type === 'opportunity_stale')?.config?.days);
+        if (days > 0) setStaleDays(days);
+      })
+      .catch(() => {});
   }, []);
+
+  const openDealModal = (stageId = '') => {
+    setDeal({ ...EMPTY_DEAL, pipeline_stage_id: stageId });
+    setShowDealModal(true);
+  };
 
   const handleStageChange = async (oppId, stageId) => {
     try {
@@ -128,8 +149,9 @@ function SalesPipelineBoard() {
 
   const createOpportunity = async (event) => {
     event.preventDefault();
-    const firstOpenStage = stages.find((stage) => stage.is_active && stage.outcome === 'open');
-    if (!firstOpenStage) {
+    const targetStage = stages.find((stage) => stage.is_active && stage.outcome === 'open'
+      && (!deal.pipeline_stage_id || stage.id === deal.pipeline_stage_id));
+    if (!targetStage) {
       setError('يرجى التأكد من وجود مرحلة بيع مفتوحة أولاً.');
       return;
     }
@@ -138,9 +160,9 @@ function SalesPipelineBoard() {
         ...deal,
         customer_id: Number(deal.customer_id),
         expected_value: Number(deal.expected_value || 0),
-        pipeline_stage_id: firstOpenStage.id,
+        pipeline_stage_id: targetStage.id,
       });
-      setDeal({ title: '', customer_id: '', expected_value: '', owner_user_id: '', expected_close_date: '', notes: '' });
+      setDeal(EMPTY_DEAL);
       setShowDealModal(false);
       await fetchOpportunities();
       setMessage('تم إنشاء الصفقة وإضافتها للوحة بنجاح.');
@@ -178,48 +200,25 @@ function SalesPipelineBoard() {
     }
   };
 
+  const activeStages = stages.filter((stage) => stage.is_active);
+  const openDeals = opportunities.filter((opp) => !['won', 'lost'].includes(opp.stage));
+  const staleCount = openDeals.filter((opp) => daysInStage(opp) > staleDays).length;
+  const openStageIndex = new Map(activeStages.filter((stage) => stage.outcome === 'open').map((stage, index) => [stage.id, index]));
+
   return (
-    <div className="crm-kanban-container">
-      {/* Header Toolbar */}
-      <div className="crm-toolbar">
-        <div className="crm-toolbar-left">
-          <div>
-            <h2 className="crm-pipeline-heading">
-              لوحة مسار الصفقات (Sales Pipeline)
-            </h2>
-            <p className="crm-pipeline-description">
-              اسحب الصفقات وأفلتها بين المراحل لمتابعة تقدم المفاوضات والإغلاق.
-            </p>
-          </div>
-        </div>
+    <div className="crm-ds crm-pl">
+      <CRMHeader icon={KanbanIcon} title="خط الصفقات" subtitle="اسحب الصفقة من مرحلة للي بعدها عشان تتابع تقدم التفاوض.">
+        <button type="button" className="crm-ov-btn" onClick={() => setShowStageModal(true)}>
+          <SlidersIcon size={18} />
+          إدارة مراحل البيع
+        </button>
+        <button type="button" className="crm-ov-btn crm-ov-btn--primary" onClick={() => openDealModal()}>
+          <PlusIcon size={18} />
+          صفقة جديدة
+        </button>
+      </CRMHeader>
+      {crmTabs}
 
-        <div className="crm-toolbar-right">
-          <button
-            type="button"
-            className="secondary-btn"
-            onClick={fetchOpportunities}
-            disabled={loading}
-          >
-            {loading ? 'جارٍ التحديث...' : 'تحديث اللوحة'}
-          </button>
-          <button
-            type="button"
-            className="secondary-btn"
-            onClick={() => setShowStageModal(true)}
-          >
-            إدارة مراحل البيع
-          </button>
-          <button
-            type="button"
-            className="primary-btn"
-            onClick={() => setShowDealModal(true)}
-          >
-            + إضافة صفقة جديدة
-          </button>
-        </div>
-      </div>
-
-      {/* Notifications */}
       {error && (
         <div className="crm-error-banner" role="alert">
           <span>{error}</span>
@@ -232,126 +231,133 @@ function SalesPipelineBoard() {
         </div>
       )}
 
-      {/* Kanban Board Grid */}
-      {loading ? (
-        <div className="crm-empty-state">
-          <p>جارٍ تحميل لوحة المبيعات...</p>
+      {!loading && activeStages.length > 0 && (
+        <div className="crm-ov-card crm-pl-summary">
+          <span className="crm-pl-summary-label">إجمالي الصفقات المفتوحة</span>
+          <strong>{num(openDeals.length)} صفقة · {money(openDeals.reduce((sum, opp) => sum + Number(opp.expected_value || 0), 0))}</strong>
+          {staleCount > 0 && (
+            <span className="crm-pl-summary-stale">
+              <ClockIcon size={16} />
+              {num(staleCount)} صفقات واقفة أكثر من {num(staleDays)} أيام
+            </span>
+          )}
         </div>
-      ) : stages.length === 0 ? (
-        <div className="crm-empty-state">
-          <strong>لا توجد مراحل مسجلة لخط المبيعات</strong>
-          <p>أضف مراحل البيع الخاصة بك (تواصل، تأهيل، عرض سعر، صفقة رابحة).</p>
-          <button type="button" className="primary-btn" onClick={() => setShowStageModal(true)}>
-            + إعداد مراحل البيع
-          </button>
+      )}
+
+      {loading ? (
+        <div className="crm-ov-card crm-pl-note">جارٍ تحميل لوحة المبيعات...</div>
+      ) : activeStages.length === 0 ? (
+        <div className="crm-ov-card crm-pl-note">
+          <div className="crm-ov-empty">
+            <span className="crm-ov-chip crm-ov-chip--lg"><KanbanIcon size={22} /></span>
+            <strong>لا توجد مراحل مسجلة لخط المبيعات</strong>
+            <p>أضف مراحل البيع الخاصة بك (تواصل، تأهيل، عرض سعر، صفقة رابحة).</p>
+            <button type="button" className="crm-ov-btn crm-ov-btn--primary" onClick={() => setShowStageModal(true)}>
+              <PlusIcon size={18} />
+              إعداد مراحل البيع
+            </button>
+          </div>
         </div>
       ) : (
-        <div className="crm-kanban-board">
-          {stages.filter((s) => s.is_active).map((stage) => {
+        <div className="crm-pl-board">
+          {activeStages.map((stage) => {
             const stageOpps = getStageOpportunities(stage);
-            const totalValue = getOppValueForStage(stage);
-            const isDragOver = dragOverStageId === stage.id;
+            const outcome = stage.outcome || 'open';
+            // Open stages darken in order (like the overview bars); won is green, lost is grey.
+            const tone = outcome === 'open' ? 45 + Math.min(openStageIndex.get(stage.id) ?? 0, 3) * 18 : 100;
 
             return (
-              <div
+              <section
                 key={stage.id}
-                className={`crm-kanban-column ${isDragOver ? 'drag-over' : ''}`}
+                className={`crm-ov-card crm-pl-col crm-pl-col--${outcome} ${dragOverStageId === stage.id ? 'is-drop' : ''}`}
+                style={{ '--stage-tone': `${tone}%` }}
+                aria-label={stage.label}
                 onDragOver={(e) => handleDragOver(e, stage.id)}
                 onDragLeave={(e) => handleDragLeave(e, stage.id)}
                 onDrop={(e) => handleDrop(e, stage.id)}
               >
-                {/* Column Header */}
-                <div className={`crm-column-header ${stage.outcome || 'open'}`}>
-                  <div className="crm-column-title-row">
-                    <span className="crm-column-title">{stage.label}</span>
-                    <span className={`crm-badge ${stage.outcome === 'won' ? 'converted' : stage.outcome === 'lost' ? 'lost' : 'open'}`}>
-                      {stageOpps.length} صفقة
-                    </span>
+                <header className="crm-pl-col-head">
+                  <div className="crm-pl-col-title">
+                    <h2>{stage.label}</h2>
+                    <span className="crm-pl-count">{num(stageOpps.length)}</span>
                   </div>
-
-                  <div className="crm-column-stats">
-                    <span>نسبة الإغلاق: <strong>{stage.probability}%</strong></span>
-                    <span>الإجمالي: <strong>{formatCurrency(totalValue)}</strong></span>
+                  <div className="crm-pl-col-stats">
+                    <span>نسبة الإغلاق {num(stage.probability)}٪</span>
+                    <strong>{money(getOppValueForStage(stage))}</strong>
                   </div>
-                </div>
+                </header>
 
-                {/* Cards Container */}
-                <div className="crm-column-cards">
-                  {stageOpps.length === 0 ? (
-                    <div className="crm-pipeline-empty">
-                      اسحب صفقة وضعها هنا
-                    </div>
-                  ) : (
-                    stageOpps.map((opp) => (
-                      <div
+                <div className="crm-pl-cards">
+                  {stageOpps.length === 0 && <p className="crm-pl-drop-hint">اسحب صفقة وضعها هنا</p>}
+                  {stageOpps.map((opp) => {
+                    const days = daysInStage(opp);
+                    const stale = outcome === 'open' && days > staleDays;
+                    const closedAt = parseDbDate(opp.closed_at);
+                    return (
+                      <article
                         key={opp.id}
-                        className="crm-kanban-card"
+                        className="crm-pl-card"
                         draggable
                         onDragStart={(e) => handleDragStart(e, opp.id)}
                       >
-                        <div className="crm-card-title">{opp.title}</div>
-
-                        <div className="crm-card-customer">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                            <circle cx="12" cy="7" r="4" />
-                          </svg>
-                          <span>{opp.customer_name || 'عميل غير محدد'}</span>
+                        <div className="crm-pl-card-head">
+                          <h3 title={opp.customer_name}>{opp.title}</h3>
+                          <details className="crm-pl-menu">
+                            <summary aria-label={`خيارات ${opp.title}`} title="نقل الصفقة أو تغيير المسؤول">⋯</summary>
+                            <div className="crm-pl-menu-body">
+                              <label>
+                                نقل إلى
+                                <select
+                                  value={opp.pipeline_stage_id || ''}
+                                  onChange={(e) => handleStageChange(opp.id, e.target.value)}
+                                >
+                                  <option value="" disabled>اختر المرحلة</option>
+                                  {activeStages.map((nextStage) => (
+                                    <option key={nextStage.id} value={nextStage.id}>{nextStage.label}</option>
+                                  ))}
+                                </select>
+                              </label>
+                              <label>
+                                المسؤول
+                                <select
+                                  value={opp.user_id || ''}
+                                  onChange={(e) => e.target.value && handleOwnerChange(opp.id, Number(e.target.value))}
+                                >
+                                  {!opp.user_id && <option value="">غير معيّن</option>}
+                                  {assignees.map((user) => (
+                                    <option key={user.id} value={user.id}>
+                                      {[user.first_name, user.last_name].filter(Boolean).join(' ') || user.username}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                            </div>
+                          </details>
                         </div>
-
-                        <div className="crm-card-value">
-                          <span>{formatCurrency(opp.expected_value)}</span>
-                          <span className="crm-card-probability">{opp.probability || stage.probability}%</span>
+                        <strong className="crm-pl-value">{money(opp.expected_value)}</strong>
+                        <div className="crm-pl-card-foot">
+                          <span className="crm-ov-avatar crm-pl-avatar" title={opp.assigned_username || 'غير معيّن'}>
+                            {opp.assigned_username ? initials(opp.assigned_username) : '—'}
+                          </span>
+                          {outcome !== 'open' && closedAt ? (
+                            <span className="crm-pl-age">أُغلقت {shortDate(closedAt)}</span>
+                          ) : (
+                            <span className={stale ? 'crm-pl-age is-stale' : 'crm-pl-age'} title="المدة في المرحلة الحالية">
+                              {agoText(days)}
+                            </span>
+                          )}
                         </div>
-
-                        {opp.expected_close_date && (
-                          <div className="crm-card-date">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                              <line x1="16" y1="2" x2="16" y2="6" />
-                              <line x1="8" y1="2" x2="8" y2="6" />
-                              <line x1="3" y1="10" x2="21" y2="10" />
-                            </svg>
-                            <span>الإغلاق: {opp.expected_close_date}</span>
-                          </div>
-                        )}
-
-                        <div className="crm-card-footer">
-                          <div className="crm-card-owner">
-                            <span className="crm-card-owner-label">المسؤول:</span>
-                            <select
-                              className="crm-select-filter crm-card-stage-select"
-                              aria-label="مسؤول الصفقة"
-                              value={opp.user_id || ''}
-                              onChange={(e) => e.target.value && handleOwnerChange(opp.id, Number(e.target.value))}
-                            >
-                              {!opp.user_id && <option value="">غير معيّن</option>}
-                              {assignees.map((user) => (
-                                <option key={user.id} value={user.id}>
-                                  {[user.first_name, user.last_name].filter(Boolean).join(' ') || user.username}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-
-                          {/* Quick stage selector (accessible fallback) */}
-                          <select
-                            className="crm-select-filter crm-card-stage-select"
-                            value={opp.pipeline_stage_id || ''}
-                            onChange={(e) => handleStageChange(opp.id, e.target.value)}
-                            title="نقل سريع لمرحلة أخرى"
-                          >
-                            <option value="" disabled>نقل إلى...</option>
-                            {stages.filter((item) => item.is_active).map((nextStage) => (
-                              <option key={nextStage.id} value={nextStage.id}>{nextStage.label}</option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
-                    ))
+                      </article>
+                    );
+                  })}
+                  {/* New deals start in an open stage; won/lost are reached by moving a deal (that sets the close date). */}
+                  {outcome === 'open' && (
+                    <button type="button" className="crm-pl-add" onClick={() => openDealModal(stage.id)}>
+                      + أضف صفقة
+                    </button>
                   )}
                 </div>
-              </div>
+              </section>
             );
           })}
         </div>

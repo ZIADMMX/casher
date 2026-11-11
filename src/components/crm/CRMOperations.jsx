@@ -5,14 +5,8 @@ import * as crmApi from '../../api/crm.js';
 import * as customersApi from '../../api/customers.js';
 import CRMHeader from './CRMHeader.jsx';
 import CRMCompaniesGrid from './CRMCompaniesGrid.jsx';
-import { BuildingIcon, PlusIcon, UploadIcon } from '../icons/PosIcons.jsx';
-
-const LEAD_STATUSES = [
-  ['new', 'جديد', 'new'],
-  ['contacted', 'تم التواصل', 'contacted'],
-  ['qualified', 'مؤهل', 'qualified'],
-  ['lost', 'مفقود', 'lost'],
-];
+import CRMLeadsList, { LEAD_STATUSES } from './CRMLeadsList.jsx';
+import { BuildingIcon, DownloadIcon, PlusIcon, UploadIcon, UserPlusIcon } from '../icons/PosIcons.jsx';
 
 function IconBuilding() {
   return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v8h4"/><path d="M18 9h2a2 2 0 0 1 2 2v11h-4"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/></svg>;
@@ -42,15 +36,6 @@ function IconTask() {
   return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>;
 }
 
-function getInitials(value) {
-  const characters = Array.from(String(value || '').trim()).filter(Boolean);
-  return characters.slice(0, 2).join('') || '—';
-}
-
-function closeActionMenu(event) {
-  event.currentTarget.closest('details')?.removeAttribute('open');
-}
-
 function CRMOperations({ section, crmTabs = null }) {
   const [companies, setCompanies] = useState([]);
   const [assignees, setAssignees] = useState([]);
@@ -58,13 +43,15 @@ function CRMOperations({ section, crmTabs = null }) {
   const [customers, setCustomers] = useState([]);
   const [activities, setActivities] = useState([]);
   const [search, setSearch] = useState('');
+  // Lead status, source and owner filter on the client so the status chips can show counts.
   const [status, setStatus] = useState('');
+  const [source, setSource] = useState('');
+  const [owner, setOwner] = useState('');
   const [savedFilters, setSavedFilters] = useState([]);
   const [customFields, setCustomFields] = useState([]);
   const [fieldEntity, setFieldEntity] = useState('customer');
   const [fieldForm, setFieldForm] = useState({ label: '', field_key: '', field_type: 'text', is_required: false });
   const [automationRule, setAutomationRule] = useState({ days: 7, is_enabled: true });
-  const [filterName, setFilterName] = useState('');
   const [form, setForm] = useState({});
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
@@ -83,12 +70,12 @@ function CRMOperations({ section, crmTabs = null }) {
 
   const loadLeads = useCallback(async () => {
     try {
-      const records = await crmApi.getCRMLeads({ search, status });
+      const records = await crmApi.getCRMLeads({ search });
       setLeads(records || []);
     } catch (err) {
       console.error(err);
     }
-  }, [search, status]);
+  }, [search]);
 
   const loadActivities = useCallback(async () => {
     try {
@@ -105,12 +92,15 @@ function CRMOperations({ section, crmTabs = null }) {
     setError('');
     Promise.all([
       ['companies', 'leads'].includes(section) ? crmApi.getCRMCompanies() : Promise.resolve([]),
-      section === 'leads' ? crmApi.getCRMLeads({ search, status }) : Promise.resolve([]),
-      section === 'tasks' ? crmApi.getCRMActivities({}) : Promise.resolve([]),
+      section === 'leads' ? crmApi.getCRMLeads({ search }) : Promise.resolve([]),
+      // Leads show each lead's next open activity.
+      ['tasks', 'leads'].includes(section) ? crmApi.getCRMActivities({}) : Promise.resolve([]),
       section === 'tasks' ? customersApi.getAllCustomersWithStats() : Promise.resolve([]),
       section === 'leads' ? crmApi.getCRMSavedFilters('lead') : Promise.resolve([]),
       section === 'fields' ? crmApi.getCRMCustomFields(fieldEntity) : Promise.resolve([]),
-      section === 'automation' ? crmApi.getCRMAutomationRules() : Promise.resolve([]),
+      // Leads read the stale-days threshold; it is optional there, so a failure must not hide the list.
+      section === 'automation' ? crmApi.getCRMAutomationRules()
+        : section === 'leads' ? crmApi.getCRMAutomationRules().catch(() => []) : Promise.resolve([]),
       ['companies', 'leads', 'tasks'].includes(section) ? crmApi.getCRMAssignees() : Promise.resolve([]),
     ]).then(([companyRows, leadRows, activityRows, customerRows, filters, fields, rules, users]) => {
       if (!active) return;
@@ -131,7 +121,7 @@ function CRMOperations({ section, crmTabs = null }) {
       if (active) setLoading(false);
     });
     return () => { active = false; };
-  }, [section, search, status, fieldEntity]);
+  }, [section, search, fieldEntity]);
 
   const companyOptions = useMemo(() => companies.map((company) => (
     <option value={company.id} key={company.id}>{company.name}</option>
@@ -261,16 +251,15 @@ function CRMOperations({ section, crmTabs = null }) {
     }
   };
 
-  const saveFilter = async () => {
+  const saveFilter = async (name) => {
     setError('');
     try {
       await crmApi.saveCRMSavedFilter({
-        name: filterName,
+        name,
         entity_type: 'lead',
-        filters: { search, status },
+        filters: { search, status, source, owner },
       });
       setSavedFilters(await crmApi.getCRMSavedFilters('lead'));
-      setFilterName('');
     } catch (saveError) {
       setError(saveError.message || 'تعذر حفظ الفلتر');
     }
@@ -371,6 +360,29 @@ function CRMOperations({ section, crmTabs = null }) {
           {crmTabs}
         </>
       )}
+      {section === 'leads' && (
+        <>
+          <CRMHeader
+            icon={UserPlusIcon}
+            title="العملاء المحتملون"
+            subtitle="تابع كل فرصة من أول تواصل لحد ما تتحوّل لصفقة."
+          >
+            <button type="button" className="crm-ov-btn" onClick={importLeads}>
+              <DownloadIcon size={18} />
+              استيراد Excel / CSV
+            </button>
+            <button type="button" className="crm-ov-btn" onClick={() => exportRows('leads')}>
+              <UploadIcon size={18} />
+              تصدير
+            </button>
+            <button type="button" className="crm-ov-btn crm-ov-btn--primary" onClick={() => openModal('lead')}>
+              <PlusIcon size={18} />
+              عميل محتمل جديد
+            </button>
+          </CRMHeader>
+          {crmTabs}
+        </>
+      )}
       {/* Messages */}
       {error && (
         <div className="crm-error-banner" role="alert">
@@ -409,229 +421,50 @@ function CRMOperations({ section, crmTabs = null }) {
 
       {/* Section 2: Leads */}
       {section === 'leads' && (
-        <>
-          <div className="crm-toolbar">
-            <div className="crm-toolbar-left">
-              <div className="crm-search-input-wrap">
-                <input
-                  aria-label="بحث في العملاء المحتملين"
-                  placeholder="بحث بالاسم أو الهاتف أو المصدر..."
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                />
-                <span className="crm-search-icon">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <circle cx="11" cy="11" r="8" />
-                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                  </svg>
-                </span>
-              </div>
-              <select
-                className="crm-select-filter"
-                aria-label="تصفية حسب الحالة"
-                value={status}
-                onChange={(event) => setStatus(event.target.value)}
-              >
-                <option value="">جميع الحالات</option>
-                {LEAD_STATUSES.map(([key, label]) => (
-                  <option key={key} value={key}>{label}</option>
-                ))}
-              </select>
-
-              {savedFilters.length > 0 && (
-                <select
-                  className="crm-select-filter"
-                  aria-label="الفلاتر المحفوظة"
-                  defaultValue=""
-                  onChange={(event) => {
-                    const filter = savedFilters.find((item) => String(item.id) === event.target.value);
-                    if (filter) {
-                      setSearch(filter.filters.search || '');
-                      setStatus(filter.filters.status || '');
-                    }
-                  }}
-                >
-                  <option value="">الفلاتر المحفوظة</option>
-                  {savedFilters.map((filter) => (
-                    <option key={filter.id} value={filter.id}>{filter.name}</option>
-                  ))}
-                </select>
-              )}
-
-              <input
-                className="crm-select-filter"
-                aria-label="اسم الفلتر"
-                placeholder="اسم الفلتر"
-                maxLength={60}
-                value={filterName}
-                onChange={(event) => setFilterName(event.target.value)}
-              />
-              <button type="button" className="secondary-btn" disabled={!filterName.trim()} onClick={saveFilter}>
-                حفظ الفلتر
-              </button>
-            </div>
-
-            <div className="crm-toolbar-right">
-              <button type="button" className="secondary-btn" onClick={importLeads}>
-                استيراد Excel / CSV
-              </button>
-              <button type="button" className="secondary-btn" onClick={() => exportRows('leads')}>
-                تصدير
-              </button>
-              <button type="button" className="primary-btn" onClick={() => openModal('lead')}>
-                + عميل محتمل جديد
-              </button>
-            </div>
-          </div>
-
-          <div className="crm-table-card crm-leads-table-card">
-            {loading ? (
-              <div className="crm-empty-state">جارٍ تحميل العملاء المحتملين...</div>
-            ) : leads.length === 0 ? (
-              <div className="crm-empty-state">
-                <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                  <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                  <circle cx="8.5" cy="7" r="4" />
-                  <line x1="20" y1="8" x2="20" y2="14" />
-                  <line x1="23" y1="11" x2="17" y2="11" />
-                </svg>
-                <strong>لا توجد نتائج مطابقة</strong>
-                <p>سجل عميلاً محتملاً جديداً للبدء بمتابعة مراحل التفاوض.</p>
-                <button type="button" className="primary-btn" onClick={() => openModal('lead')}>
-                  + تسجيل عميل محتمل جديد
-                </button>
-              </div>
-            ) : (
-              <table className="crm-table">
-                <thead>
-                  <tr>
-                    <th>العميل المحتمل</th>
-                    <th>الشركة</th>
-                    <th>المصدر</th>
-                    <th>الحالة</th>
-                    <th>المسؤول</th>
-                    <th>الإجراءات</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {leads.map((lead) => {
-                    const statusObj = LEAD_STATUSES.find(([key]) => key === lead.status);
-                    const statusLabel = lead.status === 'converted' ? 'تم التحويل' : (statusObj ? statusObj[1] : lead.status);
-                    const statusVariant = lead.status === 'converted' || lead.status === 'qualified'
-                      ? 'success'
-                      : lead.status === 'contacted'
-                        ? 'warning'
-                        : lead.status === 'lost'
-                          ? 'danger'
-                          : 'info';
-
-                    return (
-                      <tr key={lead.id}>
-                        <td>
-                          <div className="crm-entity-cell">
-                            <div className="crm-avatar" aria-hidden="true">
-                                {getInitials(lead.name)}
-                            </div>
-                            <div className="crm-entity-info">
-                              <span className="crm-entity-title">{lead.name}</span>
-                              <span className="crm-entity-subtitle">{lead.phone || lead.email || 'بدون اتصال'}</span>
-                            </div>
-                          </div>
-                        </td>
-                        <td>{lead.company_name || '—'}</td>
-                        <td>{lead.source || 'غير محدد'}</td>
-                        <td>
-                          <Badge variant={statusVariant} className="crm-lead-status-badge">
-                            {lead.status === 'converted' && '✓ '}{statusLabel}
-                          </Badge>
-                        </td>
-                        <td>{lead.owner_username || 'المستخدم الحالي'}</td>
-                        <td>
-                          <details className="crm-row-actions">
-                            <summary className="secondary-btn crm-row-actions-trigger">إجراءات</summary>
-                            <div className="crm-row-actions-menu" role="group" aria-label={`إجراءات ${lead.name}`}>
-                              {lead.status !== 'converted' && (
-                                <>
-                                  <button
-                                    type="button"
-                                    onClick={(event) => {
-                                      closeActionMenu(event);
-                                      openModal('task', {
-                                        record_type: 'lead',
-                                        record_id: lead.id,
-                                        activity_type: 'call',
-                                        title: `مكالمة متابعة: ${lead.name}`,
-                                      });
-                                    }}
-                                  >
-                                    تسجيل مكالمة
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={(event) => {
-                                      closeActionMenu(event);
-                                      openModal('lead', {
-                                        id: lead.id,
-                                        name: lead.name,
-                                        phone: lead.phone || '',
-                                        email: lead.email || '',
-                                        company_id: lead.company_id || '',
-                                        source: lead.source || '',
-                                        status: lead.status || 'new',
-                                        owner_user_id: lead.owner_user_id || '',
-                                        notes: lead.notes || '',
-                                      });
-                                    }}
-                                  >
-                                    تعديل البيانات
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={(event) => {
-                                      closeActionMenu(event);
-                                      convertLead(lead.id);
-                                    }}
-                                  >
-                                    تحويل إلى عميل
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="is-danger"
-                                    onClick={(event) => {
-                                      closeActionMenu(event);
-                                      setLeadToDelete({ id: lead.id, name: lead.name });
-                                    }}
-                                  >
-                                    حذف العميل المحتمل
-                                  </button>
-                                  <label className="crm-row-actions-status">
-                                    تغيير الحالة
-                                    <select
-                                      value={lead.status}
-                                      onChange={(event) => {
-                                        closeActionMenu(event);
-                                        updateLeadStatus(lead.id, event.target.value);
-                                      }}
-                                    >
-                                      {LEAD_STATUSES.map(([key, label]) => (
-                                        <option key={key} value={key}>{label}</option>
-                                      ))}
-                                    </select>
-                                  </label>
-                                </>
-                              )}
-                              {lead.status === 'converted' && <span className="crm-row-actions-note">تم تحويله بالفعل</span>}
-                            </div>
-                          </details>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </>
+        <CRMLeadsList
+          leads={leads}
+          activities={activities}
+          assignees={assignees}
+          loading={loading}
+          staleDays={Number(automationRule.days) || 7}
+          search={search}
+          onSearch={setSearch}
+          status={status}
+          onStatus={setStatus}
+          source={source}
+          onSource={setSource}
+          owner={owner}
+          onOwner={setOwner}
+          savedFilters={savedFilters}
+          onApplyFilter={(filters) => {
+            setSearch(filters.search || '');
+            setStatus(filters.status || '');
+            setSource(filters.source || '');
+            setOwner(filters.owner || '');
+          }}
+          onSaveFilter={saveFilter}
+          onAdd={() => openModal('lead')}
+          onLogActivity={(lead) => openModal('task', {
+            record_type: 'lead',
+            record_id: lead.id,
+            activity_type: 'call',
+            title: `مكالمة متابعة: ${lead.name}`,
+          })}
+          onConvert={(lead) => convertLead(lead.id)}
+          onEdit={(lead) => openModal('lead', {
+            id: lead.id,
+            name: lead.name,
+            phone: lead.phone || '',
+            email: lead.email || '',
+            company_id: lead.company_id || '',
+            source: lead.source || '',
+            status: lead.status || 'new',
+            owner_user_id: lead.owner_user_id || '',
+            notes: lead.notes || '',
+          })}
+          onDelete={(lead) => setLeadToDelete({ id: lead.id, name: lead.name })}
+          onStatusChange={(lead, nextStatus) => updateLeadStatus(lead.id, nextStatus)}
+        />
       )}
 
       {/* Section 3: Tasks & Activities */}

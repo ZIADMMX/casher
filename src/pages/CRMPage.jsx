@@ -262,8 +262,8 @@ function CRMPage() {
   // Fade bars by rank so the list reads like the reference (strongest first).
   const rankTone = (index, count) => (count <= 1 ? 100 : Math.round(100 - (index / (count - 1)) * 55));
 
-  // Contacts and companies draw their own header (their actions live there) and place the tabs under it.
-  const ownHeader = activeView === 'contacts' || activeView === 'companies';
+  // These views draw their own header (their actions live there) and place the tabs under it.
+  const ownHeader = ['contacts', 'companies', 'leads', 'pipeline'].includes(activeView);
   const tabs = (
     <nav className="crm-ds crm-ov-tabs" aria-label="أقسام CRM">
       {VIEWS.map(({ id, label, Icon }) => (
@@ -306,7 +306,7 @@ function CRMPage() {
       ) : ['companies', 'leads', 'tasks', 'fields', 'automation'].includes(activeView) ? (
         <CRMOperations section={activeView} crmTabs={tabs} />
       ) : activeView === 'pipeline' ? (
-        <SalesPipelineBoard />
+        <SalesPipelineBoard crmTabs={tabs} />
       ) : (
         <section className="crm-ds crm-ov" aria-label="ملخص CRM">
           {error && (
