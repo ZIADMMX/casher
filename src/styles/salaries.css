@@ -663,27 +663,180 @@
   .pay-employee-list li { grid-template-columns: 1fr; }
 }
 
-/* Printable payslip: hidden on screen, the only thing printed. */
+
+/* ===== قسيمة الراتب: مخفية على الشاشة، وهي الوحيدة اللي بتتطبع ===== */
 .printable-payslip-area { display: none; }
 
 @media print {
+  @page { size: A4; margin: 12mm; }
+
   body * { visibility: hidden; }
   .printable-payslip-area,
   .printable-payslip-area * { visibility: visible; }
+
   .printable-payslip-area {
+    --slip-ink: #1f1a16;
+    --slip-muted: #7a6a5e;
+    --slip-line: #e4d9cf;
+    --slip-brand: #c2410c;
+    --slip-wash: #fdf6ef;
+
     display: block;
     position: absolute;
-    inset-inline-start: 0;
     inset-block-start: 0;
+    inset-inline-start: 0;
     inline-size: 100%;
-    padding: var(--space-5);
     direction: rtl;
-    border: 2px solid currentColor;
+    text-align: start;
+    color: var(--slip-ink);
+    font-family: inherit;
+    font-size: 11pt;
+    line-height: 1.55;
+    background: #fff;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .printable-payslip-area * { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+
+  /* الترويسة */
+  .payslip-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12mm;
+    padding-block-end: 4mm;
+    border-block-end: 2px solid var(--slip-brand);
+  }
+
+  .payslip-brand { display: flex; align-items: center; gap: 4mm; }
+
+  .payslip-logo {
+    inline-size: 13mm;
+    block-size: 13mm;
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 3mm;
+    background: var(--slip-brand);
+    color: #fff;
+    font-size: 15pt;
+    font-weight: 800;
+    overflow: hidden;
+  }
+
+  .payslip-logo img { inline-size: 100%; block-size: 100%; object-fit: contain; }
+
+  .payslip-brand strong { display: block; font-size: 13pt; font-weight: 800; }
+  .payslip-brand small { display: block; color: var(--slip-muted); font-size: 9pt; }
+
+  .payslip-serial { text-align: end; }
+  .payslip-serial small { display: block; color: var(--slip-muted); font-size: 8.5pt; }
+  .payslip-serial strong { font-size: 11pt; font-weight: 800; letter-spacing: 0.4px; }
+
+  /* العنوان */
+  .payslip-title {
+    margin-block: 8mm 1mm;
+    font-size: 20pt;
+    font-weight: 800;
     text-align: start;
   }
-  .printable-payslip-area h2,
-  .printable-payslip-area > p { text-align: center; }
-  .printable-payslip-area table { inline-size: 100%; border-collapse: collapse; margin-block-start: var(--space-4); }
-  .printable-payslip-area td { padding: var(--space-2); }
-  .printable-payslip-signatures { display: flex; justify-content: space-between; margin-block-start: var(--space-7); }
+
+  .payslip-period { color: var(--slip-muted); font-size: 9.5pt; text-align: start; }
+
+  .payslip-heading {
+    margin-block: 7mm 2mm;
+    font-size: 12pt;
+    font-weight: 800;
+  }
+
+  /* الجداول */
+  .payslip-table {
+    inline-size: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    font-size: 10pt;
+  }
+
+  .payslip-table :is(th, td) {
+    padding: 2.4mm 3mm;
+    border: 1px solid var(--slip-line);
+    text-align: start;
+    vertical-align: middle;
+    word-break: break-word;
+  }
+
+  .payslip-table thead th,
+  .payslip-table tbody th {
+    background: var(--slip-wash);
+    font-weight: 700;
+  }
+
+  .payslip-table thead th { color: var(--slip-muted); font-size: 9.5pt; }
+
+  /* جداول المستحقات/الاستقطاعات: البند ثم تفصيل عريض ثم عمود المبلغ في النص */
+  .payslip-table.is-amounts :is(th, td):nth-child(1) { width: 24%; }
+  .payslip-table.is-amounts :is(th, td):nth-child(2) { text-align: center; }
+  .payslip-table.is-amounts :is(th, td):nth-child(3) { width: 20%; text-align: center; }
+  .payslip-table.is-info th { width: 22%; }
+
+  .payslip-table tfoot :is(th, td) {
+    background: var(--slip-wash);
+    font-weight: 800;
+  }
+
+  /* الصافي */
+  .payslip-net {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8mm;
+    margin-block-start: 7mm;
+    padding: 5mm 6mm;
+    border: 2px solid var(--slip-brand);
+    border-radius: 3mm;
+    background: var(--slip-wash);
+  }
+
+  .payslip-net strong { display: block; font-size: 13pt; font-weight: 800; }
+  .payslip-net small { display: block; color: var(--slip-muted); font-size: 9pt; }
+  .payslip-net b { color: var(--slip-brand); font-size: 22pt; font-weight: 800; white-space: nowrap; }
+  .payslip-net b span { font-size: 13pt; }
+
+  .payslip-words {
+    margin-block-start: 2.5mm;
+    color: var(--slip-muted);
+    font-size: 9.5pt;
+    text-align: start;
+  }
+
+  /* التوقيعات والتذييل */
+  .payslip-signatures {
+    display: flex;
+    justify-content: space-between;
+    gap: 20mm;
+    margin-block-start: 14mm;
+    padding-block-start: 4mm;
+    border-block-start: 1px solid var(--slip-line);
+  }
+
+  .payslip-signatures span {
+    flex: 1;
+    padding-block-end: 10mm;
+    border-block-end: 1px solid var(--slip-ink);
+    color: var(--slip-muted);
+    font-size: 9.5pt;
+  }
+
+  .payslip-foot {
+    margin-block-start: 5mm;
+    color: var(--slip-muted);
+    font-size: 8.5pt;
+    text-align: start;
+  }
+
+  .payslip-table,
+  .payslip-net,
+  .payslip-signatures { break-inside: avoid; }
 }

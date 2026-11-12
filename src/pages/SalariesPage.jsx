@@ -4,6 +4,7 @@ import * as payrollApi from '../api/payroll.js';
 import * as usersApi from '../api/users.js';
 import { HrHeader } from '../components/hr/HrLayout.jsx';
 import PayrollWizard, { PAYMENT_METHODS, money, initial } from '../components/hr/PayrollWizard.jsx';
+import PayslipPrint from '../components/hr/PayslipPrint.jsx';
 import { PlusIcon } from '../components/icons/PosIcons.jsx';
 import '../styles/salaries.css';
 
@@ -149,7 +150,9 @@ export default function SalariesPage({ onNavigate }) {
   };
 
   function printSlip(item) {
-    setPrintableSlip({ ...item, periodName: details?.period_name });
+    setPrintableSlip(item);
+    // القسيمة لازم تترسم في الـDOM قبل ما نطبع، وتتشال بعد ما الطباعة تقفل.
+    window.addEventListener('afterprint', () => setPrintableSlip(null), { once: true });
     setTimeout(() => window.print(), 200);
   }
 
@@ -376,7 +379,7 @@ export default function SalariesPage({ onNavigate }) {
                                 {!isPaid && details.status !== 'draft' && (
                                   <button type="button" className="pay-btn is-small is-primary" onClick={() => openPay(item)}>صرف</button>
                                 )}
-                                <button type="button" className="pay-btn is-small" onClick={() => printSlip(item)}>إيصال</button>
+                                <button type="button" className="pay-btn is-small" onClick={() => printSlip(item)}>قسيمة</button>
                               </span>
                             </td>
                           </tr>
@@ -530,22 +533,12 @@ export default function SalariesPage({ onNavigate }) {
       )}
 
       {printableSlip && (
-        <div className="printable-payslip-area">
-          <h2>إيصال استلام راتب</h2>
-          <p>{printableSlip.periodName}</p>
-          <table>
-            <tbody>
-              <tr><td><strong>اسم الموظف:</strong> {printableSlip.full_name || printableSlip.username}</td><td><strong>المسمى الوظيفي:</strong> {printableSlip.job_title || 'موظف'}</td></tr>
-              <tr><td><strong>الراتب الأساسي:</strong> {money(printableSlip.basic_salary)} ج.م</td><td><strong>البدلات والحوافز:</strong> +{money(allowancesOf(printableSlip))} ج.م</td></tr>
-              <tr><td><strong>الغياب والخصومات:</strong> −{money(deductionsOf(printableSlip))} ج.م</td><td><strong>قسط السلفة:</strong> −{money(printableSlip.advances_deducted)} ج.م</td></tr>
-              <tr><td colSpan="2"><h3>الصافي المستلم: {money(printableSlip.net_salary)} ج.م</h3></td></tr>
-            </tbody>
-          </table>
-          <div className="printable-payslip-signatures">
-            <span>توقيع الموظف المستلم: .....................</span>
-            <span>توقيع الإدارة / المحاسب: .....................</span>
-          </div>
-        </div>
+        <PayslipPrint
+          item={printableSlip}
+          period={details}
+          user={users.find((user) => user.id === printableSlip.user_id)}
+          advance={activeAdvances.find((advance) => advance.user_id === printableSlip.user_id)}
+        />
       )}
     </div>
   );

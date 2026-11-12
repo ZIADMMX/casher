@@ -696,3 +696,99 @@ test('law firm appointments use legal terminology and supported resource types',
     fs.rmSync(isolatedAppData, { recursive: true, force: true });
   }
 });
+
+test('payslip prints the payroll line, the net in words and the advance balance', async () => {
+  const isolatedAppData = fs.mkdtempSync(path.join(os.tmpdir(), 'casher-e2e-payslip-'));
+  let electronApp;
+  const pageErrors = [];
+
+  try {
+    electronApp = await launchWithUserData(isolatedAppData);
+    // أول إقلاع على داتا فاضية بيتعدى الـ٣٠ ثانية الافتراضية أحيانًا (تهيئة القاعدة والمايجريشن).
+    const page = await electronApp.firstWindow({ timeout: 90_000 });
+    page.on('pageerror', (error) => pageErrors.push(error.message));
+    await page.locator('#business-name').waitFor({ state: 'visible', timeout: 60_000 });
+
+    // مسير نوفمبر ٢٠٢٦: أساسي ١٢٠٠٠ + مواصلات ١٢٠٠ + بدل ٨٠٠ − قسط سلفة ١٠٠٠ = صافي ١٣٠٠٠
+    await page.evaluate(async () => {
+      await window.electronAPI.createInitialAdmin({ username: 'pay-admin', password: 'secure-password' });
+      await window.electronAPI.login({ username: 'pay-admin', password: 'secure-password' });
+      const provisioned = await window.electronAPI.provisionOnboarding({
+        sectorKey: 'law_firm',
+        storeName: 'مكتب اختبار قانوني',
+      });
+      if (!provisioned?.success) throw new Error(provisioned?.message || 'تعذر إعداد المكتب للاختبار');
+
+      await window.electronAPI.addCashier({
+        username: 'pay-employee',
+        password: 'secure-password',
+        fullName: 'محمود عبد الرحمن',
+        jobTitle: 'محامٍ أول',
+        payType: 'monthly',
+        payAmount: 12000,
+      });
+      const employee = (await window.electronAPI.getAllUsers()).find((user) => user.username === 'pay-employee');
+      if (!employee) throw new Error('لم يتم إنشاء الموظف');
+
+      await window.electronAPI.createSalaryAdvance({
+        user_id: employee.id,
+        amount: 5000,
+        installments: 5,
+        reason: 'سلفة اختبار',
+      });
+      await window.electronAPI.generatePayrollPeriod({
+        month: 11,
+        year: 2026,
+        rules: { advances: true, attendance: true, transport: true, overtime: false },
+        user_ids: [employee.id],
+        adjustments: { [employee.id]: { transport_allowance: 1200, allowance: 800 } },
+        payment_date: '2026-11-28',
+        payment_method: 'cash',
+        approve: true,
+      });
+    });
+
+    // window.print() بيفتح ديالوج طباعة بيعلّق الاختبار، فبنسكّته قبل ما الصفحة تحمّل.
+    await page.addInitScript(() => { window.print = () => {}; });
+    await page.reload();
+    await page.locator('#barcode-search-input').waitFor({ state: 'visible' });
+    await dismissPageTutorial(page);
+
+    await page.locator('.sidebar-links button').filter({ hasText: 'فريق العمل' }).first().click();
+    await page.locator('.sidebar-links button').filter({ hasText: 'الرواتب والمستحقات' }).click();
+    await page.getByRole('heading', { name: 'الرواتب والمستحقات' }).waitFor({ state: 'visible' });
+    await dismissPageTutorial(page);
+
+    const employeeRow = page.locator('.pay-table tbody tr').filter({ hasText: 'محمود عبد الرحمن' });
+    await employeeRow.waitFor({ state: 'visible' });
+    await employeeRow.getByRole('button', { name: 'قسيمة' }).click();
+
+    const slip = page.locator('.printable-payslip-area');
+    await slip.waitFor({ state: 'attached' });
+    const slipText = await slip.innerText({ timeout: 5000 }).catch(() => null) || await slip.textContent();
+
+    assert.match(slipText, /قسيمة راتب — نوفمبر/);
+    assert.match(slipText, /مكتب اختبار قانوني/);
+    assert.match(slipText, /محمود عبد الرحمن/);
+    assert.match(slipText, /محامٍ أول/);
+    assert.match(slipText, /نقدي من الخزنة/);
+    assert.match(slipText, /فقط ثلاثة عشر ألف جنيه مصري لا غير\./);
+    assert.match(slipText, /رصيد السلفة بعد الخصم/);
+    assert.match(slipText, /توقيع الموظف بالاستلام/);
+
+    // على الشاشة: الصفحة بتبان والقسيمة مخفية. عند الطباعة: العكس بالظبط.
+    assert.equal(await slip.isVisible(), false, 'القسيمة مش مفروض تبان على الشاشة');
+    assert.equal(await page.locator('.pay-table').first().isVisible(), true);
+    await page.emulateMedia({ media: 'print' });
+    await slip.waitFor({ state: 'visible' });
+    assert.equal(await page.locator('.pay-table').first().isVisible(), false, 'الصفحة مش مفروض تتطبع مع القسيمة');
+    await page.emulateMedia({ media: 'screen' });
+
+    assert.deepEqual(pageErrors, [], `Unexpected renderer errors: ${pageErrors.join('; ')}`);
+  } finally {
+    if (electronApp) {
+      await electronApp.close();
+    }
+    fs.rmSync(isolatedAppData, { recursive: true, force: true });
+  }
+});
