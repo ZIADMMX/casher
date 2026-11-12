@@ -42,6 +42,7 @@ import { applyModifiers, lineKey, parseAddonCatalog } from '../utils/cartModifie
 import ModifiersModal from '../components/pos/ModifiersModal.jsx';
 import DeliveryInfoBar from '../components/pos/DeliveryInfoBar.jsx';
 import SplitBillModal from '../components/pos/SplitBillModal.jsx';
+import WorkshopTicketModal from '../components/pos/WorkshopTicketModal.jsx';
 
 const EMPTY_DELIVERY = { name: '', phone: '', address: '' };
 
@@ -78,6 +79,9 @@ function POSPage({ onNavigate }) {
   const [activeTab, setActiveTab] = useState(null);
   const [payingTab, setPayingTab] = useState(false);
   const [showTablesModal, setShowTablesModal] = useState(false);
+  // تذكرة ورشة بتتحصّل مع الفاتورة الحالية. الربط بيتم على السيرفر وقت الدفع.
+  const [showWorkshopModal, setShowWorkshopModal] = useState(false);
+  const [workshopTicket, setWorkshopTicket] = useState(null);
   // Split check: the lines being paid now (null = everything still unpaid).
   const [payingItemIds, setPayingItemIds] = useState(null);
   const [showSplitModal, setShowSplitModal] = useState(false);
@@ -740,6 +744,7 @@ function POSPage({ onNavigate }) {
         customerName: selectedCustomerObj ? selectedCustomerObj.name : creditCustomerName,
         customerPhone: selectedCustomerObj ? selectedCustomerObj.phone : creditCustomerPhone,
         dueDate: creditDueDate,
+        ticketId: workshopTicket?.id || null,
         subscriptionId: useSubscriptionCredit && activeSubscription ? activeSubscription.id : null,
         creditsDeducted: useSubscriptionCredit ? 1 : 0,
       });
@@ -801,6 +806,7 @@ function POSPage({ onNavigate }) {
           setActiveTab(null);
         }
       }
+      setWorkshopTicket(null);
       await loadProducts();
       refreshShift();
       setMessage((current) => printStatus.error
@@ -830,7 +836,7 @@ function POSPage({ onNavigate }) {
       playErrorBeep();
       setMessage({ type: 'error', text: err.message });
     }
-  }, [cart, isCreditInvalid, isCashInvalid, activeShift, discount, paymentMethod, sectorConfig.key, creditCustomerName, creditCustomerPhone, creditDueDate, cashReceived, changeDue, clearCart, loadProducts, refreshShift, onNavigate, activeSubscription, posCustomers, selectedCustomerId, useSubscriptionCredit, settings.thermal_printer_name, settings.receipt_paper_size, settings.cash_drawer_pin, activeTab, payingTab, payingItemIds, saleOrderMode, deliveryInfo]);
+  }, [cart, isCreditInvalid, isCashInvalid, activeShift, discount, paymentMethod, sectorConfig.key, creditCustomerName, creditCustomerPhone, creditDueDate, cashReceived, changeDue, clearCart, loadProducts, refreshShift, onNavigate, activeSubscription, posCustomers, selectedCustomerId, useSubscriptionCredit, settings.thermal_printer_name, settings.receipt_paper_size, settings.cash_drawer_pin, activeTab, payingTab, payingItemIds, saleOrderMode, deliveryInfo, workshopTicket?.id]);
 
   // دوال إدارة الوردية من الـ POS
   const handleOpenStartShiftModal = async () => {
@@ -996,10 +1002,24 @@ function POSPage({ onNavigate }) {
         onOpenCashDrawer={handleManualOpenCashDrawer}
         onOpenKitchen={() => onNavigate?.('kitchen')}
         onOpenTables={() => setShowTablesModal(true)}
+        onOpenWorkshopTickets={() => setShowWorkshopModal(true)}
       />
 
       {/* Catalog (start side in RTL): search, categories, products */}
       <section className="pos-catalog-container" aria-label="قائمة الأصناف">
+        {workshopTicket && (
+          <div className="pos-table-banner" role="status">
+            <div className="pos-table-banner__info">
+              <strong>{`🛠️ تذكرة ${workshopTicket.ticket_number}`}</strong>
+              <span>
+                {`${workshopTicket.title}${workshopTicket.customer_name ? ` · ${workshopTicket.customer_name}` : ''} — هتترّبط بالفاتورة دي`}
+              </span>
+            </div>
+            <div className="pos-table-banner__actions">
+              <button type="button" onClick={() => setWorkshopTicket(null)}>إلغاء الربط</button>
+            </div>
+          </div>
+        )}
         {activeTab && (
           <div className="pos-table-banner" role="status">
             <div className="pos-table-banner__info">
@@ -1197,6 +1217,13 @@ function POSPage({ onNavigate }) {
         onApply={handleApplyModifiers}
         onClose={() => setModifiersLine(null)}
       />
+
+      {showWorkshopModal && (
+        <WorkshopTicketModal
+          onSelect={(ticket) => { setWorkshopTicket(ticket); setShowWorkshopModal(false); }}
+          onClose={() => setShowWorkshopModal(false)}
+        />
+      )}
 
       <TablesModal
         isOpen={showTablesModal}

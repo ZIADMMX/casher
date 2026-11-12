@@ -42,6 +42,7 @@ export default function PosTopBar({
   onOpenCashDrawer,
   onOpenKitchen,
   onOpenTables,
+  onOpenWorkshopTickets,
 }) {
   const features = sectorConfig?.features || {};
   const showAttendance = Boolean(attendance?.canManage) && (Boolean(activeShift) || attendance.isCheckedIn);
@@ -118,6 +119,13 @@ export default function PosTopBar({
           <button type="button" className="pos-topbar-btn" onClick={onOpenTables}>
             <TableIcon size={18} />
             <span>الطاولات</span>
+          </button>
+        )}
+
+        {features.maintenanceTicket && (
+          <button type="button" className="pos-topbar-btn" onClick={onOpenWorkshopTickets}>
+            <ReceiptIcon size={18} />
+            <span>تذاكر الصيانة</span>
           </button>
         )}
 

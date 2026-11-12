@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useUser } from '../contexts/UserContext.jsx';
 import * as enterpriseApi from '../api/enterprise.js';
+import { openWhatsapp } from '../utils/whatsapp.js';
 import '../styles/workflows.css';
 
 const ENTITIES_MAP = [
@@ -71,6 +72,9 @@ function WorkflowsPage() {
     title: '',
     customer_name: '',
     customer_phone: '',
+    device_serial: '',
+    estimated_cost: '',
+    warranty_days: '',
     assigned_role: 'admin',
     notes: ''
   });
@@ -209,19 +213,44 @@ function WorkflowsPage() {
           title: newTicketForm.title,
           customer_name: newTicketForm.customer_name,
           customer_phone: newTicketForm.customer_phone,
+          device_serial: newTicketForm.device_serial,
+          estimated_cost: Number(newTicketForm.estimated_cost) || 0,
+          warranty_days: Number(newTicketForm.warranty_days) || 0,
           current_status_key: initialStatus.status_key,
           assigned_role: newTicketForm.assigned_role,
           notes: newTicketForm.notes
         });
         showToast('تمت إضافة التذكرة بنجاح 📋', 'success');
         setShowNewTicketModal(false);
-        setNewTicketForm({ title: '', customer_name: '', customer_phone: '', assigned_role: 'admin', notes: '' });
+        setNewTicketForm({ title: '', customer_name: '', customer_phone: '', device_serial: '', estimated_cost: '', warranty_days: '', assigned_role: 'admin', notes: '' });
         loadTickets(activeWorkflow.id);
         loadWorkflows();
       }
     } catch (err) {
       showToast('تعذر إضافة التذكرة: ' + err.message, 'error');
     }
+  }
+
+  async function handlePrintTicketReceipt(ticket) {
+    try {
+      await enterpriseApi.printTicketReceipt(ticket.id);
+    } catch (err) {
+      showToast('تعذرت طباعة إيصال الاستلام: ' + err.message, 'error');
+    }
+  }
+
+  // إبلاغ العميل إن جهازه جاهز: تواصل عن خدمة طلبها بنفسه، فمالوش علاقة
+  // بموافقة التسويق. بيفتح واتساب برسالة جاهزة والموظف هو اللي بيبعت.
+  function handleNotifyReady(ticket) {
+    if (!ticket.customer_phone) {
+      showToast('مفيش رقم موبايل مسجل على التذكرة', 'error');
+      return;
+    }
+    const cost = Number(ticket.estimated_cost) > 0 ? ` التكلفة: ${Number(ticket.estimated_cost).toLocaleString('ar-EG')} جنيه.` : '';
+    openWhatsapp(
+      ticket.customer_phone,
+      `مرحبًا ${ticket.customer_name || ''}، جهازك (${ticket.title}) جاهز للاستلام من المركز. رقم التذكرة: ${ticket.ticket_number}.${cost} برجاء إحضار إيصال الاستلام.`
+    );
   }
 
   async function handleMoveTicket(ticketId, targetStatusKey) {
@@ -544,10 +573,51 @@ function WorkflowsPage() {
                                 👤 <strong>العميل:</strong> {t.customer_name} {t.customer_phone ? `(${t.customer_phone})` : ''}
                               </div>
                             )}
+                            {t.device_serial && (
+                              <div className="ticket-meta-item">
+                                🔑 <strong>السيريال:</strong> {t.device_serial}
+                              </div>
+                            )}
+                            {Number(t.estimated_cost) > 0 && (
+                              <div className="ticket-meta-item">
+                                💰 <strong>التكلفة المتوقعة:</strong> {Number(t.estimated_cost).toLocaleString('ar-EG')} ج
+                              </div>
+                            )}
+                            {t.sale_id ? (
+                              <div className="ticket-meta-item" style={{ color: '#15803d', fontWeight: 600 }}>
+                                ✅ اتحصّلت في فاتورة #{t.sale_id}
+                                {t.warranty_until ? ` · ضمان لغاية ${t.warranty_until}` : ''}
+                              </div>
+                            ) : (
+                              <div className="ticket-meta-item" style={{ color: '#b45309', fontWeight: 600 }}>
+                                ⏳ لسه ما اتحصّلتش — تتحصّل من الكاشير
+                              </div>
+                            )}
                             {t.notes && (
                               <div className="ticket-meta-item" style={{ color: '#4b5563', fontStyle: 'italic' }}>
                                 💬 {t.notes}
                               </div>
+                            )}
+                          </div>
+
+                          <div style={{ display: 'flex', gap: '6px', margin: '8px 0' }}>
+                            <button
+                              type="button"
+                              className="secondary-btn"
+                              style={{ flex: 1, fontSize: '0.75rem', padding: '4px' }}
+                              onClick={(e) => { e.stopPropagation(); handlePrintTicketReceipt(t); }}
+                            >
+                              🧾 إيصال استلام
+                            </button>
+                            {t.customer_phone && (
+                              <button
+                                type="button"
+                                className="secondary-btn"
+                                style={{ flex: 1, fontSize: '0.75rem', padding: '4px' }}
+                                onClick={(e) => { e.stopPropagation(); handleNotifyReady(t); }}
+                              >
+                                💬 جاهز للاستلام
+                              </button>
                             )}
                           </div>
 
@@ -832,6 +902,44 @@ function WorkflowsPage() {
                   onChange={(e) => setNewTicketForm({ ...newTicketForm, customer_phone: e.target.value })}
                   style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #ccc' }}
                 />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>سيريال الجهاز / رقم IMEI:</label>
+                <input
+                  type="text"
+                  placeholder="بيتطبع على إيصال الاستلام"
+                  value={newTicketForm.device_serial}
+                  onChange={(e) => setNewTicketForm({ ...newTicketForm, device_serial: e.target.value })}
+                  style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #ccc' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>التكلفة المتوقعة (ج):</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="0"
+                    value={newTicketForm.estimated_cost}
+                    onChange={(e) => setNewTicketForm({ ...newTicketForm, estimated_cost: e.target.value })}
+                    style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #ccc' }}
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>ضمان الإصلاح (يوم):</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    placeholder="0"
+                    value={newTicketForm.warranty_days}
+                    onChange={(e) => setNewTicketForm({ ...newTicketForm, warranty_days: e.target.value })}
+                    style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #ccc' }}
+                  />
+                </div>
               </div>
 
               <div>

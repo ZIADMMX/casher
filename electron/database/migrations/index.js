@@ -54,6 +54,7 @@ const { ensureDiningTables, allowSplitPayments } = require('./diningTables');
 const { ensureRecipes } = require('./recipes');
 const { ensureEInvoice } = require('./einvoice');
 const { ensurePrivacyConsent } = require('./privacy');
+const { ensureWorkshopTickets } = require('./workshop');
 const { ensureProductLedger } = require('./productLedger');
 const { ensureSyncMetadata, ensureDeleteTombstones } = require('./syncMetadata');
 const { addColumnIfMissing } = require('./helpers');
@@ -333,6 +334,14 @@ function runAllMigrations(dbInstance = db) {
     ensureEInvoice(dbInstance);
     dbInstance.pragma('user_version = 32');
     console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 32 (مستندات المرتجعات).');
+  }
+
+  if (currentVersion < 33) {
+    // تذكرة الورشة بقت تتحصّل في الكاشير: سيريال الجهاز والتكلفة والضمان
+    // والفاتورة اللي اتحصّلت بيها.
+    ensureWorkshopTickets(dbInstance);
+    dbInstance.pragma('user_version = 33');
+    console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 33 (تحصيل تذاكر الورشة وضمان الإصلاح).');
   }
 
   // Earlier steps may rebuild the sales tables; make sure the guards exist at the end.

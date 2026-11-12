@@ -107,6 +107,17 @@ function registerEnterpriseHandlers() {
     return enterpriseService.getWorkflowTickets(workflowId, statusKey);
   });
 
+  safeHandle('enterprise:getUnbilledTickets', () => {
+    authService.requireAuth();
+    return enterpriseService.getUnbilledTickets();
+  });
+
+  safeHandle('enterprise:printTicketReceipt', (event, ticketId) => {
+    authService.requireAuth();
+    const html = require('../services/workshopReceipt.service').getReceiptHtml(ticketId);
+    return require('../services/print.service').printHtml(html, { silent: false });
+  });
+
   safeHandle('enterprise:createWorkflowTicket', (event, ticketData) => {
     authService.requireAuth();
     return enterpriseService.createWorkflowTicket(ticketData);

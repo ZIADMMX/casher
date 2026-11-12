@@ -317,6 +317,21 @@ function getWorkflowTickets(workflowId, statusKey = null) {
   return enterpriseRepo.getWorkflowTickets(workflowId, statusKey);
 }
 
+// التذاكر اللي الكاشير ممكن يحصّلها. الحد الأقصى ثابت عشان استدعاء الـ IPC
+// المباشر ما يسحبش الجدول كله.
+function getUnbilledTickets() {
+  return enterpriseRepo.getUnbilledTickets(100);
+}
+
+// ضمان الإصلاح بيبدأ من يوم التحصيل، مش من يوم فتح التذكرة.
+function warrantyUntilFor(ticket, from = new Date()) {
+  const days = Math.trunc(Number(ticket?.warranty_days) || 0);
+  if (days <= 0) return null;
+  const until = new Date(from.getTime());
+  until.setDate(until.getDate() + days);
+  return until.toISOString().slice(0, 10);
+}
+
 function createWorkflowTicket(ticketData) {
   if (!ticketData.workflow_id || !ticketData.title || !ticketData.current_status_key) {
     throw new Error('بيانات التذكرة غير مكتملة (معرف سير العمل، العنوان والحالة الحالية)');
@@ -411,6 +426,8 @@ module.exports = {
   deleteWorkflowStatus,
   saveWorkflowTransitions,
   getWorkflowTickets,
+  getUnbilledTickets,
+  warrantyUntilFor,
   createWorkflowTicket,
   updateTicketStatus,
   deleteWorkflowTicket,

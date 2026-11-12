@@ -14,6 +14,8 @@ const recipesRepo = require('../repositories/recipes.repository');
 const SettingsRepository = require('../repositories/settings.repository');
 const bundlePromotionsService = require('./bundlePromotions.service');
 const { resolveModifiers, cleanNote, getCatalog: getAddonCatalog } = require('./modifiers.service');
+const enterpriseRepo = require('../repositories/enterprise.repository');
+const { warrantyUntilFor } = require('./enterprise/workflows');
 
 /**
  * Create a new sale transaction.
@@ -34,6 +36,7 @@ function createSale({
   tableTabId,
   tabItemIds,
   delivery,
+  ticketId,
 }) {
   try {
     const session = getCurrentSession();
@@ -185,6 +188,16 @@ function createSale({
       });
     }
 
+    // تذكرة ورشة بتتحصّل مع الفاتورة دي: لازم تكون موجودة ولسه ما اتحصّلتش.
+    // الفحص هنا بيدّي رسالة مفهومة، والقيد الحقيقي على التحديث جوه المعاملة.
+    let workshopTicket = null;
+    if (ticketId !== undefined && ticketId !== null) {
+      const id = Number(ticketId);
+      workshopTicket = Number.isSafeInteger(id) && id > 0 ? enterpriseRepo.getTicketById(id) : null;
+      if (!workshopTicket) throw new Error('تذكرة الصيانة غير موجودة');
+      if (workshopTicket.sale_id) throw new Error(`تذكرة الصيانة اتحصّلت بالفعل في فاتورة #${workshopTicket.sale_id}`);
+    }
+
     // Sent by the till: a negative or fractional count would add credits instead of using them.
     const credits = subscriptionId ? Number(creditsDeducted || 1) : 0;
     if (subscriptionId && (!Number.isSafeInteger(credits) || credits < 1)) {
@@ -307,6 +320,14 @@ function createSale({
         // The last part paid closes the check.
         if (tablesRepo.countUnpaidItems(tableTab.id) === 0 && !tablesRepo.closeTab(tableTab.id, 'paid', saleId).changes) {
           throw new Error('حساب الطاولة اتقفل بالفعل');
+        }
+      }
+
+      // جوه المعاملة: لو التذكرة اتحصّلت من جهاز تاني في نفس اللحظة، الفاتورة
+      // نفسها ما تتحفظش — أحسن من تحصيل مرتين.
+      if (workshopTicket) {
+        if (enterpriseRepo.markTicketBilled(workshopTicket.id, saleId, warrantyUntilFor(workshopTicket)) !== 1) {
+          throw new Error('تذكرة الصيانة اتحصّلت بالفعل من جهاز تاني');
         }
       }
 

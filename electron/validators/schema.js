@@ -304,6 +304,7 @@ const createSaleSchema = v.object({
   customerPhone: v.string('رقم هاتف العميل غير صالح').optional().nullable(),
   dueDate: v.string('تاريخ الاستحقاق غير صالح').optional().nullable(),
   tableTabId: v.number('رقم حساب الطاولة غير صالح').int('رقم حساب الطاولة غير صالح').positive('رقم حساب الطاولة غير صالح').optional().nullable(),
+  ticketId: v.number('رقم تذكرة الصيانة غير صالح').int('رقم تذكرة الصيانة غير صالح').positive('رقم تذكرة الصيانة غير صالح').optional().nullable(),
 }).refine((data) => {
   if (data.paymentMethod === 'credit') {
     if (!data.customerName || !data.customerName.trim()) {

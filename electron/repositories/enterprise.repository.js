@@ -341,8 +341,8 @@ function createWorkflowTicket(data) {
   }
 
   const stmt = db.prepare(`
-    INSERT INTO workflow_tickets (ticket_number, workflow_id, entity_type, title, customer_name, customer_phone, current_status_key, assigned_role, assigned_user, notes, entered_current_status_at)
-    VALUES (@ticket_number, @workflow_id, @entity_type, @title, @customer_name, @customer_phone, @current_status_key, @assigned_role, @assigned_user, @notes, CURRENT_TIMESTAMP)
+    INSERT INTO workflow_tickets (ticket_number, workflow_id, entity_type, title, customer_name, customer_phone, current_status_key, assigned_role, assigned_user, notes, device_serial, estimated_cost, warranty_days, entered_current_status_at)
+    VALUES (@ticket_number, @workflow_id, @entity_type, @title, @customer_name, @customer_phone, @current_status_key, @assigned_role, @assigned_user, @notes, @device_serial, @estimated_cost, @warranty_days, CURRENT_TIMESTAMP)
   `);
   const ticketNumber = data.ticket_number || `TK-${Date.now().toString().slice(-6)}`;
   const info = stmt.run({
@@ -355,7 +355,10 @@ function createWorkflowTicket(data) {
     current_status_key: data.current_status_key,
     assigned_role: data.assigned_role || 'admin',
     assigned_user: data.assigned_user || null,
-    notes: data.notes || null
+    notes: data.notes || null,
+    device_serial: data.device_serial || null,
+    estimated_cost: Number(data.estimated_cost) > 0 ? Number(data.estimated_cost) : 0,
+    warranty_days: Number(data.warranty_days) > 0 ? Math.trunc(Number(data.warranty_days)) : 0
   });
   return db.prepare("SELECT * FROM workflow_tickets WHERE id = ?").get(info.lastInsertRowid);
 }
@@ -370,6 +373,26 @@ function updateTicketStatus(ticketId, workflowId, newStatusKey) {
   `);
   stmt.run(newStatusKey, ticketId, workflowId);
   return getWorkflowTicketById(ticketId, workflowId);
+}
+
+// تذاكر لسه ما اتحصّلتش — دي اللي بتظهر للكاشير. مش مقيدة بمسار واحد لأن
+// الكاشير مش شايف المسارات.
+function getUnbilledTickets(limit = 100) {
+  return db.prepare('SELECT * FROM workflow_tickets WHERE sale_id IS NULL ORDER BY id DESC LIMIT ?').all(limit);
+}
+
+function getTicketById(ticketId) {
+  return db.prepare('SELECT * FROM workflow_tickets WHERE id = ?').get(ticketId) || null;
+}
+
+// القيد sale_id IS NULL هو اللي بيمنع تحصيل نفس التذكرة مرتين من جهازين.
+// بيرجّع عدد الصفوف اللي اتغيرت عشان البيع يقف لو كانت اتحصّلت قبل كده.
+function markTicketBilled(ticketId, saleId, warrantyUntil = null) {
+  return db.prepare(`
+    UPDATE workflow_tickets
+    SET sale_id = ?, warranty_until = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ? AND sale_id IS NULL
+  `).run(saleId, warrantyUntil, ticketId).changes;
 }
 
 function deleteWorkflowTicket(ticketId) {
@@ -486,6 +509,9 @@ module.exports = {
   createWorkflowTicket,
   updateTicketStatus,
   deleteWorkflowTicket,
+  getUnbilledTickets,
+  getTicketById,
+  markTicketBilled,
   getAutomationRules,
   createAutomationRule,
   setAutomationRuleEnabled,
