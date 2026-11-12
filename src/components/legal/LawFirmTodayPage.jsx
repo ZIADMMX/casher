@@ -78,6 +78,7 @@ const ICON_PATHS = {
       <path d="M9 8h6M9 12h6M9 16h3" />
     </>
   ),
+  hourglass: <><path d="M6 2h12M6 22h12" /><path d="M8 2v4l4 4 4-4V2M8 22v-4l4-4 4 4v4" /></>,
   search: <><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></>,
   check: <><path d="m5 12 4 4L19 6" /></>,
 };
@@ -142,6 +143,20 @@ function SessionRow({ session, onOpenCase, onMarkAttended, saving }) {
   );
 }
 
+function deadlineRemainingLabel(days) {
+  if (days < 0) return `فات الميعاد بـ ${Math.abs(days)} يوم`;
+  if (days === 0) return 'آخر يوم النهاردة';
+  if (days === 1) return 'باقي يوم واحد';
+  if (days === 2) return 'باقي يومان';
+  return `باقي ${days} يوم`;
+}
+
+function deadlineTone(days) {
+  if (days <= 2) return 'danger';
+  if (days <= 7) return 'warning';
+  return 'calm';
+}
+
 export default function LawFirmTodayPage({ onNavigate }) {
   const [dashboard, setDashboard] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -204,6 +219,7 @@ export default function LawFirmTodayPage({ onNavigate }) {
   const upcomingSessions = (dashboard?.upcomingSessions || [])
     .filter((session) => String(session.session_date).slice(0, 10) !== selectedDate);
   const movements = dashboard?.financialMovements || [];
+  const deadlines = dashboard?.criticalDeadlines || [];
   const agendaSessions = agendaView === 'today'
     ? todaySessions
     : agendaView === 'upcoming'
@@ -390,6 +406,37 @@ export default function LawFirmTodayPage({ onNavigate }) {
               <strong>لا توجد جلسات مجدولة خلال الأسبوع</strong>
             </div>
           )}
+
+          <div className="law-deadlines">
+            <div className="law-deadlines-header">
+              <span className="law-dashboard-panel-icon"><LegalIcon name="hourglass" /></span>
+              <div>
+                <h3>مواعيد حرجة</h3>
+                <p>مواعيد الطعن والمدد القانونية المفتوحة</p>
+              </div>
+            </div>
+            {deadlines.length ? (
+              <ul className="law-deadlines-list">
+                {deadlines.map((deadline) => {
+                  const days = Number(deadline.days_remaining);
+                  return (
+                    <li key={deadline.id} className={`law-deadline law-deadline-${deadlineTone(days)}`}>
+                      <button type="button" onClick={() => openCase(deadline.case_id)} title="فتح ملف القضية">
+                        <strong>{deadline.title}</strong>
+                        <small>قضية {deadline.case_number}{deadline.client_name ? ` · ${deadline.client_name}` : ''}</small>
+                        <span className="law-deadline-remaining">
+                          {deadlineRemainingLabel(days)}
+                          <em>آخر يوم {new Date(deadline.due_at).toLocaleDateString('ar-EG')}</em>
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <p className="law-deadlines-empty">لا توجد مواعيد قانونية مفتوحة. سجّل ميعاد الطعن من تبويب «مهام المتابعة» في ملف القضية.</p>
+            )}
+          </div>
         </section>
       </div>
 

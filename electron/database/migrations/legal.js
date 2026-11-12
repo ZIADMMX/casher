@@ -1,5 +1,5 @@
 const { db } = require('../connection');
-const { foreignKeyViolationCounts, assertNoNewForeignKeyViolations } = require('./helpers');
+const { addColumnIfMissing, foreignKeyViolationCounts, assertNoNewForeignKeyViolations } = require('./helpers');
 
 function migrateCasesTables(dbInstance = db) {
   const hasLawyerTimeLogs = dbInstance.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='lawyer_time_logs'").get();
@@ -86,6 +86,15 @@ function migrateLegalCaseTasks(dbInstance = db) {
       ON legal_case_tasks(status, reminder_sent, reminder_at);
     CREATE INDEX IF NOT EXISTS idx_legal_case_tasks_assignee
       ON legal_case_tasks(assigned_lawyer_id, status, due_at);
+  `);
+  // مواعيد الطعن والمدد القانونية تُخزَّن في نفس الجدول بـ kind = 'deadline'،
+  // مع حفظ المدة وتاريخ بدايتها عشان الميعاد يفضل قابل للمراجعة.
+  addColumnIfMissing('legal_case_tasks', 'kind', "TEXT NOT NULL DEFAULT 'task'", dbInstance);
+  addColumnIfMissing('legal_case_tasks', 'deadline_start_date', 'TEXT', dbInstance);
+  addColumnIfMissing('legal_case_tasks', 'deadline_days', 'INTEGER', dbInstance);
+  dbInstance.exec(`
+    CREATE INDEX IF NOT EXISTS idx_legal_case_tasks_kind_due
+      ON legal_case_tasks(kind, status, due_at);
   `);
 }
 

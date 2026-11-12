@@ -100,6 +100,9 @@ function createSchema() {
       priority TEXT NOT NULL DEFAULT 'normal' CHECK(priority IN ('low', 'normal', 'high')),
       status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'in_progress', 'completed', 'cancelled')),
       reminder_sent INTEGER NOT NULL DEFAULT 0 CHECK(reminder_sent IN (0, 1)),
+      kind TEXT NOT NULL DEFAULT 'task',
+      deadline_start_date TEXT,
+      deadline_days INTEGER,
       created_by INTEGER,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -306,9 +309,49 @@ describe('cases repository updates', () => {
       userId: 1,
       linkPage: 'cases',
       title: 'تذكير بجلسة محكمة قادمة ⚖️',
+      desktop: true,
     }));
     expect(casesService.checkDueCourtSessionReminders(48)).toBe(0);
     expect(NotificationsService.notify).toHaveBeenCalledTimes(1);
+  });
+
+  test('a legal deadline computes its last day from the statutory period and surfaces on the dashboard', () => {
+    const deadline = casesService.createCaseTask({
+      case_id: 1,
+      kind: 'deadline',
+      title: 'استئناف حكم مدني (ابتدائي)',
+      deadline_start_date: '2026-11-01',
+      deadline_days: 40,
+    }, 1);
+
+    // المدة تبدأ من اليوم التالي، فآخر يوم = 1 نوفمبر + 40 يوم.
+    expect(deadline).toMatchObject({
+      kind: 'deadline',
+      due_at: '2026-12-11T23:59:00',
+      deadline_days: 40,
+      deadline_start_date: '2026-11-01',
+    });
+
+    const upcoming = casesRepository.getUpcomingDeadlines('2026-12-01', 8);
+    expect(upcoming).toEqual([
+      expect.objectContaining({ id: deadline.id, days_remaining: 10, case_number: expect.any(String) }),
+    ]);
+
+    // تعديل المدة يعيد حساب آخر يوم
+    expect(casesService.updateCaseTask(deadline.id, { deadline_days: 60 }))
+      .toMatchObject({ due_at: '2026-12-31T23:59:00' });
+
+    expect(() => casesService.createCaseTask({
+      case_id: 1,
+      kind: 'deadline',
+      title: 'طعن بالنقض',
+      deadline_days: 60,
+    }, 1)).toThrow('تاريخ بداية المدة القانونية مطلوب');
+
+    // الميعاد المنجز يخرج من القائمة الحرجة
+    casesService.updateCaseTask(deadline.id, { status: 'completed' });
+    expect(casesRepository.getUpcomingDeadlines('2026-12-01', 8)).toEqual([]);
+    casesService.deleteCaseTask(deadline.id);
   });
 
   test('creates, updates, and links tasks to a hearing decision', () => {
@@ -384,6 +427,7 @@ describe('cases repository updates', () => {
       userId: 1,
       linkPage: 'cases',
       title: 'تذكير بمتابعة قضية ⚖️',
+      desktop: true,
     }));
     expect(casesService.checkDueCaseTaskReminders()).toBe(0);
 

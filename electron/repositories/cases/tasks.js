@@ -37,8 +37,9 @@ function createTask(data) {
   const result = db.prepare(`
     INSERT INTO legal_case_tasks (
       case_id, session_id, title, description, due_at, reminder_at,
-      assigned_lawyer_id, priority, created_by
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      assigned_lawyer_id, priority, created_by,
+      kind, deadline_start_date, deadline_days
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     data.case_id,
     data.session_id || null,
@@ -48,7 +49,10 @@ function createTask(data) {
     data.reminder_at || null,
     data.assigned_lawyer_id || null,
     data.priority || 'normal',
-    data.created_by || null
+    data.created_by || null,
+    data.kind || 'task',
+    data.deadline_start_date || null,
+    data.deadline_days ?? null
   );
   return getTaskById(result.lastInsertRowid);
 }
@@ -63,6 +67,9 @@ function updateTask(id, data) {
     assigned_lawyer_id: 'assigned_lawyer_id',
     priority: 'priority',
     status: 'status',
+    kind: 'kind',
+    deadline_start_date: 'deadline_start_date',
+    deadline_days: 'deadline_days',
   };
   const entries = Object.entries(columns).filter(([key]) => Object.hasOwn(data, key));
   if (entries.length) {
@@ -84,9 +91,28 @@ function deleteTask(id) {
   return db.prepare('DELETE FROM legal_case_tasks WHERE id = ?').run(id);
 }
 
+// المواعيد القانونية المفتوحة مرتبة بالأقرب فواتًا، مع الأيام المتبقية (بالسالب لو الميعاد فات).
+function getUpcomingDeadlines(referenceDate, limit = 8) {
+  return db.prepare(`
+    SELECT t.id, t.case_id, t.title, t.description, t.due_at, t.priority, t.status,
+      t.deadline_start_date, t.deadline_days,
+      c.case_number, c.court_name,
+      cust.name AS client_name,
+      CAST(julianday(date(t.due_at)) - julianday(date(?)) AS INTEGER) AS days_remaining
+    FROM legal_case_tasks t
+    JOIN legal_cases c ON c.id = t.case_id
+    LEFT JOIN customers cust ON cust.id = c.client_id
+    WHERE t.kind = 'deadline'
+      AND t.status IN ('pending', 'in_progress')
+      AND c.status != 'closed'
+    ORDER BY t.due_at ASC, t.id ASC
+    LIMIT ?
+  `).all(referenceDate, limit);
+}
+
 function getDueCaseTaskReminders() {
   return db.prepare(`
-    SELECT t.id, t.case_id, t.title, t.due_at, t.reminder_at,
+    SELECT t.id, t.case_id, t.title, t.due_at, t.reminder_at, t.kind,
       COALESCE(t.assigned_lawyer_id, c.assigned_lawyer_id) AS reminder_lawyer_id,
       c.case_number, c.court_name
     FROM legal_case_tasks t
@@ -123,6 +149,7 @@ module.exports = {
   createTask,
   updateTask,
   deleteTask,
+  getUpcomingDeadlines,
   getDueCaseTaskReminders,
   claimCaseTaskReminder,
   releaseCaseTaskReminder,

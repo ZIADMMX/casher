@@ -325,7 +325,8 @@ function checkDueCourtSessionReminders(hoursAhead = 48) {
           type: 'warning',
           title: 'تذكير بجلسة محكمة قادمة ⚖️',
           message: `قضية رقم (${session.case_number}) - محكمة ${session.court_name} (${session.circuit_name || 'الدائرة'}) | الموعد: ${dateText} | المطلوب: ${session.session_reason || 'حضور المرافعة'}`,
-          linkPage: 'cases'
+          linkPage: 'cases',
+          desktop: true,
         });
         if (!notification) casesRepo.releaseSessionReminder(session.id);
       } catch (error) {
@@ -354,10 +355,35 @@ function isValidDateTime(value) {
     && date.getSeconds() === second;
 }
 
+// الميعاد القانوني يبدأ من اليوم التالي لتاريخ الحكم/الإعلان، فآخر يوم = تاريخ البداية + المدة.
+function computeDeadlineDueAt(startDate, days) {
+  const [year, month, day] = String(startDate).slice(0, 10).split('-').map(Number);
+  const due = new Date(year, month - 1, day + Number(days), 23, 59, 0);
+  if (Number.isNaN(due.getTime())) throw new Error('تاريخ بداية المدة غير صالح');
+  const pad = (value) => String(value).padStart(2, '0');
+  return `${due.getFullYear()}-${pad(due.getMonth() + 1)}-${pad(due.getDate())}T23:59:00`;
+}
+
 function normalizeTaskData(data, existing = {}) {
   const task = { ...existing, ...data };
   if (typeof task.title !== 'string' || !task.title.trim()) {
     throw new Error('عنوان المهمة مطلوب');
+  }
+  task.kind = task.kind === 'deadline' ? 'deadline' : 'task';
+  if (task.kind === 'deadline') {
+    const days = Number(task.deadline_days);
+    if (!Number.isSafeInteger(days) || days <= 0 || days > 3650) {
+      throw new Error('مدة الميعاد القانوني غير صالحة');
+    }
+    if (!/^\d{4}-\d{2}-\d{2}/.test(String(task.deadline_start_date || ''))) {
+      throw new Error('تاريخ بداية المدة القانونية مطلوب');
+    }
+    task.deadline_days = days;
+    task.deadline_start_date = String(task.deadline_start_date).slice(0, 10);
+    task.due_at = computeDeadlineDueAt(task.deadline_start_date, days);
+  } else {
+    task.deadline_start_date = null;
+    task.deadline_days = null;
   }
   if (!isValidDateTime(task.due_at)) {
     throw new Error('موعد استحقاق المهمة غير صالح');
@@ -430,8 +456,16 @@ function updateCaseTask(id, data) {
   for (const key of [
     'session_id', 'title', 'description', 'due_at', 'reminder_at',
     'assigned_lawyer_id', 'priority', 'status',
+    'kind', 'deadline_start_date', 'deadline_days',
   ]) {
     if (Object.hasOwn(data, key)) updates[key] = normalized[key];
+  }
+  // تعديل المدة أو تاريخ بدايتها بيعيد حساب تاريخ الاستحقاق.
+  if (['kind', 'deadline_start_date', 'deadline_days'].some((key) => Object.hasOwn(data, key))) {
+    updates.due_at = normalized.due_at;
+    updates.deadline_start_date = normalized.deadline_start_date;
+    updates.deadline_days = normalized.deadline_days;
+    updates.kind = normalized.kind;
   }
   return casesRepo.updateTask(Number(id), updates);
 }
@@ -451,9 +485,10 @@ function checkDueCaseTaskReminders() {
       const notification = NotificationsService.notify({
         userId: task.reminder_lawyer_id,
         type: 'warning',
-        title: 'تذكير بمتابعة قضية ⚖️',
-        message: `القضية (${task.case_number}) - ${task.title} | موعد الاستحقاق: ${new Date(task.due_at).toLocaleString('ar-EG')}`,
+        title: task.kind === 'deadline' ? 'ميعاد قانوني على وشك الفوات ⏳' : 'تذكير بمتابعة قضية ⚖️',
+        message: `القضية (${task.case_number}) - ${task.title} | ${task.kind === 'deadline' ? 'آخر يوم' : 'موعد الاستحقاق'}: ${new Date(task.due_at).toLocaleString('ar-EG')}`,
         linkPage: 'cases',
+        desktop: true,
       });
       if (!notification) casesRepo.releaseCaseTaskReminder(task.id);
     } catch (error) {

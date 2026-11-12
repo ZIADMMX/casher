@@ -578,3 +578,88 @@ button.law-dashboard-metric:focus-visible,
   .law-dashboard-header, .law-dashboard-panel, .law-report-metric { box-shadow: none; break-inside: avoid; }
   .law-dashboard-columns, .law-report-panels { grid-template-columns: 1fr 1fr; }
 }
+
+/* مواعيد حرجة — مواعيد الطعن والمدد القانونية */
+.law-deadlines {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px dashed var(--law-line);
+}
+
+.law-deadlines-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.law-deadlines-header h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.law-deadlines-header p {
+  margin: 2px 0 0;
+  font-size: 0.78rem;
+  color: var(--law-muted);
+}
+
+.law-deadlines-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.law-deadline > button {
+  width: 100%;
+  display: grid;
+  gap: 2px;
+  text-align: inherit;
+  padding: 10px 12px;
+  border: 1px solid var(--law-line);
+  border-right: 4px solid var(--law-muted);
+  border-radius: 12px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.law-deadline > button:hover { background: #f8fafc; }
+
+.law-deadline > button strong { font-size: 0.9rem; }
+.law-deadline > button small { font-size: 0.76rem; color: var(--law-muted); }
+
+.law-deadline-remaining {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.law-deadline-remaining em {
+  font-style: normal;
+  font-weight: 500;
+  font-size: 0.74rem;
+  color: var(--law-muted);
+}
+
+.law-deadline-danger > button { border-right-color: #dc2626; background: #fef2f2; }
+.law-deadline-danger .law-deadline-remaining { color: #b91c1c; }
+.law-deadline-warning > button { border-right-color: #f59e0b; background: #fffbeb; }
+.law-deadline-warning .law-deadline-remaining { color: #b45309; }
+.law-deadline-calm > button { border-right-color: #0ea5e9; }
+.law-deadline-calm .law-deadline-remaining { color: #0369a1; }
+
+.law-deadlines-empty {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--law-muted);
+  line-height: 1.7;
+}

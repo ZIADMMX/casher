@@ -297,6 +297,13 @@ function runAllMigrations(dbInstance = db) {
     console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 27 (أقساط السلف وبدل المواصلات وطريقة صرف المسير).');
   }
 
+  if (currentVersion < 28) {
+    // مواعيد الطعن والمدد القانونية: أعمدة جديدة على جدول مهام القضايا.
+    migrateLegalCaseTasks(dbInstance);
+    dbInstance.pragma('user_version = 28');
+    console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 28 (مواعيد الطعن والمدد القانونية).');
+  }
+
   // Earlier steps may rebuild the sales tables; make sure the guards exist at the end.
   ensureSalesLedgerGuards(dbInstance);
   ensureKitchenLedger(dbInstance);

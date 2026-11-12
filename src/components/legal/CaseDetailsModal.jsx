@@ -57,6 +57,18 @@ const TASK_PRIORITY_LABELS = {
   high: 'عاجلة',
 };
 
+// المدد القانونية الشائعة في القانون المصري. المحامي يقدر يعدّل عدد الأيام يدويًا لأي حالة خاصة.
+const LEGAL_DEADLINE_TYPES = [
+  { label: 'استئناف حكم مدني (ابتدائي)', days: 40 },
+  { label: 'استئناف حكم جزئي / مستعجل', days: 15 },
+  { label: 'استئناف حكم جنائي', days: 10 },
+  { label: 'معارضة في حكم غيابي', days: 10 },
+  { label: 'الطعن بالنقض', days: 60 },
+  { label: 'التماس إعادة النظر', days: 40 },
+  { label: 'دعوى إلغاء قرار إداري', days: 60 },
+  { label: 'تظلم إداري', days: 60 },
+];
+
 const FINANCIAL_TYPE_LABELS = {
   retainer_deposit: 'إيداع أمانة',
   court_fee: 'رسوم محكمة',
@@ -79,11 +91,44 @@ function formatLocalDateTimeInput(date) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
+const EMPTY_TASK_FORM = {
+  session_id: '',
+  title: '',
+  description: '',
+  due_at: '',
+  reminder_at: '',
+  assigned_lawyer_id: '',
+  priority: 'normal',
+  kind: 'task',
+  deadline_start_date: '',
+  deadline_days: '',
+};
+
+// نفس حساب الخادم: الميعاد يبدأ من اليوم التالي، فآخر يوم = تاريخ البداية + المدة.
+function deadlineDueAt(startDate, days) {
+  const period = Number(days);
+  if (!startDate || !Number.isFinite(period) || period <= 0) return '';
+  const [year, month, day] = String(startDate).slice(0, 10).split('-').map(Number);
+  const due = new Date(year, month - 1, day + period, 23, 59, 0);
+  if (Number.isNaN(due.getTime())) return '';
+  return formatLocalDateTimeInput(due);
+}
+
 function defaultTaskReminder(dueAt) {
   if (!dueAt) return '';
   const reminder = new Date(dueAt);
   if (Number.isNaN(reminder.getTime())) return '';
   reminder.setDate(reminder.getDate() - 1);
+  return formatLocalDateTimeInput(reminder);
+}
+
+// الميعاد القانوني بينبّه قبله بأسبوع عشان يبقى في وقت لتجهيز الصحيفة.
+function deadlineDefaultReminder(dueAt) {
+  if (!dueAt) return '';
+  const reminder = new Date(dueAt);
+  if (Number.isNaN(reminder.getTime())) return '';
+  reminder.setDate(reminder.getDate() - 7);
+  reminder.setHours(9, 0, 0, 0);
   return formatLocalDateTimeInput(reminder);
 }
 
@@ -147,13 +192,8 @@ export default function CaseDetailsModal({ caseId, initialTab = 'details', onClo
   const [editingTaskId, setEditingTaskId] = useState(null);
   const [taskActionError, setTaskActionError] = useState('');
   const [taskForm, setTaskForm] = useState({
-    session_id: '',
-    title: '',
-    description: '',
-    due_at: '',
-    reminder_at: '',
+    ...EMPTY_TASK_FORM,
     assigned_lawyer_id: currentUser?.id ? String(currentUser.id) : '',
-    priority: 'normal',
   });
 
   const loadCaseDetails = useCallback(async () => {
@@ -442,6 +482,9 @@ export default function CaseDetailsModal({ caseId, initialTab = 'details', onClo
         reminder_at: toLocalDateTimeInput(task.reminder_at),
         assigned_lawyer_id: task.assigned_lawyer_id ? String(task.assigned_lawyer_id) : '',
         priority: task.priority || 'normal',
+        kind: task.kind === 'deadline' ? 'deadline' : 'task',
+        deadline_start_date: task.deadline_start_date ? String(task.deadline_start_date).slice(0, 10) : '',
+        deadline_days: task.deadline_days ? String(task.deadline_days) : '',
       });
     } else {
       let dueAt = '';
@@ -467,6 +510,9 @@ export default function CaseDetailsModal({ caseId, initialTab = 'details', onClo
           ? String(session.assigned_lawyer_id)
           : currentUser?.id ? String(currentUser.id) : '',
         priority: 'normal',
+        kind: 'task',
+        deadline_start_date: '',
+        deadline_days: '',
       });
     }
     setShowAddTask(true);
@@ -475,8 +521,11 @@ export default function CaseDetailsModal({ caseId, initialTab = 'details', onClo
 
   async function handleSaveTask(event) {
     event.preventDefault();
-    if (!taskForm.title.trim()) return setTaskActionError('عنوان المهمة مطلوب');
-    if (!taskForm.due_at) return setTaskActionError('يرجى تحديد موعد استحقاق المهمة');
+    const isDeadline = taskForm.kind === 'deadline';
+    if (!taskForm.title.trim()) return setTaskActionError(isDeadline ? 'نوع الميعاد مطلوب' : 'عنوان المهمة مطلوب');
+    if (isDeadline && !taskForm.deadline_start_date) return setTaskActionError('يرجى تحديد تاريخ بداية المدة (تاريخ الحكم أو الإعلان)');
+    if (isDeadline && !(Number(taskForm.deadline_days) > 0)) return setTaskActionError('يرجى تحديد مدة الميعاد بالأيام');
+    if (!isDeadline && !taskForm.due_at) return setTaskActionError('يرجى تحديد موعد استحقاق المهمة');
     try {
       const payload = {
         ...taskForm,
@@ -484,6 +533,8 @@ export default function CaseDetailsModal({ caseId, initialTab = 'details', onClo
         session_id: taskForm.session_id || null,
         assigned_lawyer_id: taskForm.assigned_lawyer_id || null,
         reminder_at: taskForm.reminder_at || null,
+        deadline_days: isDeadline ? Number(taskForm.deadline_days) : null,
+        deadline_start_date: isDeadline ? taskForm.deadline_start_date : null,
       };
       if (editingTaskId) {
         await legalApi.updateCaseTask(editingTaskId, payload);
@@ -493,13 +544,8 @@ export default function CaseDetailsModal({ caseId, initialTab = 'details', onClo
       setShowAddTask(false);
       setEditingTaskId(null);
       setTaskForm({
-        session_id: '',
-        title: '',
-        description: '',
-        due_at: '',
-        reminder_at: '',
+        ...EMPTY_TASK_FORM,
         assigned_lawyer_id: currentUser?.id ? String(currentUser.id) : '',
-        priority: 'normal',
       });
       setTaskActionError('');
       await loadCaseDetails();
@@ -582,7 +628,7 @@ export default function CaseDetailsModal({ caseId, initialTab = 'details', onClo
             className={`modal-tab-btn ${activeTab === 'tasks' ? 'active' : ''}`}
             onClick={() => setActiveTab('tasks')}
           >
-            <LegalIcon name="details" /> مهام المتابعة ({caseData.tasks?.filter((task) => ['pending', 'in_progress'].includes(task.status)).length || 0})
+            <LegalIcon name="details" /> المهام والمواعيد ({caseData.tasks?.filter((task) => ['pending', 'in_progress'].includes(task.status)).length || 0})
           </button>
           <button
             type="button"
@@ -841,10 +887,48 @@ export default function CaseDetailsModal({ caseId, initialTab = 'details', onClo
 
               {showAddTask && (
                 <form onSubmit={handleSaveTask} style={{ background: '#f8fafc', padding: 16, borderRadius: 10, marginBottom: 20, border: '1px solid #cbd5e1' }}>
-                  <h4 style={{ margin: '0 0 12px' }}>{editingTaskId ? 'تعديل مهمة المتابعة' : 'مهمة متابعة جديدة'}</h4>
+                  <h4 style={{ margin: '0 0 12px' }}>
+                    {taskForm.kind === 'deadline'
+                      ? (editingTaskId ? 'تعديل ميعاد قانوني' : 'ميعاد قانوني جديد')
+                      : (editingTaskId ? 'تعديل مهمة المتابعة' : 'مهمة متابعة جديدة')}
+                  </h4>
                   <div className="form-grid-2">
                     <div className="form-group full-width">
-                      <label>عنوان المهمة *</label>
+                      <label>النوع *</label>
+                      <select
+                        value={taskForm.kind}
+                        onChange={(event) => setTaskForm({
+                          ...taskForm,
+                          kind: event.target.value,
+                          deadline_start_date: '',
+                          deadline_days: '',
+                        })}
+                      >
+                        <option value="task">مهمة متابعة</option>
+                        <option value="deadline">ميعاد قانوني (طعن / استئناف / نقض)</option>
+                      </select>
+                    </div>
+                    {taskForm.kind === 'deadline' && (
+                      <div className="form-group full-width">
+                        <label>نوع الميعاد والمدة المقررة</label>
+                        <select
+                          value={LEGAL_DEADLINE_TYPES.some((type) => type.label === taskForm.title) ? taskForm.title : ''}
+                          onChange={(event) => {
+                            const preset = LEGAL_DEADLINE_TYPES.find((type) => type.label === event.target.value);
+                            if (!preset) return;
+                            setTaskForm({ ...taskForm, title: preset.label, deadline_days: String(preset.days) });
+                          }}
+                        >
+                          <option value="">اختر من المدد المعتادة أو اكتب ميعادًا مخصصًا</option>
+                          {LEGAL_DEADLINE_TYPES.map((type) => (
+                            <option key={type.label} value={type.label}>{type.label} — {type.days} يوم</option>
+                          ))}
+                        </select>
+                        <small>المدد إرشادية حسب القانون المصري؛ راجع المدة المنطبقة على قضيتك وعدّلها لو لزم.</small>
+                      </div>
+                    )}
+                    <div className="form-group full-width">
+                      <label>{taskForm.kind === 'deadline' ? 'بيان الميعاد *' : 'عنوان المهمة *'}</label>
                       <input
                         required
                         maxLength={180}
@@ -860,19 +944,65 @@ export default function CaseDetailsModal({ caseId, initialTab = 'details', onClo
                         onChange={(event) => setTaskForm({ ...taskForm, description: event.target.value })}
                       />
                     </div>
-                    <div className="form-group">
-                      <label>موعد الاستحقاق *</label>
-                      <input
-                        type="datetime-local"
-                        required
-                        value={taskForm.due_at}
-                        onChange={(event) => setTaskForm({
-                          ...taskForm,
-                          due_at: event.target.value,
-                          reminder_at: taskForm.reminder_at ? taskForm.reminder_at : defaultTaskReminder(event.target.value),
-                        })}
-                      />
-                    </div>
+                    {taskForm.kind === 'deadline' ? (
+                      <>
+                        <div className="form-group">
+                          <label>تاريخ بداية المدة (الحكم أو الإعلان) *</label>
+                          <input
+                            type="date"
+                            required
+                            value={taskForm.deadline_start_date}
+                            onChange={(event) => {
+                              const dueAt = deadlineDueAt(event.target.value, taskForm.deadline_days);
+                              setTaskForm({
+                                ...taskForm,
+                                deadline_start_date: event.target.value,
+                                due_at: dueAt,
+                                reminder_at: dueAt ? deadlineDefaultReminder(dueAt) : taskForm.reminder_at,
+                              });
+                            }}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label>المدة بالأيام *</label>
+                          <input
+                            type="number"
+                            min="1"
+                            max="3650"
+                            required
+                            value={taskForm.deadline_days}
+                            onChange={(event) => {
+                              const dueAt = deadlineDueAt(taskForm.deadline_start_date, event.target.value);
+                              setTaskForm({
+                                ...taskForm,
+                                deadline_days: event.target.value,
+                                due_at: dueAt,
+                                reminder_at: dueAt ? deadlineDefaultReminder(dueAt) : taskForm.reminder_at,
+                              });
+                            }}
+                          />
+                          <small>
+                            {deadlineDueAt(taskForm.deadline_start_date, taskForm.deadline_days)
+                              ? `آخر يوم للميعاد: ${new Date(deadlineDueAt(taskForm.deadline_start_date, taskForm.deadline_days)).toLocaleDateString('ar-EG')}`
+                              : 'المدة تبدأ من اليوم التالي لتاريخ البداية.'}
+                          </small>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="form-group">
+                        <label>موعد الاستحقاق *</label>
+                        <input
+                          type="datetime-local"
+                          required
+                          value={taskForm.due_at}
+                          onChange={(event) => setTaskForm({
+                            ...taskForm,
+                            due_at: event.target.value,
+                            reminder_at: taskForm.reminder_at ? taskForm.reminder_at : defaultTaskReminder(event.target.value),
+                          })}
+                        />
+                      </div>
+                    )}
                     <div className="form-group">
                       <label>موعد التذكير</label>
                       <input
@@ -942,9 +1072,18 @@ export default function CaseDetailsModal({ caseId, initialTab = 'details', onClo
                     return (
                       <div key={task.id} className="session-item-card">
                         <div className="session-card-main">
-                          <h4 style={{ color: isOverdue ? '#b91c1c' : undefined }}>{task.title}</h4>
+                          <h4 style={{ color: isOverdue ? '#b91c1c' : undefined }}>
+                            {task.kind === 'deadline' && <span className="status-badge" style={{ marginInlineEnd: 8 }}>ميعاد قانوني</span>}
+                            {task.title}
+                          </h4>
                           <div className="session-meta">
-                            <span>الاستحقاق: <strong>{new Date(task.due_at).toLocaleString('ar-EG')}</strong></span>
+                            <span>
+                              {task.kind === 'deadline' ? 'آخر يوم: ' : 'الاستحقاق: '}
+                              <strong>{new Date(task.due_at).toLocaleString('ar-EG')}</strong>
+                            </span>
+                            {task.kind === 'deadline' && task.deadline_start_date && (
+                              <span>المدة: <strong>{task.deadline_days} يوم من {new Date(task.deadline_start_date).toLocaleDateString('ar-EG')}</strong></span>
+                            )}
                             <span>المسؤول: <strong>{task.assigned_lawyer_name || 'غير معين'}</strong></span>
                             <span>الأولوية: <strong>{TASK_PRIORITY_LABELS[task.priority] || task.priority}</strong></span>
                             {task.session_date && <span>الجلسة المرتبطة: <strong>{new Date(task.session_date).toLocaleDateString('ar-EG')}</strong></span>}

@@ -1546,6 +1546,9 @@ CREATE TABLE IF NOT EXISTS legal_case_tasks (
     priority TEXT NOT NULL DEFAULT 'normal' CHECK(priority IN ('low', 'normal', 'high')),
     status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'in_progress', 'completed', 'cancelled')),
     reminder_sent INTEGER NOT NULL DEFAULT 0 CHECK(reminder_sent IN (0, 1)),
+    kind TEXT NOT NULL DEFAULT 'task',
+    deadline_start_date TEXT,
+    deadline_days INTEGER,
     created_by INTEGER,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -1554,6 +1557,7 @@ CREATE TABLE IF NOT EXISTS legal_case_tasks (
     FOREIGN KEY (assigned_lawyer_id) REFERENCES users(id) ON DELETE SET NULL,
     FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
 );
+-- فهرس kind بيتعمل في migrateLegalCaseTasks بعد ما العمود يتضاف، لأن قواعد قديمة بتعدي من هنا قبل الترقية.
 CREATE INDEX IF NOT EXISTS idx_legal_case_tasks_case_due
     ON legal_case_tasks(case_id, status, due_at);
 CREATE INDEX IF NOT EXISTS idx_legal_case_tasks_reminders

@@ -1,6 +1,7 @@
 // Daily docket, law-firm dashboard and reports, per-case financial breakdown.
 const { db } = require('../../database/db');
 const { getAllUpcomingSessions } = require('./sessions');
+const { getUpcomingDeadlines } = require('./tasks');
 
 function getDailyDocket(targetDate = null) {
   const d = targetDate || new Date().toISOString().split('T')[0];
@@ -71,6 +72,7 @@ function getLawFirmDashboard(targetDate, nextWeekEndDate) {
       status: 'scheduled',
     }),
     financialMovements,
+    criticalDeadlines: getUpcomingDeadlines(targetDate, 8),
   };
 }
 
