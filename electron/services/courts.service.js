@@ -65,4 +65,7 @@ function deactivateCourt(id) {
   return courtsRepository.deactivateCourt(id);
 }
 
-module.exports = { getCourts, getCourtById, createCourt, updateCourt, deactivateCourt };
+module.exports = {
+  getCourts, getCourtById, createCourt, updateCourt, deactivateCourt,
+  getCourtsOverview: () => courtsRepository.getCourtsOverview(),
+};

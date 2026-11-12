@@ -8,6 +8,7 @@ export const getCourtById = bridgeMethod('getCourtById');
 export const createCourt = bridgeMethod('createCourt');
 export const updateCourt = bridgeMethod('updateCourt');
 export const deactivateCourt = bridgeMethod('deactivateCourt');
+export const getCourtsOverview = bridgeMethod('getCourtsOverview');
 export const getAllCases = bridgeMethod('getAllCases');
 export const getCaseById = bridgeMethod('getCaseById');
 export const createCase = bridgeMethod('createCase');

@@ -78,4 +78,65 @@ function deactivateCourt(id) {
   return updateCourt(id, { is_active: 0 });
 }
 
-module.exports = { getCourts, getCourtById, createCourt, updateCourt, deactivateCourt };
+// Session dates are saved as local "YYYY-MM-DDTHH:mm", so they are compared with local now.
+const UPCOMING = "s.status = 'scheduled' AND datetime(s.session_date) >= datetime('now', 'localtime')";
+
+/** Directory stats from the local case files: counts, per-court cases and next session, upcoming sessions. */
+function getCourtsOverview() {
+  const courts = db.prepare(`
+    SELECT COUNT(*) AS total,
+      COALESCE(SUM(is_active = 1), 0) AS active,
+      COALESCE(SUM(is_active = 0), 0) AS inactive,
+      COALESCE(SUM(is_active = 1 AND (TRIM(COALESCE(phone, '')) = ''
+        OR (TRIM(COALESCE(city, '')) = '' AND TRIM(COALESCE(address, '')) = ''))), 0) AS missing
+    FROM courts
+  `).get();
+
+  const byType = Object.fromEntries(db.prepare(`
+    SELECT court_type, COUNT(*) AS total FROM courts WHERE is_active = 1 GROUP BY court_type
+  `).all().map((row) => [row.court_type, row.total]));
+
+  const cases = db.prepare(`
+    SELECT
+      COALESCE(SUM(co.id IS NOT NULL), 0) AS linked,
+      COALESCE(SUM(co.id IS NOT NULL AND c.status IN ('active', 'adjourned', 'appealed')), 0) AS open,
+      COALESCE(SUM(co.id IS NOT NULL AND c.status = 'judged'), 0) AS judged,
+      COALESCE(SUM(co.id IS NULL AND c.status <> 'closed'), 0) AS unlinked
+    FROM legal_cases c
+    LEFT JOIN courts co ON co.id = c.court_id
+  `).get();
+
+  const sessions = db.prepare(`
+    SELECT
+      COALESCE(SUM(datetime(s.session_date) < datetime('now', 'localtime', '+7 days')), 0) AS week,
+      COALESCE(SUM(date(s.session_date) = date('now', 'localtime', '+1 day')), 0) AS tomorrow
+    FROM court_sessions s
+    JOIN legal_cases c ON c.id = s.case_id
+    JOIN courts co ON co.id = c.court_id
+    WHERE ${UPCOMING}
+  `).get();
+
+  const upcoming = db.prepare(`
+    SELECT s.id, s.session_date, c.case_number, c.circuit_name, co.name AS court_name
+    FROM court_sessions s
+    JOIN legal_cases c ON c.id = s.case_id
+    JOIN courts co ON co.id = c.court_id
+    WHERE ${UPCOMING}
+    ORDER BY datetime(s.session_date)
+    LIMIT 4
+  `).all();
+
+  const perCourt = db.prepare(`
+    SELECT c.court_id, COUNT(*) AS cases,
+      (SELECT MIN(s.session_date) FROM court_sessions s
+        JOIN legal_cases c2 ON c2.id = s.case_id
+        WHERE c2.court_id = c.court_id AND ${UPCOMING}) AS next_session
+    FROM legal_cases c
+    WHERE c.court_id IS NOT NULL
+    GROUP BY c.court_id
+  `).all();
+
+  return { courts, byType, cases, sessions, upcoming, perCourt };
+}
+
+module.exports = { getCourts, getCourtById, createCourt, updateCourt, deactivateCourt, getCourtsOverview };

@@ -9,6 +9,7 @@ function registerCourtsHandlers() {
     const { id, data } = payload || {};
     return courtsService.updateCourt(id, data || {});
   });
+  safeHandle('courts:getOverview', () => courtsService.getCourtsOverview());
   safeHandle('courts:deactivate', (event, id) => courtsService.deactivateCourt(id));
 }
 
