@@ -48,6 +48,7 @@ const SalariesPage = lazy(() => import('./pages/SalariesPage.jsx'));
 const WorkflowsPage = lazy(() => import('./pages/WorkflowsPage.jsx'));
 const CasesPage = lazy(() => import('./pages/CasesPage.jsx'));
 const CourtsPage = lazy(() => import('./pages/CourtsPage.jsx'));
+const SalonPage = lazy(() => import('./pages/SalonPage.jsx'));
 
 function AppContent() {
   const { currentUser, setCurrentUser, logout, setupRequired, loadingSession } = useUser();
@@ -231,6 +232,7 @@ function AppContent() {
       today: profileKey === 'law_firm' ? 'cases.view' : 'pos.view',
       pos: 'pos.view',
       kitchen: 'pos.view',
+      salon: 'pos.view',
       appointments: 'appointments.view',
       courts: 'cases.view',
       subscriptions: 'subscriptions.view',
@@ -280,6 +282,8 @@ function AppContent() {
         );
       case 'kitchen':
         return <KitchenDisplayPage />;
+      case 'salon':
+        return <SalonPage />;
       case 'subscriptions':
         return <SubscriptionsPage />;
       case 'commissions':
@@ -331,7 +335,7 @@ function AppContent() {
           />
         );
       case 'courts':
-        return <CourtsPage />;
+        return <CourtsPage onNavigate={navigateToPage} />;
       default:
         return profileKey === 'law_firm'
           ? <TodayPage onNavigate={navigateToPage} currentUser={currentUser} />

@@ -124,8 +124,9 @@ describe('Sector Page Isolation Policies', () => {
       expect(isBusinessProfilePageEnabled('returns', 'subscriptions_gym')).toBe(false);
     });
 
-    test('Salon Barbershop hides unrelated appointments, branches, suppliers, and workflows', () => {
-      expect(isBusinessProfilePageEnabled('salon', 'salon_barbershop')).toBe(false);
+    test('Salon Barbershop has its salon page, hides unrelated appointments, branches, suppliers, and workflows', () => {
+      expect(isBusinessProfilePageEnabled('salon', 'salon_barbershop')).toBe(true);
+      expect(isBusinessProfilePageEnabled('salon', 'salon_barbershop', (key) => key !== 'salon')).toBe(false);
       expect(isBusinessProfilePageEnabled('appointments', 'salon_barbershop')).toBe(false);
       expect(isBusinessProfilePageEnabled('branches', 'salon_barbershop')).toBe(false);
       expect(isBusinessProfilePageEnabled('suppliers', 'salon_barbershop')).toBe(false);

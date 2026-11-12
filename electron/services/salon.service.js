@@ -257,7 +257,12 @@ function getAllCoupons() {
   return salonRepo.getAllCoupons();
 }
 
-function createCoupon(data) {
+function createCoupon(data = {}) {
+  if (!String(data.code || '').trim()) throw new Error('كود الكوبون مطلوب');
+  if (!String(data.title || '').trim()) throw new Error('اسم العرض مطلوب');
+  const value = Number(data.discount_value);
+  if (!Number.isFinite(value) || value <= 0) throw new Error('قيمة الخصم لازم تكون أكبر من صفر');
+  if (data.discount_type !== 'fixed' && value > 100) throw new Error('نسبة الخصم لا تتجاوز 100%');
   return salonRepo.createCoupon(data);
 }
 

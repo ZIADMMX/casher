@@ -11,6 +11,7 @@ const PAGE_PERMISSIONS = {
   today: 'pos.view',
   pos: 'pos.view',
   kitchen: 'pos.view',
+  salon: 'pos.view',
   cases: 'cases.view',
   courts: 'cases.view',
   appointments: 'appointments.view',
@@ -127,6 +128,18 @@ function Sidebar({ activePage, onNavigate, currentUser, onLogout, onOpenProfile,
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M4 10h16v10H4z" />
           <path d="M7 10V6a5 5 0 0 1 10 0v4M8 14h8M8 17h5" />
+        </svg>
+      ),
+      roles: ['admin', 'cashier'],
+    },
+    {
+      key: 'salon',
+      label: 'إدارة الصالون',
+      icon: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="6" cy="6" r="3" />
+          <circle cx="6" cy="18" r="3" />
+          <path d="M20 4 8.1 15.9M14.5 14.5 20 20M8.1 8.1 12 12" />
         </svg>
       ),
       roles: ['admin', 'cashier'],

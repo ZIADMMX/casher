@@ -27,6 +27,7 @@ const PAGE_MODULES = {
   cases: 'cases',
   courts: 'cases',
   appointments: 'appointments',
+  salon: 'salon',
 };
 
 // سياسة الصفحات الصريحة لكل قطاع (White-list & Black-list Policy)
@@ -97,12 +98,12 @@ const SECTOR_PAGE_POLICIES = {
   },
   salon_barbershop: {
     allowedPages: [
-      'today', 'pos', 'subscriptions', 'commissions',
+      'today', 'pos', 'salon', 'subscriptions', 'commissions',
       'products', 'customers', 'crm', 'shifts', 'reports',
       'users', 'attendance', 'leaves', 'roles', 'salaries', 'settings',
       'enterprise', 'screen-designer', 'profile',
     ],
-    deniedPages: ['salon', 'cases', 'appointments', 'branches', 'suppliers', 'workflows'],
+    deniedPages: ['cases', 'appointments', 'branches', 'suppliers', 'workflows'],
   },
   law_firm: {
     allowedPages: [

@@ -88,6 +88,13 @@ describe('Salon Service and Repository Unit Tests', () => {
     expect(applied.netAmount).toBe(180);
   });
 
+  test('2b. Coupons reject a missing code or title and an impossible discount', () => {
+    expect(() => salonService.createCoupon({ title: 'عرض', discount_value: 10 })).toThrow('كود الكوبون مطلوب');
+    expect(() => salonService.createCoupon({ code: 'X1', discount_value: 10 })).toThrow('اسم العرض مطلوب');
+    expect(() => salonService.createCoupon({ code: 'X1', title: 'عرض', discount_value: 0 })).toThrow('أكبر من صفر');
+    expect(() => salonService.createCoupon({ code: 'X1', title: 'عرض', discount_type: 'percentage', discount_value: 150 })).toThrow('100%');
+  });
+
   test('3. Complete chair service with discount and tip to stylist', () => {
     const result = salonService.completeChairService({
       chairId,

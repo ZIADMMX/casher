@@ -1,0 +1,15 @@
+/* Salon page: built on the shared hr.css look (tokens, cards, tables, buttons). */
+.salon-form { min-height: 0; background: transparent; width: min(560px, 86vw); }
+.salon-form h2 { margin: 0 0 4px; font-size: 20px; font-weight: 800; }
+.salon-form > p { margin: 0 0 18px; color: var(--hr-muted); font-size: 14px; }
+.salon-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.salon-form-grid .is-wide { grid-column: 1 / -1; }
+.salon-form-grid .hr-input, .salon-form-grid .hr-select { width: 100%; }
+.salon-form footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+.salon-form .hr-alert { margin-top: 14px; }
+.salon-toolbar { display: flex; align-items: flex-end; gap: 14px; flex-wrap: wrap; }
+.salon-chip-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.salon-fieldset { border: 0; padding: 0; margin: 0; }
+@media (max-width: 640px) {
+  .salon-form-grid { grid-template-columns: 1fr; }
+}
