@@ -53,6 +53,7 @@ const { ensureKitchenLedger } = require('./kitchenLedger');
 const { ensureDiningTables, allowSplitPayments } = require('./diningTables');
 const { ensureRecipes } = require('./recipes');
 const { ensureEInvoice } = require('./einvoice');
+const { ensurePrivacyConsent } = require('./privacy');
 const { ensureProductLedger } = require('./productLedger');
 const { ensureSyncMetadata, ensureDeleteTombstones } = require('./syncMetadata');
 const { addColumnIfMissing } = require('./helpers');
@@ -317,6 +318,13 @@ function runAllMigrations(dbInstance = db) {
     ensureEInvoice(dbInstance);
     dbInstance.pragma('user_version = 30');
     console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 30 (الإيصال الإلكتروني).');
+  }
+
+  if (currentVersion < 31) {
+    // موافقة الواتساب ونسخة سياسة الخصوصية اللي العميل وافق عليها.
+    ensurePrivacyConsent(dbInstance);
+    dbInstance.pragma('user_version = 31');
+    console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 31 (موافقات حماية البيانات).');
   }
 
   // Earlier steps may rebuild the sales tables; make sure the guards exist at the end.

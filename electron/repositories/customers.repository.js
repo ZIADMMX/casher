@@ -1,6 +1,6 @@
 const { db } = require('../database/db');
 
-function create({ name, phone, email, companyId, leadSource, emailConsent, smsConsent }) {
+function create({ name, phone, email, companyId, leadSource, emailConsent, smsConsent, whatsappConsent }) {
   const columns = new Set(db.prepare('PRAGMA table_info(customers)').all().map((column) => column.name));
   if (!columns.has('company_id')) {
     const result = db.prepare(`
@@ -8,13 +8,30 @@ function create({ name, phone, email, companyId, leadSource, emailConsent, smsCo
     `).run(name, phone || null, email || null);
     return result.lastInsertRowid;
   }
+  if (!columns.has('whatsapp_consent')) {
+    const result = db.prepare(`
+      INSERT INTO customers
+        (name, phone, email, company_id, lead_source, email_consent, sms_consent)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      name, phone || null, email || null, companyId || null, leadSource || null,
+      emailConsent ? 1 : 0, smsConsent ? 1 : 0
+    );
+    return result.lastInsertRowid;
+  }
+
+  // نسخة السياسة بتتسجل بس لما يكون فيه موافقة فعلية، عشان تبقى إثبات على إيه.
+  const consented = Boolean(emailConsent || smsConsent || whatsappConsent);
+  const { version } = require('../../shared/privacyPolicy.json');
   const result = db.prepare(`
     INSERT INTO customers
-      (name, phone, email, company_id, lead_source, email_consent, sms_consent)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+      (name, phone, email, company_id, lead_source, email_consent, sms_consent,
+       whatsapp_consent, consent_policy_version, consent_updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CASE WHEN ? THEN CURRENT_TIMESTAMP END)
   `).run(
     name, phone || null, email || null, companyId || null, leadSource || null,
-    emailConsent ? 1 : 0, smsConsent ? 1 : 0
+    emailConsent ? 1 : 0, smsConsent ? 1 : 0, whatsappConsent ? 1 : 0,
+    consented ? version : null, consented ? 1 : 0
   );
   return result.lastInsertRowid;
 }

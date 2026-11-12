@@ -2,6 +2,10 @@ const { db } = require('../database/db');
 
 // Each query returns the raw rows one kind of "today's message" is built from.
 // Only rows with a phone number: a message nobody can send is not offered.
+//
+// The marketing kinds also carry `consent` (customers.whatsapp_consent): under
+// law 151/2020 a sales follow-up needs the customer's consent, while a service
+// reminder (a booking they made, a subscription they hold) does not.
 
 function getAppointmentsBetween(startIso, endIso) {
   return db.prepare(`
@@ -30,7 +34,8 @@ function getSalonAppointmentsOn(date) {
 
 function getStaleDeals(days) {
   return db.prepare(`
-    SELECT o.id, o.customer_id, o.title, o.last_stage_changed_at, c.name, c.phone
+    SELECT o.id, o.customer_id, o.title, o.last_stage_changed_at, c.name, c.phone,
+      c.whatsapp_consent AS consent
     FROM crm_opportunities o
     JOIN customers c ON c.id = o.customer_id
     WHERE o.stage NOT IN ('won', 'lost')
@@ -41,13 +46,17 @@ function getStaleDeals(days) {
 }
 
 function getLeadsToFollow(days) {
+  // A lead has no consent of its own; it borrows the consent of the customer it
+  // was converted to, so an unconverted lead counts as "no consent".
   return db.prepare(`
-    SELECT id, name, phone, status, updated_at
-    FROM crm_leads
-    WHERE status IN ('new', 'contacted')
-      AND updated_at <= datetime('now', ?)
-      AND COALESCE(TRIM(phone), '') <> ''
-    ORDER BY updated_at
+    SELECT l.id, l.name, l.phone, l.status, l.updated_at, l.customer_id,
+      c.whatsapp_consent AS consent
+    FROM crm_leads l
+    LEFT JOIN customers c ON c.id = l.customer_id
+    WHERE l.status IN ('new', 'contacted')
+      AND l.updated_at <= datetime('now', ?)
+      AND COALESCE(TRIM(l.phone), '') <> ''
+    ORDER BY l.updated_at
   `).all(`-${days} days`);
 }
 

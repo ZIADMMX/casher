@@ -123,9 +123,17 @@ function getLicenseStatus(now = Date.now(), { updateClock = true } = {}) {
 }
 
 /**
- * Activate the software using a License Key
+ * Activate the software using a License Key.
+ * Activation is where the licence agreement is entered into, so the accepted
+ * version is required here and stored with the activation — an activation
+ * without a recorded acceptance is not a contract.
  */
-function activateSoftware(keyInput, now = Date.now()) {
+function activateSoftware(keyInput, now = Date.now(), { acceptedEulaVersion } = {}) {
+  const { version: currentEulaVersion } = require('../../shared/eula.json');
+  if (String(acceptedEulaVersion || '') !== currentEulaVersion) {
+    throw new Error('لازم توافق على عقد الاستخدام واتفاقية الاشتراك قبل التفعيل');
+  }
+
   const hwid = getMachineHardwareId();
   const verification = verifyLicenseKey(keyInput, hwid, now);
 
@@ -133,6 +141,8 @@ function activateSoftware(keyInput, now = Date.now()) {
     throw new Error(verification.reason || 'مفتاح التفعيل غير صحيح');
   }
 
+  dbRepo.set('eula_accepted_version', currentEulaVersion);
+  dbRepo.set('eula_accepted_at', String(now));
   // license_key is written last: it is the value that marks the copy as activated.
   dbRepo.set('license_activated_at', String(now));
   dbRepo.set('license_key', keyInput.trim().toUpperCase().replace(/\s+/g, ''));
@@ -144,9 +154,21 @@ function activateSoftware(keyInput, now = Date.now()) {
   };
 }
 
+/** نص العقد ومعاه إثبات القبول المسجّل على النسخة دي. */
+function getAgreement() {
+  const agreement = require('../../shared/eula.json');
+  const acceptedAt = Number(dbRepo.get('eula_accepted_at')) || null;
+  return {
+    ...agreement,
+    acceptedVersion: dbRepo.get('eula_accepted_version') || null,
+    acceptedAt: acceptedAt ? new Date(acceptedAt).toISOString() : null,
+  };
+}
+
 module.exports = {
   getMachineHardwareId,
   verifyLicenseKey,
   getLicenseStatus,
   activateSoftware,
+  getAgreement,
 };

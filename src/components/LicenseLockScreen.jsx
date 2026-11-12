@@ -1,6 +1,16 @@
 import { useState } from 'react';
 import { normalizeErrorMessage } from '../utils/normalizeError';
 import * as licenseApi from '../api/license.js';
+import eula from '../../shared/eula.json';
+import LegalDocumentText, { fillPlaceholders } from './LegalDocumentText.jsx';
+
+const EULA_VALUES = {
+  product_name: eula.productName,
+  vendor_name: eula.vendor.name,
+  vendor_phone: eula.vendor.phone,
+  vendor_email: eula.vendor.email,
+  vendor_address: eula.vendor.address,
+};
 
 // The owner can always take the shop's data out while the app is locked.
 function ExportDataSection() {
@@ -80,6 +90,8 @@ function lockHeading(verificationError, reason) {
 function LicenseLockScreen({ hwid, error: verificationError, reason = '', onRetry, onActivateSuccess }) {
   const heading = lockHeading(verificationError, reason);
   const [serialKey, setSerialKey] = useState('');
+  const [acceptedEula, setAcceptedEula] = useState(false);
+  const [eulaOpen, setEulaOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -101,7 +113,7 @@ function LicenseLockScreen({ hwid, error: verificationError, reason = '', onRetr
     setLoading(true);
     try {
       if (licenseApi.activateSoftware.isAvailable()) {
-        const result = await licenseApi.activateSoftware(serialKey.trim());
+        const result = await licenseApi.activateSoftware(serialKey.trim(), eula.version);
         if (result?.success) {
           onActivateSuccess(result.status);
         }
@@ -184,11 +196,39 @@ function LicenseLockScreen({ hwid, error: verificationError, reason = '', onRetr
               />
             </div>
 
+            {/* التفعيل هو لحظة إبرام العقد، فالموافقة شرط قبله ومتسجلة معاه. */}
+            <div className="license-eula-panel" style={{ marginTop: '16px' }}>
+              <label style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', fontSize: '13px', lineHeight: 1.8, cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={acceptedEula}
+                  onChange={(e) => setAcceptedEula(e.target.checked)}
+                  style={{ marginTop: '4px' }}
+                />
+                <span>{fillPlaceholders(eula.acceptanceText, EULA_VALUES)}</span>
+              </label>
+              <button
+                type="button"
+                className="hwid-copy-action"
+                style={{ marginTop: '8px' }}
+                onClick={() => setEulaOpen((value) => !value)}
+              >
+                {eulaOpen ? 'إخفاء نص العقد' : `اقرا ${eula.title} (نسخة ${eula.version})`}
+              </button>
+              {eulaOpen && (
+                <LegalDocumentText
+                  sections={eula.sections}
+                  values={EULA_VALUES}
+                  style={{ maxHeight: '260px', overflowY: 'auto', marginTop: '10px', textAlign: 'right' }}
+                />
+              )}
+            </div>
+
             <button
               type="submit"
               className="license-btn-submit"
               style={{ width: '100%', justifyContent: 'center', marginTop: '20px', padding: '13px 24px', fontSize: '15px' }}
-              disabled={loading || !serialKey.trim()}
+              disabled={loading || !serialKey.trim() || !acceptedEula}
             >
               {loading ? '⏳ جاري التحقق والتفعيل...' : '🚀 تفعيل البرنامج ومتابعة الاستخدام'}
             </button>

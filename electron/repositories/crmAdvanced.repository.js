@@ -573,15 +573,26 @@ function getAuditLog(entityType, entityId) {
   }));
 }
 
+// نسخة السياسة بتتسجل مع الموافقة: الإثبات المطلوب قانونًا هو «وافق على إيه»،
+// مش «وافق» وبس.
 function setConsent(customerId, data, userId) {
+  const { version } = require('../../shared/privacyPolicy.json');
   db.prepare(`
     UPDATE customers
-    SET email_consent = ?, sms_consent = ?, consent_updated_at = CURRENT_TIMESTAMP
+    SET email_consent = ?, sms_consent = ?, whatsapp_consent = ?,
+        consent_policy_version = ?, consent_updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
-  `).run(data.email_consent ? 1 : 0, data.sms_consent ? 1 : 0, customerId);
-  recordAudit('customer', customerId, 'consent_updated', data, userId);
+  `).run(
+    data.email_consent ? 1 : 0,
+    data.sms_consent ? 1 : 0,
+    data.whatsapp_consent ? 1 : 0,
+    version,
+    customerId
+  );
+  recordAudit('customer', customerId, 'consent_updated', { ...data, policy_version: version }, userId);
   return db.prepare(`
-    SELECT id, email_consent, sms_consent, consent_updated_at FROM customers WHERE id = ?
+    SELECT id, email_consent, sms_consent, whatsapp_consent, consent_policy_version, consent_updated_at
+    FROM customers WHERE id = ?
   `).get(customerId);
 }
 
@@ -662,7 +673,8 @@ function anonymizeCustomer(customerId, userId) {
     db.prepare(`
       UPDATE customers
       SET name = ?, phone = NULL, email = NULL, address = NULL, notes = NULL,
-          email_consent = 0, sms_consent = 0, consent_updated_at = CURRENT_TIMESTAMP,
+          email_consent = 0, sms_consent = 0, whatsapp_consent = 0,
+          consent_updated_at = CURRENT_TIMESTAMP,
           gdpr_deleted_at = CURRENT_TIMESTAMP, is_active = 0
       WHERE id = ?
     `).run(`محذوف-${customerId}`, customerId);

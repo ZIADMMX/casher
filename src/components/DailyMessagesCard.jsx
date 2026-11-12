@@ -109,7 +109,7 @@ function DailyMessagesCard() {
     }
   };
 
-  const pending = (items || []).filter((item) => !item.sent).length;
+  const pending = (items || []).filter((item) => !item.sent && !item.blocked).length;
 
   return (
     <div className="today-white-card daily-messages-card">
@@ -136,15 +136,16 @@ function DailyMessagesCard() {
       ) : (
         <ul className="daily-messages-list">
           {(items || []).map((item) => (
-            <li key={item.key} className={`daily-messages-row ${item.sent ? 'is-sent' : ''}`}>
+            <li key={item.key} className={`daily-messages-row ${item.sent ? 'is-sent' : ''} ${item.blocked ? 'is-blocked' : ''}`}>
               <div className="daily-messages-text">
                 <strong>{item.name}</strong>
                 <span className="daily-messages-reason">{item.label} · {item.reason}</span>
                 <p className="daily-messages-preview">{item.text}</p>
+                {item.blocked && <p className="daily-messages-blocked">🔒 {item.blocked}</p>}
               </div>
               {item.sent ? (
                 <span className="daily-messages-sent"><CheckIcon size={16} /> اتبعتت</span>
-              ) : (
+              ) : item.blocked ? null : (
                 <button
                   type="button"
                   className="btn-today-orange daily-messages-send"

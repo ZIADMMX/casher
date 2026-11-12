@@ -12,12 +12,17 @@ const LEAD_FOLLOW_DAYS = 3;
 const DEFAULT_STALE_DAYS = 7;
 const SUBSCRIPTION_NOTICE_DAYS = 3;
 
+// marketing: رسالة بيع، ما تتبعتش إلا بموافقة العميل (قانون 151/2020).
+// الباقي رسائل خدمة عن حاجة العميل نفسه طلبها، ودي ما بتحتاجش موافقة.
 const KINDS = {
-  appointment: { label: 'تذكير بموعد بكرة', cooldownDays: Infinity },
-  stale_deal: { label: 'صفقة واقفة', cooldownDays: 7 },
-  lead_followup: { label: 'متابعة عميل محتمل', cooldownDays: 7 },
-  subscription_expiring: { label: 'اشتراك قرب يخلص', cooldownDays: Infinity },
+  appointment: { label: 'تذكير بموعد بكرة', cooldownDays: Infinity, marketing: false },
+  stale_deal: { label: 'صفقة واقفة', cooldownDays: 7, marketing: true },
+  lead_followup: { label: 'متابعة عميل محتمل', cooldownDays: 7, marketing: true },
+  subscription_expiring: { label: 'اشتراك قرب يخلص', cooldownDays: Infinity, marketing: false },
 };
+
+const NO_CONSENT_REASON = 'العميل مش موافق على الرسايل التسويقية. سجّل موافقته من شاشة العميل الأول.';
+const LEAD_NO_CONSENT_REASON = 'عميل محتمل من غير موافقة مسجلة. حوّله لعميل وسجّل موافقته الأول.';
 
 const DEFAULT_TEMPLATES = {
   appointment: 'أهلاً {name}، بنفكّر حضرتك بموعد {service} بكرة الساعة {time}. مستنيينك!',
@@ -70,10 +75,18 @@ function collect(now) {
   const tomorrow = addDays(now, 1);
   const templates = getTemplates();
   const items = [];
-  const add = (kind, refId, row, vars, reason, record) => items.push({
-    key: `${kind}:${refId}`, kind, refId, name: row.name, phone: row.phone, reason,
-    label: KINDS[kind].label, text: fill(templates[kind], { name: row.name, ...vars }), record,
-  });
+  const add = (kind, refId, row, vars, reason, record) => {
+    // الرسالة التسويقية لغير الموافق بتفضل في القائمة بس مقفولة، عشان المستخدم
+    // يشوف إن فيه متابعة مستحقة ويعرف إنه محتاج يسجّل الموافقة، مش تختفي فجأة.
+    const blocked = KINDS[kind].marketing && !row.consent
+      ? (kind === 'lead_followup' && !row.customer_id ? LEAD_NO_CONSENT_REASON : NO_CONSENT_REASON)
+      : null;
+    items.push({
+      key: `${kind}:${refId}`, kind, refId, name: row.name, phone: row.phone, reason,
+      label: KINDS[kind].label, text: fill(templates[kind], { name: row.name, ...vars }), record,
+      blocked,
+    });
+  };
 
   repo.getAppointmentsBetween(tomorrow.toISOString(), addDays(now, 2).toISOString()).forEach((row) => {
     const at = new Date(row.start_at);
@@ -111,12 +124,14 @@ function getToday(now = new Date()) {
   return collect(now)
     .map((item) => ({ ...item, sent: lastSent.get(item.key) === today, last: lastSent.get(item.key) }))
     .filter((item) => item.sent || !item.last || dayDiff(item.last, today) >= KINDS[item.kind].cooldownDays)
-    .map((item) => ({ key: item.key, kind: item.kind, refId: item.refId, name: item.name, phone: item.phone, reason: item.reason, label: item.label, text: item.text, sent: item.sent }));
+    .map((item) => ({ key: item.key, kind: item.kind, refId: item.refId, name: item.name, phone: item.phone, reason: item.reason, label: item.label, text: item.text, sent: item.sent, blocked: item.blocked }));
 }
 
 function markSent(kind, refId, userId, now = new Date()) {
   const item = collect(now).find((row) => row.kind === kind && row.refId === Number(refId));
   if (!item) throw new Error('الرسالة دي مش في قائمة النهارده');
+  // المنع هنا مش في الواجهة: ده الحد اللي ما بيتعداش مهما اتنادى الـ IPC منين.
+  if (item.blocked) throw new Error(item.blocked);
   repo.markSent({
     kind, refId: item.refId, day: localDay(now), userId, record: item.record,
     title: `رسالة واتساب: ${item.label}`,
@@ -128,7 +143,7 @@ function markSent(kind, refId, userId, now = new Date()) {
 function notifyDailySummary(now = new Date()) {
   const today = localDay(now);
   if (now.getHours() < SUMMARY_HOUR || SettingsRepository.get(NOTIFIED_KEY) === today) return null;
-  const pending = getToday(now).filter((item) => !item.sent);
+  const pending = getToday(now).filter((item) => !item.sent && !item.blocked);
   if (!pending.length) return null;
   const counts = Object.entries(KINDS)
     .map(([kind, { label }]) => [label, pending.filter((item) => item.kind === kind).length])

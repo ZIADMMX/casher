@@ -1,3 +1,4 @@
+const ACCEPTED_EULA = { acceptedEulaVersion: require('../../shared/eula.json').version };
 const crypto = require('node:crypto');
 const licenseKeys = require('../helpers/licenseKeys');
 const { signLicenseKey, base32Encode, base32Decode } = require('../../electron/security/licenseSigning');
@@ -120,7 +121,7 @@ describe('license.service', () => {
   test('an expired paid key locks the app as expired, not as an ended trial', () => {
     const hwid = licenseService.getMachineHardwareId();
     const key = licenseKeys.generateLicenseKey({ hwid, expiryTimestamp: Date.now() + 1000 });
-    licenseService.activateSoftware(key, Date.now());
+    licenseService.activateSoftware(key, Date.now(), ACCEPTED_EULA);
     mockStore.trial_start_date = String(Date.now() - 400 * 24 * 60 * 60 * 1000);
 
     const status = licenseService.getLicenseStatus(Date.now() + 2000);
@@ -216,13 +217,13 @@ describe('license.service', () => {
     const expiryTimestamp = Date.now() + 100000;
     const key = licenseKeys.generateLicenseKey({ hwid, expiryTimestamp });
     
-    const result = licenseService.activateSoftware(key);
+    const result = licenseService.activateSoftware(key, Date.now(), ACCEPTED_EULA);
     expect(result.success).toBe(true);
     expect(mockStore.license_key).toBe(key);
   });
 
   test('11. activateSoftware throws on invalid key', () => {
-    expect(() => licenseService.activateSoftware('INVALID-KEY')).toThrow('تنسيق المفتاح غير صحيح');
+    expect(() => licenseService.activateSoftware('INVALID-KEY', Date.now(), ACCEPTED_EULA)).toThrow('تنسيق المفتاح غير صحيح');
   });
 
   test('12. getLicenseStatus returns activated after activation', () => {
@@ -230,7 +231,7 @@ describe('license.service', () => {
     const expiryTimestamp = 9999999999999;
     const key = licenseKeys.generateLicenseKey({ hwid, expiryTimestamp });
     
-    licenseService.activateSoftware(key);
+    licenseService.activateSoftware(key, Date.now(), ACCEPTED_EULA);
     
     const status = licenseService.getLicenseStatus();
     expect(status.isActivated).toBe(true);

@@ -25,13 +25,15 @@ describe('daily messages', () => {
     service = require('../../electron/services/dailyMessages.service');
 
     db.exec(`
-      INSERT INTO customers (id, name, phone) VALUES (1, 'سارة', '01011111111'), (2, 'بدون رقم', NULL);
+      INSERT INTO customers (id, name, phone, whatsapp_consent) VALUES
+        (1, 'سارة', '01011111111', 1), (2, 'بدون رقم', NULL, 0);
       INSERT INTO appointment_services (id, name, duration_minutes) VALUES (1, 'قص شعر', 30);
       INSERT INTO appointment_resources (id, name, resource_type) VALUES (1, 'كرسي ١', 'chair');
-      INSERT INTO crm_leads (id, name, phone, status, updated_at) VALUES
-        (1, 'عميل قديم', '01022222222', 'new', datetime('now', '-5 days')),
-        (2, 'عميل جديد', '01033333333', 'new', datetime('now')),
-        (3, 'اتحول', '01044444444', 'converted', datetime('now', '-9 days'));
+      INSERT INTO crm_leads (id, name, phone, status, updated_at, customer_id) VALUES
+        (1, 'عميل قديم', '01022222222', 'new', datetime('now', '-5 days'), 1),
+        (2, 'عميل جديد', '01033333333', 'new', datetime('now'), NULL),
+        (3, 'اتحول', '01044444444', 'converted', datetime('now', '-9 days'), NULL),
+        (4, 'من غير موافقة', '01066666666', 'new', datetime('now', '-5 days'), NULL);
     `);
     db.prepare(`INSERT INTO appointments (id, service_id, resource_id, customer_id, customer_name, customer_phone, start_at, end_at)
       VALUES (1, 1, 1, 1, 'سارة', '01011111111', ?, ?)`).run(tomorrowAt(14), tomorrowAt(15));
@@ -43,7 +45,7 @@ describe('daily messages', () => {
 
   test("lists tomorrow's appointments and stale leads with filled templates", () => {
     const items = service.getToday(now);
-    expect(items.map((item) => item.key).sort()).toEqual(['appointment:1', 'lead_followup:1']);
+    expect(items.map((item) => item.key).sort()).toEqual(['appointment:1', 'lead_followup:1', 'lead_followup:4']);
     const appointment = items.find((item) => item.kind === 'appointment');
     expect(appointment.text).toContain('سارة');
     expect(appointment.text).toContain('قص شعر');
@@ -74,6 +76,43 @@ describe('daily messages', () => {
     expect(() => service.markSent('lead_followup', 2, null, now)).toThrow('مش في قائمة النهارده');
   });
 
+  // قانون 151/2020: الرسالة التسويقية محتاجة موافقة، ورسالة الخدمة لأ.
+  describe('موافقة الرسايل التسويقية', () => {
+    test('المتابعة التسويقية لغير الموافق بتفضل ظاهرة ومقفولة', () => {
+      const blocked = service.getToday(now).find((item) => item.key === 'lead_followup:4');
+      expect(blocked.blocked).toMatch(/موافق/);
+      expect(service.getToday(now).find((item) => item.key === 'lead_followup:1').blocked).toBeNull();
+    });
+
+    test('الإرسال بيترفض في الخدمة نفسها مش في الواجهة بس', () => {
+      expect(() => service.markSent('lead_followup', 4, null, now)).toThrow(/موافق/);
+      expect(db.prepare("SELECT COUNT(*) AS n FROM daily_messages_sent WHERE kind = 'lead_followup' AND ref_id = 4").get().n).toBe(0);
+    });
+
+    test('رسالة الخدمة بتتبعت حتى لغير الموافق', () => {
+      db.prepare('UPDATE customers SET whatsapp_consent = 0 WHERE id = 1').run();
+      expect(service.getToday(now).find((item) => item.kind === 'appointment').blocked).toBeNull();
+
+      // ونفس العميل اتقفل عليه التسويقي لما سحب موافقته.
+      expect(service.getToday(now).find((item) => item.key === 'lead_followup:1').blocked).toMatch(/موافق/);
+      db.prepare('UPDATE customers SET whatsapp_consent = 1 WHERE id = 1').run();
+    });
+
+    test('ملخص الويندوز ما بيعدّش المقفول', () => {
+      const day = new Date(2026, 10, 18, 10); // المتابعة رجعت بعد الكولداون
+      const clearNotified = () => db.prepare("DELETE FROM settings WHERE key = 'daily_messages_notified_on'").run();
+
+      // المقفول لوحده ما يطلّعش إشعار «عندك رسايل».
+      db.prepare('UPDATE customers SET whatsapp_consent = 0 WHERE id = 1').run();
+      clearNotified();
+      expect(service.notifyDailySummary(day)).toBeNull();
+
+      db.prepare('UPDATE customers SET whatsapp_consent = 1 WHERE id = 1').run();
+      clearNotified();
+      expect(service.notifyDailySummary(day).title).toMatch(/رسالة متابعة/);
+    });
+  });
+
   test('saved templates override the defaults and empty ones fall back', () => {
     service.saveTemplates({ lead_followup: 'يا {name} تعالى', appointment: '' });
     const templates = service.getTemplates();
@@ -97,7 +136,8 @@ describe('daily messages summary link', () => {
     jest.resetModules();
     jest.doMock('../../electron/repositories/dailyMessages.repository', () => ({
       getAppointmentsBetween: () => [], getSalonAppointmentsOn: () => [], getStaleDeals: () => [],
-      getLeadsToFollow: () => [{ id: 1, name: 'علي', phone: '010' }], getSubscriptionsEnding: () => [],
+      getLeadsToFollow: () => [{ id: 1, name: 'علي', phone: '010', customer_id: 1, consent: 1 }],
+      getSubscriptionsEnding: () => [],
       getStaleRuleDays: () => null, getLastSent: () => new Map(), markSent: jest.fn(),
     }));
     const settings = { business_type: 'crm' };

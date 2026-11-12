@@ -517,7 +517,9 @@ function getAuditLog(entityType, entityId) {
 
 function setConsent(customerId, data, userId) {
   requireObject(data, 'بيانات الموافقة');
-  if (typeof data?.email_consent !== 'boolean' || typeof data?.sms_consent !== 'boolean') {
+  if (typeof data?.email_consent !== 'boolean'
+    || typeof data?.sms_consent !== 'boolean'
+    || typeof data?.whatsapp_consent !== 'boolean') {
     throw new Error('قيم الموافقة غير صحيحة');
   }
   const id = requireId(customerId, 'العميل');

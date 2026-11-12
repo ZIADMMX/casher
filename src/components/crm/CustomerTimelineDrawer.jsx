@@ -131,6 +131,7 @@ function CustomerTimelineDrawer({ customer, onClose, onCustomerUpdated, crmMode 
   const [noteDraft, setNoteDraft] = useState('');
   const [emailConsent, setEmailConsent] = useState(Boolean(customer?.email_consent));
   const [smsConsent, setSmsConsent] = useState(Boolean(customer?.sms_consent));
+  const [whatsappConsent, setWhatsappConsent] = useState(Boolean(customer?.whatsapp_consent));
 
   // Interaction Form state
   const [interactionForm, setInteractionForm] = useState({
@@ -209,6 +210,7 @@ function CustomerTimelineDrawer({ customer, onClose, onCustomerUpdated, crmMode 
     setTier(customer?.tier || 'Regular');
     setEmailConsent(Boolean(customer?.email_consent));
     setSmsConsent(Boolean(customer?.sms_consent));
+    setWhatsappConsent(Boolean(customer?.whatsapp_consent));
     fetchCRMDetails();
   }, [
     customer?.id,
@@ -216,6 +218,7 @@ function CustomerTimelineDrawer({ customer, onClose, onCustomerUpdated, crmMode 
     customer?.tier,
     customer?.email_consent,
     customer?.sms_consent,
+    customer?.whatsapp_consent,
     fetchCRMDetails,
   ]);
 
@@ -290,6 +293,7 @@ function CustomerTimelineDrawer({ customer, onClose, onCustomerUpdated, crmMode 
         crmApi.setCRMCustomerConsent(customer.id, {
           email_consent: emailConsent,
           sms_consent: smsConsent,
+          whatsapp_consent: whatsappConsent,
         }),
         crmApi.setCRMRecordTags({
           record_type: 'customer',
@@ -700,8 +704,17 @@ function CustomerTimelineDrawer({ customer, onClose, onCustomerUpdated, crmMode 
               <div className="crm-overview-panel crm-details-panel">
                 <form onSubmit={saveCRMDetails} className="crm-details-form">
                   <h4 className="crm-details-heading">موافقات التواصل والوسوم</h4>
-                  
+
+                  <p className="crm-muted-inline" style={{ display: 'block', marginBottom: '8px' }}>
+                    الموافقات دي للرسائل التسويقية بس. رسائل الخدمة (تذكير بميعاد، جهاز خلص صيانة)
+                    بتتبعت من غيرها. اقرا نص الموافقة للعميل قبل ما تعلّم عليها — إعدادات ← سياسة الخصوصية.
+                  </p>
+
                   <div className="crm-consent-options">
+                    <label className="crm-form-checkbox-label">
+                      <input type="checkbox" checked={whatsappConsent} onChange={(event) => setWhatsappConsent(event.target.checked)} />
+                      موافقة التواصل عبر الواتساب
+                    </label>
                     <label className="crm-form-checkbox-label">
                       <input type="checkbox" checked={emailConsent} onChange={(event) => setEmailConsent(event.target.checked)} />
                       موافقة التواصل عبر البريد الإلكتروني
@@ -711,6 +724,13 @@ function CustomerTimelineDrawer({ customer, onClose, onCustomerUpdated, crmMode 
                       موافقة التواصل عبر الرسائل النصية
                     </label>
                   </div>
+
+                  {customer?.consent_updated_at && (
+                    <p className="crm-muted-inline" style={{ display: 'block', marginBottom: '8px' }}>
+                      آخر تحديث للموافقة: {new Date(customer.consent_updated_at).toLocaleString('ar-EG')}
+                      {customer.consent_policy_version ? ` · على نسخة السياسة ${customer.consent_policy_version}` : ''}
+                    </p>
+                  )}
 
                   <div className="crm-form-group">
                     <label className="crm-form-label">الوسوم الحالية: <span className="crm-muted-inline">{crmTags.map((tag) => tag.name).join('، ') || 'لا توجد'}</span></label>

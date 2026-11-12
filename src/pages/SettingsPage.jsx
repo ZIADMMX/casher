@@ -6,6 +6,8 @@ import AddonsSettingsCard from '../components/settings/AddonsSettingsCard.jsx';
 import RestaurantSettingsCard from '../components/settings/RestaurantSettingsCard.jsx';
 import CloudSyncSettingsCard from '../components/settings/CloudSyncSettingsCard.jsx';
 import EInvoiceSettingsCard from '../components/settings/EInvoiceSettingsCard.jsx';
+import PrivacyPolicyCard from '../components/settings/PrivacyPolicyCard.jsx';
+import EulaCard from '../components/settings/EulaCard.jsx';
 
 function SettingsPage() {
   const { settings, saveSettings, uploadLogo, backupDatabase, restoreDatabase } = useSettings();
@@ -369,6 +371,8 @@ function SettingsPage() {
           {configuration?.profile?.key === 'cafe_restaurant' && <RestaurantSettingsCard />}
           <CloudSyncSettingsCard />
           <EInvoiceSettingsCard />
+          <PrivacyPolicyCard />
+          <EulaCard />
 
           {/* Card 3: النسخ الاحتياطي والأمان */}
           <div style={{ background: '#FFFFFF', borderRadius: '16px', border: '1px solid #E2E8F0', padding: '24px', boxShadow: '0 2px 10px rgba(0,0,0,0.03)' }}>

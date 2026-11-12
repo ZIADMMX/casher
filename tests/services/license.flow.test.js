@@ -1,3 +1,4 @@
+const ACCEPTED_EULA = { acceptedEulaVersion: require('../../shared/eula.json').version };
 /**
  * @file license.flow.test.js
  * @description Full end-to-end license flow tests covering:
@@ -118,7 +119,7 @@ describe('License Flow – Full End-to-End', () => {
   describe('3. Activation – valid key', () => {
     test('activateSoftware succeeds and returns success:true', () => {
       const key = makeKey(30);
-      const result = licenseService.activateSoftware(key);
+      const result = licenseService.activateSoftware(key, Date.now(), ACCEPTED_EULA);
 
       expect(result.success).toBe(true);
       expect(result.message).toContain('تم تفعيل');
@@ -127,15 +128,60 @@ describe('License Flow – Full End-to-End', () => {
 
     test('license_key is persisted to DB after activation', () => {
       const key = makeKey(30);
-      licenseService.activateSoftware(key);
+      licenseService.activateSoftware(key, Date.now(), ACCEPTED_EULA);
 
       expect(mockStore.license_key).toBe(key.trim().toUpperCase());
       expect(mockStore.license_activated_at).toBeDefined();
     });
 
+    // التفعيل هو لحظة إبرام العقد: من غير موافقة مسجلة مفيش تفعيل.
+    describe('عقد الاستخدام', () => {
+      const eula = require('../../shared/eula.json');
+
+      test('التفعيل بيترفض من غير موافقة على العقد', () => {
+        const key = makeKey(30);
+        expect(() => licenseService.activateSoftware(key)).toThrow('عقد الاستخدام');
+        expect(mockStore.license_key).toBeUndefined();
+      });
+
+      test('موافقة على نسخة قديمة مش بتعدّي', () => {
+        const key = makeKey(30);
+        expect(() => licenseService.activateSoftware(key, Date.now(), { acceptedEulaVersion: '0.9' }))
+          .toThrow('عقد الاستخدام');
+        expect(mockStore.license_key).toBeUndefined();
+      });
+
+      test('القبول بيتسجل بنسخته وتاريخه مع التفعيل', () => {
+        const now = Date.now();
+        licenseService.activateSoftware(makeKey(30), now, ACCEPTED_EULA);
+
+        expect(mockStore.eula_accepted_version).toBe(eula.version);
+        expect(Number(mockStore.eula_accepted_at)).toBe(now);
+      });
+
+      test('getAgreement بيرجّع النص ومعاه إثبات القبول', () => {
+        const now = Date.now();
+        licenseService.activateSoftware(makeKey(30), now, ACCEPTED_EULA);
+        const agreement = licenseService.getAgreement();
+
+        expect(agreement.acceptedVersion).toBe(eula.version);
+        expect(new Date(agreement.acceptedAt).getTime()).toBe(now);
+        expect(agreement.sections.length).toBeGreaterThanOrEqual(8);
+      });
+
+      test('قبل أي تفعيل مفيش قبول مسجل', () => {
+        delete mockStore.eula_accepted_version;
+        delete mockStore.eula_accepted_at;
+        const agreement = licenseService.getAgreement();
+
+        expect(agreement.acceptedVersion).toBeNull();
+        expect(agreement.acceptedAt).toBeNull();
+      });
+    });
+
     test('getLicenseStatus returns activated after activation (state reload)', () => {
       const key = makeKey(30);
-      licenseService.activateSoftware(key);
+      licenseService.activateSoftware(key, Date.now(), ACCEPTED_EULA);
 
       const status = licenseService.getLicenseStatus();
 
@@ -146,7 +192,7 @@ describe('License Flow – Full End-to-End', () => {
 
     test('lifetime key: remainingDays is 99999', () => {
       const key = makeLifetimeKey();
-      licenseService.activateSoftware(key);
+      licenseService.activateSoftware(key, Date.now(), ACCEPTED_EULA);
       const status = licenseService.getLicenseStatus();
 
       expect(status.remainingDays).toBe(99999);
@@ -155,7 +201,7 @@ describe('License Flow – Full End-to-End', () => {
 
     test('activated app: LicenseLockScreen does NOT show', () => {
       const key = makeLifetimeKey();
-      licenseService.activateSoftware(key);
+      licenseService.activateSoftware(key, Date.now(), ACCEPTED_EULA);
       const status = licenseService.getLicenseStatus();
 
       const shouldShowLockScreen = status.isExpired && !status.isActivated;
@@ -166,31 +212,31 @@ describe('License Flow – Full End-to-End', () => {
   // ── 4. Activation with invalid key ───────────────────────────────────────
   describe('4. Activation – invalid key scenarios', () => {
     test('throws on empty key', () => {
-      expect(() => licenseService.activateSoftware('')).toThrow('مفتاح التفعيل فارغ');
+      expect(() => licenseService.activateSoftware('', Date.now(), ACCEPTED_EULA)).toThrow('مفتاح التفعيل فارغ');
     });
 
     test('throws on wrong format (no KASH prefix)', () => {
-      expect(() => licenseService.activateSoftware('INVALID-123')).toThrow('تنسيق المفتاح غير صحيح');
+      expect(() => licenseService.activateSoftware('INVALID-123', Date.now(), ACCEPTED_EULA)).toThrow('تنسيق المفتاح غير صحيح');
     });
 
     test('throws when key is for a different machine HWID', () => {
       const foreignKey = makeKey(30, 'AAAABBBB');
-      expect(() => licenseService.activateSoftware(foreignKey)).toThrow('هذا السيريال مخصص لجهاز آخر');
+      expect(() => licenseService.activateSoftware(foreignKey, Date.now(), ACCEPTED_EULA)).toThrow('هذا السيريال مخصص لجهاز آخر');
     });
 
     test('throws on expired activation key', () => {
       const expiredKey = makeKey(-5);
-      expect(() => licenseService.activateSoftware(expiredKey)).toThrow('انتهت صلاحية مفتاح التفعيل هذا');
+      expect(() => licenseService.activateSoftware(expiredKey, Date.now(), ACCEPTED_EULA)).toThrow('انتهت صلاحية مفتاح التفعيل هذا');
     });
 
     test('throws on tampered signature', () => {
       const key = makeKey(30);
       const tampered = key.slice(0, -4) + 'ZZZZ';
-      expect(() => licenseService.activateSoftware(tampered)).toThrow('توقيع المفتاح غير صحيح أو تم التلاعب به');
+      expect(() => licenseService.activateSoftware(tampered, Date.now(), ACCEPTED_EULA)).toThrow('توقيع المفتاح غير صحيح أو تم التلاعب به');
     });
 
     test('DB is NOT written when activation fails', () => {
-      expect(() => licenseService.activateSoftware('KASH-INVALID')).toThrow();
+      expect(() => licenseService.activateSoftware('KASH-INVALID', Date.now(), ACCEPTED_EULA)).toThrow();
       expect(mockStore.license_key).toBeUndefined();
     });
   });
@@ -209,7 +255,7 @@ describe('License Flow – Full End-to-End', () => {
 
     test('activated state survives restart: reads license_key from DB', () => {
       const key = makeLifetimeKey();
-      licenseService.activateSoftware(key);
+      licenseService.activateSoftware(key, Date.now(), ACCEPTED_EULA);
 
       // Simulate app restart: mockStore still has data (like real DB)
       const status = licenseService.getLicenseStatus();

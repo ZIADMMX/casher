@@ -1,21 +1,16 @@
-MIT License
+# رخصة استخدام مملوكة — Proprietary License
 
-Copyright (c) 2026
+**foxcloud POS** — جميع الحقوق محفوظة © 2026.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+البرنامج ده **مش مفتوح المصدر ومش مجاني**. كل حقوق الكود والتصميم والعلامة
+التجارية محفوظة لصاحبه. ممنوع نسخ البرنامج أو توزيعه أو تعديله أو إعادة بيعه
+أو إتاحته لأي طرف تالت من غير إذن مكتوب.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+استخدام البرنامج بيتم بمفتاح ترخيص صادر من المورّد، وبيخضع لشروط **عقد ترخيص
+الاستخدام واتفاقية الاشتراك**، ونصّه الكامل في [`shared/eula.json`](shared/eula.json)
+ومعروض داخل البرنامج (شاشة التفعيل، وإعدادات ← عقد الاستخدام).
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+This software is proprietary. It is **not** open source and is **not** free.
+No permission is granted to copy, modify, distribute, sublicense, or sell it.
+Use requires a license key from the vendor and is governed by the End User
+License and Subscription Agreement in [`shared/eula.json`](shared/eula.json).

@@ -178,6 +178,9 @@ function registerCRMHandlers() {
         'مصدر العميل': customer.lead_source || '',
         'موافقات البريد': customer.email_consent ? 'نعم' : 'لا',
         'موافقات الرسائل': customer.sms_consent ? 'نعم' : 'لا',
+        'موافقة الواتساب': customer.whatsapp_consent ? 'نعم' : 'لا',
+        'نسخة سياسة الخصوصية': customer.consent_policy_version || '',
+        'تاريخ الموافقة': customer.consent_updated_at || '',
       }));
       sheetName = 'العملاء';
       fileName = 'crm-customers.xlsx';

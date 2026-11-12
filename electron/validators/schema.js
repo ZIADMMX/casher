@@ -429,6 +429,7 @@ const addCustomerSchema = v.object({
   lead_source: v.string().max(100).optional().nullable(),
   email_consent: v.boolean().optional(),
   sms_consent: v.boolean().optional(),
+  whatsapp_consent: v.boolean().optional(),
 });
 
 const addManualDebtSchema = v.object({

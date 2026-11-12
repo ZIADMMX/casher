@@ -6,7 +6,7 @@ const crmAdvancedRepo = require('../repositories/crmAdvanced.repository');
 
 function addCustomer({
   name, phone, email, initialDebt, debtNotes, dueDate, company_id, lead_source,
-  email_consent, sms_consent
+  email_consent, sms_consent, whatsapp_consent
 }) {
   const session = requireAuth();
   if (!name || !name.trim()) throw new Error('اسم العميل مطلوب');
@@ -22,6 +22,7 @@ function addCustomer({
     leadSource: lead_source,
     emailConsent: email_consent === true,
     smsConsent: sms_consent === true,
+    whatsappConsent: whatsapp_consent === true,
   });
   crmAdvancedRepo.recordAudit('customer', id, 'created', {
     company_id: companyId,

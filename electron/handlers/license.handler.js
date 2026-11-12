@@ -10,10 +10,17 @@ function registerLicenseHandlers() {
     return licenseService.getLicenseStatus(now);
   });
 
-  safeHandle('license:activate', async (event, keyInput) => {
+  safeHandle('license:activate', async (event, payload) => {
     const now = await licenseClock.getTrustedNow();
-    return licenseService.activateSoftware(keyInput, now);
+    // Older callers sent the key as a bare string; the object form carries the
+    // accepted agreement version alongside it.
+    const { key, acceptedEulaVersion } = typeof payload === 'string'
+      ? { key: payload, acceptedEulaVersion: null }
+      : (payload || {});
+    return licenseService.activateSoftware(key, now, { acceptedEulaVersion });
   });
+
+  safeHandle('license:getAgreement', () => licenseService.getAgreement());
 
   // Open while the app is locked (license:* skips the license check), so the
   // owner can always take their data out. Needs the admin's password because

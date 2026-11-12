@@ -1,3 +1,4 @@
+const ACCEPTED_EULA = { acceptedEulaVersion: require('../../shared/eula.json').version };
 /**
  * Kashiear POS — Offline & Disaster Recovery Test Suite (فحوصات العمل أوفلاين والتعافي من الكوارث)
  * 
@@ -103,7 +104,7 @@ describe('Offline & Disaster Recovery Test Suite (العمل بدون إنترن
       });
 
       // Activate software offline
-      const activation = licenseService.activateSoftware(validOfflineKey);
+      const activation = licenseService.activateSoftware(validOfflineKey, Date.now(), ACCEPTED_EULA);
       expect(activation.success).toBe(true);
 
       // Verify status is active offline
@@ -116,7 +117,7 @@ describe('Offline & Disaster Recovery Test Suite (العمل بدون إنترن
       const hwid = licenseService.getMachineHardwareId();
       const { privateKey: attackerKey } = crypto.generateKeyPairSync('ed25519');
       const fakeKey = signLicenseKey({ hwid, expiryTimestamp: 9999999999000, privateKey: attackerKey });
-      expect(() => licenseService.activateSoftware(fakeKey)).toThrow('توقيع المفتاح غير صحيح أو تم التلاعب به');
+      expect(() => licenseService.activateSoftware(fakeKey, Date.now(), ACCEPTED_EULA)).toThrow('توقيع المفتاح غير صحيح أو تم التلاعب به');
     });
   });
 

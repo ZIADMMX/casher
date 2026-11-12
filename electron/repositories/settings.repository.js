@@ -13,6 +13,10 @@ const PROTECTED_KEYS = new Set([
   'clock_rollback_detected',
   'license_key',
   'license_activated_at',
+  // Proof that the licence agreement was accepted at activation. Writable from
+  // the settings screen, it could be forged or wiped.
+  'eula_accepted_version',
+  'eula_accepted_at',
   'license_trial_purged',
   // Offline license time anchor (electron/services/licenseClock.service.js).
   'license_time_anchor_server',
