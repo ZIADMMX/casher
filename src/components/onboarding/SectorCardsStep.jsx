@@ -54,6 +54,7 @@ export const SECTOR_CARDS = [
   },
   {
     key: 'electronics',
+    soon: true,
     title: 'إلكترونيات وتكنولوجيا',
     subtitle: 'Tech & Phones',
     desc: 'هواتف، أجهزة، إكسسوارات، شواحن، وفواتير ضمان بالسيريال',
@@ -67,6 +68,7 @@ export const SECTOR_CARDS = [
   },
   {
     key: 'maintenance',
+    soon: true,
     title: 'ورش صيانة ومراكز خدمة',
     subtitle: 'Maintenance & Repair',
     desc: 'تذاكر صيانة، دورات عمل فنيين، كشف أعطال، وقطع غيار وأجور خدمة',
@@ -79,6 +81,7 @@ export const SECTOR_CARDS = [
   },
   {
     key: 'subscriptions_gym',
+    soon: true,
     title: 'صالات رياضية وجيم',
     subtitle: 'Gym & Wellness',
     desc: 'عضويات شهرية، باقات حصص تدريب PT، تجميد اشتراكات ومكملات صحية',
@@ -108,6 +111,7 @@ export const SECTOR_CARDS = [
   },
   {
     key: 'spare_parts',
+    soon: true,
     title: 'قطع غيار وسيارات',
     subtitle: 'Auto Parts & Vehicles',
     desc: 'قطع غيار، كود OEM، موديلات وسنوات الصنع، وأوامر شغل سيارات ومصنعيات',
@@ -230,7 +234,7 @@ export default function SectorCardsStep({
               key={card.key}
               role="button"
               tabIndex={0}
-              className={`sector-card ${isSelected ? 'selected' : ''}`}
+              className={`sector-card ${isSelected ? 'selected' : ''} ${card.soon ? 'soon' : ''}`}
               onClick={() => onSelectSector(card.key)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
@@ -265,6 +269,7 @@ export default function SectorCardsStep({
               {/* Feature Badge */}
               <div className="sector-card-footer">
                 <span className="sector-feature-pill">{card.badge}</span>
+                {card.soon && <span className="sector-soon-pill">قريبًا</span>}
               </div>
             </div>
           );
@@ -297,6 +302,11 @@ export default function SectorCardsStep({
             <span className="summary-main-text">
               النشاط المختار: <strong>{SECTOR_CARDS.find((c) => c.key === selectedSector)?.title}</strong>
             </span>
+            {SECTOR_CARDS.find((c) => c.key === selectedSector)?.soon && (
+              <span className="summary-soon-text">
+                • هذا النشاط تحت التطوير: الكاشير والمخزون والتقارير تعمل بالكامل، لكن المميزات المتخصصة للنشاط لم تكتمل بعد
+              </span>
+            )}
             {activePresetDetails && (
               <span className="summary-details-text">
                 {selectedSector === 'crm'
