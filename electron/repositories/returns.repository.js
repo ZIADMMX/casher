@@ -58,6 +58,10 @@ function getReturnedRefundAmount(saleId, variantId) {
   return Number(row.total || 0);
 }
 
+function getById(returnId) {
+  return db.prepare('SELECT * FROM returns WHERE id = ?').get(returnId) || null;
+}
+
 function getBySaleId(saleId) {
   return db.prepare(`
     SELECT r.*, pv.size, pv.color, p.name as productName
@@ -80,4 +84,4 @@ function getRecent(limit) {
   `).all(limit);
 }
 
-module.exports = { create, getReturnedQuantity, getReturnedRefundAmount, getBySaleId, getRecent };
+module.exports = { create, getById, getReturnedQuantity, getReturnedRefundAmount, getBySaleId, getRecent };

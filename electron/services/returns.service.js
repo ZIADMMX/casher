@@ -168,6 +168,10 @@ function processReturn({
   const productsCache = require('./products.cache');
   productsCache.refreshStockFromDatabase();
 
+  // إشعار الخصم (أو إيصال الاسترداد): بيتسجل في طابور المصلحة بعد ما المرتجع
+  // يتحفظ. ما يرميش للخارج — عطل المنظومة أو النت ما ينفعش يوقف المرتجع.
+  require('./einvoice').enqueueReturn(result.returnId);
+
   try {
     const isExchange = mode === 'exchange' && exchangeVariantId;
     NotificationsService.notify({

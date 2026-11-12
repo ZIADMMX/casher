@@ -8,10 +8,11 @@
 //    مربوط ببصمة اللي قبله (سلسلة).
 // المنشأة بتشتغل بواحدة منهم حسب تسجيلها (إعداد `documentKind`).
 const salesRepo = require('../../repositories/sales.repository');
+const returnsRepo = require('../../repositories/returns.repository');
 const einvoiceRepo = require('../../repositories/einvoice.repository');
 const { logError } = require('../logger.service');
 const { getConfig, getPublicConfig, saveConfig, validateConfig, validateCredentials } = require('./config');
-const { buildInvoiceDocument, serialize } = require('./document');
+const { buildInvoiceDocument, serialize, round } = require('./document');
 const { buildReceiptDocument } = require('./receipt');
 const { signDocument, attachSignature, isSignerConfigured } = require('./signer');
 const client = require('./client');
@@ -57,8 +58,107 @@ function enqueueSale(saleId) {
   }
 }
 
-async function signRow(row, config) {
+/**
+ * مبيعة مصطنعة من المرتجع: بند واحد بالكمية المرتجعة، وفرق المبلغ المسترد عن
+ * إجماليه بيتمرر كخصم فاتورة. كده حسابات الضريبة والخصم والتقريب بتتعمل بنفس
+ * `prepareGrossLines` بتاعة الفاتورة، من غير حسابات فلوس تانية تتكتب من جديد.
+ */
+function saleFromReturn(sale, ret) {
+  const item = (sale.items || []).find(
+    (row) => Number(row.variant_id ?? row.variantId) === Number(ret.variant_id)
+  );
+  if (!item) throw new Error('الصنف المرتجع غير موجود في الفاتورة');
+
+  const quantity = Number(ret.quantity) || 0;
+  const gross = round(quantity * (Number(item.unit_price) || 0));
+  const refund = round(Number(ret.refund_amount) || 0);
+  return {
+    ...sale,
+    items: [{ ...item, quantity }],
+    discount: Math.max(round(gross - refund), 0),
+    service_charge: 0,
+    total_amount: refund,
+    created_at: ret.created_at,
+    invoice_number: `${sale.invoice_number || sale.id}-R${ret.id}`,
+  };
+}
+
+/**
+ * المستند كما سيُرسل. بيرجّع null لإشعار خصم لسه فاتورته الأصلية ما اتقبلتش عند
+ * المصلحة: الإشعار لازم يشاور على uuid الفاتورة، واللي ما بيتعرفش غير بعد قبولها.
+ */
+function documentForRow(row) {
   const document = JSON.parse(row.document_json);
+  if (row.return_id && row.document_kind === 'invoice') {
+    const origin = einvoiceRepo.getBySaleId(row.sale_id);
+    if (!origin?.document_uuid) return null;
+    document.references = [origin.document_uuid];
+  }
+  return document;
+}
+
+/**
+ * يسجّل مرتجعًا في الطابور كإشعار خصم (منظومة الفاتورة) أو إيصال استرداد
+ * (منظومة الإيصال) حسب نوع مستند المبيعة الأصلية نفسه، مش حسب الإعداد الحالي.
+ * زي `enqueueSale`: ما بيرميش استثناء — عطل المنظومة ما ينفعش يمنع المرتجع.
+ */
+function enqueueReturn(returnId) {
+  try {
+    const config = getConfig();
+    if (!config.enabled) return null;
+    const { valid } = validateConfig(config);
+    if (!valid) throw new Error('إعدادات المستندات الإلكترونية غير مكتملة');
+
+    const ret = returnsRepo.getById(returnId);
+    if (!ret) throw new Error('المرتجع غير موجود');
+    // استبدال بغير مبلغ مسترد مالوش إشعار خصم.
+    if (round(Number(ret.refund_amount) || 0) <= 0) return null;
+
+    // المبيعة اللي ما اتبعتش للمصلحة أصلاً (بيع قبل تشغيل المنظومة) مالهاش
+    // مستند يتعمل عليه إشعار خصم.
+    const origin = einvoiceRepo.getBySaleId(ret.sale_id);
+    if (!origin) return null;
+
+    const sale = salesRepo.getById(ret.sale_id);
+    if (!sale) throw new Error('الفاتورة غير موجودة');
+    const creditSale = saleFromReturn(sale, ret);
+
+    if (origin.document_kind === 'receipt') {
+      const previousUuid = einvoiceRepo.getLastReceiptUuid();
+      const document = buildReceiptDocument(creditSale, config, previousUuid, {
+        receiptType: 'R',
+        referenceOldUUID: origin.uuid,
+      });
+      return einvoiceRepo.enqueue({
+        saleId: ret.sale_id,
+        returnId,
+        internalId: document.header.receiptNumber,
+        documentJson: JSON.stringify(document),
+        kind: 'receipt',
+        uuid: document.header.uuid,
+        previousUuid,
+      });
+    }
+
+    // references بتتملى وقت الإرسال (documentForRow) لأن uuid الفاتورة الأصلية
+    // ما بيتعرفش غير بعد ما المصلحة تقبلها.
+    const document = buildInvoiceDocument(creditSale, config, { documentType: 'C' });
+    return einvoiceRepo.enqueue({
+      saleId: ret.sale_id,
+      returnId,
+      internalId: document.internalID,
+      documentJson: JSON.stringify(document),
+      kind: 'invoice',
+    });
+  } catch (err) {
+    logError('EInvoiceEnqueueReturn', err);
+    return null;
+  }
+}
+
+async function signRow(row, config) {
+  const document = documentForRow(row);
+  if (!document) return null;
   const signature = await signDocument(serialize(document), config);
   return attachSignature(document, signature);
 }
@@ -76,7 +176,9 @@ function recordFailure(row, err, summary) {
 async function flushInvoices(config, summary) {
   for (const row of einvoiceRepo.listSendable('invoice', MAX_PER_FLUSH)) {
     try {
-      const result = await client.submitDocument(await signRow(row, config), config);
+      const signed = await signRow(row, config);
+      if (!signed) continue; // إشعار خصم مستني قبول فاتورته الأصلية
+      const result = await client.submitDocument(signed, config);
       einvoiceRepo.markSubmitted(row.id, result);
       summary.sent += 1;
     } catch (err) {
@@ -197,6 +299,12 @@ async function resubmit(documentId) {
     // الإيصال بيتبعت زي ما هو: بصمته محسوبة على محتواه ومربوطة بالإيصال اللي
     // بعده، فإعادة بنائه بتكسر السلسلة.
     einvoiceRepo.requeueSame(row.id);
+  } else if (row.return_id) {
+    const ret = returnsRepo.getById(row.return_id);
+    const sale = ret ? salesRepo.getById(ret.sale_id) : null;
+    if (!ret || !sale) throw new Error('المرتجع غير موجود');
+    const document = buildInvoiceDocument(saleFromReturn(sale, ret), config, { documentType: 'C' });
+    einvoiceRepo.requeue(row.id, JSON.stringify(document));
   } else {
     const { document } = buildDocumentForSale(row.sale_id, { ...config, documentKind: 'invoice' });
     einvoiceRepo.requeue(row.id, JSON.stringify(document));
@@ -220,6 +328,8 @@ function previewSale(saleId) {
 
 module.exports = {
   enqueueSale,
+  enqueueReturn,
+  documentForRow,
   flush,
   resubmit,
   getQueue,

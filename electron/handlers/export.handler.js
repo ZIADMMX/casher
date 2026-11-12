@@ -19,6 +19,13 @@ function registerExportHandlers() {
       'إجمالي المشتريات': c.totalSpent,
       'عدد الفواتير': c.invoiceCount,
       'تاريخ الإضافة': c.created_at,
+      // الموافقات تسافر مع البيانات: ملف عملاء من غير إثبات الموافقة بيخلي اللي
+      // يستلمه يراسلهم من غير أساس قانوني (151/2020).
+      'موافقة البريد': c.email_consent ? 'نعم' : 'لا',
+      'موافقة الرسائل': c.sms_consent ? 'نعم' : 'لا',
+      'موافقة الواتساب': c.whatsapp_consent ? 'نعم' : 'لا',
+      'نسخة سياسة الخصوصية': c.consent_policy_version || '',
+      'تاريخ الموافقة': c.consent_updated_at || '',
     }));
     return exportToExcel(rows, 'العملاء', 'عملاء-المحل.xlsx');
   });

@@ -1,28 +1,33 @@
 const { db } = require('../database/db');
 
 const LIST_COLUMNS = `
-  d.id, d.sale_id, d.internal_id, d.document_kind, d.uuid, d.status, d.submission_uuid, d.document_uuid,
+  d.id, d.sale_id, d.return_id, d.internal_id, d.document_kind, d.uuid, d.status, d.submission_uuid, d.document_uuid,
   d.long_id, d.error_message, d.attempts, d.submitted_at, d.created_at, d.updated_at,
-  s.total_amount, s.customer_name, s.invoice_number
+  s.customer_name, s.invoice_number,
+  -- مستند المرتجع قيمته هي المبلغ المسترد، مش إجمالي الفاتورة الأصلية.
+  COALESCE(r.refund_amount, s.total_amount) AS total_amount
 `;
 
 const EInvoiceRepository = {
-  getBySaleId(saleId) {
-    return db.prepare('SELECT * FROM einvoice_documents WHERE sale_id = ?').get(saleId) || null;
+  // مستند المبيعة نفسها (مش مستند مرتجعها): إشعار الخصم بيحتاجه عشان ياخد منه
+  // uuid الفاتورة الأصلية عند المصلحة.
+  getBySaleId(saleId, returnId = 0) {
+    return db.prepare('SELECT * FROM einvoice_documents WHERE sale_id = ? AND return_id = ?')
+      .get(saleId, returnId) || null;
   },
 
   getById(id) {
     return db.prepare('SELECT * FROM einvoice_documents WHERE id = ?').get(id) || null;
   },
 
-  // إدراج آمن: لو المبيعة مسجّلة قبل كده ما يتعملش مستند تاني.
-  enqueue({ saleId, internalId, documentJson, kind = 'invoice', uuid = null, previousUuid = null }) {
+  // إدراج آمن: لو المبيعة (أو المرتجع) مسجّلة قبل كده ما يتعملش مستند تاني.
+  enqueue({ saleId, returnId = 0, internalId, documentJson, kind = 'invoice', uuid = null, previousUuid = null }) {
     const result = db.prepare(`
       INSERT OR IGNORE INTO einvoice_documents
-        (sale_id, internal_id, document_json, document_kind, uuid, previous_uuid)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(saleId, internalId, documentJson, kind, uuid, previousUuid);
-    return result.changes > 0 ? EInvoiceRepository.getBySaleId(saleId) : null;
+        (sale_id, return_id, internal_id, document_json, document_kind, uuid, previous_uuid)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(saleId, returnId, internalId, documentJson, kind, uuid, previousUuid);
+    return result.changes > 0 ? EInvoiceRepository.getBySaleId(saleId, returnId) : null;
   },
 
   // آخر حلقة في سلسلة الإيصالات: الإيصال الجديد بيشاور عليها.
@@ -112,12 +117,14 @@ const EInvoiceRepository = {
       return db.prepare(`
         SELECT ${LIST_COLUMNS} FROM einvoice_documents d
         JOIN sales s ON s.id = d.sale_id
+        LEFT JOIN returns r ON r.id = d.return_id
         WHERE d.status = ? ORDER BY d.created_at DESC LIMIT ?
       `).all(status, limit);
     }
     return db.prepare(`
       SELECT ${LIST_COLUMNS} FROM einvoice_documents d
       JOIN sales s ON s.id = d.sale_id
+      LEFT JOIN returns r ON r.id = d.return_id
       ORDER BY d.created_at DESC LIMIT ?
     `).all(limit);
   },

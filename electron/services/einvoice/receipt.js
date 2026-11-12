@@ -72,8 +72,11 @@ function buildItems(grossLines, rate) {
  * @param {object} sale المبيعة ومعاها items
  * @param {object} config إعدادات المنظومة
  * @param {string|null} previousUuid uuid آخر إيصال من نفس الجهاز (null لأول إيصال)
+ * @param {object} [options]
+ * @param {'S'|'R'} [options.receiptType] S بيع · R إيصال استرداد (مرتجع)
+ * @param {string|null} [options.referenceOldUUID] بصمة الإيصال الأصلي (لإيصال الاسترداد)
  */
-function buildReceiptDocument(sale, config, previousUuid = null) {
+function buildReceiptDocument(sale, config, previousUuid = null, { receiptType = 'S', referenceOldUUID = null } = {}) {
   const { grossLines, rate } = prepareGrossLines(sale, config);
   const items = buildItems(grossLines, rate);
 
@@ -103,13 +106,13 @@ function buildReceiptDocument(sale, config, previousUuid = null) {
       receiptNumber: sale.invoice_number || `RCP-${sale.id}`,
       uuid: '',
       previousUUID: previousUuid || '',
-      referenceOldUUID: '',
+      referenceOldUUID: referenceOldUUID || '',
       currency: 'EGP',
       exchangeRate: 0,
       grossWeight: 0,
       netWeight: 0,
     },
-    documentType: { receiptType: 'S', typeVersion: RECEIPT_TYPE_VERSION },
+    documentType: { receiptType, typeVersion: RECEIPT_TYPE_VERSION },
     seller: buildSeller(config),
     buyer: {
       type: 'P',

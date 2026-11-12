@@ -327,6 +327,14 @@ function runAllMigrations(dbInstance = db) {
     console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 31 (موافقات حماية البيانات).');
   }
 
+  if (currentVersion < 32) {
+    // مستند المرتجع (إشعار خصم / إيصال استرداد): مستند تاني على نفس المبيعة،
+    // فقيد الطابور بقى على (sale_id, return_id).
+    ensureEInvoice(dbInstance);
+    dbInstance.pragma('user_version = 32');
+    console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 32 (مستندات المرتجعات).');
+  }
+
   // Earlier steps may rebuild the sales tables; make sure the guards exist at the end.
   ensureSalesLedgerGuards(dbInstance);
   ensureKitchenLedger(dbInstance);

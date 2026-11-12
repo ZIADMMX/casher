@@ -278,7 +278,11 @@ export default function EInvoiceSettingsCard() {
             {queue.documents.map((doc) => (
               <tr key={doc.id} style={{ borderTop: '1px solid #E2E8F0' }}>
                 <td style={{ padding: '6px 0' }}>{doc.internal_id}</td>
-                <td>{doc.document_kind === 'receipt' ? 'إيصال' : 'فاتورة'}</td>
+                <td>
+                  {doc.return_id
+                    ? (doc.document_kind === 'receipt' ? 'إيصال استرداد' : 'إشعار خصم')
+                    : (doc.document_kind === 'receipt' ? 'إيصال' : 'فاتورة')}
+                </td>
                 <td>{Number(doc.total_amount || 0).toFixed(2)}</td>
                 <td style={{ color: STATUS_COLORS[doc.status], fontWeight: 700 }}>
                   {STATUS_LABELS[doc.status] || doc.status}

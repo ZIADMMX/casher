@@ -2088,7 +2088,9 @@ CREATE INDEX IF NOT EXISTS idx_recipe_items_ingredient ON recipe_items(ingredien
 -- طابور الفاتورة الإلكترونية (مصلحة الضرائب المصرية)
 CREATE TABLE IF NOT EXISTS einvoice_documents (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    sale_id INTEGER NOT NULL UNIQUE,
+    sale_id INTEGER NOT NULL,
+    -- 0 = مستند المبيعة نفسها. غير الصفر = مستند مرتجع (إشعار خصم / إيصال استرداد).
+    return_id INTEGER NOT NULL DEFAULT 0,
     internal_id TEXT NOT NULL,
     document_kind TEXT NOT NULL DEFAULT 'invoice' CHECK(document_kind IN ('invoice', 'receipt')),
     uuid TEXT,                           -- بصمة الإيصال الإلكتروني (SHA-256)
@@ -2108,5 +2110,7 @@ CREATE TABLE IF NOT EXISTS einvoice_documents (
 );
 CREATE INDEX IF NOT EXISTS idx_einvoice_status ON einvoice_documents(status);
 CREATE INDEX IF NOT EXISTS idx_einvoice_created ON einvoice_documents(created_at);
+-- idx_einvoice_doc_key بيتعمل في الترحيل زي idx_einvoice_kind: قاعدة قديمة عندها
+-- الجدول بغير return_id، وCREATE INDEX هنا كان هيفشل الإقلاع قبل ما الترحيل يشتغل.
 -- idx_einvoice_kind بيتعمل في الترحيل بعد إضافة العمود، لأن قواعد البيانات
 -- القديمة عندها الجدول بغير document_kind وCREATE INDEX هنا كان هيفشل الإقلاع.

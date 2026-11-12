@@ -43,6 +43,8 @@ describe('طابور الفاتورة الإلكترونية', () => {
   beforeAll(() => {
     const schema = fs.readFileSync(path.join(__dirname, '../../electron/database/schema.sql'), 'utf-8');
     mockDb.exec(schema);
+    // الفهارس والقيود اللي بتتعمل في الترحيل مش في schema.sql.
+    require('../../electron/database/migrations/einvoice').ensureEInvoice(mockDb);
     mockDb.prepare("INSERT INTO products (id, name) VALUES (1, 'صنف')").run();
     mockDb.prepare(`
       INSERT INTO product_variants (id, product_id, sku, purchase_price, selling_price, stock_quantity)

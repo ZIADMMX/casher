@@ -165,8 +165,11 @@ function prepareGrossLines(sale, config) {
  * يبني مستند فاتورة من عملية بيع.
  * @param {object} sale صف المبيعة ومعاه items (من sales.repository.getById)
  * @param {object} config إعدادات المنظومة (einvoice/config.js)
+ * @param {object} [options]
+ * @param {'I'|'C'} [options.documentType] I فاتورة · C إشعار خصم (مرتجع)
+ * @param {string[]|null} [options.references] uuid الفاتورة الأصلية عند المصلحة (لإشعار الخصم)
  */
-function buildInvoiceDocument(sale, config) {
+function buildInvoiceDocument(sale, config, { documentType = 'I', references = null } = {}) {
   const { grossLines, rate } = prepareGrossLines(sale, config);
   const lines = buildLines(grossLines, rate);
 
@@ -206,7 +209,7 @@ function buildInvoiceDocument(sale, config) {
       type: 'P',
       name: receiverName,
     },
-    documentType: 'I',
+    documentType,
     documentTypeVersion: '1.0',
     dateTimeIssued: toEtaDateTime(sale.created_at),
     taxpayerActivityCode: config.activityCode,
@@ -220,6 +223,9 @@ function buildInvoiceDocument(sale, config) {
     extraDiscountAmount: 0,
     totalItemsDiscountAmount: 0,
   };
+
+  // إشعار الخصم لازم يشاور على الفاتورة الأصلية، وإلا المصلحة بترفضه.
+  if (references && references.length > 0) document.references = references;
 
   return document;
 }
