@@ -104,6 +104,16 @@ describe('مستند الفاتورة الإلكترونية (ETA)', () => {
     expect(doc.internalID).toBe('INV-7');
   });
 
+  test('تاريخ معاه منطقة زمنية بيتحول لـ UTC مش بيتبهدل', () => {
+    const doc = buildInvoiceDocument(makeSale({ created_at: '2026-11-12T12:30:00+02:00' }), CONFIG);
+    expect(doc.dateTimeIssued).toBe('2026-11-12T10:30:00Z');
+  });
+
+  test('تاريخ غير صالح بيوقف المستند، ما بيتحطّش تاريخ النهارده مكانه', () => {
+    expect(() => buildInvoiceDocument(makeSale({ created_at: 'مش تاريخ' }), CONFIG))
+      .toThrow(/تاريخ الفاتورة غير صالح/);
+  });
+
   test('عميل عابر بغير اسم يتسجل مستهلك نهائي', () => {
     expect(buildInvoiceDocument(makeSale(), CONFIG).receiver.name).toBe('مستهلك نهائي');
   });

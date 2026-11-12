@@ -15,9 +15,20 @@ function round(value, digits = 2) {
 }
 
 function toEtaDateTime(value) {
-  const date = value ? new Date(String(value).replace(' ', 'T') + (String(value).endsWith('Z') ? '' : 'Z')) : new Date();
-  const safe = Number.isNaN(date.getTime()) ? new Date() : date;
-  return `${safe.toISOString().slice(0, 19)}Z`;
+  if (!value) return `${new Date().toISOString().slice(0, 19)}Z`;
+
+  // تواريخ SQLite بتيجي "YYYY-MM-DD HH:MM:SS" بتوقيت UTC من غير علامة منطقة،
+  // فبنضيف Z. لكن لو التاريخ جاي ومعاه منطقة زمنية بالفعل (+02:00) إضافة Z
+  // بتبوّظه، فبنفحص الأول.
+  const raw = String(value).trim();
+  const hasZone = /(?:Z|[+-]\d{2}:?\d{2})$/.test(raw);
+  const date = new Date(raw.replace(' ', 'T') + (hasZone ? '' : 'Z'));
+
+  // ما نخمّنش تاريخ: مستند ضريبي بتاريخ النهارده بدل تاريخ الفاتورة أسوأ بكتير
+  // من مستند ما اتبعتش، والتسجيل بيتوقف ويظهر الخطأ بدل ما يعدّي بالغلط.
+  if (Number.isNaN(date.getTime())) throw new Error(`تاريخ الفاتورة غير صالح: ${raw}`);
+
+  return `${date.toISOString().slice(0, 19)}Z`;
 }
 
 /**
@@ -187,6 +198,9 @@ function buildInvoiceDocument(sale, config) {
       id: config.taxNumber,
       name: config.issuerName,
     },
+    // shortcut: المشتري بياخد عنوان المحل لأن الكاشير ما بيسألش المستهلك على
+    // عنوانه. لما يتعمل بيع للشركات (receiver.type = 'B') لازم عنوان المشتري
+    // ورقمه الضريبي الحقيقيين، وساعتها ده بيتاخد من بيانات العميل مش من الإعدادات.
     receiver: {
       address: buildAddress(config.address),
       type: 'P',

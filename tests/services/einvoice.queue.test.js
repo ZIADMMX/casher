@@ -139,6 +139,17 @@ describe('طابور الفاتورة الإلكترونية', () => {
     expect(einvoiceRepo.getById(row.id).status).toBe('submitted');
   });
 
+  test('الفاتورة اللي مالهاش معرّف عند المصلحة ما بتتسألش عن حالتها', () => {
+    enableSystem();
+    const row = einvoice.enqueueSale(seedSale());
+    // المصلحة قبلت الدفعة بس ما رجّعتش uuid للمستند: الاستعلام بـ null بيفضل
+    // يفشل كل مرة من غير فايدة، فالصف ده بيتستنى بدل ما يتسأل عنه.
+    einvoiceRepo.markSubmitted(row.id, { submissionUuid: 'S1', documentUuid: null, longId: null });
+
+    expect(einvoiceRepo.listAwaitingStatus('invoice')).toEqual([]);
+    expect(einvoiceRepo.getById(row.id).status).toBe('submitted');
+  });
+
   test('سر البوابة ما بيخرجش للواجهة', () => {
     enableSystem({ clientId: 'abc', clientSecret: 'super-secret' });
     const config = einvoice.getConfig();

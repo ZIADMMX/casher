@@ -93,11 +93,15 @@ const EInvoiceRepository = {
     `).all(kind, limit);
   },
 
+  // كل نوع بيتسأل عنه بالمعرّف بتاعه: الفاتورة بـ document_uuid والإيصال بدفعته.
+  // الصف اللي مالوش المعرّف ده ما بيتسألش عنه أصلاً، وإلا الاستعلام بيروح
+  // للمصلحة بـ null ويفضل يفشل كل 5 دقايق من غير ما يتحرك.
   listAwaitingStatus(kind = 'invoice', limit = 20) {
+    const identifier = kind === 'receipt' ? 'submission_uuid' : 'document_uuid';
     return db.prepare(`
       SELECT * FROM einvoice_documents
       WHERE status = 'submitted' AND document_kind = ?
-        AND COALESCE(document_uuid, submission_uuid) IS NOT NULL
+        AND ${identifier} IS NOT NULL
       ORDER BY submitted_at ASC
       LIMIT ?
     `).all(kind, limit);
