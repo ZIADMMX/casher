@@ -233,6 +233,8 @@ describe('Performance, Concurrency & Load Stress Test Suite (اختبارات ا
         testVariant.stock_quantity
       );
 
+      // Flush the seed data's WAL now, so its ~500ms disk sync is not billed to the first sale.
+      mockCurrentDb.pragma('wal_checkpoint(TRUNCATE)');
       const startTime = performance.now();
 
       // 4.3 Execute 50 rapid sales

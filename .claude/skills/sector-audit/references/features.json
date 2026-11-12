@@ -1,0 +1,497 @@
+{
+  "retail": {
+    "name": "تجزئة وملابس",
+    "features": [
+      {
+        "title": "بيع POS بالباركود",
+        "pattern": "createSale",
+        "weight": 3
+      },
+      {
+        "title": "مقاسات وألوان (variants)",
+        "pattern": "product_variants|addProductWithVariant",
+        "weight": 2
+      },
+      {
+        "title": "مرتجعات واستبدال",
+        "pattern": "findSaleForReturn|processReturn",
+        "weight": 2
+      },
+      {
+        "title": "ورديات ودرج الكاش",
+        "pattern": "getCurrentOpenShift|getCurrentShift",
+        "weight": 2
+      },
+      {
+        "title": "عروض وباقات خصم",
+        "pattern": "getBestBundlePromotion|BundlePromotion",
+        "weight": 1
+      },
+      {
+        "title": "تحويل مخزون بين الفروع",
+        "pattern": "transferStock|transferInventoryStock",
+        "weight": 1
+      },
+      {
+        "title": "جرد فعلي ومطابقة",
+        "pattern": "countInventoryStock|stock_count|stocktake",
+        "weight": 1
+      },
+      {
+        "title": "طباعة ملصقات باركود",
+        "pattern": "barcode_label|printBarcodeLabel|printLabels",
+        "weight": 1
+      },
+      {
+        "title": "نقاط ولاء للعملاء",
+        "pattern": "loyalty_points|points_balance|redeemPoints",
+        "weight": 1
+      },
+      {
+        "title": "فاتورة إلكترونية (ETA)",
+        "pattern": "eta_uuid|submitToEta|etaReceipt|e_receipt",
+        "weight": 2
+      }
+    ]
+  },
+  "grocery": {
+    "name": "سوبر ماركت وبقالة",
+    "features": [
+      {
+        "title": "بيع POS سريع",
+        "pattern": "createSale",
+        "weight": 3
+      },
+      {
+        "title": "باركود الميزان",
+        "pattern": "scale_item|scaleBarcode",
+        "weight": 2
+      },
+      {
+        "title": "وحدات متعددة (كرتونة/علبة)",
+        "pattern": "conversion_factor",
+        "weight": 2
+      },
+      {
+        "title": "تشغيلات وصلاحية FIFO",
+        "pattern": "deductFifoBatch",
+        "weight": 2
+      },
+      {
+        "title": "تنبيه قرب انتهاء الصلاحية",
+        "pattern": "getExpiringBatches|getGroceryExpiringBatches|ExpiryManager",
+        "weight": 1
+      },
+      {
+        "title": "أزرار سريعة للأصناف",
+        "pattern": "speed_key|speedKey",
+        "weight": 1
+      },
+      {
+        "title": "مشتريات وموردين",
+        "pattern": "purchases\\.service|createPurchase",
+        "weight": 1
+      },
+      {
+        "title": "جرد فعلي ومطابقة",
+        "pattern": "countInventoryStock|stock_count|stocktake",
+        "weight": 1
+      },
+      {
+        "title": "فاتورة إلكترونية (ETA)",
+        "pattern": "eta_uuid|submitToEta|etaReceipt|e_receipt",
+        "weight": 2
+      }
+    ]
+  },
+  "cafe_restaurant": {
+    "name": "مطاعم وكافيهات",
+    "features": [
+      {
+        "title": "بيع POS وطلبات",
+        "pattern": "createSale",
+        "weight": 3
+      },
+      {
+        "title": "طاولات وتقسيم الحساب",
+        "pattern": "markItemsPaid|getOpenTableTab",
+        "weight": 2
+      },
+      {
+        "title": "شاشة المطبخ KDS",
+        "pattern": "kitchen_status|kitchenStatus",
+        "weight": 2
+      },
+      {
+        "title": "تذاكر مطبخ لكل محطة",
+        "pattern": "prep_station",
+        "weight": 1
+      },
+      {
+        "title": "إضافات على الصنف",
+        "pattern": "resolveModifiers|getAddonCatalog|ModifiersModal",
+        "weight": 2
+      },
+      {
+        "title": "وصفات وخصم المكونات",
+        "pattern": "getRecipe",
+        "weight": 2
+      },
+      {
+        "title": "دليفري ورسوم توصيل",
+        "pattern": "delivery_fee",
+        "weight": 1
+      },
+      {
+        "title": "حجز طاولات",
+        "pattern": "table_reservation|reserveTable|createReservation",
+        "weight": 1
+      },
+      {
+        "title": "ربط تطبيقات الدليفري",
+        "pattern": "talabat|elmenus|deliveryIntegration",
+        "weight": 1
+      },
+      {
+        "title": "فاتورة إلكترونية (ETA)",
+        "pattern": "eta_uuid|submitToEta|etaReceipt|e_receipt",
+        "weight": 2
+      }
+    ]
+  },
+  "electronics": {
+    "name": "إلكترونيات وتكنولوجيا",
+    "features": [
+      {
+        "title": "بيع POS",
+        "pattern": "createSale",
+        "weight": 3
+      },
+      {
+        "title": "بحث بالسيريال / IMEI",
+        "pattern": "serial_number",
+        "weight": 1
+      },
+      {
+        "title": "سيريال فريد لكل وحدة (يتباع مرة واحدة)",
+        "pattern": "product_serials|unit_serials|serial_status",
+        "weight": 3
+      },
+      {
+        "title": "شهادة ضمان على الفاتورة",
+        "pattern": "warranty_until|warranty_certificate|printWarranty",
+        "weight": 2
+      },
+      {
+        "title": "مطالبات الضمان",
+        "pattern": "warranty_claim",
+        "weight": 1
+      },
+      {
+        "title": "تقسيط",
+        "pattern": "sale_installment|installment_plan|InstallmentPlan",
+        "weight": 2
+      },
+      {
+        "title": "مرتجعات",
+        "pattern": "findSaleForReturn|processReturn",
+        "weight": 1
+      },
+      {
+        "title": "فاتورة إلكترونية (ETA)",
+        "pattern": "eta_uuid|submitToEta|etaReceipt|e_receipt",
+        "weight": 2
+      }
+    ]
+  },
+  "maintenance": {
+    "name": "ورش صيانة ومراكز خدمة",
+    "features": [
+      {
+        "title": "تذاكر صيانة بمراحل",
+        "pattern": "createWorkflowTicket",
+        "weight": 3
+      },
+      {
+        "title": "إيصال استلام الجهاز",
+        "pattern": "printTicketReceipt|intake_receipt|printIntake",
+        "weight": 2
+      },
+      {
+        "title": "تعيين فني",
+        "pattern": "assigned_role|assignTicket",
+        "weight": 1
+      },
+      {
+        "title": "خصم قطع الغيار من المخزون",
+        "pattern": "stock_deduct",
+        "weight": 2
+      },
+      {
+        "title": "إبلاغ العميل إن الجهاز جاهز",
+        "pattern": "ticketReadyWhatsApp|notifyCustomerReady|ready_notification",
+        "weight": 1
+      },
+      {
+        "title": "ضمان على الإصلاح",
+        "pattern": "repair_warranty",
+        "weight": 1
+      },
+      {
+        "title": "تحصيل فاتورة التذكرة في POS",
+        "pattern": "ticket_id|workflow_ticket_id",
+        "weight": 2
+      }
+    ]
+  },
+  "auto_workshop": {
+    "name": "ورش إصلاح السيارات",
+    "features": [
+      {
+        "title": "سجل سيارات العميل (لوحة/ماركة/موديل)",
+        "pattern": "vehicle_plate",
+        "weight": 3
+      },
+      {
+        "title": "أمر شغل (قطع + مصنعية)",
+        "pattern": "work_order|job_card",
+        "weight": 3
+      },
+      {
+        "title": "عداد الكيلومترات وتاريخ الخدمة",
+        "pattern": "odometer|mileage",
+        "weight": 1
+      },
+      {
+        "title": "تذكير بالصيانة الدورية",
+        "pattern": "next_service|service_reminder",
+        "weight": 1
+      },
+      {
+        "title": "خصم القطع من المخزون",
+        "pattern": "work_order_parts|jobCardParts",
+        "weight": 1
+      },
+      {
+        "title": "فاتورة إلكترونية (ETA)",
+        "pattern": "eta_uuid|submitToEta|etaReceipt|e_receipt",
+        "weight": 2
+      }
+    ]
+  },
+  "spare_parts": {
+    "name": "قطع غيار وسيارات",
+    "features": [
+      {
+        "title": "بيع POS",
+        "pattern": "createSale",
+        "weight": 3
+      },
+      {
+        "title": "بحث برقم OEM",
+        "pattern": "oem_number",
+        "weight": 2
+      },
+      {
+        "title": "توافق القطعة مع ماركة/موديل/سنة",
+        "pattern": "part_compatibility|fitment|compatible_models",
+        "weight": 3
+      },
+      {
+        "title": "قطع بديلة (cross-reference)",
+        "pattern": "cross_reference|alternative_parts",
+        "weight": 1
+      },
+      {
+        "title": "أسعار جملة وقطاعي",
+        "pattern": "price_tier|wholesale_price",
+        "weight": 2
+      },
+      {
+        "title": "فاتورة إلكترونية (ETA)",
+        "pattern": "eta_uuid|submitToEta|etaReceipt|e_receipt",
+        "weight": 2
+      }
+    ]
+  },
+  "subscriptions_gym": {
+    "name": "صالات رياضية وجيم",
+    "features": [
+      {
+        "title": "باقات واشتراكات",
+        "pattern": "subscribeCustomer",
+        "weight": 3
+      },
+      {
+        "title": "تجديد",
+        "pattern": "renewSubscription",
+        "weight": 2
+      },
+      {
+        "title": "تجميد الاشتراك",
+        "pattern": "freezeSubscription",
+        "weight": 1
+      },
+      {
+        "title": "حصص مدرب خاص (رصيد)",
+        "pattern": "consumeCredit",
+        "weight": 2
+      },
+      {
+        "title": "تنبيه قرب الانتهاء",
+        "pattern": "checkExpiringSubscriptions|getSubscriptionStats",
+        "weight": 1
+      },
+      {
+        "title": "تسجيل دخول العضو على البوابة",
+        "pattern": "member_checkin|memberCheckIn|gym_visits",
+        "weight": 3
+      },
+      {
+        "title": "سجل حضور العضو",
+        "pattern": "member_attendance|visit_history",
+        "weight": 1
+      },
+      {
+        "title": "تعيين مدرب",
+        "pattern": "trainer_id|assignTrainer",
+        "weight": 1
+      }
+    ]
+  },
+  "salon_barbershop": {
+    "name": "صالونات وحلاقة",
+    "features": [
+      {
+        "title": "الكراسي وحالتها",
+        "pattern": "seatCustomerOnChair|getAllSalonChairs",
+        "weight": 2
+      },
+      {
+        "title": "خدمات وأسعار",
+        "pattern": "salon_services|getAllSalonServices",
+        "weight": 2
+      },
+      {
+        "title": "مواعيد وحجز",
+        "pattern": "createAppointment",
+        "weight": 2
+      },
+      {
+        "title": "عمولات الحلاقين",
+        "pattern": "getStylistCommissionsSummary|getSalonStylistCommissions|getSalonBarbersWithStats",
+        "weight": 2
+      },
+      {
+        "title": "كوبونات",
+        "pattern": "applyCoupon",
+        "weight": 1
+      },
+      {
+        "title": "بقشيش (tips)",
+        "pattern": "getTipPoolSummary|TipPool",
+        "weight": 1
+      },
+      {
+        "title": "باقات جلسات",
+        "pattern": "subscribeCustomerToPackage|SalonPackage",
+        "weight": 1
+      },
+      {
+        "title": "تذكير واتساب بالميعاد",
+        "pattern": "generateWhatsAppReminderLink|getSalonWhatsAppReminderLink",
+        "weight": 1
+      }
+    ]
+  },
+  "law_firm": {
+    "name": "مكاتب محاماة واستشارات",
+    "features": [
+      {
+        "title": "ملفات القضايا",
+        "pattern": "getAllCases",
+        "weight": 3
+      },
+      {
+        "title": "المحاكم والدوائر",
+        "pattern": "getCourtsOverview|courts\\.service",
+        "weight": 2
+      },
+      {
+        "title": "الجلسات والرول اليومي",
+        "pattern": "DailyDocket|getDailyCourtDocket",
+        "weight": 2
+      },
+      {
+        "title": "مستندات القضية",
+        "pattern": "case_documents|getCaseDocuments",
+        "weight": 2
+      },
+      {
+        "title": "الأتعاب وإيصالات الدفع",
+        "pattern": "caseReceipt|printCaseFinancialReceipt",
+        "weight": 2
+      },
+      {
+        "title": "المواعيد والإجازات القضائية",
+        "pattern": "findHolidayConflicts|getAppointmentHolidayConflicts",
+        "weight": 1
+      },
+      {
+        "title": "تقارير المكتب",
+        "pattern": "getLegalCaseReport|getCasesSummaryStats",
+        "weight": 1
+      },
+      {
+        "title": "مواعيد الطعن والمدد القانونية",
+        "pattern": "appeal_deadline|statute_deadline|legal_deadline",
+        "weight": 2
+      }
+    ]
+  },
+  "crm": {
+    "name": "CRM مستقل",
+    "features": [
+      {
+        "title": "العملاء المحتملين (leads)",
+        "pattern": "crm_leads|getCRMLeads",
+        "weight": 2
+      },
+      {
+        "title": "خط الصفقات (pipeline)",
+        "pattern": "crm_opportunities|CRMOpportunit|PipelineStage",
+        "weight": 3
+      },
+      {
+        "title": "الأنشطة والمتابعات",
+        "pattern": "crm_activities|getCRMActivities",
+        "weight": 2
+      },
+      {
+        "title": "الشركات وتسلسلها",
+        "pattern": "buildTree|crm_companies",
+        "weight": 1
+      },
+      {
+        "title": "الأتمتة",
+        "pattern": "automation_rules|AutomationRule",
+        "weight": 1
+      },
+      {
+        "title": "حقول مخصصة",
+        "pattern": "custom_field|CRMCustomField",
+        "weight": 1
+      },
+      {
+        "title": "رسائل واتساب اليوم",
+        "pattern": "dailyMessages",
+        "weight": 1
+      },
+      {
+        "title": "تقارير CRM",
+        "pattern": "CRMReportsPage|getAllCRMOpportunities",
+        "weight": 1
+      }
+    ]
+  }
+}
