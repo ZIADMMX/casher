@@ -107,6 +107,7 @@ CREATE TABLE IF NOT EXISTS product_variants (
     selling_price REAL NOT NULL CHECK(selling_price >= 0),        -- سعر البيع
     stock_quantity REAL NOT NULL DEFAULT 0 CHECK(stock_quantity >= 0),
     low_stock_threshold REAL DEFAULT 5 CHECK(low_stock_threshold >= 0),  -- تنبيه لما الكمية توصل للرقم ده
+    eta_item_code TEXT,                 -- كود الصنف لدى مصلحة الضرائب (EGS/GS1)
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE RESTRICT
 );
@@ -2083,3 +2084,29 @@ CREATE TABLE IF NOT EXISTS recipe_items (
     CHECK (variant_id != ingredient_variant_id)
 );
 CREATE INDEX IF NOT EXISTS idx_recipe_items_ingredient ON recipe_items(ingredient_variant_id);
+
+-- طابور الفاتورة الإلكترونية (مصلحة الضرائب المصرية)
+CREATE TABLE IF NOT EXISTS einvoice_documents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sale_id INTEGER NOT NULL UNIQUE,
+    internal_id TEXT NOT NULL,
+    document_kind TEXT NOT NULL DEFAULT 'invoice' CHECK(document_kind IN ('invoice', 'receipt')),
+    uuid TEXT,                           -- بصمة الإيصال الإلكتروني (SHA-256)
+    previous_uuid TEXT,                  -- الإيصال السابق من نفس الجهاز (سلسلة الإيصالات)
+    status TEXT NOT NULL DEFAULT 'pending'
+      CHECK(status IN ('pending', 'submitted', 'valid', 'invalid', 'rejected', 'cancelled', 'failed')),
+    document_json TEXT NOT NULL,
+    submission_uuid TEXT,
+    document_uuid TEXT,
+    long_id TEXT,
+    error_message TEXT,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    submitted_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (sale_id) REFERENCES sales(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_einvoice_status ON einvoice_documents(status);
+CREATE INDEX IF NOT EXISTS idx_einvoice_created ON einvoice_documents(created_at);
+-- idx_einvoice_kind بيتعمل في الترحيل بعد إضافة العمود، لأن قواعد البيانات
+-- القديمة عندها الجدول بغير document_kind وCREATE INDEX هنا كان هيفشل الإقلاع.

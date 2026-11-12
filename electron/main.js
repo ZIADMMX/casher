@@ -140,6 +140,7 @@ const { registerSalonHandlers } = require('./handlers/salon.handler');
 const { registerCasesHandlers } = require('./handlers/cases.handler');
 const { registerCourtsHandlers } = require('./handlers/courts.handler');
 const { registerGroceryHandlers } = require('./handlers/grocery.handler');
+const { registerEInvoiceHandlers } = require('./handlers/einvoice.handler');
 const { registerAppHandlers } = require('./handlers/app.handler');
 const { registerRecoveryHandlers } = require('./handlers/recovery.handler');
 const recoveryService = require('./services/recovery.service');
@@ -380,6 +381,7 @@ app.whenReady().then(async () => {
   registerCasesHandlers();
   registerCourtsHandlers();
   registerGroceryHandlers();
+  registerEInvoiceHandlers();
   registerAppHandlers();
   registerRecoveryHandlers({ isAppUrl });
   registerReturnsHandlers();
@@ -429,6 +431,8 @@ app.whenReady().then(async () => {
   startSafeInterval('CourtSessionReminders', () => casesService.checkDueCourtSessionReminders(48), 60_000);
     startSafeInterval('LegalTaskReminders', () => casesService.checkDueCaseTaskReminders(), 60_000);
   startSafeInterval('DailyDatabaseBackup', () => autoBackupDaily(), 6 * 60 * 60 * 1000);
+  // الفاتورة الإلكترونية: ترسل المعلّق وتحدّث حالة المرسل. لا تعمل شيئًا قبل التفعيل.
+  startSafeInterval('EInvoiceSubmission', () => require('./services/einvoice').flush(), 5 * 60_000);
   configureUpdater();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

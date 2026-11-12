@@ -30,6 +30,7 @@ const RESOURCE_PERMISSIONS = {
   'courts': 'cases',
   'salon': 'pos',
   'grocery': 'pos',
+  'einvoice': 'settings',
   'promotions': 'promotions',
   'channels': 'channels',
   'ai': 'ai',

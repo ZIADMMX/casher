@@ -52,6 +52,7 @@ const { ensureSalesLedgerGuards, backfillSaleItemCosts } = require('./salesLedge
 const { ensureKitchenLedger } = require('./kitchenLedger');
 const { ensureDiningTables, allowSplitPayments } = require('./diningTables');
 const { ensureRecipes } = require('./recipes');
+const { ensureEInvoice } = require('./einvoice');
 const { ensureProductLedger } = require('./productLedger');
 const { ensureSyncMetadata, ensureDeleteTombstones } = require('./syncMetadata');
 const { addColumnIfMissing } = require('./helpers');
@@ -302,6 +303,20 @@ function runAllMigrations(dbInstance = db) {
     migrateLegalCaseTasks(dbInstance);
     dbInstance.pragma('user_version = 28');
     console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 28 (مواعيد الطعن والمدد القانونية).');
+  }
+
+  if (currentVersion < 29) {
+    // طابور الفاتورة الإلكترونية (مصلحة الضرائب) وكود الصنف لدى المصلحة.
+    ensureEInvoice(dbInstance);
+    dbInstance.pragma('user_version = 29');
+    console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 29 (الفاتورة الإلكترونية).');
+  }
+
+  if (currentVersion < 30) {
+    // الإيصال الإلكتروني: نوع المستند وسلسلة uuid على نفس الطابور.
+    ensureEInvoice(dbInstance);
+    dbInstance.pragma('user_version = 30');
+    console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 30 (الإيصال الإلكتروني).');
   }
 
   // Earlier steps may rebuild the sales tables; make sure the guards exist at the end.

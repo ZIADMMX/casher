@@ -86,6 +86,7 @@ function getById(saleId) {
       pv.color, 
       pv.barcode,
       pv.sku,
+      pv.eta_item_code,
       p.name as productName,
       p.id as productId
     FROM sale_items si

@@ -403,6 +403,16 @@ exportEmployees: () => ipcRenderer.invoke('export:employees'),
   createGrocerySpeedKey: (data) => ipcRenderer.invoke('grocery:createSpeedKey', data),
   deleteGrocerySpeedKey: (id) => ipcRenderer.invoke('grocery:deleteSpeedKey', id),
 
+  // Egyptian e-invoice (الفاتورة الإلكترونية - مصلحة الضرائب)
+  getEInvoiceConfig: () => ipcRenderer.invoke('einvoice:getConfig'),
+  saveEInvoiceConfig: (data) => ipcRenderer.invoke('einvoice:saveConfig', data),
+  getEInvoiceQueue: (filters) => ipcRenderer.invoke('einvoice:getQueue', filters),
+  previewEInvoiceDocument: (saleId) => ipcRenderer.invoke('einvoice:previewDocument', saleId),
+  submitPendingEInvoices: () => ipcRenderer.invoke('einvoice:submitPending'),
+  resubmitEInvoiceDocument: (id) => ipcRenderer.invoke('einvoice:resubmitDocument', id),
+  getEInvoiceItemCodes: (filters) => ipcRenderer.invoke('einvoice:getItemCodes', filters),
+  setEInvoiceItemCode: (variantId, code) => ipcRenderer.invoke('einvoice:setItemCode', { variantId, code }),
+
 
 
   // CRM & Customer Communications Center

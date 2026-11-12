@@ -46,6 +46,7 @@ const SECTION_MODULES = [
   [/^Branches, warehouses/, 'inventory'],
   [/^Screen Designer/, 'uiConfig'],
   [/^Onboarding/, 'onboarding'],
+  [/^Egyptian e-invoice/, 'einvoice'],
 ];
 
 // Reads the exposeInMainWorld('electronAPI', {...}) object and groups its keys by section.

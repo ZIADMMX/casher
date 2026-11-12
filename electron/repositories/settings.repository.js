@@ -22,6 +22,9 @@ const PROTECTED_KEYS = new Set([
   'license_server_trial_start',
   // Open admin-recovery challenge (electron/services/auth.service.js).
   'recovery_challenge',
+  // ETA e-invoice API secret (electron/services/einvoice/config.js): written and
+  // read only through the e-invoice screen, never echoed back to the renderer.
+  'eta_client_secret',
 ]);
 
 const SettingsRepository = {

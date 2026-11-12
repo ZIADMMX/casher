@@ -200,6 +200,7 @@ exports[`System Snapshot Tests (اختبارات اللقطات والقوالب
   "customer_subscriptions",
   "customers",
   "dining_tables",
+  "einvoice_documents",
   "grocery_speed_keys",
   "inventory_count_items",
   "inventory_counts",

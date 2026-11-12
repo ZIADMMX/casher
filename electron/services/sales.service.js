@@ -327,6 +327,10 @@ function createSale({
     const saleId = runTransaction();
     productsCache.refreshStockFromDatabase();
 
+    // الفاتورة الإلكترونية: تتسجل في الطابور وتتبعت للمصلحة في الخلفية.
+    // لا ترمي للخارج — عطل المنظومة أو النت ما ينفعش يوقف البيع.
+    require('./einvoice').enqueueSale(saleId);
+
     // تسجيل حركة البيع في سجل تدقيق الكاشير
     try {
       const auditService = require('./audit.service');
