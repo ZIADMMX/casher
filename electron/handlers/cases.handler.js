@@ -83,6 +83,14 @@ function registerCasesHandlers() {
     return casesService.deleteCustomerPowerOfAttorney(id);
   });
 
+  safeHandle('cases:recordSessionOutcome', (event, payload) => {
+    return casesService.recordSessionOutcome(payload?.sessionId, payload?.data, authService.getCurrentSession());
+  });
+
+  safeHandle('cases:getLegalClientsOverview', (event, date) => {
+    return casesService.getLegalClientsOverview(date);
+  });
+
   safeHandle('cases:getLawFirmDashboard', (event, date) => {
     return casesService.getLawFirmDashboard(date);
   });

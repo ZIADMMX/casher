@@ -233,6 +233,19 @@ function deleteCustomerPowerOfAttorney(id) {
   return { success: true };
 }
 
+function getLegalClientsOverview(date) {
+  const now = new Date();
+  const targetDate = date || [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, '0'),
+    String(now.getDate()).padStart(2, '0'),
+  ].join('-');
+  if (!isValidDate(targetDate)) {
+    throw new Error('تاريخ قائمة الموكلين غير صالح');
+  }
+  return casesRepo.getLegalClientsOverview(targetDate);
+}
+
 function getLawFirmDashboard(date) {
   const now = new Date();
   const targetDate = date || [
@@ -293,6 +306,72 @@ function createSession(data) {
 function updateSession(id, data) {
   if (!id) throw new Error('معرف الجلسة مطلوب');
   return casesRepo.updateSession(id, data);
+}
+
+const SESSION_OUTCOMES = {
+  postponed: { label: 'تأجيل', status: 'postponed', needsNextDate: true },
+  not_held: { label: 'لم تنعقد', status: 'postponed', needsNextDate: true },
+  verdict_reserved: { label: 'حجز للحكم', status: 'attended', needsNextDate: true },
+  pleaded: { label: 'مرافعة تمت', status: 'attended', needsNextDate: false },
+  struck: { label: 'شطب', status: 'attended', needsNextDate: false },
+  judged: { label: 'صدور حكم', status: 'judged', needsNextDate: false },
+};
+
+const SESSION_EXPENSE_TYPES = ['court_fee', 'expert_fee', 'announcement_fee', 'other_expense'];
+
+function recordSessionOutcome(sessionId, data = {}, userSession = {}) {
+  if (!Number.isSafeInteger(Number(sessionId)) || Number(sessionId) <= 0) {
+    throw new Error('معرف الجلسة غير صالح');
+  }
+  const outcome = Object.hasOwn(SESSION_OUTCOMES, data.outcome) ? SESSION_OUTCOMES[data.outcome] : null;
+  if (!outcome) throw new Error('نتيجة الجلسة غير صحيحة');
+
+  const nextDate = typeof data.next_session_date === 'string' ? data.next_session_date.trim() : '';
+  if (outcome.needsNextDate && !nextDate) {
+    throw new Error('تاريخ الجلسة القادمة مطلوب');
+  }
+  if (nextDate && !isValidDate(nextDate.slice(0, 10))) {
+    throw new Error('تاريخ الجلسة القادمة غير صالح');
+  }
+
+  const preparation = typeof data.preparation === 'string' ? data.preparation.trim() : '';
+  if (preparation && !nextDate) {
+    throw new Error('المطلوب تجهيزه يحتاج تاريخ جلسة قادمة');
+  }
+
+  const summary = typeof data.decision === 'string' ? data.decision.trim() : '';
+  const reason = typeof data.next_session_reason === 'string' ? data.next_session_reason.trim() : '';
+
+  const expenses = (Array.isArray(data.expenses) ? data.expenses : [])
+    .filter((expense) => Number(expense?.amount) > 0)
+    .map((expense) => {
+      const type = SESSION_EXPENSE_TYPES.includes(expense.type) ? expense.type : 'other_expense';
+      if (!Number.isFinite(Number(expense.amount))) throw new Error('مبلغ المصروف غير صالح');
+      return {
+        type,
+        amount: Number(expense.amount),
+        description: typeof expense.description === 'string' ? expense.description.trim() || null : null,
+        paid_by_client: expense.paid_by_client ? 1 : 0,
+      };
+    });
+
+  return casesRepo.recordOutcome(Number(sessionId), {
+    status: outcome.status,
+    decision: summary ? `${outcome.label} — ${summary}` : outcome.label,
+    next_session_date: nextDate || null,
+    next_session_reason: reason || null,
+    preparation: preparation || null,
+    preparation_due_at: preparation ? preparationDueDate(nextDate) : null,
+    expenses,
+    user_id: userSession?.id || null,
+  });
+}
+
+// Two days before the hearing, so the task shows up on the day page in time.
+function preparationDueDate(nextSessionDate) {
+  const due = new Date(`${nextSessionDate.slice(0, 10)}T09:00:00`);
+  due.setDate(due.getDate() - 2);
+  return due.toISOString();
 }
 
 function deleteSession(id) {
@@ -650,6 +729,7 @@ module.exports = {
   createCustomerPowerOfAttorney,
   updateCustomerPowerOfAttorney,
   deleteCustomerPowerOfAttorney,
+  getLegalClientsOverview,
   getLawFirmDashboard,
   getSessionsByCaseId,
   getAllUpcomingSessions,
@@ -657,6 +737,7 @@ module.exports = {
   createSession,
   updateSession,
   deleteSession,
+  recordSessionOutcome,
   getDailyDocket,
   checkDueCourtSessionReminders,
   getTasksByCaseId,

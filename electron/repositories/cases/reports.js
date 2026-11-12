@@ -207,9 +207,51 @@ function getCaseFinancialBreakdown(caseId) {
   };
 }
 
+// One row per law-firm client: cases, fees, latest power of attorney and last contact.
+function getLegalClientsOverview(targetDate) {
+  const clients = db.prepare(`
+    SELECT
+      c.id, c.name, c.phone, c.email, c.created_at,
+      (SELECT COUNT(*) FROM legal_cases lc WHERE lc.client_id = c.id) AS cases_count,
+      (SELECT COUNT(*) FROM legal_cases lc WHERE lc.client_id = c.id
+        AND lc.status IN ('active', 'adjourned')) AS active_cases,
+      (SELECT lc.case_type FROM legal_cases lc WHERE lc.client_id = c.id
+        GROUP BY lc.case_type ORDER BY COUNT(*) DESC LIMIT 1) AS main_case_type,
+      (SELECT COALESCE(SUM(lc.contract_amount), 0) FROM legal_cases lc
+        WHERE lc.client_id = c.id) AS contract_total,
+      (SELECT COALESCE(SUM(lc.paid_amount), 0) FROM legal_cases lc
+        WHERE lc.client_id = c.id) AS paid_total,
+      (SELECT COALESCE(SUM(MAX(lc.contract_amount - lc.paid_amount, 0)), 0) FROM legal_cases lc
+        WHERE lc.client_id = c.id AND lc.status IN ('active', 'adjourned')) AS outstanding_fees,
+      (SELECT MAX(i.created_at) FROM legal_client_interactions i
+        WHERE i.customer_id = c.id) AS last_contact_at,
+      (SELECT COUNT(*) FROM customer_power_of_attorneys p WHERE p.customer_id = c.id) AS powers_count,
+      (SELECT p.number FROM customer_power_of_attorneys p WHERE p.customer_id = c.id
+        ORDER BY (p.expires_at IS NULL) DESC, p.expires_at DESC, p.id DESC LIMIT 1) AS poa_number,
+      (SELECT p.scope FROM customer_power_of_attorneys p WHERE p.customer_id = c.id
+        ORDER BY (p.expires_at IS NULL) DESC, p.expires_at DESC, p.id DESC LIMIT 1) AS poa_scope,
+      (SELECT p.expires_at FROM customer_power_of_attorneys p WHERE p.customer_id = c.id
+        ORDER BY (p.expires_at IS NULL) DESC, p.expires_at DESC, p.id DESC LIMIT 1) AS poa_expires_at
+    FROM customers c
+    WHERE c.is_active = 1
+    ORDER BY c.created_at DESC, c.id DESC
+  `).all();
+
+  const followUps = db.prepare(`
+    SELECT i.id, i.customer_id, i.type, i.subject, i.follow_up_date, c.name AS client_name
+    FROM legal_client_interactions i
+    JOIN customers c ON c.id = i.customer_id
+    WHERE date(i.follow_up_date) = date(?) AND c.is_active = 1
+    ORDER BY i.id ASC
+  `).all(targetDate);
+
+  return { date: targetDate, clients, followUps };
+}
+
 module.exports = {
   getDailyDocket,
   getLawFirmDashboard,
+  getLegalClientsOverview,
   getLawFirmReport,
   getCaseFinancialBreakdown,
 };

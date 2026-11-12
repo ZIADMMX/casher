@@ -17,6 +17,7 @@ const {
   createSession,
   updateSession,
   deleteSession,
+  recordOutcome,
   getDueCourtSessionReminders,
   markSessionReminderSent,
   claimSessionReminder,
@@ -36,6 +37,7 @@ const {
 const {
   getDailyDocket,
   getLawFirmDashboard,
+  getLegalClientsOverview,
   getLawFirmReport,
   getCaseFinancialBreakdown,
 } = require('./cases/reports');
@@ -78,6 +80,7 @@ module.exports = {
   createSession,
   updateSession,
   deleteSession,
+  recordOutcome,
   getTasksByCaseId,
   getTaskById,
   createTask,
@@ -89,6 +92,7 @@ module.exports = {
   releaseCaseTaskReminder,
   getDailyDocket,
   getLawFirmDashboard,
+  getLegalClientsOverview,
   getLawFirmReport,
   getDueCourtSessionReminders,
   markSessionReminderSent,

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as legalApi from '../../api/legal.js';
+import SessionOutcomeModal from './SessionOutcomeModal.jsx';
 import '../../styles/lawFirmDashboard.css';
 
 function getLocalDateString(date = new Date()) {
@@ -121,7 +122,7 @@ function MetricCard({ icon, label, value, note, tone, onClick, active = false })
   );
 }
 
-function SessionRow({ session, onOpenCase, onMarkAttended, saving }) {
+function SessionRow({ session, onOpenCase, onRecord }) {
   const isScheduled = session.status === 'scheduled';
   return (
     <article className="law-dashboard-session">
@@ -133,9 +134,9 @@ function SessionRow({ session, onOpenCase, onMarkAttended, saving }) {
       <div className="law-session-actions">
         <span className="law-session-lawyer">{session.assigned_lawyer_name || 'لم يُعيّن محامٍ'}</span>
         {isScheduled ? (
-          <button type="button" className="law-session-attend" onClick={() => onMarkAttended(session)} disabled={saving}>
+          <button type="button" className="law-session-attend" onClick={() => onRecord(session)}>
             <LegalIcon name="check" size={15} />
-            {saving ? 'جارٍ الحفظ' : 'تم الحضور'}
+            تسجيل الإجراء
           </button>
         ) : <span className={`law-session-status law-session-status-${session.status}`}>{session.status === 'attended' ? 'تم الحضور' : session.status}</span>}
       </div>
@@ -164,7 +165,7 @@ export default function LawFirmTodayPage({ onNavigate }) {
   const [selectedDate, setSelectedDate] = useState(getLocalDateString);
   const [agendaView, setAgendaView] = useState('today');
   const [sessionSearch, setSessionSearch] = useState('');
-  const [savingSessionId, setSavingSessionId] = useState(null);
+  const [outcomeSession, setOutcomeSession] = useState(null);
   const [actionError, setActionError] = useState('');
   const dashboardRequestId = useRef(0);
 
@@ -235,18 +236,6 @@ export default function LawFirmTodayPage({ onNavigate }) {
     session.assigned_lawyer_name,
   ].some((value) => String(value || '').toLocaleLowerCase().includes(term)));
 
-  async function markSessionAttended(session) {
-    setSavingSessionId(session.id);
-    setActionError('');
-    try {
-      await legalApi.updateCourtSession(session.id, { status: 'attended' });
-      await loadDashboard();
-    } catch (actionFailure) {
-      setActionError(actionFailure instanceof Error ? actionFailure.message : 'تعذر تحديث حالة الجلسة');
-    } finally {
-      setSavingSessionId(null);
-    }
-  }
 
   function openCase(caseId) {
     onNavigate('cases', { caseId });
@@ -366,8 +355,7 @@ export default function LawFirmTodayPage({ onNavigate }) {
                   key={session.id}
                   session={session}
                   onOpenCase={() => openCase(session.case_id)}
-                  onMarkAttended={markSessionAttended}
-                  saving={savingSessionId === session.id}
+                  onRecord={setOutcomeSession}
                 />
               ))}
             </div>
@@ -396,8 +384,7 @@ export default function LawFirmTodayPage({ onNavigate }) {
                   key={session.id}
                   session={session}
                   onOpenCase={() => openCase(session.case_id)}
-                  onMarkAttended={markSessionAttended}
-                  saving={savingSessionId === session.id}
+                  onRecord={setOutcomeSession}
                 />
               ))}
             </div>
@@ -474,6 +461,18 @@ export default function LawFirmTodayPage({ onNavigate }) {
           <div className="law-dashboard-empty law-dashboard-empty-compact">لا توجد حركات مالية للقضايا اليوم.</div>
         )}
       </section>
+
+      {outcomeSession && (
+        <SessionOutcomeModal
+          session={outcomeSession}
+          onClose={() => setOutcomeSession(null)}
+          onSaved={() => {
+            setOutcomeSession(null);
+            setActionError('');
+            loadDashboard();
+          }}
+        />
+      )}
     </main>
   );
 }

@@ -1,5 +1,6 @@
 import { Fragment, useState, useEffect, useCallback } from 'react';
 import * as legalApi from '../../api/legal.js';
+import SessionOutcomeModal from './SessionOutcomeModal.jsx';
 
 const LEGAL_ICON_PATHS = {
   scale: <><path d="M12 3v18M5 7h14M5 7l-3 6h6L5 7Zm14 0-3 6h6l-3-6ZM8 21h8" /></>,
@@ -8,6 +9,7 @@ const LEGAL_ICON_PATHS = {
   file: <><path d="M4 6a2 2 0 0 1 2-2h5l2 2h5a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6Z" /><path d="M4 10h16" /></>,
   wallet: <><path d="M4 6.5A2.5 2.5 0 0 1 6.5 4H20v16H6.5A2.5 2.5 0 0 1 4 17.5v-11Z" /><path d="M4 7h13a3 3 0 0 1 3 3v1h-5a2 2 0 0 0 0 4h5v2" /></>,
   clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
+  bell: <><path d="M18 9a6 6 0 1 0-12 0c0 5-2 6-2 6h16s-2-1-2-6" /><path d="M13.7 19a2 2 0 0 1-3.4 0" /></>,
 };
 
 function LegalIcon({ name, size = 17 }) {
@@ -142,6 +144,7 @@ export default function CaseDetailsModal({ caseId, initialTab = 'details', onClo
 
   // Forms states for sub-items
   const [showAddSession, setShowAddSession] = useState(false);
+  const [outcomeSession, setOutcomeSession] = useState(null);
   const [editingSessionId, setEditingSessionId] = useState(null);
   const [sessionForm, setSessionForm] = useState({
     session_date: '',
@@ -837,7 +840,7 @@ export default function CaseDetailsModal({ caseId, initialTab = 'details', onClo
                         <div className="session-meta">
                           <span><LegalIcon name="court" /> القاعة: <strong>{sess.court_room || 'غير محدد'}</strong></span>
                           <span><LegalIcon name="scale" /> المحامي الحاضر: <strong>{sess.assigned_lawyer_name || 'غير محدد'}</strong></span>
-                          <span>🔔 التنبيه: <strong>{sess.reminder_sent ? 'تم الإرسال ✓' : 'مجدول'}</strong></span>
+                          <span><LegalIcon name="bell" /> التنبيه: <strong>{sess.reminder_sent ? 'تم الإرسال' : 'مجدول'}</strong></span>
                         </div>
                         {sess.session_reason && (
                           <div className="session-reason-box">
@@ -849,14 +852,20 @@ export default function CaseDetailsModal({ caseId, initialTab = 'details', onClo
                             قرار المحكمة: {sess.decision}
                           </div>
                         )}
+                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '10px' }}>
+                          {sess.status === 'scheduled' && (
+                            <button type="button" className="btn-primary-legal" onClick={() => setOutcomeSession(sess)}>
+                              تسجيل إجراء الجلسة
+                            </button>
+                          )}
                         <button
                           type="button"
                           className="btn-icon-action"
-                          style={{ marginTop: '10px' }}
                           onClick={() => openTaskForm(null, sess)}
                         >
                           {sess.decision ? 'تحويل القرار لمهمة متابعة' : 'إنشاء مهمة متابعة للجلسة'}
                         </button>
+                        </div>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <span className={`status-badge ${sess.status}`}>{SESSION_STATUS_LABELS[sess.status] || sess.status}</span>
@@ -1633,6 +1642,18 @@ export default function CaseDetailsModal({ caseId, initialTab = 'details', onClo
         <div className="legal-modal-footer">
           <button type="button" className="btn-secondary-legal" onClick={onClose}>إغلاق</button>
         </div>
+
+        {outcomeSession && (
+          <SessionOutcomeModal
+            session={{ ...outcomeSession, case_number: caseData?.case_number, court_name: caseData?.court_name, client_name: caseData?.client_name }}
+            onClose={() => setOutcomeSession(null)}
+            onSaved={() => {
+              setOutcomeSession(null);
+              loadCaseDetails();
+              onRefreshList?.();
+            }}
+          />
+        )}
       </div>
     </div>
   );

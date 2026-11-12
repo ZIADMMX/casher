@@ -1,5 +1,8 @@
 // Court sessions and their reminders.
 const { db } = require('../../database/db');
+const { createTask } = require('./tasks');
+const { createFinancial } = require('./financials');
+const legalClientInteractionsRepo = require('../legalClientInteractions.repository');
 
 function getSessionsByCaseId(caseId) {
   return db.prepare(`
@@ -202,6 +205,73 @@ function releaseSessionReminder(sessionId) {
   `).run(sessionId);
 }
 
+// Records what happened in one hearing: the outcome itself, the next hearing it was
+// adjourned to, the task to prepare for it and the expenses paid in court - all or nothing.
+function recordOutcome(sessionId, data) {
+  const run = db.transaction(() => {
+    const session = getSessionById(sessionId);
+    if (!session) throw new Error('الجلسة غير موجودة');
+
+    updateSession(sessionId, {
+      status: data.status,
+      // the six outcomes do not fit the four session statuses, so the label leads the decision text
+      decision: data.decision,
+      next_session_date: data.next_session_date || null,
+    });
+
+    let nextSession = null;
+    if (data.next_session_date) {
+      nextSession = createSession({
+        case_id: session.case_id,
+        session_date: data.next_session_date,
+        court_room: session.court_room,
+        assigned_lawyer_id: session.assigned_lawyer_id,
+        session_reason: data.next_session_reason || null,
+        status: 'scheduled',
+      });
+    }
+
+    if (data.preparation) {
+      createTask({
+        case_id: session.case_id,
+        session_id: nextSession ? nextSession.id : sessionId,
+        title: data.preparation,
+        due_at: data.preparation_due_at,
+        assigned_lawyer_id: session.assigned_lawyer_id,
+        priority: 'high',
+        created_by: data.user_id || null,
+      });
+    }
+
+    for (const expense of data.expenses || []) {
+      createFinancial({
+        case_id: session.case_id,
+        type: expense.type,
+        amount: expense.amount,
+        description: expense.description || null,
+        paid_by_client: expense.paid_by_client,
+        user_id: data.user_id || null,
+      });
+    }
+
+    const clientId = db.prepare('SELECT client_id FROM legal_cases WHERE id = ?').get(session.case_id)?.client_id;
+    if (clientId) {
+      legalClientInteractionsRepo.create({
+        customer_id: clientId,
+        created_by: data.user_id || null,
+        type: 'note',
+        subject: `جلسة ${session.case_number || session.case_id}: ${data.decision}`,
+        details: data.next_session_date
+          ? `الجلسة القادمة: ${String(data.next_session_date).slice(0, 10)}${data.next_session_reason ? ` — ${data.next_session_reason}` : ''}`
+          : null,
+      });
+    }
+
+    return { session: getSessionById(sessionId), nextSession };
+  });
+  return run();
+}
+
 module.exports = {
   getSessionsByCaseId,
   getAllUpcomingSessions,
@@ -209,6 +279,7 @@ module.exports = {
   createSession,
   updateSession,
   deleteSession,
+  recordOutcome,
   getDueCourtSessionReminders,
   markSessionReminderSent,
   claimSessionReminder,

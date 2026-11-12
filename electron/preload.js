@@ -347,6 +347,8 @@ exportEmployees: () => ipcRenderer.invoke('export:employees'),
   createCustomerPowerOfAttorney: (customerId, data) => ipcRenderer.invoke('cases:createCustomerPowerOfAttorney', { customerId, data }),
   updateCustomerPowerOfAttorney: (id, data) => ipcRenderer.invoke('cases:updateCustomerPowerOfAttorney', { id, data }),
   deleteCustomerPowerOfAttorney: (id) => ipcRenderer.invoke('cases:deleteCustomerPowerOfAttorney', id),
+  recordSessionOutcome: (sessionId, data) => ipcRenderer.invoke('cases:recordSessionOutcome', { sessionId, data }),
+  getLegalClientsOverview: (date) => ipcRenderer.invoke('cases:getLegalClientsOverview', date),
   getLawFirmDashboard: (date) => ipcRenderer.invoke('cases:getLawFirmDashboard', date),
 
   getCaseSessions: (caseId) => ipcRenderer.invoke('cases:getSessionsByCaseId', caseId),

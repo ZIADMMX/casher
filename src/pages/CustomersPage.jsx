@@ -9,6 +9,9 @@ import { useBusinessProfile } from '../contexts/BusinessProfileContext.jsx';
 import { useSettings } from '../contexts/SettingsContext.jsx';
 import Toast from '../components/ui/Toast.jsx';
 import LegalClientDetailsModal from '../components/legal/LegalClientDetailsModal.jsx';
+import LegalClientsWorkspace from '../components/legal/LegalClientsWorkspace.jsx';
+import LegalIcon from '../components/legal/LegalIcon.jsx';
+import LegalPageHero from '../components/legal/LegalPageHero.jsx';
 import * as crmApi from '../api/crm.js';
 import * as importExportApi from '../api/importExport.js';
 import CRMHeader from '../components/crm/CRMHeader.jsx';
@@ -300,7 +303,7 @@ function CustomersPage({ crmMode = false, crmTabs = null, onNavigate, startWithF
   };
 
   return (
-    <div className="customers-page-container">
+    <div className={isLawFirm ? 'customers-page-container legal-clients-page' : 'customers-page-container'}>
       {toast && (
         <Toast
           key={toast.id}
@@ -334,6 +337,30 @@ function CustomersPage({ crmMode = false, crmTabs = null, onNavigate, startWithF
           </CRMHeader>
           {crmTabs}
         </>
+      ) : isLawFirm ? (
+      <LegalPageHero
+        icon="users"
+        eyebrow="قاعدة عملاء المكتب"
+        title="الموكلون وملفاتهم القانونية"
+        subtitle="بيانات الموكلين، قضاياهم، سجل التواصل، والتوكيلات ومواعيد انتهائها."
+      >
+        {isAdmin && (
+          <>
+            <button type="button" className="legal-hero-btn" onClick={() => setShowImportModal(true)} title="استيراد موكلين من ملف Excel">
+              <LegalIcon name="sheet" size={17} />
+              استيراد من Excel
+            </button>
+            <button type="button" className="legal-hero-btn" onClick={handleExport} title="تصدير بيانات الموكلين إلى Excel">
+              <LegalIcon name="upload" size={17} />
+              تصدير البيانات
+            </button>
+          </>
+        )}
+        <button type="button" className="legal-hero-btn legal-hero-btn--primary" onClick={() => setShowForm((v) => !v)}>
+          <LegalIcon name={showForm ? 'chevronRight' : 'userPlus'} size={17} />
+          {showForm ? 'إغلاق النموذج' : 'إضافة موكل جديد'}
+        </button>
+      </LegalPageHero>
       ) : (
       <div className="page-header-row">
         <div>
@@ -539,7 +566,9 @@ function CustomersPage({ crmMode = false, crmTabs = null, onNavigate, startWithF
             <form className="fox-form-card reports-fade-in" style={{ marginBottom: '25px' }} onSubmit={handleSubmit}>
               <div className="fox-form-card-header">
                 <div className="form-card-title-group">
-                  <span className="form-title-badge">{isLawFirm ? '⚖️ إضافة موكل' : '➕ إضافة عميل'}</span>
+                  <span className="form-title-badge">
+                    {isLawFirm ? <><LegalIcon name="scale" size={14} /> إضافة موكل</> : '➕ إضافة عميل'}
+                  </span>
                   <h3 className="form-card-title">{isLawFirm ? 'إضافة موكل جديد' : 'إضافة عميل جديد'}</h3>
                 </div>
                 <button type="button" className="form-close-btn" onClick={() => setShowForm(false)}>✕ إغلاق</button>
@@ -679,8 +708,10 @@ function CustomersPage({ crmMode = false, crmTabs = null, onNavigate, startWithF
               </div>
               
               <div className="form-actions-footer" style={{ padding: '0 20px 20px', display: 'flex', gap: '10px' }}>
-                <button type="submit" className="primary-btn">{isLawFirm ? 'حفظ الموكل' : 'حفظ العميل'}</button>
-                <button type="button" className="secondary-btn" onClick={() => setShowForm(false)}>إلغاء</button>
+                <button type="submit" className={isLawFirm ? 'legal-hero-btn legal-hero-btn--primary' : 'primary-btn'}>
+                  {isLawFirm ? 'حفظ الموكل' : 'حفظ العميل'}
+                </button>
+                <button type="button" className={isLawFirm ? 'legal-hero-btn' : 'secondary-btn'} onClick={() => setShowForm(false)}>إلغاء</button>
               </div>
             </form>
           )}
@@ -698,6 +729,11 @@ function CustomersPage({ crmMode = false, crmTabs = null, onNavigate, startWithF
               onOpen360={setSelectedTimelineCustomer}
               onAdd={() => setShowForm(true)}
               onImport={isAdmin ? () => setShowImportModal(true) : null}
+            />
+          ) : isLawFirm ? (
+            <LegalClientsWorkspace
+              refreshKey={customers.length}
+              onOpenClient={setSelectedLegalClient}
             />
           ) : (
           <>

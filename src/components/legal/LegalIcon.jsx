@@ -14,6 +14,52 @@ const PATHS = {
   chevronLeft: <><path d="m15 6-6 6 6 6" /></>,
   cash: <><rect x="3" y="6" width="18" height="12" rx="2" /><circle cx="12" cy="12" r="2.5" /><path d="M6 9v.01M18 15v.01" /></>,
   info: <><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></>,
+  users: <>
+    <circle cx="9" cy="8" r="3.4" />
+    <path d="M3 20a6 6 0 0 1 12 0" />
+    <path d="M16.4 5.4a3.4 3.4 0 0 1 0 5.9M17.2 14.8A6 6 0 0 1 21 20" />
+  </>,
+  userPlus: <>
+    <circle cx="10" cy="8" r="3.6" />
+    <path d="M3.5 20a6.5 6.5 0 0 1 13 0" />
+    <path d="M18.5 6.5v5M16 9h5" />
+  </>,
+  search: <><circle cx="11" cy="11" r="6.5" /><path d="m16 16 4.5 4.5" /></>,
+  certificate: <>
+    <rect x="3.5" y="3" width="13" height="13" rx="2" />
+    <path d="M7 7.5h6M7 11h4" />
+    <circle cx="16.5" cy="16.5" r="3.2" />
+    <path d="m14.6 19.1-.9 3 2.8-1.4 2.8 1.4-.9-3" />
+  </>,
+  coins: <>
+    <ellipse cx="8.5" cy="6.5" rx="5" ry="2.4" />
+    <path d="M3.5 6.5v4.3c0 1.3 2.2 2.4 5 2.4" />
+    <ellipse cx="15.5" cy="14.2" rx="5" ry="2.4" />
+    <path d="M10.5 14.2v4.3c0 1.3 2.2 2.4 5 2.4s5-1.1 5-2.4v-4.3" />
+  </>,
+  trend: <><path d="M3 17.5 9.5 11l4 4L21 7.5" /><path d="M15 7.5h6v6" /></>,
+  sheet: <>
+    <rect x="3.5" y="3" width="17" height="18" rx="2" />
+    <path d="M9 3v18M3.5 9.5h17M3.5 15h17" />
+  </>,
+  upload: <>
+    <path d="M12 15.5V4M8.5 7.5 12 4l3.5 3.5" />
+    <path d="M4 15v3.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V15" />
+  </>,
+  download: <>
+    <path d="M12 4v11.5M8.5 12 12 15.5 15.5 12" />
+    <path d="M4 15v3.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V15" />
+  </>,
+  bell: <>
+    <path d="M18 9a6 6 0 1 0-12 0c0 5-2 6-2 6h16s-2-1-2-6" />
+    <path d="M13.7 19a2 2 0 0 1-3.4 0" />
+  </>,
+  gavel: <>
+    <path d="m3.5 20.5 6.2-6.2M2.5 22h8" />
+    <path d="m10.8 13 3.4-3.4" />
+    <path d="m12.6 5.9 5.5 5.5-2.3 2.3-5.5-5.5z" />
+    <path d="m16.4 2.1 5.5 5.5-2 2-5.5-5.5z" />
+  </>,
 };
 
 export default function LegalIcon({ name, size = 18 }) {
