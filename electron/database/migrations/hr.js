@@ -197,7 +197,17 @@ function migrateCommissionsTables() {
   console.log('تم التحقق من جداول العمولات والحوافز (commissions)');
 }
 
+// Payroll rules: advances paid back in monthly installments, a fixed transport
+// allowance per employee, and the payment date/method chosen for each payroll.
+function migratePayrollRules(database = db) {
+  addColumnIfMissing('salary_advances', 'installments', 'INTEGER NOT NULL DEFAULT 1 CHECK(installments >= 1)', database);
+  addColumnIfMissing('users', 'transport_allowance', 'REAL NOT NULL DEFAULT 0 CHECK(transport_allowance >= 0)', database);
+  addColumnIfMissing('payroll_periods', 'payment_date', 'TEXT', database);
+  addColumnIfMissing('payroll_periods', 'payment_method', 'TEXT', database);
+}
+
 module.exports = {
+  migratePayrollRules,
   migrateReviewsTables,
   migrateLeaveRequestsTable,
   migrateShiftsTable,

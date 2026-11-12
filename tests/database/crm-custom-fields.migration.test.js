@@ -37,7 +37,7 @@ describe('CRM custom fields upgrade', () => {
       db.pragma('user_version = 24');
 
       expect(() => runAllMigrations()).not.toThrow();
-      expect(db.pragma('user_version', { simple: true })).toBe(26);
+      expect(db.pragma('user_version', { simple: true })).toBe(require('../../electron/database/connection').DATABASE_SCHEMA_VERSION);
 
       const sql = db.prepare("SELECT sql FROM sqlite_master WHERE name = 'crm_custom_fields'").get().sql;
       expect(sql).toContain("'select'");

@@ -13,6 +13,7 @@ const {
   migrateLeaveRequestsTable,
   migrateShiftsTable,
   migrateCommissionsTables,
+  migratePayrollRules,
 } = require('./hr');
 const {
   migrateSuppliersTable,
@@ -288,6 +289,12 @@ function runAllMigrations(dbInstance = db) {
     migrateDailyMessages(dbInstance);
     dbInstance.pragma('user_version = 26');
     console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 26 (رسائل اليوم).');
+  }
+
+  if (currentVersion < 27) {
+    migratePayrollRules(dbInstance);
+    dbInstance.pragma('user_version = 27');
+    console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 27 (أقساط السلف وبدل المواصلات وطريقة صرف المسير).');
   }
 
   // Earlier steps may rebuild the sales tables; make sure the guards exist at the end.

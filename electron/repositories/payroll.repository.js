@@ -52,6 +52,8 @@ function getPayrollItemById(itemId) {
       p.period_name,
       p.month,
       p.year,
+      p.status AS period_status,
+      p.payment_method AS period_payment_method,
       u.username,
       u.full_name,
       u.job_title,
@@ -64,12 +66,21 @@ function getPayrollItemById(itemId) {
   `).get(itemId);
 }
 
-function createPayrollPeriod({ period_name, month, year, start_date, end_date, created_by, notes }) {
+function createPayrollPeriod({
+  period_name, month, year, start_date, end_date, created_by, notes,
+  status = 'draft', payment_date = null, payment_method = null,
+}) {
   const stmt = db.prepare(`
-    INSERT INTO payroll_periods (period_name, month, year, start_date, end_date, created_by, notes)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO payroll_periods (
+      period_name, month, year, start_date, end_date, created_by, notes,
+      status, payment_date, payment_method, approved_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
-  const result = stmt.run(period_name, month, year, start_date, end_date, created_by || null, notes || '');
+  const result = stmt.run(
+    period_name, month, year, start_date, end_date, created_by || null, notes || '',
+    status, payment_date, payment_method, status === 'approved' ? new Date().toISOString() : null,
+  );
   return result.lastInsertRowid;
 }
 
@@ -179,12 +190,12 @@ function getAllAdvances(userId = null) {
   `).all();
 }
 
-function createAdvance({ user_id, amount, request_date, reason }) {
+function createAdvance({ user_id, amount, request_date, reason, installments = 1 }) {
   const stmt = db.prepare(`
-    INSERT INTO salary_advances (user_id, amount, request_date, reason)
-    VALUES (?, ?, ?, ?)
+    INSERT INTO salary_advances (user_id, amount, request_date, reason, installments)
+    VALUES (?, ?, ?, ?, ?)
   `);
-  return stmt.run(user_id, amount, request_date, reason || '');
+  return stmt.run(user_id, amount, request_date, reason || '', installments);
 }
 
 function updateAdvanceStatus(advanceId, status, deductedPayrollId = null) {
@@ -201,46 +212,42 @@ function findPayrollPeriodByMonth(month, year) {
 
 function getActiveEmployeesForPayroll() {
   return db.prepare(`
-    SELECT id, username, full_name, pay_type, pay_amount, commission_rate
+    SELECT id, username, full_name, job_title, pay_type, pay_amount, commission_rate,
+      transport_allowance, scheduled_start, scheduled_end
     FROM users
     WHERE is_active = 1
+    ORDER BY COALESCE(full_name, username) COLLATE NOCASE
   `).all();
 }
 
-function sumCommissionsForPeriod(userId, startDate, endDate) {
+function getAttendanceRecords(userId, startDate, endDate) {
   return db.prepare(`
-    SELECT COALESCE(SUM(earned_amount), 0) as total_comm
-    FROM commission_earnings
-    WHERE user_id = ?
-      AND DATE(created_at) >= ?
-      AND DATE(created_at) <= ?
-  `).get(userId, startDate, endDate);
-}
-
-function countAttendanceDays(userId, startDate, endDate) {
-  return db.prepare(`
-    SELECT COUNT(DISTINCT attendance_date) as attended
+    SELECT attendance_date, check_in, check_out
     FROM attendance_records
-    WHERE user_id = ?
-      AND attendance_date >= ?
-      AND attendance_date <= ?
-  `).get(userId, startDate, endDate);
+    WHERE user_id = ? AND attendance_date >= ? AND attendance_date <= ?
+  `).all(userId, startDate, endDate);
 }
 
-function sumOutstandingAdvances(userId) {
+function getApprovedLeaves(userId, startDate, endDate) {
   return db.prepare(`
-    SELECT COALESCE(SUM(amount - repaid_amount), 0) as total_adv
-    FROM salary_advances
-    WHERE user_id = ? AND status = 'approved' AND (amount - repaid_amount) > 0
-  `).get(userId);
+    SELECT start_date, end_date
+    FROM leave_requests
+    WHERE user_id = ? AND status = 'approved' AND start_date <= ? AND end_date >= ?
+  `).all(userId, endDate, startDate);
 }
 
+// Oldest first, so repayments close the earliest advance before the next one.
 function getApprovedAdvances(userId) {
   return db.prepare(`
-    SELECT id, amount, repaid_amount
+    SELECT id, amount, repaid_amount, installments
     FROM salary_advances
     WHERE user_id = ? AND status = 'approved'
+    ORDER BY request_date, id
   `).all(userId);
+}
+
+function setTransportAllowance(userId, amount) {
+  return db.prepare('UPDATE users SET transport_allowance = ? WHERE id = ?').run(amount, userId);
 }
 
 function recordAdvanceRepayment(advanceId, repaidAmount, status) {
@@ -251,10 +258,10 @@ function recordAdvanceRepayment(advanceId, repaidAmount, status) {
 module.exports = {
   findPayrollPeriodByMonth,
   getActiveEmployeesForPayroll,
-  sumCommissionsForPeriod,
-  countAttendanceDays,
-  sumOutstandingAdvances,
+  getAttendanceRecords,
+  getApprovedLeaves,
   getApprovedAdvances,
+  setTransportAllowance,
   recordAdvanceRepayment,
   getAllPayrollPeriods,
   getPayrollPeriodById,

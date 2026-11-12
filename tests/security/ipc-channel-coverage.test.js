@@ -17,6 +17,7 @@ const SELF_GUARDED_PREFIXES = /^(auth|central|license):/;
 const ADMIN_ONLY = new Set([
   'payroll:getAllPeriods', 'payroll:getDetails', 'payroll:generatePeriod', 'payroll:payEmployee',
   'payroll:approvePeriod', 'payroll:deletePeriod', 'payroll:getAllAdvances', 'payroll:createAdvance',
+  'payroll:previewPeriod', 'payroll:payPeriod',
   'resilience:getHealth',
 ]);
 

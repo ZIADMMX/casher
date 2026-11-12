@@ -14,6 +14,15 @@ function registerPayrollHandlers() {
     return payrollService.generatePayrollPeriod(payload || {});
   });
 
+  safeHandle('payroll:previewPeriod', (event, payload) => {
+    return payrollService.previewPayrollPeriod(payload || {});
+  });
+
+  safeHandle('payroll:payPeriod', (event, payload) => {
+    const { periodId, paymentData } = payload || {};
+    return payrollService.payPayrollPeriod(periodId, paymentData || {});
+  });
+
   safeHandle('payroll:payEmployee', (event, payload) => {
     const { itemId, paymentData } = payload || {};
     return payrollService.payEmployeeSalary(itemId, paymentData || {});
