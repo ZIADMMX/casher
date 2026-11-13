@@ -46,6 +46,7 @@ const EnterpriseManagementPage = lazy(() => import('./pages/EnterpriseManagement
 const RolesPage = lazy(() => import('./pages/RolesPage.jsx'));
 const SalariesPage = lazy(() => import('./pages/SalariesPage.jsx'));
 const WorkflowsPage = lazy(() => import('./pages/WorkflowsPage.jsx'));
+const WebhooksPage = lazy(() => import('./pages/WebhooksPage.jsx'));
 const CasesPage = lazy(() => import('./pages/CasesPage.jsx'));
 const CourtsPage = lazy(() => import('./pages/CourtsPage.jsx'));
 const SalonPage = lazy(() => import('./pages/SalonPage.jsx'));
@@ -254,6 +255,7 @@ function AppContent() {
       profile: null,
       enterprise: 'enterprise.view',
       workflows: 'enterprise.view',
+      webhooks: 'settings.manage',
     };
     const hasPageAccess = activePage === 'profile'
       || (currentUser.role === 'admin' && !currentUser.systemRoleKey)
@@ -322,6 +324,8 @@ function AppContent() {
         return <SalariesPage onNavigate={setActivePage} />;
       case 'workflows':
         return <WorkflowsPage />;
+      case 'webhooks':
+        return <WebhooksPage />;
       case 'cases':
         return (
           <CasesPage

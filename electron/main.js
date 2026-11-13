@@ -136,6 +136,7 @@ const { registerChannelsHandlers } = require('./handlers/channels.handler');
 const { registerBundlePromotionHandlers } = require('./handlers/bundlePromotions.handler');
 const { registerPayrollHandlers } = require('./handlers/payroll.handler');
 const { registerReviewsHandlers } = require('./handlers/reviews.handler');
+const { registerWebhooksHandlers } = require('./handlers/webhooks.handler');
 const { registerSalonHandlers } = require('./handlers/salon.handler');
 const { registerCasesHandlers } = require('./handlers/cases.handler');
 const { registerCourtsHandlers } = require('./handlers/courts.handler');
@@ -377,6 +378,7 @@ app.whenReady().then(async () => {
   registerChannelsHandlers();
   registerPayrollHandlers();
   registerReviewsHandlers();
+  registerWebhooksHandlers();
   registerSalonHandlers();
   registerCasesHandlers();
   registerCourtsHandlers();

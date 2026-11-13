@@ -1,5 +1,6 @@
 const returnsService = require('../services/returns.service');
 const { safeHandle } = require('./safeHandle');
+const webhooks = require('../services/webhooks.service');
 const { processReturnSchema, positiveIdSchema } = require('../validators/schema');
 
 function registerReturnsHandlers() {
@@ -7,8 +8,10 @@ function registerReturnsHandlers() {
     return returnsService.findSale(saleId);
   });
 
-  safeHandle('returns:process', processReturnSchema, (_event, data) => {
-    return returnsService.processReturn(data);
+  safeHandle('returns:process', processReturnSchema, async (_event, data) => {
+    const result = await returnsService.processReturn(data);
+    webhooks.dispatch('return.processed', result);
+    return result;
   });
 
   safeHandle('returns:getRecent', () => {

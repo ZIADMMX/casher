@@ -1,10 +1,13 @@
 const customersService = require('../services/customers.service');
 const { safeHandle } = require('./safeHandle');
+const webhooks = require('../services/webhooks.service');
 const { addCustomerSchema, addManualDebtSchema, customerPaymentSchema, positiveIdSchema } = require('../validators/schema');
 
 function registerCustomersHandlers() {
-  safeHandle('customers:add', addCustomerSchema, (event, data) => {
-    return customersService.addCustomer(data);
+  safeHandle('customers:add', addCustomerSchema, async (event, data) => {
+    const customer = await customersService.addCustomer(data);
+    webhooks.dispatch('customer.created', customer);
+    return customer;
   });
 
   safeHandle('customers:addManualDebt', addManualDebtSchema, (event, data) => {

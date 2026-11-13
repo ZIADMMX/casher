@@ -57,6 +57,7 @@ const { ensurePrivacyConsent } = require('./privacy');
 const { ensureWorkshopTickets } = require('./workshop');
 const { ensureProductLedger } = require('./productLedger');
 const { ensureSyncMetadata, ensureDeleteTombstones } = require('./syncMetadata');
+const { ensureWebhooks } = require('./webhooks');
 const { addColumnIfMissing } = require('./helpers');
 
 function runAllMigrations(dbInstance = db) {
@@ -349,6 +350,7 @@ function runAllMigrations(dbInstance = db) {
   ensureKitchenLedger(dbInstance);
   ensureProductLedger(dbInstance);
   ensureDeleteTombstones(dbInstance);
+  ensureWebhooks(dbInstance);
 }
 
 module.exports = { runAllMigrations };

@@ -21,6 +21,7 @@ const PAGE_MODULES = {
   settings: 'settings',
   enterprise: 'enterprise',
   workflows: 'enterprise',
+  webhooks: 'settings',
   'screen-designer': 'settings',
   today: 'pos',
   profile: null,
@@ -37,7 +38,7 @@ const SECTOR_PAGE_POLICIES = {
     allowedPages: [
       'today', 'pos', 'returns', 'products', 'branches',
       'customers', 'crm', 'suppliers', 'shifts', 'reports', 'users', 'attendance',
-      'leaves', 'roles', 'salaries', 'settings', 'enterprise', 'workflows',
+      'leaves', 'roles', 'salaries', 'settings', 'webhooks', 'enterprise', 'workflows',
       'screen-designer', 'profile',
     ],
     deniedPages: ['cases', 'salon', 'appointments', 'subscriptions', 'commissions'],
@@ -46,7 +47,7 @@ const SECTOR_PAGE_POLICIES = {
     allowedPages: [
       'today', 'pos', 'returns', 'products', 'branches',
       'customers', 'crm', 'suppliers', 'shifts', 'reports', 'users', 'attendance',
-      'leaves', 'roles', 'salaries', 'settings', 'enterprise', 'workflows',
+      'leaves', 'roles', 'salaries', 'settings', 'webhooks', 'enterprise', 'workflows',
       'screen-designer', 'profile',
     ],
     deniedPages: ['cases', 'salon', 'appointments', 'subscriptions', 'commissions'],
@@ -55,7 +56,7 @@ const SECTOR_PAGE_POLICIES = {
     allowedPages: [
       'today', 'pos', 'kitchen', 'returns', 'products', 'branches',
       'customers', 'crm', 'suppliers', 'shifts', 'reports', 'users', 'attendance',
-      'leaves', 'roles', 'salaries', 'settings', 'enterprise', 'workflows',
+      'leaves', 'roles', 'salaries', 'settings', 'webhooks', 'enterprise', 'workflows',
       'screen-designer', 'profile',
     ],
     deniedPages: ['cases', 'salon', 'appointments', 'subscriptions', 'commissions'],
@@ -64,7 +65,7 @@ const SECTOR_PAGE_POLICIES = {
     allowedPages: [
       'today', 'pos', 'returns', 'products', 'branches',
       'customers', 'crm', 'suppliers', 'shifts', 'reports', 'users', 'attendance',
-      'leaves', 'roles', 'salaries', 'settings', 'enterprise', 'workflows',
+      'leaves', 'roles', 'salaries', 'settings', 'webhooks', 'enterprise', 'workflows',
       'screen-designer', 'profile',
     ],
     deniedPages: ['cases', 'salon', 'appointments', 'subscriptions'],
@@ -73,7 +74,7 @@ const SECTOR_PAGE_POLICIES = {
     allowedPages: [
       'today', 'pos', 'returns', 'products', 'branches',
       'customers', 'crm', 'suppliers', 'shifts', 'reports', 'users', 'attendance',
-      'leaves', 'roles', 'salaries', 'settings', 'enterprise', 'workflows',
+      'leaves', 'roles', 'salaries', 'settings', 'webhooks', 'enterprise', 'workflows',
       'screen-designer', 'profile', 'commissions',
     ],
     deniedPages: ['cases', 'salon', 'appointments', 'subscriptions'],
@@ -82,7 +83,7 @@ const SECTOR_PAGE_POLICIES = {
     allowedPages: [
       'today', 'pos', 'returns', 'products', 'branches',
       'customers', 'crm', 'suppliers', 'shifts', 'reports', 'users', 'attendance',
-      'leaves', 'roles', 'salaries', 'settings', 'enterprise', 'workflows',
+      'leaves', 'roles', 'salaries', 'settings', 'webhooks', 'enterprise', 'workflows',
       'screen-designer', 'profile', 'commissions',
     ],
     deniedPages: ['cases', 'salon', 'appointments', 'subscriptions'],
@@ -91,7 +92,7 @@ const SECTOR_PAGE_POLICIES = {
     allowedPages: [
       'today', 'pos', 'subscriptions', 'appointments', 'products', 'branches',
       'customers', 'crm', 'suppliers', 'shifts', 'reports', 'users', 'attendance',
-      'leaves', 'roles', 'salaries', 'settings', 'enterprise', 'workflows',
+      'leaves', 'roles', 'salaries', 'settings', 'webhooks', 'enterprise', 'workflows',
       'screen-designer', 'profile', 'commissions',
     ],
     deniedPages: ['cases', 'salon', 'returns'],
@@ -100,7 +101,7 @@ const SECTOR_PAGE_POLICIES = {
     allowedPages: [
       'today', 'pos', 'salon', 'subscriptions', 'commissions',
       'products', 'customers', 'crm', 'shifts', 'reports',
-      'users', 'attendance', 'leaves', 'roles', 'salaries', 'settings',
+      'users', 'attendance', 'leaves', 'roles', 'salaries', 'settings', 'webhooks',
       'enterprise', 'screen-designer', 'profile',
     ],
     deniedPages: ['cases', 'appointments', 'branches', 'suppliers', 'workflows'],
@@ -110,7 +111,7 @@ const SECTOR_PAGE_POLICIES = {
       'today', 'cases', 'appointments', 'customers', 'suppliers',
       'courts',
       'shifts', 'reports', 'users', 'attendance', 'leaves', 'roles',
-      'salaries', 'settings', 'enterprise', 'workflows', 'screen-designer',
+      'salaries', 'settings', 'webhooks', 'enterprise', 'workflows', 'screen-designer',
       'profile',
     ],
     deniedPages: ['salon', 'subscriptions', 'returns', 'products', 'branches', 'crm', 'pos'],
@@ -119,7 +120,7 @@ const SECTOR_PAGE_POLICIES = {
     allowedPages: [
       'today', 'pos', 'returns', 'products', 'branches',
       'customers', 'crm', 'suppliers', 'shifts', 'reports', 'users', 'attendance',
-      'leaves', 'roles', 'salaries', 'settings', 'enterprise', 'workflows',
+      'leaves', 'roles', 'salaries', 'settings', 'webhooks', 'enterprise', 'workflows',
       'screen-designer', 'profile', 'commissions', 'subscriptions', 'appointments',
     ],
     deniedPages: ['cases', 'salon'],
@@ -127,7 +128,7 @@ const SECTOR_PAGE_POLICIES = {
   crm: {
     allowedPages: [
       'crm', 'reports', 'users', 'attendance', 'leaves', 'roles', 'salaries',
-      'settings', 'enterprise', 'profile',
+      'settings', 'webhooks', 'enterprise', 'profile',
     ],
     deniedPages: [
       'today', 'pos', 'kitchen', 'appointments', 'subscriptions',

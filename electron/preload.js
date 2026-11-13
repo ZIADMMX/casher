@@ -484,6 +484,13 @@ exportEmployees: () => ipcRenderer.invoke('export:employees'),
   importCRMLeads: () => ipcRenderer.invoke('crm:importLeads'),
   exportCRMRecords: (entityType) => ipcRenderer.invoke('crm:exportRecords', entityType),
 
+  // Webhooks (outgoing signed POSTs on sales, returns and new customers)
+  getWebhooks: () => ipcRenderer.invoke('webhooks:getAll'),
+  createWebhook: (data) => ipcRenderer.invoke('webhooks:create', data),
+  updateWebhook: (data) => ipcRenderer.invoke('webhooks:update', data),
+  deleteWebhook: (id) => ipcRenderer.invoke('webhooks:delete', id),
+  testWebhook: (id) => ipcRenderer.invoke('webhooks:test', id),
+
   // Resilience & Central Nervous Backbone Engine
   getSystemBackboneHealth: () => ipcRenderer.invoke('resilience:getHealth'),
 
