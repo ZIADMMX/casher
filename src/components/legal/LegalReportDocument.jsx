@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { useSettings } from '../../contexts/SettingsContext.jsx';
 import LegalIcon from './LegalIcon.jsx';
 
@@ -34,7 +35,7 @@ function followUps(office) {
 }
 
 /** A4 "activity & finance" report: shown in the print preview window and printed from the page. */
-export default function LegalReportDocument({ report }) {
+function LegalReportDocument({ report }) {
   const { settings } = useSettings();
   const current = { ...report.periodStats, ...report.financialStats };
   const previous = { ...report.previous?.periodStats, ...report.previous?.financialStats };
@@ -150,3 +151,6 @@ export default function LegalReportDocument({ report }) {
     </article>
   );
 }
+
+// Re-renders only when the report changes, not on every tab / page click of the screen around it.
+export default memo(LegalReportDocument);
