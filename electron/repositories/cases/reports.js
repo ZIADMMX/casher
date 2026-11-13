@@ -12,6 +12,7 @@ function getDailyDocket(targetDate = null) {
       c.court_name,
       c.circuit_name,
       c.subject as case_subject,
+      c.case_type,
       cust.name as client_name,
       c.opponent_name,
       u.full_name as assigned_lawyer_name
@@ -73,6 +74,21 @@ function getLawFirmDashboard(targetDate, nextWeekEndDate) {
     }),
     financialMovements,
     criticalDeadlines: getUpcomingDeadlines(targetDate, 8),
+    // Open work due by this day (overdue included) plus what was already ticked off for it.
+    todayTasks: db.prepare(`
+      SELECT t.id, t.case_id, t.title, t.due_at, t.status, t.priority,
+        s.session_date, c.case_number,
+        CAST(julianday(date(t.due_at)) - julianday(date(?)) AS INTEGER) AS days_offset
+      FROM legal_case_tasks t
+      JOIN legal_cases c ON c.id = t.case_id
+      LEFT JOIN court_sessions s ON s.id = t.session_id
+      WHERE t.kind != 'deadline'
+        AND c.status != 'closed'
+        AND ((t.status IN ('pending', 'in_progress') AND date(t.due_at) <= date(?))
+          OR (t.status = 'completed' AND date(t.due_at) = date(?)))
+      ORDER BY t.status = 'completed', t.due_at ASC, t.id ASC
+      LIMIT 12
+    `).all(targetDate, targetDate, targetDate),
   };
 }
 
@@ -211,7 +227,7 @@ function getCaseFinancialBreakdown(caseId) {
 function getLegalClientsOverview(targetDate) {
   const clients = db.prepare(`
     SELECT
-      c.id, c.name, c.phone, c.email, c.created_at,
+      c.id, c.name, c.phone, c.email, c.created_at, c.legal_profile,
       (SELECT COUNT(*) FROM legal_cases lc WHERE lc.client_id = c.id) AS cases_count,
       (SELECT COUNT(*) FROM legal_cases lc WHERE lc.client_id = c.id
         AND lc.status IN ('active', 'adjourned')) AS active_cases,

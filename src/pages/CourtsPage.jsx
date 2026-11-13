@@ -1,20 +1,55 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as legalApi from '../api/legal.js';
+import CourtProfile from '../components/legal/CourtProfile.jsx';
+import LegalAmbient from '../components/legal/LegalAmbient.jsx';
 import LegalIcon from '../components/legal/LegalIcon.jsx';
+import LegalModalShell from '../components/legal/LegalModalShell.jsx';
+import { COURT_TYPES, CSV_HEADER, csvCell, csvToCourts, typeLabel } from '../components/legal/courtsData.js';
 import '../styles/courts.css';
 
-const COURT_TYPES = [
-  { value: 'first_instance', label: 'أول درجة', mark: '١' },
-  { value: 'cassation', label: 'النقض', mark: '٢' },
-  { value: 'appeals', label: 'الاستئناف', mark: '٣' },
-  { value: 'family', label: 'الأسرة', mark: '٤' },
-  { value: 'criminal', label: 'الجنائية', mark: '٥' },
-  { value: 'commercial', label: 'التجارية', mark: '٦' },
-  { value: 'labor', label: 'العمالية', mark: '٧' },
-  { value: 'administrative', label: 'الإدارية', mark: '٨' },
-];
-
 const STEPS = ['معلومات المحكمة', 'الموقع والتواصل', 'مراجعة البيانات'];
+
+// Starter lists for an empty directory; the office completes phones and addresses later.
+const PRESETS = [
+  {
+    key: 'cairo',
+    label: 'محاكم القاهرة',
+    courts: [
+      { name: 'محكمة شمال القاهرة الابتدائية', court_type: 'first_instance', city: 'القاهرة' },
+      { name: 'محكمة جنوب القاهرة الابتدائية', court_type: 'first_instance', city: 'القاهرة' },
+      { name: 'محكمة القاهرة الجديدة الابتدائية', court_type: 'first_instance', city: 'القاهرة' },
+      { name: 'محكمة استئناف القاهرة', court_type: 'appeals', city: 'القاهرة' },
+      { name: 'المحكمة الاقتصادية بالقاهرة', court_type: 'commercial', city: 'القاهرة' },
+      { name: 'محكمة النقض', court_type: 'cassation', city: 'القاهرة', address: 'دار القضاء العالي' },
+    ],
+  },
+  {
+    key: 'alex',
+    label: 'محاكم الإسكندرية',
+    courts: [
+      { name: 'محكمة الإسكندرية الابتدائية', court_type: 'first_instance', city: 'الإسكندرية' },
+      { name: 'محكمة استئناف الإسكندرية', court_type: 'appeals', city: 'الإسكندرية' },
+      { name: 'المحكمة الاقتصادية بالإسكندرية', court_type: 'commercial', city: 'الإسكندرية' },
+    ],
+  },
+  {
+    key: 'giza',
+    label: 'محاكم الجيزة',
+    courts: [
+      { name: 'محكمة الجيزة الابتدائية', court_type: 'first_instance', city: 'الجيزة' },
+      { name: 'محكمة شمال الجيزة الابتدائية', court_type: 'first_instance', city: 'الجيزة' },
+    ],
+  },
+  {
+    key: 'family',
+    label: 'محاكم الأسرة',
+    courts: [
+      { name: 'محكمة الأسرة بمدينة نصر', court_type: 'family', city: 'القاهرة' },
+      { name: 'محكمة الأسرة بمصر الجديدة', court_type: 'family', city: 'القاهرة' },
+      { name: 'محكمة الأسرة بالجيزة', court_type: 'family', city: 'الجيزة' },
+    ],
+  },
+];
 const PAGE_SIZE = 10;
 
 const EMPTY_FORM = {
@@ -25,6 +60,7 @@ const EMPTY_FORM = {
   phone: '',
   city: '',
   address: '',
+  working_hours: '',
 };
 
 const EMPTY_OVERVIEW = {
@@ -37,7 +73,8 @@ const EMPTY_OVERVIEW = {
 };
 
 const n = (value) => Number(value || 0).toLocaleString('ar-EG');
-const typeLabel = (value) => COURT_TYPES.find((type) => type.value === value)?.label || value || '—';
+// Big KPI figures use Latin digits: the numeric display font has no Arabic-Indic glyphs.
+const big = (value) => Number(value || 0).toLocaleString('en-US');
 
 function getErrorMessage(error) {
   return error instanceof Error ? error.message : 'حدث خطأ غير متوقع';
@@ -51,11 +88,6 @@ function formatSessionDay(value) {
   return date.toLocaleDateString('ar-EG', { weekday: 'long', day: 'numeric', month: 'long' });
 }
 
-function csvCell(value) {
-  const text = String(value ?? '');
-  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-}
-
 export default function CourtsPage({ onNavigate }) {
   const [courts, setCourts] = useState([]);
   const [total, setTotal] = useState(0);
@@ -67,13 +99,20 @@ export default function CourtsPage({ onNavigate }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [exporting, setExporting] = useState(false);
-  const [viewingCourt, setViewingCourt] = useState(null);
+  const [openCourtId, setOpenCourtId] = useState(null);
+  const [profileVersion, setProfileVersion] = useState(0);
+  const [importing, setImporting] = useState(false);
+  const [notice, setNotice] = useState('');
+  const importInputRef = useRef(null);
+  const pageRef = useRef(null);
   const [showWizard, setShowWizard] = useState(false);
   const [editingCourt, setEditingCourt] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
+  const [overviewLoaded, setOverviewLoaded] = useState(false);
+  const [seeding, setSeeding] = useState('');
 
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const rangeStart = total ? (page - 1) * PAGE_SIZE + 1 : 0;
@@ -116,6 +155,7 @@ export default function CourtsPage({ onNavigate }) {
   const loadOverview = useCallback(async () => {
     try {
       setOverview({ ...EMPTY_OVERVIEW, ...(await legalApi.getCourtsOverview()) });
+      setOverviewLoaded(true);
     } catch (overviewError) {
       setError(`تعذر تحميل إحصائيات المحاكم: ${getErrorMessage(overviewError)}`);
     }
@@ -123,22 +163,58 @@ export default function CourtsPage({ onNavigate }) {
 
   useEffect(() => { loadCourts(); }, [loadCourts]);
   useEffect(() => { loadOverview(); }, [loadOverview]);
+  // Switching between the list and a court page starts at the top, not mid-table.
+  useEffect(() => { pageRef.current?.scrollIntoView?.({ block: 'start' }); }, [openCourtId]);
 
   const refreshAll = () => Promise.all([loadCourts(), loadOverview()]);
 
-  useEffect(() => {
-    if (!showWizard && !viewingCourt) return undefined;
-    const onKey = (event) => {
-      if (event.key !== 'Escape') return;
-      if (showWizard) closeWizard();
-      else setViewingCourt(null);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  });
+  async function addPreset(preset) {
+    setSeeding(preset.key);
+    setError('');
+    let added = 0;
+    for (const court of preset.courts) {
+      try {
+        await legalApi.createCourt({ ...EMPTY_FORM, ...court });
+        added += 1;
+      } catch {
+        // Already in the directory (unique name): skip it and keep adding the rest.
+      }
+    }
+    if (!added) setError(`كل ${preset.label} موجودة في الدليل بالفعل.`);
+    setSeeding('');
+    await refreshAll();
+  }
+
+  // Reads a CSV in the export's format; each row goes through the same validated create as the wizard.
+  async function importCourts(event) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    setImporting(true);
+    setError('');
+    setNotice('');
+    try {
+      const rows = csvToCourts(await file.text());
+      let added = 0;
+      const failed = [];
+      for (const court of rows) {
+        try {
+          await legalApi.createCourt({ ...EMPTY_FORM, ...court });
+          added += 1;
+        } catch {
+          failed.push(court.name);
+        }
+      }
+      setNotice(`تم استيراد ${n(added)} محكمة${failed.length ? `، وتخطي ${n(failed.length)} (مكررة أو بيانات غير صالحة)` : ''}.`);
+      await refreshAll();
+    } catch (importError) {
+      setError(`تعذر استيراد الملف: ${getErrorMessage(importError)}`);
+    } finally {
+      setImporting(false);
+    }
+  }
 
   function openWizard(court = null) {
-    setViewingCourt(null);
     setEditingCourt(court);
     setForm(court ? Object.fromEntries(Object.keys(EMPTY_FORM).map((key) => [key, court[key] || ''])) : EMPTY_FORM);
     setStep(0);
@@ -185,6 +261,7 @@ export default function CourtsPage({ onNavigate }) {
       else await legalApi.createCourt(form);
       setShowWizard(false);
       setEditingCourt(null);
+      setProfileVersion((current) => current + 1);
       if (page === 1) await refreshAll();
       else { setPage(1); loadOverview(); }
     } catch (saveError) {
@@ -202,6 +279,7 @@ export default function CourtsPage({ onNavigate }) {
     try {
       if (court.is_active) await legalApi.deactivateCourt(court.id);
       else await legalApi.updateCourt(court.id, { is_active: true });
+      setProfileVersion((current) => current + 1);
       await refreshAll();
     } catch (toggleError) {
       setError(`تعذر ${action} المحكمة: ${getErrorMessage(toggleError)}`);
@@ -218,9 +296,9 @@ export default function CourtsPage({ onNavigate }) {
         rows.push(...(result.items || []));
         if (rows.length >= Number(result.total) || !result.items?.length) break;
       }
-      const header = ['المحكمة', 'النوع', 'الاختصاص', 'المدينة', 'العنوان', 'الهاتف', 'القضايا', 'الحالة', 'ملاحظات'];
+      const header = CSV_HEADER;
       const lines = rows.map((court) => [
-        court.name, typeLabel(court.court_type), court.specialization, court.city, court.address, court.phone,
+        court.name, typeLabel(court.court_type), court.specialization, court.city, court.address, court.phone, court.working_hours,
         statsByCourt.get(court.id)?.cases || 0, court.is_active ? 'نشطة' : 'معطلة', court.notes,
       ].map(csvCell).join(','));
       // BOM so Excel opens the Arabic text correctly.
@@ -239,9 +317,22 @@ export default function CourtsPage({ onNavigate }) {
   }
 
   const { courts: courtTotals, cases, sessions } = overview;
+  const isEmpty = overviewLoaded && !loading && Number(courtTotals.total) === 0;
 
   return (
-    <main className="courts-page" dir="rtl">
+    <main ref={pageRef} className="courts-page legal-ds" dir="rtl">
+      <LegalAmbient />
+      {openCourtId ? (
+        <CourtProfile
+          courtId={openCourtId}
+          version={profileVersion}
+          onBack={() => setOpenCourtId(null)}
+          onEdit={openWizard}
+          onToggle={toggleCourt}
+          onNavigate={onNavigate}
+        />
+      ) : (
+      <>
       <header className="courts-hero">
         <div className="courts-hero-title">
           <span className="courts-hero-mark"><LegalIcon name="scale" size={26} /></span>
@@ -255,30 +346,74 @@ export default function CourtsPage({ onNavigate }) {
           <button type="button" className="courts-btn courts-btn--primary" onClick={() => openWizard()}>
             <span aria-hidden="true">＋</span> إضافة محكمة
           </button>
-          <button type="button" className="courts-btn" onClick={exportCourts} disabled={exporting}>
-            <span aria-hidden="true">⇪</span> {exporting ? 'جارٍ التصدير...' : 'تصدير'}
+          <button type="button" className="courts-btn" onClick={() => importInputRef.current?.click()} disabled={importing}>
+            <LegalIcon name="download" /> {importing ? 'جارٍ الاستيراد...' : 'استيراد من ملف'}
           </button>
+          <input ref={importInputRef} type="file" accept=".csv,text/csv" hidden onChange={importCourts} aria-label="ملف المحاكم (CSV)" />
+          {!isEmpty && (
+            <button type="button" className="courts-btn" onClick={exportCourts} disabled={exporting}>
+              <LegalIcon name="upload" /> {exporting ? 'جارٍ التصدير...' : 'تصدير'}
+            </button>
+          )}
         </div>
       </header>
 
+      {notice && <div className="courts-notice" role="status">{notice}<button type="button" onClick={() => setNotice('')} aria-label="إخفاء"><LegalIcon name="close" size={14} /></button></div>}
+
+      {isEmpty ? (
+        <section className="courts-empty" aria-labelledby="courts-empty-title">
+          <div className="courts-empty-main">
+            <div className="courts-empty-copy">
+              <span className="courts-empty-tag">ابدأ من هنا</span>
+              <h2 id="courts-empty-title">لسه مفيش محاكم مسجّلة في المكتب</h2>
+              <p>أضف أول محكمة عشان تقدر تربط القضايا بجهة التقاضي، وتشوف الجلسات في تقويم واحد، وتطلع تقرير بعدد القضايا لكل محكمة.</p>
+              <div className="courts-empty-actions">
+                <button type="button" className="courts-btn courts-btn--primary" onClick={() => openWizard()}>إضافة أول محكمة</button>
+              </div>
+              <div className="courts-empty-presets">
+                <span>أو ابدأ بقائمة جاهزة</span>
+                <div>
+                  {PRESETS.map((preset) => (
+                    <button type="button" key={preset.key} onClick={() => addPreset(preset)} disabled={Boolean(seeding)} title={preset.courts.map((court) => court.name).join('، ')}>
+                      <span aria-hidden="true">{seeding === preset.key ? '…' : '+'}</span> {preset.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {error && <div className="courts-error" role="alert">{error}</div>}
+            </div>
+            <div className="courts-empty-art" aria-hidden="true">
+              <span className="courts-empty-sheet"><i /><i /><i /></span>
+              <span className="courts-empty-sheet"><i /><i /><i /></span>
+              <span className="courts-empty-mark"><LegalIcon name="scale" size={44} /></span>
+            </div>
+          </div>
+          <ul className="courts-empty-features">
+            <li><span><LegalIcon name="calendar" size={20} /></span><div><strong>جلسات في تقويم واحد</strong><small>كل جلسة بترتبط بمحكمتها، وتنبيه قبلها بيوم.</small></div></li>
+            <li><span><LegalIcon name="file" size={20} /></span><div><strong>ملف القضية أوضح</strong><small>رقم الدائرة، العنوان وأرقام التواصل جوه ملف القضية.</small></div></li>
+            <li><span><LegalIcon name="trend" size={20} /></span><div><strong>تقارير لكل محكمة</strong><small>عدد القضايا، نسب الكسب، ومتوسطة مدة التقاضي.</small></div></li>
+          </ul>
+        </section>
+      ) : (
+      <>
       <section className="courts-stats" aria-label="ملخص دليل المحاكم">
         <article className="courts-stat">
-          <div><span>إجمالي المحاكم</span><strong>{n(courtTotals.total)}</strong></div>
+          <div><span>إجمالي المحاكم</span><strong>{big(courtTotals.total)}</strong></div>
           <span className="courts-stat-icon"><LegalIcon name="scale" /></span>
           <small>{n(courtTotals.active)} نشطة · {n(courtTotals.inactive)} معطلة</small>
         </article>
         <article className="courts-stat">
-          <div><span>جلسات هذا الأسبوع</span><strong>{n(sessions.week)}</strong></div>
+          <div><span>جلسات هذا الأسبوع</span><strong>{big(sessions.week)}</strong></div>
           <span className="courts-stat-icon courts-stat-icon--warning"><LegalIcon name="calendar" /></span>
           <small className="is-accent">{sessions.tomorrow ? `${n(sessions.tomorrow)} جلسات غدًا` : 'لا جلسات غدًا'}</small>
         </article>
         <article className="courts-stat">
-          <div><span>قضايا مرتبطة</span><strong>{n(cases.linked)}</strong></div>
+          <div><span>قضايا مرتبطة</span><strong>{big(cases.linked)}</strong></div>
           <span className="courts-stat-icon"><LegalIcon name="briefcase" /></span>
           <small>{n(cases.open)} متداولة · {n(cases.judged)} محكوم فيها</small>
         </article>
         <article className="courts-stat">
-          <div><span>بيانات ناقصة</span><strong>{n(courtTotals.missing)}</strong></div>
+          <div><span>بيانات ناقصة</span><strong>{big(courtTotals.missing)}</strong></div>
           <span className="courts-stat-icon courts-stat-icon--danger"><LegalIcon name="alert" /></span>
           <small className="is-accent">محاكم بدون عنوان أو هاتف</small>
         </article>
@@ -368,14 +503,14 @@ export default function CourtsPage({ onNavigate }) {
                         <div className="courts-name-cell">
                           <span className="courts-name-mark"><LegalIcon name="scale" /></span>
                           <span>
-                            <strong>{court.name}</strong>
+                            <button type="button" className="courts-name-link" onClick={() => setOpenCourtId(court.id)}>{court.name}</button>
                             {court.specialization && <small>{court.specialization}</small>}
                           </span>
                         </div>
                       </td>
                       <td><span className={`courts-type-chip courts-type-chip--${court.court_type}`}>{typeLabel(court.court_type)}</span></td>
                       <td>{location || <span className="courts-muted">غير محدد</span>}</td>
-                      <td className="courts-count">{n(stats?.cases)}</td>
+                      <td className="courts-count">{big(stats?.cases)}</td>
                       <td>{stats?.next_session ? formatSessionDay(stats.next_session) : <span className="courts-muted">—</span>}</td>
                       <td>
                         <span className={`courts-status ${court.is_active ? 'is-active' : 'is-inactive'}`}>
@@ -385,7 +520,7 @@ export default function CourtsPage({ onNavigate }) {
                       </td>
                       <td>
                         <div className="courts-row-actions">
-                          <button type="button" onClick={() => setViewingCourt(court)} aria-label={`فتح ${court.name}`}>فتح</button>
+                          <button type="button" onClick={() => setOpenCourtId(court.id)} aria-label={`فتح ${court.name}`}>فتح</button>
                           <button type="button" onClick={() => openWizard(court)} aria-label={`تعديل ${court.name}`}>تعديل</button>
                           <button
                             type="button"
@@ -428,7 +563,7 @@ export default function CourtsPage({ onNavigate }) {
                   const date = new Date(session.session_date);
                   const valid = !Number.isNaN(date.getTime());
                   return (
-                    <li key={session.id}>
+                    <li key={session.id} role="button" tabIndex={0} onClick={() => setOpenCourtId(session.court_id)} onKeyDown={(event) => { if (event.key === 'Enter') setOpenCourtId(session.court_id); }}>
                       <span className="courts-session-date">
                         <strong>{valid ? date.toLocaleDateString('ar-EG', { day: 'numeric' }) : '—'}</strong>
                         <small>{valid ? date.toLocaleDateString('ar-EG', { month: 'long' }) : ''}</small>
@@ -474,37 +609,21 @@ export default function CourtsPage({ onNavigate }) {
           )}
         </aside>
       </div>
-
-      {viewingCourt && (
-        <div className="courts-modal-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setViewingCourt(null); }}>
-          <section className="courts-wizard" role="dialog" aria-modal="true" aria-labelledby="courts-view-title" dir="rtl">
-            <header className="courts-wizard-header">
-              <div>
-                <span className="courts-eyebrow">دليل المحاكم</span>
-                <h2 id="courts-view-title">{viewingCourt.name}</h2>
-              </div>
-              <button type="button" className="courts-wizard-close" onClick={() => setViewingCourt(null)} aria-label="إغلاق">×</button>
-            </header>
-            <div className="courts-wizard-body">
-              <CourtDetails court={viewingCourt} stats={statsByCourt.get(viewingCourt.id)} />
-            </div>
-            <footer className="courts-wizard-footer">
-              <button type="button" className="courts-btn" onClick={() => setViewingCourt(null)}>إغلاق</button>
-              <button type="button" className="courts-btn courts-btn--primary" onClick={() => openWizard(viewingCourt)}>تعديل البيانات</button>
-            </footer>
-          </section>
-        </div>
+      </>
+      )}
+      </>
       )}
 
       {showWizard && (
-        <div className="courts-modal-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) closeWizard(); }}>
-          <section className="courts-wizard" role="dialog" aria-modal="true" aria-labelledby="courts-wizard-title" dir="rtl">
+        <LegalModalShell onClose={closeWizard} locked={saving} labelledBy="courts-wizard-title" size="md" className="courts-wizard">
+          {(requestClose) => (
+          <>
             <header className="courts-wizard-header">
               <div>
                 <span className="courts-eyebrow">{editingCourt ? 'تحديث بيانات الدليل' : 'دليل المحاكم'}</span>
                 <h2 id="courts-wizard-title">{editingCourt ? 'تعديل بيانات المحكمة' : 'إضافة محكمة جديدة'}</h2>
               </div>
-              <button type="button" className="courts-wizard-close" onClick={closeWizard} aria-label="إغلاق" disabled={saving}>×</button>
+              <button type="button" className="legal-x" onClick={requestClose} aria-label="إغلاق" disabled={saving}><LegalIcon name="close" /></button>
             </header>
 
             <ol className="courts-steps" aria-label={`الخطوة ${step + 1} من ${STEPS.length}`}>
@@ -521,7 +640,7 @@ export default function CourtsPage({ onNavigate }) {
             </ol>
 
             <form onSubmit={handleSave}>
-              <div className="courts-wizard-body">
+              <div className="courts-wizard-body legal-slide" key={step}>
                 {step === 0 && (
                   <>
                     <div className="courts-field">
@@ -574,7 +693,11 @@ export default function CourtsPage({ onNavigate }) {
                     </div>
                     <div className="courts-field">
                       <label htmlFor="court-address">العنوان</label>
-                      <textarea id="court-address" rows="4" maxLength={300} value={form.address} onChange={setField('address')} placeholder="الشارع، المنطقة، وأقرب علامة مميزة" />
+                      <textarea id="court-address" rows="3" maxLength={300} value={form.address} onChange={setField('address')} placeholder="الشارع، المنطقة، وأقرب علامة مميزة" />
+                    </div>
+                    <div className="courts-field">
+                      <label htmlFor="court-hours">مواعيد العمل</label>
+                      <input id="court-hours" maxLength={120} value={form.working_hours} onChange={setField('working_hours')} placeholder="مثال: الأحد – الخميس · ٨:٣٠ ص – ٢:٠٠ م" />
                     </div>
                     <div className="courts-info-note">
                       <LegalIcon name="info" />
@@ -611,8 +734,9 @@ export default function CourtsPage({ onNavigate }) {
                 )}
               </footer>
             </form>
-          </section>
-        </div>
+          </>
+          )}
+        </LegalModalShell>
       )}
     </main>
   );
@@ -631,6 +755,7 @@ function CourtDetails({ court, stats }) {
         <div><dt>الهاتف</dt><dd dir="auto">{court.phone || 'غير مسجل'}</dd></div>
         <div><dt>المدينة</dt><dd>{court.city || 'غير محددة'}</dd></div>
         <div><dt>العنوان</dt><dd>{court.address || 'غير مسجل'}</dd></div>
+        <div><dt>مواعيد العمل</dt><dd>{court.working_hours || 'غير مسجلة'}</dd></div>
         {stats && <div><dt>القضايا</dt><dd>{n(stats.cases)}</dd></div>}
         {stats?.next_session && <div><dt>أقرب جلسة</dt><dd>{formatSessionDay(stats.next_session)}</dd></div>}
         {court.notes && <div><dt>ملاحظات</dt><dd>{court.notes}</dd></div>}

@@ -447,6 +447,26 @@ const customerPaymentSchema = v.object({
   notes: v.string().optional().nullable(),
 });
 
+const legalText = (max) => v.string().max(max).optional().nullable();
+const updateLegalClientProfileSchema = v.object({
+  customerId: v.number('معرف الموكل مطلوب').int().positive(),
+  profile: v.object({
+    kind: v.enum(['individual', 'company']).optional(),
+    national_id: legalText(14),
+    profession: legalText(120),
+    alt_phone: legalText(40),
+    whatsapp_same: v.boolean().optional(),
+    governorate: legalText(60),
+    address: legalText(300),
+    status: v.enum(['active', 'potential', 'archived']).optional(),
+    source: legalText(100),
+    owner: legalText(120),
+    fee_amount: v.number().nonnegative().optional().nullable(),
+    fee_method: v.enum(['once', 'installments', 'percentage']).optional().nullable(),
+    first_payment: v.number().nonnegative().optional().nullable(),
+  }),
+});
+
 const createCustomerPowerOfAttorneySchema = v.object({
   customerId: v.number('معرف الموكل مطلوب').int().positive(),
   data: v.object({
@@ -741,6 +761,7 @@ module.exports = {
   customerPaymentSchema,
   createCustomerPowerOfAttorneySchema,
   updateCustomerPowerOfAttorneySchema,
+  updateLegalClientProfileSchema,
   addSupplierSchema,
   updateSupplierSchema,
   createPurchaseSchema,

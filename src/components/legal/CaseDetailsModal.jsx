@@ -1648,7 +1648,6 @@ export default function CaseDetailsModal({ caseId, initialTab = 'details', onClo
             session={{ ...outcomeSession, case_number: caseData?.case_number, court_name: caseData?.court_name, client_name: caseData?.client_name }}
             onClose={() => setOutcomeSession(null)}
             onSaved={() => {
-              setOutcomeSession(null);
               loadCaseDetails();
               onRefreshList?.();
             }}

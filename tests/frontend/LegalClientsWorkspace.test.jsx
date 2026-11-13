@@ -6,7 +6,8 @@ import LegalClientsWorkspace from '../../src/components/legal/LegalClientsWorksp
 function futureDate(days) {
   const d = new Date();
   d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
+  // Local date, like the component; toISOString() is UTC and shifts the day after midnight.
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 vi.mock('../../src/api/legal.js', () => ({

@@ -43,6 +43,9 @@ describe('courts database migration', () => {
       court_id: null,
     });
     expect(migrationDb.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'courts'").get()).toBeTruthy();
+    expect(migrationDb.prepare('PRAGMA table_info(courts)').all().map((column) => column.name)).toContain('working_hours');
+    expect(columns.map((column) => column.name)).toEqual(expect.arrayContaining(['verdict_result', 'verdict_date']));
+    expect(() => migrationDb.exec("UPDATE legal_cases SET verdict_result = 'won'")).toThrow(/CHECK/);
   });
 
   test('backfills document history and reconciles previous paid totals with fee transactions', () => {

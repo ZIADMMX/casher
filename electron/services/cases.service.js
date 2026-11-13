@@ -183,6 +183,32 @@ function getCustomerPowerOfAttorneys(customerId) {
   return customersRepo.getPowerOfAttorneys(Number(customerId));
 }
 
+const LEGAL_PROFILE_KEYS = [
+  'kind', 'national_id', 'profession', 'alt_phone', 'whatsapp_same', 'governorate', 'address',
+  'status', 'source', 'owner', 'fee_amount', 'fee_method', 'first_payment',
+];
+
+function updateLegalClientProfile(customerId, profile) {
+  const id = Number(customerId);
+  if (!Number.isSafeInteger(id) || id <= 0) throw new Error('معرف الموكل غير صالح');
+  const existing = customersRepo.getById(id);
+  if (!existing) throw new Error('الموكل غير موجود');
+  let current = {};
+  try { current = JSON.parse(existing.legal_profile || '{}') || {}; } catch { current = {}; }
+  const merged = { ...current };
+  for (const key of LEGAL_PROFILE_KEYS) {
+    if (profile?.[key] === undefined) continue;
+    const value = typeof profile[key] === 'string' ? profile[key].trim() : profile[key];
+    if (value === '' || value === null) delete merged[key];
+    else merged[key] = value;
+  }
+  if (merged.national_id && !/^\d{14}$/.test(merged.national_id)) {
+    throw new Error('الرقم القومي لازم يكون ١٤ رقم');
+  }
+  customersRepo.updateLegalProfile(id, JSON.stringify(merged));
+  return merged;
+}
+
 function createCustomerPowerOfAttorney(customerId, data, userId) {
   const normalizedCustomerId = Number(customerId);
   if (!Number.isSafeInteger(normalizedCustomerId) || normalizedCustomerId <= 0) {
@@ -318,6 +344,7 @@ const SESSION_OUTCOMES = {
 };
 
 const SESSION_EXPENSE_TYPES = ['court_fee', 'expert_fee', 'announcement_fee', 'other_expense'];
+const VERDICT_RESULTS = ['favorable', 'partial', 'unfavorable'];
 
 function recordSessionOutcome(sessionId, data = {}, userSession = {}) {
   if (!Number.isSafeInteger(Number(sessionId)) || Number(sessionId) <= 0) {
@@ -337,6 +364,12 @@ function recordSessionOutcome(sessionId, data = {}, userSession = {}) {
   const preparation = typeof data.preparation === 'string' ? data.preparation.trim() : '';
   if (preparation && !nextDate) {
     throw new Error('المطلوب تجهيزه يحتاج تاريخ جلسة قادمة');
+  }
+
+  // A verdict must say how it went for the client; that feeds the court's win rate.
+  const verdictResult = data.outcome === 'judged' ? data.verdict_result : null;
+  if (data.outcome === 'judged' && !VERDICT_RESULTS.includes(verdictResult)) {
+    throw new Error('حدد نتيجة الحكم بالنسبة للموكل');
   }
 
   const summary = typeof data.decision === 'string' ? data.decision.trim() : '';
@@ -363,6 +396,7 @@ function recordSessionOutcome(sessionId, data = {}, userSession = {}) {
     preparation: preparation || null,
     preparation_due_at: preparation ? preparationDueDate(nextDate) : null,
     expenses,
+    verdict_result: verdictResult,
     user_id: userSession?.id || null,
   });
 }
@@ -730,6 +764,7 @@ module.exports = {
   updateCustomerPowerOfAttorney,
   deleteCustomerPowerOfAttorney,
   getLegalClientsOverview,
+  updateLegalClientProfile,
   getLawFirmDashboard,
   getSessionsByCaseId,
   getAllUpcomingSessions,

@@ -74,11 +74,20 @@ describe('recordSessionOutcome', () => {
     expect(interaction.subject).toContain('تأجيل');
   });
 
-  test('a verdict closes the case without a next hearing', () => {
-    const result = casesService.recordSessionOutcome(1, { outcome: 'judged', decision: 'حكم برفض الدعوى' });
+  test('a verdict closes the case without a next hearing and keeps its result and date', () => {
+    const result = casesService.recordSessionOutcome(1, {
+      outcome: 'judged', decision: 'حكم برفض الدعوى', verdict_result: 'unfavorable',
+    });
     expect(result.session.status).toBe('judged');
     expect(result.nextSession).toBeNull();
-    expect(db.prepare('SELECT status FROM legal_cases WHERE id = 1').get().status).toBe('judged');
+    expect(db.prepare('SELECT status, verdict_result, verdict_date FROM legal_cases WHERE id = 1').get())
+      .toEqual({ status: 'judged', verdict_result: 'unfavorable', verdict_date: '2026-11-12' });
+  });
+
+  test('a verdict without its result for the client is refused and changes nothing', () => {
+    expect(() => casesService.recordSessionOutcome(1, { outcome: 'judged', verdict_result: 'won' }))
+      .toThrow('حدد نتيجة الحكم بالنسبة للموكل');
+    expect(db.prepare('SELECT status FROM court_sessions WHERE id = 1').get().status).toBe('scheduled');
   });
 
   test('rejects a postponement without a next hearing date and changes nothing', () => {

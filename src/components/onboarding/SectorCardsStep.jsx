@@ -68,7 +68,6 @@ export const SECTOR_CARDS = [
   },
   {
     key: 'maintenance',
-    soon: true,
     title: 'ورش صيانة ومراكز خدمة',
     subtitle: 'Maintenance & Repair',
     desc: 'تذاكر صيانة، دورات عمل فنيين، كشف أعطال، وقطع غيار وأجور خدمة',

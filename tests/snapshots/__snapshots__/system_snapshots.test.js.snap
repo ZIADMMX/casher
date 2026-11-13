@@ -127,6 +127,7 @@ exports[`System Snapshot Tests (اختبارات اللقطات والقوالب
     "email": "karim@example.com",
     "id": Any<Number>,
     "is_active": 1,
+    "legal_profile": null,
     "loyalty_points": 0,
     "name": "كريم الدسوقي",
     "phone": "01123456789",

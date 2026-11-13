@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import * as legalApi from '../../api/legal.js';
+import LegalModalShell from './LegalModalShell.jsx';
+import LegalIcon from './LegalIcon.jsx';
 import '../../styles/sessionOutcome.css';
 
 const OUTCOMES = [
@@ -11,7 +13,13 @@ const OUTCOMES = [
   ['not_held', 'لم تنعقد'],
 ];
 
-const NEEDS_NEXT_DATE = new Set(['postponed', 'verdict_reserved', 'not_held']);
+const VERDICT_RESULTS = [
+  ['favorable', 'لصالح الموكل'],
+  ['partial', 'لصالحه جزئيًا'],
+  ['unfavorable', 'ضد الموكل'],
+];
+
+const NEEDS_NEXT_DATE =new Set(['postponed', 'verdict_reserved', 'not_held']);
 
 const POSTPONE_REASONS = [
   'لتقديم مستندات',
@@ -46,13 +54,13 @@ function money(value) {
   return `${Math.round(Number(value) || 0).toLocaleString('ar-EG')} ج.م`;
 }
 
-function sessionTime(value) {
+export function sessionTime(value) {
   if (!value) return { clock: '—', period: '' };
   const date = new Date(String(value).replace(' ', 'T'));
   const hour = date.getHours();
   const clock = `${hour % 12 || 12}:${String(date.getMinutes()).padStart(2, '0')}`
     .replace(/\d/g, (d) => '٠١٢٣٤٥٦٧٨٩'[d]);
-  return { clock, period: hour < 12 ? 'صباحًا' : 'مساءً' };
+  return { clock, period: hour < 12 ? 'صباحًا' : hour < 17 ? 'ظهرًا' : 'مساءً' };
 }
 
 function historyDate(value) {
@@ -73,6 +81,7 @@ export default function SessionOutcomeModal({ session, onClose, onSaved }) {
   const [reason, setReason] = useState(POSTPONE_REASONS[0]);
   const [preparation, setPreparation] = useState('');
   const [decision, setDecision] = useState('');
+  const [verdictResult, setVerdictResult] = useState('');
   const [expenses, setExpenses] = useState([{ ...EMPTY_EXPENSE }]);
 
   useEffect(() => {
@@ -101,6 +110,7 @@ export default function SessionOutcomeModal({ session, onClose, onSaved }) {
     .slice(0, 2), [caseFile, session.id]);
 
   const needsNextDate = NEEDS_NEXT_DATE.has(outcome);
+  const time = sessionTime(session.session_date);
 
   function updateExpense(index, patch) {
     setExpenses((prev) => {
@@ -111,23 +121,28 @@ export default function SessionOutcomeModal({ session, onClose, onSaved }) {
     });
   }
 
-  async function handleSubmit(event) {
+  async function handleSubmit(event, requestClose) {
     event.preventDefault();
     if (needsNextDate && !nextDate) {
       setError('تاريخ الجلسة القادمة مطلوب');
+      return;
+    }
+    if (outcome === 'judged' && !verdictResult) {
+      setError('حدد نتيجة الحكم بالنسبة للموكل');
       return;
     }
     setSaving(true);
     setError('');
     try {
       // the new hearing keeps the time of the one being recorded
-      const time = String(session.session_date).replace(' ', 'T').slice(11, 19) || '09:00:00';
+      const clock = String(session.session_date).replace(' ', 'T').slice(11, 19) || '09:00:00';
       await legalApi.recordSessionOutcome(session.id, {
         outcome,
-        next_session_date: nextDate ? `${nextDate}T${time}` : null,
+        next_session_date: nextDate ? `${nextDate}T${clock}` : null,
         next_session_reason: needsNextDate ? reason : null,
         preparation: preparation.trim() || null,
         decision: decision.trim() || null,
+        verdict_result: outcome === 'judged' ? verdictResult : null,
         expenses: expenses
           .filter((row) => Number(row.amount) > 0)
           .map((row) => ({
@@ -137,173 +152,204 @@ export default function SessionOutcomeModal({ session, onClose, onSaved }) {
             paid_by_client: row.paid_by_client,
           })),
       });
+      setSaving(false);
       onSaved();
+      requestClose();
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : 'تعذر حفظ إجراء الجلسة');
-    } finally {
       setSaving(false);
     }
   }
 
   return (
-    <div className="session-outcome-overlay" onClick={onClose}>
-      <form className="session-outcome" dir="rtl" onClick={(e) => e.stopPropagation()} onSubmit={handleSubmit}>
-        <header className="session-outcome-head">
-          <span className="session-outcome-time">
-            <b>{sessionTime(session.session_date).clock}</b>
-            <small>{sessionTime(session.session_date).period}</small>
-          </span>
-          <div className="session-outcome-title">
-            <span className="session-outcome-eyebrow">تسجيل إجراء الجلسة</span>
-            <h2>قضية {session.case_number || caseFile?.case_number || '—'} — {caseFile?.subject || session.case_subject || 'جلسة'}</h2>
-            <p>
-              {session.court_name || caseFile?.court_name || 'محكمة غير محددة'}
-              {' · '}{caseFile?.circuit_name || session.circuit_name || 'بدون دائرة'}
-              {' · '}الموكل: {session.client_name || caseFile?.client_name || '—'}
-            </p>
-          </div>
-          <button type="button" className="session-outcome-close" onClick={onClose} aria-label="إغلاق">✕</button>
-        </header>
+    <LegalModalShell onClose={onClose} locked={saving} labelledBy="so-title" className="so">
+      {(requestClose) => (
+        <form className="so-form" onSubmit={(event) => handleSubmit(event, requestClose)}>
+          <header className="legal-sheet-head so-head">
+            <span className="so-time">
+              <b>{time.clock}</b>
+              <small>{time.period}</small>
+            </span>
+            <div className="so-title">
+              <span className="legal-sheet-eyebrow">تسجيل إجراء الجلسة</span>
+              <h2 id="so-title">قضية {session.case_number || caseFile?.case_number || '—'} — {caseFile?.subject || session.case_subject || 'جلسة'}</h2>
+              <p>
+                {session.court_name || caseFile?.court_name || 'محكمة غير محددة'}
+                {' · '}{caseFile?.circuit_name || session.circuit_name || 'بدون دائرة'}
+                {' · '}الموكل: {session.client_name || caseFile?.client_name || '—'}
+              </p>
+            </div>
+            <button type="button" className="legal-x" onClick={requestClose} aria-label="إغلاق">
+              <LegalIcon name="close" size={18} />
+            </button>
+          </header>
 
-        <div className="session-outcome-body">
-          <aside className="session-outcome-side">
-            <section className="session-outcome-card">
-              <h3>ملخص القضية</h3>
-              <dl>
-                <dt>نوع القضية</dt>
-                <dd>{CASE_TYPES[caseFile?.case_type] || caseFile?.case_type || '—'}</dd>
-                <dt>قيمة المطالبة</dt>
-                <dd>{money(caseFile?.contract_amount)}</dd>
-                <dt>الخصم</dt>
-                <dd>{caseFile?.opponent_name || session.opponent_name || '—'}</dd>
-                <dt>رصيد أمانة الموكل</dt>
-                <dd>{money(finance?.retainer_balance)}</dd>
-                <dt>المحامي المسؤول</dt>
-                <dd>{session.assigned_lawyer_name || caseFile?.assigned_lawyer_name || 'لم يُعيّن'}</dd>
-              </dl>
-            </section>
-
-            <section className="session-outcome-card">
-              <h3>آخر جلستين</h3>
-              {loading ? <p className="session-outcome-muted">جارٍ التحميل...</p>
-                : lastSessions.length === 0 ? <p className="session-outcome-muted">لا توجد جلسات سابقة مسجلة.</p>
-                  : lastSessions.map((item) => (
-                    <div key={item.id} className="session-outcome-history">
-                      <strong>{historyDate(item.session_date)}</strong>
-                      <p>{item.decision}</p>
-                    </div>
+          <div className="so-body">
+            <div className="so-main legal-rise">
+              <fieldset className="so-field">
+                <legend>نتيجة الجلسة <b>*</b></legend>
+                <div className="so-choices">
+                  {OUTCOMES.map(([key, label]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      className={outcome === key ? 'is-active' : ''}
+                      aria-pressed={outcome === key}
+                      onClick={() => setOutcome(key)}
+                    >
+                      {label}
+                    </button>
                   ))}
-            </section>
-          </aside>
+                </div>
+              </fieldset>
 
-          <div className="session-outcome-main">
-            <fieldset className="session-outcome-field">
-              <legend>نتيجة الجلسة <b>*</b></legend>
-              <div className="session-outcome-choices">
-                {OUTCOMES.map(([key, label]) => (
-                  <button
-                    key={key}
-                    type="button"
-                    className={outcome === key ? 'active' : ''}
-                    aria-pressed={outcome === key}
-                    onClick={() => setOutcome(key)}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </fieldset>
+              {outcome === 'judged' && (
+                <fieldset className="so-field so-panel" key="verdict">
+                  <legend>نتيجة الحكم للموكل <b>*</b></legend>
+                  <div className="so-choices so-verdict">
+                    {VERDICT_RESULTS.map(([key, label]) => (
+                      <button
+                        key={key}
+                        type="button"
+                        className={`is-${key}${verdictResult === key ? ' is-active' : ''}`}
+                        aria-pressed={verdictResult === key}
+                        onClick={() => setVerdictResult(key)}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </fieldset>
+              )}
 
-            {needsNextDate && (
-              <div className="session-outcome-panel">
-                <div className="session-outcome-grid">
-                  <label>
-                    <span>تاريخ الجلسة القادمة <b>*</b></span>
-                    <input type="date" value={nextDate} onChange={(e) => setNextDate(e.target.value)} required />
+              {needsNextDate && (
+                <div className="so-panel" key={outcome}>
+                  <div className="so-grid">
+                    <label>
+                      <span>تاريخ الجلسة القادمة <b>*</b></span>
+                      <input type="date" value={nextDate} onChange={(e) => setNextDate(e.target.value)} required />
+                    </label>
+                    <label>
+                      <span>{outcome === 'verdict_reserved' ? 'المطلوب' : 'سبب التأجيل'}</span>
+                      <select value={reason} onChange={(e) => setReason(e.target.value)}>
+                        {POSTPONE_REASONS.map((item) => <option key={item} value={item}>{item}</option>)}
+                      </select>
+                    </label>
+                  </div>
+                  <label className="so-block">
+                    <span>المطلوب تجهيزه قبل الجلسة القادمة</span>
+                    <input
+                      type="text"
+                      value={preparation}
+                      onChange={(e) => setPreparation(e.target.value)}
+                      placeholder="مثال: حافظة مستندات + مذكرة بدفاع"
+                    />
+                    <small>هيتسجل كمهمة في صفحة اليوم قبل الجلسة بيومين.</small>
                   </label>
-                  <label>
-                    <span>{outcome === 'verdict_reserved' ? 'المطلوب' : 'سبب التأجيل'}</span>
-                    <select value={reason} onChange={(e) => setReason(e.target.value)}>
-                      {POSTPONE_REASONS.map((item) => <option key={item} value={item}>{item}</option>)}
+                </div>
+              )}
+
+              <label className="so-block">
+                <span>ما تم في الجلسة</span>
+                <textarea
+                  rows="4"
+                  value={decision}
+                  onChange={(e) => setDecision(e.target.value)}
+                  placeholder="ملخص سريع للمرافعة أو لما حصل في الجلسة..."
+                />
+              </label>
+
+              <section className="so-expenses">
+                <h3>مصروفات الجلسة</h3>
+                <div className="so-expense-head" aria-hidden="true">
+                  <span>البيان</span>
+                  <span>المبلغ</span>
+                  <span>النوع</span>
+                  <span>تُخصم من</span>
+                </div>
+                {expenses.map((row, index) => (
+                  <div className="so-expense-row" key={index}>
+                    <input
+                      type="text"
+                      value={row.description}
+                      onChange={(e) => updateExpense(index, { description: e.target.value })}
+                      placeholder="مثال: رسوم خبير"
+                      aria-label="بيان المصروف"
+                    />
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={row.amount}
+                      onChange={(e) => updateExpense(index, { amount: e.target.value })}
+                      placeholder="0"
+                      aria-label="المبلغ"
+                    />
+                    <select value={row.type} onChange={(e) => updateExpense(index, { type: e.target.value })} aria-label="نوع المصروف">
+                      {EXPENSE_TYPES.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
                     </select>
-                  </label>
-                </div>
-                <label className="session-outcome-block">
-                  <span>المطلوب تجهيزه قبل الجلسة القادمة</span>
-                  <input
-                    type="text"
-                    value={preparation}
-                    onChange={(e) => setPreparation(e.target.value)}
-                    placeholder="مثال: حافظة مستندات + مذكرة بدفاع"
-                  />
-                  <small>هيتسجل كمهمة في صفحة اليوم قبل الجلسة بيومين.</small>
-                </label>
-              </div>
-            )}
+                    <select
+                      value={row.paid_by_client ? 'client' : 'office'}
+                      onChange={(e) => updateExpense(index, { paid_by_client: e.target.value === 'client' })}
+                      aria-label="تُخصم من"
+                    >
+                      <option value="client">أمانة الموكل</option>
+                      <option value="office">خزنة المكتب</option>
+                    </select>
+                  </div>
+                ))}
+                <small className="so-muted">
+                  اللي يتخصم من أمانة الموكل بيقلل الرصيد المتاح ({money(finance?.retainer_balance)}).
+                </small>
+              </section>
 
-            <label className="session-outcome-block">
-              <span>ما تم في الجلسة</span>
-              <textarea
-                rows="4"
-                value={decision}
-                onChange={(e) => setDecision(e.target.value)}
-                placeholder="ملخص سريع للمرافعة أو لما حصل في الجلسة..."
-              />
-            </label>
+              {error && <p className="so-error" role="alert">{error}</p>}
+            </div>
 
-            <section className="session-outcome-expenses">
-              <h3>مصروفات الجلسة</h3>
-              <div className="session-outcome-expense-head">
-                <span>البيان</span>
-                <span>المبلغ</span>
-                <span>النوع</span>
-                <span>تُخصم من</span>
-              </div>
-              {expenses.map((row, index) => (
-                <div className="session-outcome-expense-row" key={index}>
-                  <input
-                    type="text"
-                    value={row.description}
-                    onChange={(e) => updateExpense(index, { description: e.target.value })}
-                    placeholder="مثال: رسوم خبير"
-                  />
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={row.amount}
-                    onChange={(e) => updateExpense(index, { amount: e.target.value })}
-                    placeholder="0"
-                  />
-                  <select value={row.type} onChange={(e) => updateExpense(index, { type: e.target.value })}>
-                    {EXPENSE_TYPES.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
-                  </select>
-                  <select
-                    value={row.paid_by_client ? 'client' : 'office'}
-                    onChange={(e) => updateExpense(index, { paid_by_client: e.target.value === 'client' })}
-                  >
-                    <option value="client">أمانة الموكل</option>
-                    <option value="office">خزنة المكتب</option>
-                  </select>
-                </div>
-              ))}
-              <small className="session-outcome-muted">
-                اللي يتخصم من أمانة الموكل بيقلل الرصيد المتاح ({money(finance?.retainer_balance)}).
-              </small>
-            </section>
+            <aside className="so-side legal-rise">
+              <section className="so-card">
+                <h3>ملخص القضية</h3>
+                <dl>
+                  <dt>نوع القضية</dt>
+                  <dd>{CASE_TYPES[caseFile?.case_type] || caseFile?.case_type || '—'}{caseFile?.subject ? ` — ${caseFile.subject}` : ''}</dd>
+                  <dt>قيمة المطالبة</dt>
+                  <dd>{money(caseFile?.contract_amount)}</dd>
+                  <dt>الخصم</dt>
+                  <dd>{caseFile?.opponent_name || session.opponent_name || '—'}</dd>
+                  <dt>رصيد أمانة الموكل</dt>
+                  <dd>{money(finance?.retainer_balance)}</dd>
+                  <dt>المحامي المسؤول</dt>
+                  <dd>{session.assigned_lawyer_name || caseFile?.assigned_lawyer_name || 'لم يُعيّن'}</dd>
+                </dl>
+              </section>
 
-            {error && <p className="session-outcome-error" role="alert">{error}</p>}
+              <section className="so-card">
+                <h3>آخر جلستين</h3>
+                {loading ? <p className="so-muted so-shimmer">جارٍ التحميل...</p>
+                  : lastSessions.length === 0 ? <p className="so-muted">لا توجد جلسات سابقة مسجلة.</p>
+                    : (
+                      <ol className="so-history">
+                        {lastSessions.map((item) => (
+                          <li key={item.id}>
+                            <strong>{historyDate(item.session_date)}</strong>
+                            <p>{item.decision}</p>
+                          </li>
+                        ))}
+                      </ol>
+                    )}
+              </section>
+            </aside>
           </div>
-        </div>
 
-        <footer className="session-outcome-foot">
-          <button type="submit" className="session-outcome-save" disabled={saving || loading}>
-            {saving ? 'جارٍ الحفظ...' : needsNextDate ? 'حفظ وجدولة الجلسة القادمة' : 'حفظ إجراء الجلسة'}
-          </button>
-          <span>هيتسجل في ملف القضية وسجل تواصل الموكل.</span>
-          <button type="button" className="session-outcome-cancel" onClick={onClose}>إلغاء</button>
-        </footer>
-      </form>
-    </div>
+          <footer className="so-foot">
+            <button type="button" className="legal-btn" onClick={requestClose} disabled={saving}>إلغاء</button>
+            <span>هيتسجل في ملف القضية وسجل تواصل الموكل.</span>
+            <button type="submit" className="legal-btn legal-btn--primary so-save" disabled={saving || loading}>
+              {saving ? 'جارٍ الحفظ...' : needsNextDate ? 'حفظ وجدولة الجلسة القادمة' : 'حفظ إجراء الجلسة'}
+            </button>
+          </footer>
+        </form>
+      )}
+    </LegalModalShell>
   );
 }

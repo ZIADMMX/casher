@@ -215,6 +215,7 @@ CREATE TABLE IF NOT EXISTS customers (
     email TEXT,
     loyalty_points INTEGER DEFAULT 0,
     is_active INTEGER NOT NULL DEFAULT 1,
+    legal_profile TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -1424,6 +1425,7 @@ CREATE TABLE IF NOT EXISTS courts (
     phone TEXT,
     city TEXT,
     address TEXT,
+    working_hours TEXT,                       -- مواعيد العمل (نص حر: الأحد – الخميس · ٨:٣٠ ص – ٢:٠٠ م)
     is_active INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN (0, 1)),
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -1438,6 +1440,8 @@ CREATE TABLE IF NOT EXISTS legal_cases (
     case_number TEXT NOT NULL,                -- رقم القضية بالمحكمة (مثال: 1245 لسنة 2026 مدني)
     court_name TEXT NOT NULL,                 -- اسم المحكمة (مثال: محكمة شمال القاهرة الابتدائية)
     court_id TEXT,                            -- معرّف المحكمة في دليل المحاكم المحلي أو المركزي
+    verdict_result TEXT CHECK(verdict_result IN ('favorable', 'partial', 'unfavorable')), -- نتيجة الحكم بالنسبة للموكل
+    verdict_date TEXT,                        -- تاريخ صدور الحكم (YYYY-MM-DD)
     circuit_name TEXT,                        -- الدائرة (مثال: دائرة 4 تعويضات)
     client_id INTEGER NOT NULL,               -- الموكّل (مرتبط بالعملاء)
     client_role TEXT NOT NULL DEFAULT 'plaintiff' CHECK(client_role IN ('plaintiff', 'defendant', 'appellant', 'appellee')), -- صفة الموكل (مدعي / مدعى عليه / مستأنف / مستأنف ضده)

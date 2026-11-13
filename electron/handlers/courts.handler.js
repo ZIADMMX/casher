@@ -10,6 +10,7 @@ function registerCourtsHandlers() {
     return courtsService.updateCourt(id, data || {});
   });
   safeHandle('courts:getOverview', () => courtsService.getCourtsOverview());
+  safeHandle('courts:getProfile', (event, id) => courtsService.getCourtProfile(id));
   safeHandle('courts:deactivate', (event, id) => courtsService.deactivateCourt(id));
 }
 

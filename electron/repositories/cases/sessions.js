@@ -25,6 +25,7 @@ function getAllUpcomingSessions(filters = {}) {
       c.court_name,
       c.circuit_name,
       c.subject as case_subject,
+      c.case_type,
       cust.name as client_name,
       cust.phone as client_phone,
       c.opponent_name,
@@ -218,6 +219,14 @@ function recordOutcome(sessionId, data) {
       decision: data.decision,
       next_session_date: data.next_session_date || null,
     });
+
+    if (data.verdict_result) {
+      // the verdict is dated by the hearing it was issued in, not by when it was typed in
+      db.prepare(`
+        UPDATE legal_cases SET status = 'judged', verdict_result = ?, verdict_date = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).run(data.verdict_result, String(session.session_date).slice(0, 10), session.case_id);
+    }
 
     let nextSession = null;
     if (data.next_session_date) {

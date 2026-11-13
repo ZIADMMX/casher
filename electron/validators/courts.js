@@ -17,6 +17,7 @@ const COURT_FIELDS = {
   phone: { label: 'الهاتف', maxLength: 40 },
   city: { label: 'المدينة', maxLength: 100 },
   address: { label: 'العنوان', maxLength: 300 },
+  working_hours: { label: 'مواعيد العمل', maxLength: 120 },
 };
 
 function validateCourtInput(input, { partial = false } = {}) {

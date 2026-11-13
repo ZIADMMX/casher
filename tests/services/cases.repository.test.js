@@ -456,7 +456,15 @@ describe('cases repository updates', () => {
         (1, 'court_fee', 75, '2026-11-02 09:30:00', 'رسوم')
     `).run();
 
+    db.prepare(`
+      INSERT INTO legal_case_tasks (case_id, title, due_at, status)
+      VALUES (1, 'متأخرة', '2026-11-01 10:00:00', 'pending'),
+        (1, 'خلصت النهاردة', '2026-11-02 08:00:00', 'completed'),
+        (1, 'بكرة', '2026-11-03 08:00:00', 'pending')
+    `).run();
     const dashboard = casesRepository.getLawFirmDashboard('2026-11-02', '2026-11-08');
+    expect(dashboard.todayTasks.map((task) => [task.title, task.days_offset]))
+      .toEqual([['متأخرة', -1], ['خلصت النهاردة', 0]]);
     const report = casesRepository.getLawFirmReport('2026-11-02', '2026-11-02');
 
     expect(dashboard.sessionStats.today_sessions).toBe(1);

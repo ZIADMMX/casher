@@ -10,6 +10,7 @@ import { useSettings } from '../contexts/SettingsContext.jsx';
 import Toast from '../components/ui/Toast.jsx';
 import LegalClientDetailsModal from '../components/legal/LegalClientDetailsModal.jsx';
 import LegalClientsWorkspace from '../components/legal/LegalClientsWorkspace.jsx';
+import LegalClientWizard from '../components/legal/LegalClientWizard.jsx';
 import LegalIcon from '../components/legal/LegalIcon.jsx';
 import LegalPageHero from '../components/legal/LegalPageHero.jsx';
 import * as crmApi from '../api/crm.js';
@@ -303,7 +304,7 @@ function CustomersPage({ crmMode = false, crmTabs = null, onNavigate, startWithF
   };
 
   return (
-    <div className={isLawFirm ? 'customers-page-container legal-clients-page' : 'customers-page-container'}>
+    <div className={isLawFirm ? 'customers-page-container legal-clients-page legal-ds' : 'customers-page-container'}>
       {toast && (
         <Toast
           key={toast.id}
@@ -356,9 +357,9 @@ function CustomersPage({ crmMode = false, crmTabs = null, onNavigate, startWithF
             </button>
           </>
         )}
-        <button type="button" className="legal-hero-btn legal-hero-btn--primary" onClick={() => setShowForm((v) => !v)}>
-          <LegalIcon name={showForm ? 'chevronRight' : 'userPlus'} size={17} />
-          {showForm ? 'إغلاق النموذج' : 'إضافة موكل جديد'}
+        <button type="button" className="legal-hero-btn legal-hero-btn--primary" onClick={() => setShowForm(true)}>
+          <LegalIcon name="userPlus" size={17} />
+          إضافة موكل جديد
         </button>
       </LegalPageHero>
       ) : (
@@ -562,7 +563,7 @@ function CustomersPage({ crmMode = false, crmTabs = null, onNavigate, startWithF
             </div>
           )}
 
-          {showForm && (
+          {showForm && !isLawFirm && (
             <form className="fox-form-card reports-fade-in" style={{ marginBottom: '25px' }} onSubmit={handleSubmit}>
               <div className="fox-form-card-header">
                 <div className="form-card-title-group">
@@ -914,6 +915,15 @@ function CustomersPage({ crmMode = false, crmTabs = null, onNavigate, startWithF
           onCustomerUpdated={() => refetch()}
           crmMode={crmMode}
           isAdmin={isAdmin}
+        />
+      )}
+
+      {isLawFirm && showForm && (
+        <LegalClientWizard
+          onClose={() => setShowForm(false)}
+          onSaved={() => refetch()}
+          onOpenClient={setSelectedLegalClient}
+          onOpenCases={() => onNavigate?.('cases')}
         />
       )}
 

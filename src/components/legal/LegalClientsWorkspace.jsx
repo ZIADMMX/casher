@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import * as legalApi from '../../api/legal.js';
 import LegalIcon from './LegalIcon.jsx';
+import '../../styles/legalMotion.css';
 import '../../styles/legalClients.css';
 
 const PAGE_SIZE = 6;
@@ -22,8 +23,7 @@ const CONTACT_TYPES = {
   complaint: 'شكوى',
 };
 
-// shortcut: no client_type column, so a company is detected from the name prefix.
-// Upgrade when customers gets a real client_type field.
+// Clients added before legal_profile existed have no kind, so a company is guessed from the name prefix.
 const COMPANY_PREFIX = /^(شرك|مؤسس|مصنع|مكتب|مركز|جمعي|بنك|مستشفى|معهد)/;
 
 function dayDiff(dateText) {
@@ -64,9 +64,15 @@ function money(value) {
   return `${num(Math.round(Number(value) || 0))} ج`;
 }
 
+function parseProfile(raw) {
+  try { return raw ? JSON.parse(raw) || {} : {}; } catch { return {}; }
+}
+
 function decorate(client) {
-  const isCompany = COMPANY_PREFIX.test((client.name || '').trim());
-  const kind = client.cases_count ? (isCompany ? 'company' : 'individual') : 'potential';
+  const profile = parseProfile(client.legal_profile);
+  const isCompany = profile.kind ? profile.kind === 'company' : COMPANY_PREFIX.test((client.name || '').trim());
+  const potential = profile.status ? profile.status === 'potential' : !client.cases_count;
+  const kind = potential ? 'potential' : isCompany ? 'company' : 'individual';
   const contract = Number(client.contract_total) || 0;
   const paid = Number(client.paid_total) || 0;
   return {
@@ -172,7 +178,13 @@ export default function LegalClientsWorkspace({ refreshKey, onOpenClient }) {
 
   useEffect(() => { setPage(1); }, [search, filter, sort]);
 
-  if (loading) return <div className="legal-clients-loading">جاري تحميل بيانات الموكلين...</div>;
+  if (loading) {
+    return (
+      <div className="legal-clients-loading" role="status" aria-label="جاري تحميل بيانات الموكلين">
+        <i /><i /><i /><i /><b />
+      </div>
+    );
+  }
   if (error) return <div className="legal-clients-error">{error}</div>;
 
   return (
@@ -208,8 +220,8 @@ export default function LegalClientsWorkspace({ refreshKey, onOpenClient }) {
             note: `على ${num(stats.duesClients)} موكلين`,
             tone: stats.dues > 0 ? 'warn' : undefined,
           },
-        ].map((card) => (
-          <article className="legal-kpi" key={card.label}>
+        ].map((card, index) => (
+          <article className="legal-kpi" key={card.label} style={{ '--i': index }}>
             <header>
               <span className="legal-kpi-icon"><LegalIcon name={card.icon} size={18} /></span>
               <span className="legal-kpi-label">{card.label}</span>
@@ -277,9 +289,9 @@ export default function LegalClientsWorkspace({ refreshKey, onOpenClient }) {
                 <th>الملف</th>
               </tr>
             </thead>
-            <tbody>
-              {pageRows.map((client) => (
-                <tr key={client.id}>
+            <tbody key={`${filter}-${sort}-${currentPage}`}>
+              {pageRows.map((client, index) => (
+                <tr key={client.id} style={{ '--i': index }}>
                   <td>
                     <div className="legal-client-cell">
                       <span className={`legal-avatar legal-avatar--${client.kind}`}>{client.name.trim().charAt(0)}</span>
@@ -316,7 +328,7 @@ export default function LegalClientsWorkspace({ refreshKey, onOpenClient }) {
                           : client.paidRatio === null ? 'لم يُتفق' : `مدفوع ${num(client.paidRatio)}٪`}
                       </small>
                       <span className="legal-meter" aria-hidden="true">
-                        <i style={{ width: `${client.paidRatio ?? 0}%` }} />
+                        <i style={{ transform: `scaleX(${(client.paidRatio ?? 0) / 100})` }} />
                       </span>
                     </div>
                   </td>
@@ -397,7 +409,7 @@ export default function LegalClientsWorkspace({ refreshKey, onOpenClient }) {
               <span>من الملفات مكتملة</span>
             </div>
             <span className="legal-meter legal-meter--lg" aria-hidden="true">
-              <i style={{ width: `${stats.completion}%` }} />
+              <i style={{ transform: `scaleX(${stats.completion / 100})` }} />
             </span>
             <p className="legal-side-empty">
               {num(stats.missingPhone)} موكل بدون رقم هاتف، و{num(stats.missingPower)} بدون بيانات توكيل — وده بيعطل تجهيز الصحف والمذكرات.

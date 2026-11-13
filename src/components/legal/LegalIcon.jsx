@@ -25,6 +25,9 @@ const PATHS = {
     <path d="M18.5 6.5v5M16 9h5" />
   </>,
   search: <><circle cx="11" cy="11" r="6.5" /><path d="m16 16 4.5 4.5" /></>,
+  pin: <><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21Z" /><circle cx="12" cy="9.5" r="2.5" /></>,
+  building: <><path d="M4 21V5l8-2v18M12 9h8v12M3 21h18M7 8h2M7 12h2M7 16h2M15 13h2M15 17h2" /></>,
+  more: <><path d="M6 12h.01M12 12h.01M18 12h.01" strokeWidth="3" /></>,
   certificate: <>
     <rect x="3.5" y="3" width="13" height="13" rx="2" />
     <path d="M7 7.5h6M7 11h4" />
@@ -54,6 +57,11 @@ const PATHS = {
     <path d="M18 9a6 6 0 1 0-12 0c0 5-2 6-2 6h16s-2-1-2-6" />
     <path d="M13.7 19a2 2 0 0 1-3.4 0" />
   </>,
+  phone: <><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2Z" /></>,
+  close: <><path d="M6 6l12 12M18 6 6 18" /></>,
+  file: <><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z" /><path d="M14 3v5h5M9 13h6M9 17h4" /></>,
+  arrowLeft: <><path d="M19 12H5M11 6l-6 6 6 6" /></>,
+  sparkle: <><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M18 6l-2.5 2.5M8.5 15.5 6 18" /></>,
   gavel: <>
     <path d="m3.5 20.5 6.2-6.2M2.5 22h8" />
     <path d="m10.8 13 3.4-3.4" />

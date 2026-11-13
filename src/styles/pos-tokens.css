@@ -32,7 +32,8 @@
 .prf-overlay,
 .crm-ds,
 .crm-modal-backdrop,
-.crm-drawer-overlay {
+.crm-drawer-overlay,
+.legal-ds {
   /* ---- Palette (internal to this file) --------------------------------- */
   --ds-slate-0:   #FFFFFF;
   --ds-slate-50:  #F8FAFC;
@@ -197,6 +198,67 @@
 
 @media (prefers-reduced-motion: reduce) {
   .pos-page-wrapper, .inv-page, .rep-page, .err-screen, .kds-page, .prd-page, .roles-page, .prf-page, .prf-overlay, .crm-ds, .crm-modal-backdrop, .crm-drawer-overlay { --duration-fast: 0ms; --duration-base: 0ms; }
+}
+
+/* --------------------------------------------------------------------------
+   Law firm screens (.legal-ds): warm peach "paper" matching the approved
+   clients / courts mockups, larger radii and the macOS-like pop motion.
+   -------------------------------------------------------------------------- */
+.legal-ds {
+  --ds-peach-0:   #FFFFFF;
+  --ds-peach-50:  #FFFAF5;
+  --ds-peach-100: #FFF1E4;
+  --ds-peach-200: #FBE3CF;
+  --ds-peach-300: #F4CFAE;
+  --ds-peach-600: #8A6A52;
+  --ds-peach-900: #2A1D14;
+  --ds-gold-100: #FDF3DC;
+  --ds-gold-500: #E0A21B;
+  --ds-gold-800: #7A4E00;
+
+  --color-bg:            var(--ds-peach-50);
+  --color-surface:       var(--ds-peach-0);
+  --color-surface-muted: var(--ds-peach-100);
+  --color-border:        var(--ds-peach-200);
+  --color-border-strong: var(--ds-peach-300);
+  --color-text:          var(--ds-peach-900);
+  --color-text-muted:    var(--ds-peach-600);
+  --color-accent:        var(--ds-gold-500);
+  --color-accent-soft:   var(--ds-gold-100);
+  --color-accent-strong: var(--ds-gold-800);
+  --color-overlay:       rgb(66 32 10 / 0.28);
+
+  --legal-gradient: linear-gradient(135deg, color-mix(in srgb, var(--color-primary) 72%, var(--ds-amber-500)), var(--color-primary));
+  --legal-wash: linear-gradient(120deg, var(--ds-peach-100), var(--ds-peach-0) 55%);
+  --legal-glow: 0 10px 24px color-mix(in srgb, var(--color-primary) 28%, transparent);
+  --legal-card-shadow: 0 1px 2px rgb(120 60 20 / 0.05), 0 8px 24px rgb(120 60 20 / 0.06);
+  --legal-sheet-shadow: 0 30px 80px rgb(90 40 10 / 0.28), 0 2px 6px rgb(90 40 10 / 0.08);
+
+  --radius-xl: 22px;
+  --radius-2xl: 28px;
+  --duration-slow: 420ms;
+  --ease-spring: cubic-bezier(0.2, 1.25, 0.35, 1);
+}
+
+[data-theme="dark"] .legal-ds {
+  --color-bg:            var(--ds-slate-900);
+  --color-surface:       var(--ds-slate-800);
+  --color-surface-muted: var(--ds-slate-700);
+  --color-border:        var(--ds-slate-700);
+  --color-border-strong: var(--ds-slate-600);
+  --color-text:          var(--ds-slate-50);
+  --color-text-muted:    var(--ds-slate-300);
+  --color-overlay:       rgb(0 0 0 / 0.6);
+  --color-success-text:  var(--ds-green-600);
+  --color-danger-text:   var(--ds-red-600);
+  --color-warning-text:  var(--ds-amber-500);
+  --legal-wash: linear-gradient(120deg, color-mix(in srgb, var(--color-primary) 14%, var(--ds-slate-800)), var(--ds-slate-800) 55%);
+  --legal-card-shadow: 0 8px 24px rgb(0 0 0 / 0.3);
+  --legal-sheet-shadow: 0 30px 80px rgb(0 0 0 / 0.55);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .legal-ds { --duration-fast: 0ms; --duration-base: 0ms; --duration-slow: 0ms; }
 }
 
 /* --------------------------------------------------------------------------

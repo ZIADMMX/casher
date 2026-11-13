@@ -68,4 +68,8 @@ function deactivateCourt(id) {
 module.exports = {
   getCourts, getCourtById, createCourt, updateCourt, deactivateCourt,
   getCourtsOverview: () => courtsRepository.getCourtsOverview(),
+  getCourtProfile(id) {
+    if (!isCourtId(id)) throw new Error('معرّف المحكمة غير صالح');
+    return courtsRepository.getCourtProfile(id);
+  },
 };

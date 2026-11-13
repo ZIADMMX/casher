@@ -1,476 +1,473 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as legalApi from '../../api/legal.js';
-import SessionOutcomeModal from './SessionOutcomeModal.jsx';
-import '../../styles/lawFirmDashboard.css';
+import SessionOutcomeModal, { sessionTime } from './SessionOutcomeModal.jsx';
+import LegalIcon from './LegalIcon.jsx';
+import LegalAmbient from './LegalAmbient.jsx';
+import '../../styles/legalMotion.css';
+import '../../styles/lawFirmToday.css';
 
-function getLocalDateString(date = new Date()) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
-function formatMoney(value) {
-  return `${Number(value || 0).toLocaleString('ar-EG', { maximumFractionDigits: 2 })} ج.م`;
-}
-
-function formatDateTime(value) {
-  if (!value) return '—';
-  return new Date(value.replace(' ', 'T')).toLocaleString('ar-EG', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
-const MOVEMENT_LABELS = {
-  fee_payment: 'سداد أتعاب',
-  retainer_deposit: 'إيداع أمانة',
-  court_fee: 'رسوم محكمة',
-  other_expense: 'مصروفات أخرى',
+const CASE_TYPES = {
+  civil: 'مدني كلي',
+  commercial: 'تجاري',
+  criminal: 'جنح',
+  labor: 'عمالي',
+  family: 'نفقة',
+  administrative: 'إداري',
+  inheritance: 'مواريث',
 };
 
-const ICON_PATHS = {
-  scale: (
-    <>
-      <path d="M12 3v18" />
-      <path d="M5 7h14" />
-      <path d="m5 7-3 6h6L5 7Z" />
-      <path d="m19 7-3 6h6l-3-6Z" />
-      <path d="M8 21h8" />
-    </>
-  ),
-  calendar: (
-    <>
-      <rect x="3" y="5" width="18" height="16" rx="2" />
-      <path d="M16 3v4M8 3v4M3 10h18" />
-      <path d="m9 15 2 2 4-4" />
-    </>
-  ),
-  briefcase: (
-    <>
-      <rect x="3" y="7" width="18" height="14" rx="2" />
-      <path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 12h18M10 12v2h4v-2" />
-    </>
-  ),
-  wallet: (
-    <>
-      <path d="M4 6.5A2.5 2.5 0 0 1 6.5 4H20v16H6.5A2.5 2.5 0 0 1 4 17.5v-11Z" />
-      <path d="M4 7h13a3 3 0 0 1 3 3v1h-5a2 2 0 0 0 0 4h5v2" />
-      <path d="M15 13h.01" />
-    </>
-  ),
-  alert: (
-    <>
-      <path d="m12 3 9 16H3l9-16Z" />
-      <path d="M12 9v4M12 16h.01" />
-    </>
-  ),
-  arrow: (
-    <>
-      <path d="M5 12h14M13 6l6 6-6 6" />
-    </>
-  ),
-  receipt: (
-    <>
-      <path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z" />
-      <path d="M9 8h6M9 12h6M9 16h3" />
-    </>
-  ),
-  hourglass: <><path d="M6 2h12M6 22h12" /><path d="M8 2v4l4 4 4-4V2M8 22v-4l4-4 4 4v4" /></>,
-  search: <><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></>,
-  check: <><path d="m5 12 4 4L19 6" /></>,
+// [label, pill tone, money direction]
+const MOVEMENTS = {
+  fee_payment: ['أتعاب', 'success', 1],
+  retainer_deposit: ['أمانة', 'accent', 1],
+  court_fee: ['مصروف قضائي', 'danger', -1],
+  expert_fee: ['مصروف قضائي', 'danger', -1],
+  announcement_fee: ['مصروف قضائي', 'danger', -1],
+  other_expense: ['مصروف مكتب', 'danger', -1],
 };
 
-function LegalIcon({ name, size = 20 }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      focusable="false"
-    >
-      {ICON_PATHS[name]}
-    </svg>
-  );
+const n = (value) => Number(value || 0).toLocaleString('ar-EG');
+const money = (value) => `${n(Math.round(Number(value) || 0))} ج.م`;
+const toDate = (value) => new Date(String(value).replace(' ', 'T'));
+
+function localDate(date = new Date()) {
+  return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-');
 }
 
-function MetricCard({ icon, label, value, note, tone, onClick, active = false }) {
+function shortClock(value) {
+  const { clock } = sessionTime(value);
+  return clock;
+}
+
+function remainingLabel(days) {
+  if (days < 0) return `فات بـ ${n(Math.abs(days))} يوم`;
+  if (days === 0) return 'آخر يوم النهاردة';
+  if (days === 1) return 'باقي يوم';
+  if (days <= 10) return `باقي ${n(days)} أيام`;
+  return `باقي ${n(days)} يوم`;
+}
+
+// What the pill on a hearing card says, and how loud it is.
+function sessionStatus(session, nextId, now, isToday) {
+  if (session.status === 'attended') return { label: 'تم الحضور', tone: 'success', done: true };
+  if (session.status === 'postponed') return { label: 'تأجلت', tone: 'muted', done: true };
+  if (session.status === 'judged') return { label: 'صدر حكم', tone: 'muted', done: true };
+  if (session.status !== 'scheduled') return { label: session.status, tone: 'muted', done: true };
+  if (!isToday) return { label: 'مجدولة', tone: 'accent' };
+  const minutes = Math.round((toDate(session.session_date) - now) / 60000);
+  if (minutes < 0) return { label: 'محتاجة تسجيل', tone: 'danger', urgent: true };
+  if (minutes <= 60) return { label: `بعد ${n(minutes)} دقيقة`, tone: 'warning', urgent: true, live: true };
+  if (session.id === nextId) return { label: 'الجلسة الجاية', tone: 'primary', urgent: true, live: true };
+  return { label: 'مجدولة', tone: 'accent' };
+}
+
+function Metric({ icon, label, value, note, tone = 'primary', onClick, index }) {
   return (
-    <button
-      type="button"
-      className={`law-dashboard-metric law-tone-${tone}${onClick ? ' is-actionable' : ''}${active ? ' is-selected' : ''}`}
-      onClick={onClick}
-      disabled={!onClick}
-    >
-      <span className="law-dashboard-metric-icon"><LegalIcon name={icon} size={21} /></span>
-      <div>
-        <span className="law-dashboard-metric-label">{label}</span>
-        <strong className="law-dashboard-metric-value">{value}</strong>
-        {note && <span className="law-dashboard-metric-note">{note}</span>}
-      </div>
-      {onClick && <span className="law-metric-action">عرض التفاصيل</span>}
+    <button type="button" className={`lt-metric lt-tone-${tone}`} onClick={onClick} style={{ '--i': index }}>
+      <span className="lt-metric-top">
+        <span className="lt-metric-label">{label}</span>
+        <span className="lt-metric-icon"><LegalIcon name={icon} size={18} /></span>
+      </span>
+      <strong className="lt-metric-value">{value}</strong>
+      <span className="lt-metric-foot">
+        <small>{note}</small>
+        <em>عرض التفاصيل</em>
+      </span>
     </button>
   );
 }
 
-function SessionRow({ session, onOpenCase, onRecord }) {
-  const isScheduled = session.status === 'scheduled';
+function SessionCard({ session, status, index, onRecord, onOpen }) {
+  const time = sessionTime(session.session_date);
   return (
-    <article className="law-dashboard-session">
-      <span className="law-session-time">{formatDateTime(session.session_date)}</span>
-      <button type="button" className="law-session-main" onClick={onOpenCase} title="فتح ملف القضية">
-        <strong>{session.court_name || 'محكمة غير محددة'} · {session.case_number}</strong>
-        <small>{session.client_name || 'موكّل غير محدد'} — {session.case_subject || session.session_reason || 'جلسة متابعة'}</small>
+    <article
+      className={`lt-session${status.urgent ? ' is-urgent' : ''}${status.done ? ' is-done' : ''}`}
+      style={{ '--i': index }}
+    >
+      <span className="lt-session-time">
+        <b>{time.clock}</b>
+        <small>{time.period}</small>
+      </span>
+      <button type="button" className="lt-session-main" onClick={onOpen} title="فتح ملف القضية">
+        <span className="lt-session-title">
+          <strong>قضية {session.case_number}</strong>
+          {session.case_type && <span className="lt-chip">{CASE_TYPES[session.case_type] || session.case_type}</span>}
+        </span>
+        <span className="lt-session-court">{session.court_name || 'محكمة غير محددة'}{session.circuit_name ? ` · ${session.circuit_name}` : ''}</span>
+        <small>الموكل: {session.client_name || '—'}{session.assigned_lawyer_name ? ` · أ. ${session.assigned_lawyer_name}` : ''}</small>
       </button>
-      <div className="law-session-actions">
-        <span className="law-session-lawyer">{session.assigned_lawyer_name || 'لم يُعيّن محامٍ'}</span>
-        {isScheduled ? (
-          <button type="button" className="law-session-attend" onClick={() => onRecord(session)}>
-            <LegalIcon name="check" size={15} />
-            تسجيل الإجراء
-          </button>
-        ) : <span className={`law-session-status law-session-status-${session.status}`}>{session.status === 'attended' ? 'تم الحضور' : session.status}</span>}
+      <div className="lt-session-need">
+        <small>المطلوب في الجلسة</small>
+        <strong>{session.session_reason || session.case_subject || 'متابعة'}</strong>
       </div>
+      <span className={`lt-pill lt-pill--${status.tone}${status.live ? ' is-live' : ''}`}>{status.label}</span>
+      {status.done ? (
+        <button type="button" className="legal-btn lt-session-btn" onClick={onOpen}>عرض المحضر</button>
+      ) : (
+        <button
+          type="button"
+          className={`legal-btn lt-session-btn${status.urgent ? ' legal-btn--primary' : ''}`}
+          onClick={() => onRecord(session)}
+        >
+          تسجيل الإجراء
+        </button>
+      )}
+      <button type="button" className="lt-more" onClick={onOpen} aria-label="فتح ملف القضية">⋯</button>
     </article>
   );
-}
-
-function deadlineRemainingLabel(days) {
-  if (days < 0) return `فات الميعاد بـ ${Math.abs(days)} يوم`;
-  if (days === 0) return 'آخر يوم النهاردة';
-  if (days === 1) return 'باقي يوم واحد';
-  if (days === 2) return 'باقي يومان';
-  return `باقي ${days} يوم`;
-}
-
-function deadlineTone(days) {
-  if (days <= 2) return 'danger';
-  if (days <= 7) return 'warning';
-  return 'calm';
 }
 
 export default function LawFirmTodayPage({ onNavigate }) {
   const [dashboard, setDashboard] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [selectedDate, setSelectedDate] = useState(getLocalDateString);
+  const [selectedDate, setSelectedDate] = useState(localDate);
   const [agendaView, setAgendaView] = useState('today');
-  const [sessionSearch, setSessionSearch] = useState('');
+  const [search, setSearch] = useState('');
   const [outcomeSession, setOutcomeSession] = useState(null);
-  const [actionError, setActionError] = useState('');
-  const dashboardRequestId = useRef(0);
+  const [taskError, setTaskError] = useState('');
+  const [now, setNow] = useState(() => new Date());
+  const requestId = useRef(0);
+  const sessionsRef = useRef(null);
 
   const loadDashboard = useCallback(async () => {
-    const requestId = ++dashboardRequestId.current;
+    const id = ++requestId.current;
     setLoading(true);
     setError('');
     try {
       const result = await legalApi.getLawFirmDashboard(selectedDate);
-      if (requestId === dashboardRequestId.current) setDashboard(result);
+      if (id === requestId.current) setDashboard(result);
     } catch (loadError) {
       console.error('تعذر تحميل لوحة المحامي:', loadError);
-      if (requestId === dashboardRequestId.current) {
-        setError(loadError instanceof Error ? loadError.message : 'تعذر تحميل لوحة المحامي');
-      }
+      if (id === requestId.current) setError(loadError instanceof Error ? loadError.message : 'تعذر تحميل لوحة المحامي');
     } finally {
-      if (requestId === dashboardRequestId.current) setLoading(false);
+      if (id === requestId.current) setLoading(false);
     }
   }, [selectedDate]);
 
   useEffect(() => {
     loadDashboard();
-    return () => {
-      dashboardRequestId.current += 1;
-    };
+    return () => { requestId.current += 1; };
   }, [loadDashboard]);
+
+  // "after 30 minutes" pills stay true without a reload.
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 30000);
+    return () => clearInterval(timer);
+  }, []);
 
   if (loading && !dashboard) {
     return (
-      <main className="law-dashboard-page" dir="rtl" aria-busy="true">
-        <div className="law-dashboard-loading"><span className="law-dashboard-spinner" /> جاري تحميل جدول القضايا والجلسات...</div>
+      <main className="legal-ds lt-page" dir="rtl" aria-busy="true">
+        <div className="lt-state"><span className="lt-spinner" /> جاري تحميل جدول القضايا والجلسات...</div>
       </main>
     );
   }
 
   if (error) {
     return (
-      <main className="law-dashboard-page" dir="rtl">
-        <div className="law-dashboard-error" role="alert">
+      <main className="legal-ds lt-page" dir="rtl">
+        <div className="lt-state lt-state--error" role="alert">
           <strong>تعذر تحميل بيانات اليوم</strong>
           <span>{error}</span>
-          <button type="button" onClick={loadDashboard}>إعادة المحاولة</button>
+          <button type="button" className="legal-btn legal-btn--primary" onClick={loadDashboard}>إعادة المحاولة</button>
         </div>
       </main>
     );
   }
 
   const cases = dashboard?.caseStats || {};
-  const sessions = dashboard?.sessionStats || {};
+  const stats = dashboard?.sessionStats || {};
   const finance = dashboard?.financialStats || {};
-  const todaySessions = dashboard?.todaySessions || [];
-  const upcomingSessions = (dashboard?.upcomingSessions || [])
+  const todaySessions = [...(dashboard?.todaySessions || [])]
+    .sort((a, b) => String(a.session_date).localeCompare(String(b.session_date)));
+  const upcoming = (dashboard?.upcomingSessions || [])
     .filter((session) => String(session.session_date).slice(0, 10) !== selectedDate);
   const movements = dashboard?.financialMovements || [];
   const deadlines = dashboard?.criticalDeadlines || [];
-  const agendaSessions = agendaView === 'today'
-    ? todaySessions
-    : agendaView === 'upcoming'
-      ? upcomingSessions
-      : [...todaySessions, ...upcomingSessions];
-  const term = sessionSearch.trim().toLocaleLowerCase();
-  const allSessions = agendaSessions.filter((session) => !term || [
-    session.case_number,
-    session.court_name,
-    session.client_name,
-    session.case_subject,
-    session.session_reason,
-    session.assigned_lawyer_name,
-  ].some((value) => String(value || '').toLocaleLowerCase().includes(term)));
+  const tasks = dashboard?.todayTasks || [];
+  const openTasks = tasks.filter((task) => task.status !== 'completed').length;
 
+  const isToday = selectedDate === localDate(now);
+  const nextId = todaySessions.find((s) => s.status === 'scheduled' && toDate(s.session_date) >= now)?.id;
+  const morning = todaySessions.filter((s) => toDate(s.session_date).getHours() < 12).length;
+  const courts = new Set(upcoming.map((s) => s.court_name).filter(Boolean)).size;
 
-  function openCase(caseId) {
-    onNavigate('cases', { caseId });
+  const agenda = agendaView === 'today' ? todaySessions : agendaView === 'upcoming' ? upcoming : [...todaySessions, ...upcoming];
+  const term = search.trim().toLocaleLowerCase();
+  const visibleSessions = agenda.filter((s) => !term || [s.case_number, s.court_name, s.client_name, s.case_subject, s.session_reason]
+    .some((value) => String(value || '').toLocaleLowerCase().includes(term)));
+
+  const hour = now.getHours();
+  const greeting = hour < 12 ? 'صباح الخير' : 'مساء الخير';
+  const dayLabel = new Date(`${selectedDate}T12:00:00`).toLocaleDateString('ar-EG', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+  });
+
+  const openCase = (caseId) => onNavigate('cases', { caseId });
+  const showAgenda = (view) => {
+    setAgendaView(view);
+    sessionsRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+  };
+
+  async function toggleTask(task) {
+    const status = task.status === 'completed' ? 'pending' : 'completed';
+    const patch = (value) => setDashboard((prev) => ({
+      ...prev,
+      todayTasks: prev.todayTasks.map((item) => (item.id === task.id ? { ...item, status: value } : item)),
+    }));
+    patch(status);
+    setTaskError('');
+    try {
+      await legalApi.updateCaseTask(task.id, { status });
+    } catch (toggleError) {
+      patch(task.status);
+      setTaskError(toggleError instanceof Error ? toggleError.message : 'تعذر تحديث المهمة');
+    }
+  }
+
+  function taskNote(task) {
+    if (task.session_date) return `قبل جلسة ${shortClock(task.session_date)}`;
+    if (task.days_offset < 0) return task.days_offset === -1 ? 'متابعة من أمس' : `متأخرة ${n(-task.days_offset)} أيام`;
+    return `قضية ${task.case_number}`;
   }
 
   return (
-    <main className="law-dashboard-page" dir="rtl">
-      <header className="law-dashboard-header">
-        <div>
-          <div className="law-dashboard-eyebrow"><LegalIcon name="scale" size={17} /> مكتب المحاماة</div>
-          <h1>يومك في المحاكم</h1>
-          <p>
-            {new Date(`${selectedDate}T12:00:00`).toLocaleDateString('ar-EG', {
-              weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
-            })}
-            {' '}· متابعة الجلسات والقضايا والحركات المالية
-          </p>
+    <main className="legal-ds lt-page" dir="rtl">
+      <LegalAmbient />
+
+      <header className="lt-hero">
+        <span className="lt-hero-icon"><LegalIcon name="calendar" size={26} /></span>
+        <div className="lt-hero-text">
+          <span className="legal-sheet-eyebrow">مكتب المحاماة</span>
+          <h1>{greeting} — ده يومك في المحاكم</h1>
+          <p>{dayLabel} · عندك {n(todaySessions.length)} جلسات و{n(openTasks)} متابعات.</p>
         </div>
-        <div className="law-dashboard-actions">
-          <label className="law-dashboard-date-control">
+        <div className="lt-hero-actions">
+          <label className="lt-date">
             <span>عرض يوم</span>
             <input
               type="date"
               value={selectedDate}
-              onChange={(event) => {
-                if (event.target.value) setSelectedDate(event.target.value);
-              }}
+              onChange={(event) => event.target.value && setSelectedDate(event.target.value)}
               aria-label="اختيار تاريخ لوحة المحامي"
             />
           </label>
-          <button type="button" className="law-dashboard-button law-button-secondary" onClick={loadDashboard} disabled={loading}>
-            {loading ? 'جارٍ التحديث...' : 'تحديث البيانات'}
-          </button>
-          <button type="button" className="law-dashboard-button law-button-secondary" onClick={() => onNavigate('courts')}>
-            دليل المحاكم
-          </button>
-          <button type="button" className="law-dashboard-button law-button-primary" onClick={() => onNavigate('cases', { createCase: true })}>
-            <LegalIcon name="briefcase" size={17} /> قضية جديدة
+          <button type="button" className="legal-btn" onClick={() => onNavigate('courts')}>دليل المحاكم</button>
+          <button type="button" className="legal-btn legal-btn--primary" onClick={() => onNavigate('cases', { createCase: true })}>
+            <span aria-hidden="true">+</span> قضية جديدة
           </button>
         </div>
+        {loading && <span className="lt-hero-progress" role="status" aria-label="جاري التحديث" />}
       </header>
 
-      {loading && dashboard && (
-        <div className="law-dashboard-refreshing" role="status" aria-live="polite">
-          جاري تحديث بيانات {new Date(`${selectedDate}T12:00:00`).toLocaleDateString('ar-EG')}...
-        </div>
-      )}
-
-      <section className="law-dashboard-metrics" aria-label="ملخص اليوم">
-        <MetricCard icon="scale" label="جلسات اليوم" value={Number(sessions.today_sessions || 0)} note={`${Number(sessions.scheduled_today || 0)} جلسة مجدولة`} tone="blue" onClick={() => setAgendaView('today')} active={agendaView === 'today'} />
-        <MetricCard icon="calendar" label="جلسات خلال 7 أيام" value={Number(sessions.upcoming_week || 0)} note="جلسات مجدولة" tone="violet" onClick={() => setAgendaView('upcoming')} active={agendaView === 'upcoming'} />
-        <MetricCard icon="briefcase" label="قضايا نشطة" value={Number(cases.active_cases || 0)} note={`أتعاب متبقية ${formatMoney(cases.outstanding_fees)}`} tone="teal" onClick={() => onNavigate('cases')} />
-        <MetricCard icon="wallet" label="أتعاب محصلة في اليوم المحدد" value={formatMoney(finance.fees_collected)} note={`${Number(finance.movement_count || 0)} حركة مالية`} tone="green" onClick={() => onNavigate('reports')} />
+      <section className="lt-metrics" aria-label="ملخص اليوم">
+        <Metric index={0} icon="scale" label="جلسات اليوم" value={n(stats.today_sessions)}
+          note={`${n(morning)} صباحية · ${n(todaySessions.length - morning)} بعد الظهر`} onClick={() => showAgenda('today')} />
+        <Metric index={1} icon="calendar" label="جلسات خلال ٧ أيام" value={n(stats.upcoming_week)}
+          note={`في ${n(courts)} محاكم مختلفة`} onClick={() => showAgenda('upcoming')} />
+        <Metric index={2} icon="file" label="قضايا نشطة" value={n(cases.active_cases)}
+          note={`أتعاب متبقية ${money(cases.outstanding_fees)}`} onClick={() => onNavigate('cases')} />
+        <Metric index={3} icon="cash" tone="success" label="محصّل النهارده" value={money(finance.fees_collected)}
+          note={`${n(finance.movement_count)} حركات مالية`} onClick={() => onNavigate('reports')} />
       </section>
 
-      {actionError && <div className="law-dashboard-action-error" role="alert">{actionError}</div>}
-
-      {Number(sessions.overdue_sessions || 0) > 0 && (
-        <button type="button" className="law-dashboard-overdue" onClick={() => onNavigate('cases')}>
-          <span className="law-dashboard-alert-icon"><LegalIcon name="alert" /></span>
-          <strong>{Number(sessions.overdue_sessions)} جلسات سابقة ما زالت بحالة «مجدولة»</strong>
-          <span>راجع حالة الجلسة وقرار المحكمة</span>
+      {Number(stats.overdue_sessions) > 0 && (
+        <button type="button" className="lt-overdue" onClick={() => onNavigate('cases')}>
+          <LegalIcon name="alert" size={20} />
+          <strong>{n(stats.overdue_sessions)} جلسات سابقة لسه بحالة «مجدولة»</strong>
+          <span>سجّل قرار المحكمة فيها</span>
         </button>
       )}
 
-      <section className="law-dashboard-finances" aria-label="ملخص الحركات المالية">
-        <article>
+      <section className="lt-finance" aria-label="ملخص الحركات المالية">
+        <div>
           <span>الأتعاب المحصلة</span>
-          <strong className="law-finance-positive">{formatMoney(finance.fees_collected)}</strong>
+          <strong className="is-positive">{money(finance.fees_collected)}</strong>
           <small>إيراد المكتب من أتعاب القضايا</small>
-        </article>
-        <article>
+        </div>
+        <div>
           <span>أمانات الموكلين</span>
-          <strong>{formatMoney(finance.client_deposits)}</strong>
+          <strong className="is-primary">{money(finance.client_deposits)}</strong>
           <small>تُعرض منفصلة عن إيرادات الأتعاب</small>
-        </article>
-        <article>
+        </div>
+        <div>
           <span>المصروفات القضائية</span>
-          <strong className="law-finance-negative">{formatMoney(finance.court_expenses)}</strong>
+          <strong className="is-negative">{money(finance.court_expenses)}</strong>
           <small>الرسوم والمصروفات المسجلة اليوم</small>
-        </article>
+        </div>
+        <button type="button" className="legal-btn lt-finance-link" onClick={() => onNavigate('reports')}>
+          التقرير الكامل <LegalIcon name="chevronLeft" size={16} />
+        </button>
       </section>
 
-      <div className="law-dashboard-columns">
-        <section className="law-dashboard-panel law-dashboard-sessions-panel">
-          <div className="law-dashboard-panel-header">
+      <div className="lt-columns">
+        <section className="lt-panel lt-sessions" ref={sessionsRef}>
+          <div className="lt-panel-head">
             <div>
-              <span className="law-dashboard-panel-icon"><LegalIcon name="calendar" /></span>
               <h2>{agendaView === 'today' ? 'جلسات اليوم' : agendaView === 'upcoming' ? 'الجلسات القادمة' : 'كل الجلسات'}</h2>
-              <p>{allSessions.length ? `${allSessions.length} جلسة مطابقة` : 'ابحث وراجع جدول المكتب'}</p>
+              <p>مرتبة بالوقت · كل جلسة عليها إجراء مطلوب.</p>
             </div>
-            <div className="law-agenda-tools">
-              <div className="law-agenda-search">
-                <LegalIcon name="search" size={17} />
-                <input
-                  type="search"
-                  value={sessionSearch}
-                  onChange={(event) => setSessionSearch(event.target.value)}
-                  placeholder="رقم القضية أو الموكل أو المحكمة"
-                  aria-label="البحث في جدول الجلسات"
-                />
+            <div className="lt-tools">
+              <div className="lt-tabs" role="tablist" aria-label="تصفية الجلسات">
+                {[['today', 'اليوم'], ['upcoming', 'القادم'], ['all', 'الكل']].map(([value, label]) => (
+                  <button type="button" role="tab" key={value} aria-selected={agendaView === value}
+                    className={agendaView === value ? 'is-active' : ''} onClick={() => setAgendaView(value)}>
+                    {label}
+                  </button>
+                ))}
               </div>
-              <button type="button" className="law-dashboard-link" onClick={() => onNavigate('courts')}>دليل المحاكم</button>
+              <label className="lt-search">
+                <LegalIcon name="search" size={16} />
+                <input type="search" value={search} onChange={(e) => setSearch(e.target.value)}
+                  placeholder="رقم القضية أو اسم الموكل..." aria-label="البحث في جدول الجلسات" />
+              </label>
             </div>
           </div>
-          <div className="law-agenda-tabs" role="tablist" aria-label="تصفية الجلسات">
-            {[['today', 'اليوم'], ['upcoming', 'القادم'], ['all', 'الكل']].map(([value, label]) => (
-              <button type="button" role="tab" aria-selected={agendaView === value} className={agendaView === value ? 'active' : ''} key={value} onClick={() => setAgendaView(value)}>
-                {label}
-              </button>
-            ))}
-          </div>
-          {allSessions.length ? (
-            <div className="law-dashboard-list">
-              {allSessions.map((session) => (
-                <SessionRow
+          {visibleSessions.length ? (
+            <div className="lt-session-list" key={`${agendaView}-${selectedDate}`}>
+              {visibleSessions.map((session, index) => (
+                <SessionCard
                   key={session.id}
+                  index={index}
                   session={session}
-                  onOpenCase={() => openCase(session.case_id)}
+                  status={sessionStatus(session, nextId, now, isToday && String(session.session_date).startsWith(selectedDate))}
                   onRecord={setOutcomeSession}
+                  onOpen={() => openCase(session.case_id)}
                 />
               ))}
             </div>
           ) : (
-            <div className="law-dashboard-empty">
-              <span className="law-dashboard-empty-icon"><LegalIcon name="calendar" size={30} /></span>
-              <strong>{sessionSearch ? 'لا توجد جلسات تطابق البحث' : agendaView === 'today' ? 'لا توجد جلسات في هذا اليوم' : 'لا توجد جلسات قادمة'}</strong>
-              <p>{sessionSearch ? 'جرّب البحث برقم القضية أو اسم الموكل أو المحكمة.' : 'سجّل الجلسة من ملف القضية لتظهر هنا مع إجراءات المتابعة.'}</p>
-              <button type="button" className="law-dashboard-button law-button-primary" onClick={() => onNavigate('cases')}>إدارة القضايا والجلسات</button>
+            <div className="lt-empty">
+              <span className="lt-empty-icon"><LegalIcon name="calendar" size={30} /></span>
+              <strong>{search ? 'مفيش جلسات تطابق البحث' : agendaView === 'today' ? 'مفيش جلسات في اليوم ده' : 'مفيش جلسات قادمة'}</strong>
+              <p>{search ? 'جرّب رقم القضية أو اسم الموكل.' : 'سجّل الجلسة من ملف القضية وهتظهر هنا.'}</p>
+              <button type="button" className="legal-btn legal-btn--primary" onClick={() => onNavigate('cases')}>إدارة القضايا والجلسات</button>
             </div>
           )}
         </section>
 
-        <section className="law-dashboard-panel">
-          <div className="law-dashboard-panel-header">
-            <div>
-              <span className="law-dashboard-panel-icon"><LegalIcon name="arrow" /></span>
-              <h2>القادم خلال أسبوع</h2>
-              <p>استعد للجلسات القادمة حسب المحكمة</p>
-            </div>
-          </div>
-          {upcomingSessions.length ? (
-            <div className="law-dashboard-list">
-              {upcomingSessions.slice(0, 8).map((session) => (
-                <SessionRow
-                  key={session.id}
-                  session={session}
-                  onOpenCase={() => openCase(session.case_id)}
-                  onRecord={setOutcomeSession}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="law-dashboard-empty law-dashboard-empty-compact">
-              <strong>لا توجد جلسات مجدولة خلال الأسبوع</strong>
-            </div>
-          )}
-
-          <div className="law-deadlines">
-            <div className="law-deadlines-header">
-              <span className="law-dashboard-panel-icon"><LegalIcon name="hourglass" /></span>
+        <aside className="lt-side">
+          <section className="lt-panel">
+            <div className="lt-panel-head lt-panel-head--compact">
               <div>
-                <h3>مواعيد حرجة</h3>
-                <p>مواعيد الطعن والمدد القانونية المفتوحة</p>
+                <h2>القادم خلال أسبوع</h2>
+                <p>{n(upcoming.length)} جلسات مجدولة</p>
               </div>
+              <button type="button" className="lt-link" onClick={() => showAgenda('upcoming')}>الكل</button>
             </div>
-            {deadlines.length ? (
-              <ul className="law-deadlines-list">
-                {deadlines.map((deadline) => {
-                  const days = Number(deadline.days_remaining);
+            {upcoming.length ? (
+              <ul className="lt-upcoming">
+                {upcoming.slice(0, 5).map((session, index) => {
+                  const date = toDate(session.session_date);
                   return (
-                    <li key={deadline.id} className={`law-deadline law-deadline-${deadlineTone(days)}`}>
-                      <button type="button" onClick={() => openCase(deadline.case_id)} title="فتح ملف القضية">
-                        <strong>{deadline.title}</strong>
-                        <small>قضية {deadline.case_number}{deadline.client_name ? ` · ${deadline.client_name}` : ''}</small>
-                        <span className="law-deadline-remaining">
-                          {deadlineRemainingLabel(days)}
-                          <em>آخر يوم {new Date(deadline.due_at).toLocaleDateString('ar-EG')}</em>
+                    <li key={session.id} style={{ '--i': index }}>
+                      <button type="button" onClick={() => openCase(session.case_id)}>
+                        <span className={`lt-day${index === 0 ? ' is-near' : ''}`}>
+                          <b>{n(date.getDate())}</b>
+                          <small>{date.toLocaleDateString('ar-EG', { month: 'long' })}</small>
                         </span>
+                        <span className="lt-upcoming-text">
+                          <strong>قضية {session.case_number}</strong>
+                          <small>{session.court_name || '—'}</small>
+                        </span>
+                        <span className="lt-upcoming-time">{shortClock(session.session_date)}</span>
                       </button>
                     </li>
                   );
                 })}
               </ul>
-            ) : (
-              <p className="law-deadlines-empty">لا توجد مواعيد قانونية مفتوحة. سجّل ميعاد الطعن من تبويب «مهام المتابعة» في ملف القضية.</p>
-            )}
-          </div>
-        </section>
+            ) : <p className="lt-side-empty">مفيش جلسات مجدولة الأسبوع ده.</p>}
+          </section>
+
+          <section className="lt-panel">
+            <div className="lt-panel-head lt-panel-head--compact">
+              <h2>مهام اليوم</h2>
+              <span className="lt-count">{n(openTasks)}</span>
+            </div>
+            {taskError && <p className="lt-task-error" role="alert">{taskError}</p>}
+            {tasks.length ? (
+              <ul className="lt-tasks">
+                {tasks.map((task) => (
+                  <li key={task.id} className={task.status === 'completed' ? 'is-done' : ''}>
+                    <label>
+                      <input type="checkbox" checked={task.status === 'completed'} onChange={() => toggleTask(task)} />
+                      <span className="lt-check" aria-hidden="true"><LegalIcon name="check" size={14} /></span>
+                      <span className="lt-task-text">
+                        <strong>{task.title}</strong>
+                        <small className={task.days_offset < 0 ? 'is-late' : ''}>{taskNote(task)}</small>
+                      </span>
+                    </label>
+                  </li>
+                ))}
+              </ul>
+            ) : <p className="lt-side-empty">مفيش مهام لليوم ده.</p>}
+          </section>
+
+          <section className="lt-panel lt-deadlines">
+            <div className="lt-panel-head lt-panel-head--compact">
+              <h2>مواعيد حرجة</h2>
+            </div>
+            {deadlines.length ? (
+              <ul>
+                {deadlines.map((deadline) => {
+                  const days = Number(deadline.days_remaining);
+                  const tone = days <= 7 ? 'danger' : 'warning';
+                  return (
+                    <li key={deadline.id} className={`lt-deadline lt-deadline--${tone}`}>
+                      <button type="button" onClick={() => openCase(deadline.case_id)}>
+                        <span className="lt-deadline-title">{deadline.title} في قضية {deadline.case_number}</span>
+                        <span className={`lt-pill lt-pill--${tone}`}>{remainingLabel(days)}</span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : <p className="lt-side-empty">مفيش مواعيد قانونية مفتوحة.</p>}
+          </section>
+        </aside>
       </div>
 
-      <section className="law-dashboard-panel law-dashboard-movements">
-        <div className="law-dashboard-panel-header">
+      <section className="lt-panel lt-movements">
+        <div className="lt-panel-head">
           <div>
-            <span className="law-dashboard-panel-icon"><LegalIcon name="receipt" /></span>
-            <h2>الحركات المالية القانونية في اليوم المحدد</h2>
-            <p>الأتعاب والأمانات والمصروفات المرتبطة بملفات القضايا</p>
+            <h2>حركات اليوم المالية</h2>
+            <p>أتعاب ومصروفات وأمانات اتسجلت النهارده</p>
           </div>
-          <button type="button" className="law-dashboard-link" onClick={() => onNavigate('reports')}>التقارير القانونية</button>
+          <button type="button" className="legal-btn" onClick={() => onNavigate('cases')}>تسجيل حركة</button>
         </div>
         {movements.length ? (
-          <div className="law-dashboard-table-wrap">
-            <table className="law-dashboard-table">
+          <div className="lt-table-wrap">
+            <table className="lt-table">
               <thead>
-                <tr><th>الوقت</th><th>نوع الحركة</th><th>القضية</th><th>الموكل</th><th>البيان</th><th>المبلغ</th><th>الإجراء</th></tr>
+                <tr><th>الوقت</th><th>البيان</th><th>القضية / الموكل</th><th>النوع</th><th>المبلغ</th></tr>
               </thead>
               <tbody>
-                {movements.map((movement) => (
-                  <tr key={movement.id}>
-                    <td>{formatDateTime(movement.date)}</td>
-                    <td>{MOVEMENT_LABELS[movement.type] || movement.type}</td>
-                    <td>{movement.case_number} · {movement.court_name}</td>
-                    <td>{movement.client_name || '—'}</td>
-                    <td>{movement.description || '—'}</td>
-                    <td className={movement.type === 'fee_payment' ? 'law-finance-positive' : ''}>{formatMoney(movement.amount)}</td>
-                    <td><button type="button" className="law-movement-open" onClick={() => openCase(movement.case_id)}>فتح القضية</button></td>
-                  </tr>
-                ))}
+                {movements.map((movement, index) => {
+                  const [label, tone, sign] = MOVEMENTS[movement.type] || [movement.type, 'muted', -1];
+                  const date = toDate(movement.date);
+                  const clock = `${shortClock(movement.date)} ${date.getHours() < 12 ? 'ص' : 'م'}`;
+                  return (
+                    <tr key={movement.id} style={{ '--i': index }} onClick={() => openCase(movement.case_id)}>
+                      <td className="lt-muted-cell">{clock}</td>
+                      <td><strong>{movement.description || label}</strong></td>
+                      <td className="lt-muted-cell">{movement.client_name || '—'} · {movement.case_number}</td>
+                      <td><span className={`lt-pill lt-pill--${tone}`}>{label}</span></td>
+                      <td className={sign > 0 ? 'is-positive' : 'is-negative'}>{sign > 0 ? '+' : '−'} {money(movement.amount)}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
-        ) : (
-          <div className="law-dashboard-empty law-dashboard-empty-compact">لا توجد حركات مالية للقضايا اليوم.</div>
-        )}
+        ) : <p className="lt-side-empty lt-movements-empty">مفيش حركات مالية اتسجلت في اليوم ده.</p>}
       </section>
 
       {outcomeSession && (
         <SessionOutcomeModal
           session={outcomeSession}
           onClose={() => setOutcomeSession(null)}
-          onSaved={() => {
-            setOutcomeSession(null);
-            setActionError('');
-            loadDashboard();
-          }}
+          onSaved={loadDashboard}
         />
       )}
     </main>

@@ -3,7 +3,7 @@ import '../../styles/legalClients.css';
 
 export default function LegalPageHero({ eyebrow, title, subtitle, icon = 'scale', children }) {
   return (
-    <header className="legal-page-hero">
+    <header className="legal-ds legal-page-hero">
       <div className="legal-page-hero-title">
         <span className="legal-page-hero-mark"><LegalIcon name={icon} size={24} /></span>
         <div>

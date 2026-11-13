@@ -117,6 +117,9 @@ function migrateLegalClientInteractions(dbInstance = db) {
     CREATE INDEX IF NOT EXISTS idx_legal_client_interactions_followup
       ON legal_client_interactions(follow_up_date);
   `);
+  // ملف الموكل القانوني (نوعه، الرقم القومي، العنوان، اتفاق الأتعاب...) كـ JSON
+  // عشان القطاعات التانية متتأثرش بأعمدة خاصة بمكاتب المحاماة.
+  addColumnIfMissing('customers', 'legal_profile', 'TEXT', dbInstance);
 }
 
 function migrateCustomerPowerOfAttorneyTables(dbInstance = db) {
@@ -165,9 +168,16 @@ function migrateCourtsTables(dbInstance = db) {
     CREATE INDEX IF NOT EXISTS idx_courts_type_active ON courts(court_type, is_active);
   `);
 
+  addColumnIfMissing('courts', 'working_hours', 'TEXT', dbInstance);
+
   const caseColumns = dbInstance.prepare('PRAGMA table_info(legal_cases)').all();
   if (caseColumns.length && !caseColumns.some((column) => column.name === 'court_id')) {
     dbInstance.exec('ALTER TABLE legal_cases ADD COLUMN court_id TEXT');
+  }
+  // The verdict's result for the client, recorded with the "judgment issued" session outcome.
+  if (caseColumns.length) {
+    addColumnIfMissing('legal_cases', 'verdict_result', "TEXT CHECK(verdict_result IN ('favorable', 'partial', 'unfavorable'))", dbInstance);
+    addColumnIfMissing('legal_cases', 'verdict_date', 'TEXT', dbInstance);
   }
 }
 

@@ -179,8 +179,13 @@ function getCreditSales(customerId) {
   `).all(customerId);
 }
 
+function updateLegalProfile(id, profileJson) {
+  return db.prepare('UPDATE customers SET legal_profile = ? WHERE id = ?').run(profileJson, id).changes;
+}
+
 module.exports = {
   create,
+  updateLegalProfile,
   getAll,
   getById,
   getByPhone,

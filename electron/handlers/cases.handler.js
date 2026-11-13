@@ -7,6 +7,7 @@ const {
   positiveIdSchema,
   createCustomerPowerOfAttorneySchema,
   updateCustomerPowerOfAttorneySchema,
+  updateLegalClientProfileSchema,
 } = require('../validators/schema');
 
 /**
@@ -85,6 +86,10 @@ function registerCasesHandlers() {
 
   safeHandle('cases:recordSessionOutcome', (event, payload) => {
     return casesService.recordSessionOutcome(payload?.sessionId, payload?.data, authService.getCurrentSession());
+  });
+
+  safeHandle('cases:updateLegalClientProfile', updateLegalClientProfileSchema, (event, payload) => {
+    return casesService.updateLegalClientProfile(payload.customerId, payload.profile);
   });
 
   safeHandle('cases:getLegalClientsOverview', (event, date) => {

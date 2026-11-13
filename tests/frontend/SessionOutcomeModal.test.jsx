@@ -50,4 +50,23 @@ describe('SessionOutcomeModal', () => {
     expect(screen.queryByLabelText(/تاريخ الجلسة القادمة/)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'حفظ إجراء الجلسة' })).toBeInTheDocument();
   });
+
+  it('asks how the verdict went for the client before saving it', async () => {
+    legalApi.recordSessionOutcome.mockClear();
+    const onSaved = vi.fn();
+    render(<SessionOutcomeModal session={session} onClose={() => {}} onSaved={onSaved} />);
+    await screen.findByText('شركة المستقبل للتجارة');
+    fireEvent.click(screen.getByRole('button', { name: 'صدور حكم' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'حفظ إجراء الجلسة' }));
+    expect(await screen.findByText('حدد نتيجة الحكم بالنسبة للموكل')).toBeInTheDocument();
+    expect(legalApi.recordSessionOutcome).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'لصالح الموكل' }));
+    fireEvent.click(screen.getByRole('button', { name: 'حفظ إجراء الجلسة' }));
+    await vi.waitFor(() => expect(onSaved).toHaveBeenCalled());
+    expect(legalApi.recordSessionOutcome).toHaveBeenCalledWith(77, expect.objectContaining({
+      outcome: 'judged', verdict_result: 'favorable', next_session_date: null,
+    }));
+  });
 });
