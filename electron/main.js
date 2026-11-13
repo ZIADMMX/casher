@@ -124,6 +124,7 @@ const { registerNotificationsHandlers } = require('./handlers/notifications.hand
 const { registerLicenseHandlers } = require('./handlers/license.handler');
 const { registerImportHandlers } = require('./handlers/import.handler');
 const { registerSubscriptionsHandlers } = require('./handlers/subscriptions.handler');
+const { registerGymTrainingHandlers } = require('./handlers/gymTraining.handler');
 const { registerCommissionsHandlers } = require('./handlers/commissions.handler');
 const { registerCRMHandlers } = require('./handlers/crm.handler');
 const { registerEnterpriseHandlers } = require('./handlers/enterprise.handler');
@@ -368,6 +369,7 @@ app.whenReady().then(async () => {
   registerImportHandlers();
   registerAppointmentsHandlers();
   registerSubscriptionsHandlers();
+  registerGymTrainingHandlers();
   registerCommissionsHandlers();
   registerCRMHandlers();
   registerEnterpriseHandlers();
@@ -433,10 +435,10 @@ app.whenReady().then(async () => {
   startSafeInterval('CourtSessionReminders', () => casesService.checkDueCourtSessionReminders(48), 60_000);
     startSafeInterval('LegalTaskReminders', () => casesService.checkDueCaseTaskReminders(), 60_000);
   startSafeInterval('DailyDatabaseBackup', () => autoBackupDaily(), 6 * 60 * 60 * 1000);
-  // الفاتورة الإلكترونية: ترسل المعلّق وتحدّث حالة المرسل. لا تعمل شيئًا قبل التفعيل.
-  startSafeInterval('EInvoiceSubmission', () => require('./services/einvoice').flush(), 5 * 60_000);
   // الإشعارات أقدم من 90 يوم بتتمسح عشان الجدول ما يكبرش من غير حد.
   startSafeInterval('NotificationsCleanup', () => require('./repositories/notifications.repository').deleteOlderThan(90), 24 * 60 * 60 * 1000);
+  // الفاتورة الإلكترونية: ترسل المعلّق وتحدّث حالة المرسل. لا تعمل شيئًا قبل التفعيل.
+  startSafeInterval('EInvoiceSubmission', () => require('./services/einvoice').flush(), 5 * 60_000);
   configureUpdater();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

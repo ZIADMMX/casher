@@ -41,6 +41,7 @@ const SettingsPage = lazy(() => import('./pages/SettingsPage.jsx'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage.jsx'));
 const KitchenDisplayPage = lazy(() => import('./pages/KitchenDisplayPage.jsx'));
 const SubscriptionsPage = lazy(() => import('./pages/SubscriptionsPage.jsx'));
+const GymTrainingPage = lazy(() => import('./pages/GymTrainingPage.jsx'));
 const CommissionsPage = lazy(() => import('./pages/CommissionsPage.jsx'));
 const EnterpriseManagementPage = lazy(() => import('./pages/EnterpriseManagementPage.jsx'));
 const RolesPage = lazy(() => import('./pages/RolesPage.jsx'));
@@ -237,6 +238,7 @@ function AppContent() {
       appointments: 'appointments.view',
       courts: 'cases.view',
       subscriptions: 'subscriptions.view',
+      trainers: 'subscriptions.view',
       commissions: 'commissions.view',
       returns: 'pos.refund',
       products: 'products.view',
@@ -288,6 +290,8 @@ function AppContent() {
         return <SalonPage />;
       case 'subscriptions':
         return <SubscriptionsPage />;
+      case 'trainers':
+        return <GymTrainingPage />;
       case 'commissions':
         return <CommissionsPage />;
       case 'returns':

@@ -1,0 +1,5 @@
+[
+  { "sessions": 8, "discountPct": 0, "validDays": 30, "label": "صالحة شهر" },
+  { "sessions": 12, "discountPct": 5, "validDays": 42, "label": "صالحة 6 أسابيع" },
+  { "sessions": 16, "discountPct": 10, "validDays": 60, "label": "صالحة شهرين" }
+]

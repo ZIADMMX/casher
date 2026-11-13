@@ -16,6 +16,7 @@ const PAGE_PERMISSIONS = {
   courts: 'cases.view',
   appointments: 'appointments.view',
   subscriptions: 'subscriptions.view',
+  trainers: 'subscriptions.view',
   commissions: 'commissions.view',
   returns: 'pos.refund',
   products: 'products.view',
@@ -190,6 +191,17 @@ function Sidebar({ activePage, onNavigate, currentUser, onLogout, onOpenProfile,
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
           <line x1="1" y1="10" x2="23" y2="10" />
+        </svg>
+      ),
+      roles: ['admin', 'cashier'],
+    },
+    {
+      key: 'trainers',
+      label: 'الحصص والمدربين',
+      badge: 'جديد',
+      icon: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M6 7v10M18 7v10M3 10v4M21 10v4M6 12h12" />
         </svg>
       ),
       roles: ['admin', 'cashier'],

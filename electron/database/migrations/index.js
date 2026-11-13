@@ -59,6 +59,7 @@ const { ensureWorkshopTickets } = require('./workshop');
 const { ensureProductLedger } = require('./productLedger');
 const { ensureSyncMetadata, ensureDeleteTombstones } = require('./syncMetadata');
 const { ensureWebhooks } = require('./webhooks');
+const { ensureGymTraining } = require('./gym');
 const { addColumnIfMissing } = require('./helpers');
 
 function runAllMigrations(dbInstance = db) {
@@ -346,7 +347,6 @@ function runAllMigrations(dbInstance = db) {
     console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 33 (تحصيل تذاكر الورشة وضمان الإصلاح).');
   }
 
-  // Earlier steps may rebuild the sales tables; make sure the guards exist at the end.
   if (currentVersion < 34) {
     // ملف الموكل، مواعيد عمل المحكمة، ونتيجة الحكم: أعمدة اتضافت لخطوات v7/v10
     // فقواعد البيانات اللي عدّت الخطوات دي مكانتش بتاخدها. الدالتين آمنين للتكرار.
@@ -363,11 +363,13 @@ function runAllMigrations(dbInstance = db) {
     console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 35 (حالة قراءة الإشعارات لكل مستخدم).');
   }
 
+  // Earlier steps may rebuild the sales tables; make sure the guards exist at the end.
   ensureSalesLedgerGuards(dbInstance);
   ensureKitchenLedger(dbInstance);
   ensureProductLedger(dbInstance);
   ensureDeleteTombstones(dbInstance);
   ensureWebhooks(dbInstance);
+  ensureGymTraining(dbInstance);
 }
 
 module.exports = { runAllMigrations };

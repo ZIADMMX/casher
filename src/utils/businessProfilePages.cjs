@@ -4,6 +4,7 @@ const PAGE_MODULES = {
   pos: 'pos',
   kitchen: 'pos',
   subscriptions: 'subscriptions',
+  trainers: 'subscriptions',
   commissions: 'commissions',
   returns: 'returns',
   products: 'inventory',
@@ -90,11 +91,12 @@ const SECTOR_PAGE_POLICIES = {
   },
   subscriptions_gym: {
     allowedPages: [
-      'today', 'pos', 'subscriptions', 'appointments', 'products', 'branches',
+      'today', 'pos', 'subscriptions', 'trainers', 'appointments', 'products', 'branches',
       'customers', 'crm', 'suppliers', 'shifts', 'reports', 'users', 'attendance',
       'leaves', 'roles', 'salaries', 'settings', 'profile', 'commissions',
     ],
-    deniedPages: ['cases', 'salon', 'returns'],
+    // Hidden for gyms: technical/B2B pages a gym owner never opens.
+    deniedPages: ['cases', 'salon', 'returns', 'webhooks', 'enterprise', 'workflows', 'screen-designer'],
   },
   salon_barbershop: {
     allowedPages: [
