@@ -40,6 +40,7 @@ describe('Security: SQL Injection Immunity & Parameterized Queries', () => {
       DROP TABLE IF EXISTS customer_debts;
       DROP TABLE IF EXISTS customers;
       DROP TABLE IF EXISTS shifts;
+      DROP TABLE IF EXISTS notification_reads;
       DROP TABLE IF EXISTS notifications;
       DROP TABLE IF EXISTS settings;
       DROP TABLE IF EXISTS crm_leads;

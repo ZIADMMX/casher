@@ -5,6 +5,7 @@ const {
   migrateUsersTable,
   migrateSettingsTable,
   migrateNotificationsTable,
+  migrateNotificationReads,
   migrateCashierAuditLogsTable,
   migrateRevokedTokens,
 } = require('./core');
@@ -346,6 +347,22 @@ function runAllMigrations(dbInstance = db) {
   }
 
   // Earlier steps may rebuild the sales tables; make sure the guards exist at the end.
+  if (currentVersion < 34) {
+    // ملف الموكل، مواعيد عمل المحكمة، ونتيجة الحكم: أعمدة اتضافت لخطوات v7/v10
+    // فقواعد البيانات اللي عدّت الخطوات دي مكانتش بتاخدها. الدالتين آمنين للتكرار.
+    migrateCourtsTables(dbInstance);
+    migrateLegalClientInteractions(dbInstance);
+    dbInstance.pragma('user_version = 34');
+    console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 34 (ملف الموكل ومواعيد المحاكم ونتيجة الحكم).');
+  }
+
+  if (currentVersion < 35) {
+    // حالة "مقروء" لكل مستخدم في الإشعارات العامة، ومفتاح يمنع تكرار نفس التنبيه.
+    migrateNotificationReads(dbInstance);
+    dbInstance.pragma('user_version = 35');
+    console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 35 (حالة قراءة الإشعارات لكل مستخدم).');
+  }
+
   ensureSalesLedgerGuards(dbInstance);
   ensureKitchenLedger(dbInstance);
   ensureProductLedger(dbInstance);

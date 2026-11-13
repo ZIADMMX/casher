@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CSV_HEADER, csvCell, csvToCourts, parseCsv } from '../../src/components/legal/courtsData.js';
+import { CSV_HEADER, csvCell, csvToCourts, parseCsv, tableToCourts } from '../../src/components/legal/courtsData.js';
 
 describe('courts CSV', () => {
   it('parses quoted cells with commas, quotes and new lines', () => {
@@ -22,6 +22,11 @@ describe('courts CSV', () => {
       working_hours: 'الأحد – الخميس',
       notes: 'بوابة "خلفية"',
     }]);
+  });
+
+  it('maps an Excel sheet with non-text cells and unknown columns', () => {
+    expect(tableToCourts([['اسم المحكمة', 'نوع المحكمة', 'الهاتف', 'عمود زيادة'], ['محكمة طنطا', 'cassation', 403331234, 'x'], [null, 'النقض', '', '']]))
+      .toEqual([{ name: 'محكمة طنطا', court_type: 'cassation', phone: '403331234' }]);
   });
 
   it('rejects a file without a court name column', () => {

@@ -386,6 +386,9 @@
 .pay-review li { color: var(--color-text-muted); font-size: var(--text-sm); line-height: var(--leading-normal); }
 .pay-review li::marker { color: var(--color-danger); }
 .pay-review li.is-warning::marker { color: var(--color-warning); }
+.pay-review .pay-btn { justify-self: start; }
+.pay-table tr.is-flagged td { background: color-mix(in srgb, var(--ds-amber-500) 14%, var(--color-surface)); }
+.pay-table tr.is-flagged td:first-child { box-shadow: inset -3px 0 0 var(--color-warning); }
 
 /* Modals */
 .pay-modal-overlay {

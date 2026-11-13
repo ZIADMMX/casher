@@ -214,6 +214,7 @@ exports[`System Snapshot Tests (اختبارات اللقطات والقوالب
   "legal_case_tasks",
   "legal_cases",
   "legal_client_interactions",
+  "notification_reads",
   "notifications",
   "onboarding_presets",
   "onboarding_state",

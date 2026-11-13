@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNotifications } from '../contexts/NotificationsContext.jsx';
+import { useUser } from '../contexts/UserContext.jsx';
 
 function getNotificationIcon(type) {
   switch (type) {
@@ -24,6 +25,10 @@ function getNotificationIcon(type) {
       return '🚚';
     case 'supplier_payment':
       return '💰';
+    case 'activity':
+      return '📝';
+    case 'welcome':
+      return '👋';
     default:
       return '🔔';
   }
@@ -54,6 +59,10 @@ function formatRelativeTime(dateString) {
 
 function NotificationBell({ onNavigate }) {
   const { notifications, unreadCount, markAsRead, markAllAsRead, clearAll } = useNotifications();
+  const { currentUser } = useUser();
+  // Same rule as the main process: the owner, or a role with settings.manage.
+  const canClearAll = currentUser?.role === 'admin' && (!currentUser.systemRoleKey
+    || ['*', 'settings.manage'].some((p) => currentUser.permissions?.includes(p)));
   const [isOpen, setIsOpen] = useState(false);
   const [filter, setFilter] = useState('all'); // 'all' | 'unread'
   const dropdownRef = useRef(null);
@@ -368,7 +377,7 @@ function NotificationBell({ onNavigate }) {
           </div>
 
           {/* Footer */}
-          {notifications.length > 0 && (
+          {canClearAll && notifications.length > 0 && (
             <div
               style={{
                 padding: '10px 14px',

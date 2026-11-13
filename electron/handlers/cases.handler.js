@@ -92,6 +92,10 @@ function registerCasesHandlers() {
     return casesService.updateLegalClientProfile(payload.customerId, payload.profile);
   });
 
+  safeHandle('cases:setLegalClientArchived', (event, payload) => {
+    return casesService.setLegalClientArchived(payload?.customerId, payload?.archived === true);
+  });
+
   safeHandle('cases:getLegalClientsOverview', (event, date) => {
     return casesService.getLegalClientsOverview(date);
   });

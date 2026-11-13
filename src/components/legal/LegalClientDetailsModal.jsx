@@ -60,7 +60,9 @@ function powerStatus(power) {
   return { label: 'ساري', tone: 'ok' };
 }
 
-export default function LegalClientDetailsModal({ customer, onClose, onOpenCases }) {
+export default function LegalClientDetailsModal({ customer, onClose, onOpenCases, onArchiveChange }) {
+  const isArchived = Number(customer.is_active) === 0;
+  const [archiving, setArchiving] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
   const [cases, setCases] = useState([]);
   const [contacts, setContacts] = useState([]);
@@ -164,6 +166,23 @@ export default function LegalClientDetailsModal({ customer, onClose, onOpenCases
     }
   }
 
+  async function toggleArchive() {
+    const question = isArchived
+      ? `استرجاع الموكل "${customer.name}" من الأرشيف؟`
+      : `أرشفة الموكل "${customer.name}"؟ هيختفي من القائمة والإحصائيات، وتقدر تسترجعه من فلتر «الأرشيف».`;
+    if (!window.confirm(question)) return;
+    setArchiving(true);
+    setError('');
+    try {
+      await legalApi.setLegalClientArchived(customer.id, !isArchived);
+      onArchiveChange?.(customer);
+    } catch (archiveError) {
+      setError(archiveError instanceof Error ? archiveError.message : 'تعذر تحديث حالة الأرشفة');
+    } finally {
+      setArchiving(false);
+    }
+  }
+
   async function deletePower(power) {
     if (!window.confirm(`هل تريد حذف التوكيل رقم "${power.number}"؟`)) return;
     setError('');
@@ -249,6 +268,7 @@ export default function LegalClientDetailsModal({ customer, onClose, onOpenCases
                   <span className={`lcd-pill lcd-pill--${profile.status === 'potential' ? 'warn' : 'ok'}`}>
                     <i aria-hidden="true" />{profile.status === 'potential' ? 'موكل محتمل' : 'موكل نشط'}
                   </span>
+                  {isArchived && <span className="lcd-pill lcd-pill--warn"><i aria-hidden="true" />مؤرشف</span>}
                   {profile.source && <span className="lcd-pill lcd-pill--gold">مصدره: {profile.source}</span>}
                 </div>
               </div>
@@ -256,6 +276,9 @@ export default function LegalClientDetailsModal({ customer, onClose, onOpenCases
             <div className="lcd-actions">
               <button type="button" className="legal-btn" onClick={copyPhone} disabled={!customer.phone} title={customer.phone ? `نسخ ${customer.phone}` : 'لا يوجد رقم'}>
                 <LegalIcon name={copied ? 'check' : 'phone'} size={17} /> {copied ? 'تم نسخ الرقم' : 'اتصال'}
+              </button>
+              <button type="button" className="legal-btn" onClick={toggleArchive} disabled={archiving}>
+                {isArchived ? 'استرجاع من الأرشيف' : 'أرشفة'}
               </button>
               <button type="button" className="legal-btn legal-btn--primary" onClick={() => onOpenCases?.(customer)}>قضية جديدة</button>
               <button type="button" className="legal-x" onClick={requestClose} aria-label="إغلاق"><LegalIcon name="close" size={18} /></button>

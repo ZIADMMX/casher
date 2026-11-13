@@ -60,14 +60,17 @@ export function parseCsv(text) {
   return rows.filter((cells) => cells.some((value) => value.trim()));
 }
 
-/** Maps CSV rows to court payloads; the type column accepts the Arabic label or the stored value. */
 export function csvToCourts(text) {
-  const [header = [], ...rows] = parseCsv(text);
-  const fields = header.map((title) => FIELD_BY_HEADER[title.trim()]);
+  return tableToCourts(parseCsv(text));
+}
+
+/** Maps [header, ...rows] from a CSV or Excel sheet to court payloads; the type column accepts the Arabic label or the stored value. */
+export function tableToCourts([header = [], ...rows]) {
+  const fields = header.map((title) => FIELD_BY_HEADER[String(title ?? '').trim()]);
   if (!fields.includes('name')) throw new Error('الملف لازم يحتوي على عمود «المحكمة».');
   return rows.map((cells) => {
     const court = {};
-    fields.forEach((field, index) => { if (field) court[field] = (cells[index] || '').trim(); });
+    fields.forEach((field, index) => { if (field) court[field] = String(cells[index] ?? '').trim(); });
     const type = COURT_TYPES.find((item) => item.label === court.court_type || item.value === court.court_type);
     court.court_type = type ? type.value : 'first_instance'; // unknown type: lands as first instance, editable later
     return court;

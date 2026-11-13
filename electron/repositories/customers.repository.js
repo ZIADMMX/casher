@@ -120,6 +120,10 @@ function archive(id) {
   return db.prepare('UPDATE customers SET is_active = 0 WHERE id = ?').run(id);
 }
 
+function restore(id) {
+  return db.prepare('UPDATE customers SET is_active = 1 WHERE id = ?').run(id);
+}
+
 // A customer's debt: credit sales minus payments. Credit sales and payments are
 // each summed once per customer, instead of joining every sale of every customer.
 function getBalances() {
@@ -196,6 +200,7 @@ module.exports = {
   deletePowerOfAttorney,
   countAll,
   archive,
+  restore,
   getBalances,
   getBalance,
   createPayment,

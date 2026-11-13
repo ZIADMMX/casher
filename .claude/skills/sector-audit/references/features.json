@@ -49,7 +49,7 @@
       },
       {
         "title": "فاتورة إلكترونية (ETA)",
-        "pattern": "eta_uuid|submitToEta|etaReceipt|e_receipt",
+        "pattern": "eta_uuid|submitToEta|etaReceipt|e_receipt|einvoice",
         "weight": 2
       }
     ]
@@ -99,7 +99,7 @@
       },
       {
         "title": "فاتورة إلكترونية (ETA)",
-        "pattern": "eta_uuid|submitToEta|etaReceipt|e_receipt",
+        "pattern": "eta_uuid|submitToEta|etaReceipt|e_receipt|einvoice",
         "weight": 2
       }
     ]
@@ -154,7 +154,7 @@
       },
       {
         "title": "فاتورة إلكترونية (ETA)",
-        "pattern": "eta_uuid|submitToEta|etaReceipt|e_receipt",
+        "pattern": "eta_uuid|submitToEta|etaReceipt|e_receipt|einvoice",
         "weight": 2
       }
     ]
@@ -199,7 +199,7 @@
       },
       {
         "title": "فاتورة إلكترونية (ETA)",
-        "pattern": "eta_uuid|submitToEta|etaReceipt|e_receipt",
+        "pattern": "eta_uuid|submitToEta|etaReceipt|e_receipt|einvoice",
         "weight": 2
       }
     ]
@@ -274,7 +274,7 @@
       },
       {
         "title": "فاتورة إلكترونية (ETA)",
-        "pattern": "eta_uuid|submitToEta|etaReceipt|e_receipt",
+        "pattern": "eta_uuid|submitToEta|etaReceipt|e_receipt|einvoice",
         "weight": 2
       }
     ]
@@ -309,7 +309,7 @@
       },
       {
         "title": "فاتورة إلكترونية (ETA)",
-        "pattern": "eta_uuid|submitToEta|etaReceipt|e_receipt",
+        "pattern": "eta_uuid|submitToEta|etaReceipt|e_receipt|einvoice",
         "weight": 2
       }
     ]

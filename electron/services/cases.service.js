@@ -259,6 +259,15 @@ function deleteCustomerPowerOfAttorney(id) {
   return { success: true };
 }
 
+function setLegalClientArchived(customerId, archived) {
+  const id = Number(customerId);
+  if (!Number.isSafeInteger(id) || id <= 0) throw new Error('معرف الموكل غير صالح');
+  if (!customersRepo.getById(id)) throw new Error('الموكل غير موجود');
+  if (archived) customersRepo.archive(id);
+  else customersRepo.restore(id);
+  return { success: true, archived: Boolean(archived) };
+}
+
 function getLegalClientsOverview(date) {
   const now = new Date();
   const targetDate = date || [
@@ -764,6 +773,7 @@ module.exports = {
   updateCustomerPowerOfAttorney,
   deleteCustomerPowerOfAttorney,
   getLegalClientsOverview,
+  setLegalClientArchived,
   updateLegalClientProfile,
   getLawFirmDashboard,
   getSessionsByCaseId,

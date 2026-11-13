@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { isBridgeAvailable } from '../api/bridge.js';
 import * as payrollApi from '../api/payroll.js';
 import * as usersApi from '../api/users.js';
@@ -50,6 +50,8 @@ export default function SalariesPage({ onNavigate }) {
   const [showAdvance, setShowAdvance] = useState(false);
   const [advanceForm, setAdvanceForm] = useState({ user_id: '', amount: '', installments: '1', reason: '' });
   const [printableSlip, setPrintableSlip] = useState(null);
+  const [reviewing, setReviewing] = useState(false);
+  const tableRef = useRef(null);
 
   const loadData = useCallback(async (preferredId) => {
     if (!isBridgeAvailable()) { setLoading(false); return; }
@@ -196,16 +198,24 @@ export default function SalariesPage({ onNavigate }) {
 
   const reviewNotes = [];
   if (details && details.status !== 'paid') {
-    if (unpaidItems.length) reviewNotes.push({ tone: 'danger', text: `${money(unpaidItems.length)} موظفين بدون صرف في ${details.period_name} — إجمالي ${money(unpaidAmount)} ج.م.` });
+    if (unpaidItems.length) reviewNotes.push({ tone: 'danger', userIds: details.status === 'draft' ? [] : unpaidItems.map((row) => row.user_id), text: `${money(unpaidItems.length)} موظفين بدون صرف في ${details.period_name} — إجمالي ${money(unpaidAmount)} ج.م.` });
     for (const item of items.filter((row) => row.absent_days > 0)) {
-      reviewNotes.push({ tone: 'danger', text: `${item.full_name || item.username} عنده ${money(item.absent_days)} أيام غياب غير مسجلة في الحضور.` });
+      reviewNotes.push({ tone: 'danger', userIds: [item.user_id], text: `${item.full_name || item.username} عنده ${money(item.absent_days)} أيام غياب غير مسجلة في الحضور.` });
     }
     for (const advance of activeAdvances) {
       const installment = advance.amount / Math.max(1, advance.installments || 1);
       if (advance.amount - advance.repaid_amount <= installment + 0.01) {
-        reviewNotes.push({ tone: 'warning', text: `سلفة ${advance.full_name || advance.username} آخر قسط فيها الشهر الجاي.` });
+        reviewNotes.push({ tone: 'warning', userIds: [advance.user_id], text: `سلفة ${advance.full_name || advance.username} آخر قسط فيها الشهر الجاي.` });
       }
     }
+  }
+
+  const flaggedUsers = new Set(reviewNotes.flatMap((note) => note.userIds));
+
+  function reviewFlagged() {
+    setReviewing(true);
+    const row = tableRef.current?.querySelector('tr.is-flagged') || tableRef.current;
+    row?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
   const advanceInstallment = Number(advanceForm.amount) > 0
@@ -333,7 +343,7 @@ export default function SalariesPage({ onNavigate }) {
             </section>
 
             {details && (
-              <section className="pay-card">
+              <section className="pay-card" ref={tableRef}>
                 <header className="pay-card-head">
                   <div>
                     <h2>موظفو {details.period_name.replace('مسير رواتب', 'مسير')}</h2>
@@ -354,7 +364,7 @@ export default function SalariesPage({ onNavigate }) {
                         const allowances = allowancesOf(item);
                         const deductions = deductionsOf(item);
                         return (
-                          <tr key={item.id}>
+                          <tr key={item.id} className={reviewing && flaggedUsers.has(item.user_id) ? 'is-flagged' : undefined}>
                             <td>
                               <span className="pay-employee">
                                 <span className="pay-avatar" aria-hidden="true">{initial(item.full_name || item.username)}</span>
@@ -448,6 +458,11 @@ export default function SalariesPage({ onNavigate }) {
                 <ul>
                   {reviewNotes.map((note) => <li key={note.text} className={`is-${note.tone}`}>{note.text}</li>)}
                 </ul>
+                {flaggedUsers.size > 0 && (
+                  <button type="button" className="pay-btn" onClick={reviewing ? () => setReviewing(false) : reviewFlagged} aria-pressed={reviewing}>
+                    {reviewing ? 'إخفاء التمييز' : `مراجعة الملاحظات (${money(flaggedUsers.size)} موظف)`}
+                  </button>
+                )}
               </section>
             )}
           </aside>

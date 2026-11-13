@@ -64,6 +64,17 @@ describe('getLegalClientsOverview', () => {
     expect(byId[3].outstanding_fees).toBe(0);
   });
 
+  test('returns archived clients flagged, and restores them', () => {
+    const customersRepo = require('../../electron/repositories/customers.repository');
+    customersRepo.archive(2);
+    let byId = Object.fromEntries(reports.getLegalClientsOverview(TODAY).clients.map((c) => [c.id, c]));
+    expect(byId[2].is_active).toBe(0);
+    expect(byId[1].is_active).toBe(1);
+    customersRepo.restore(2);
+    byId = Object.fromEntries(reports.getLegalClientsOverview(TODAY).clients.map((c) => [c.id, c]));
+    expect(byId[2].is_active).toBe(1);
+  });
+
   test("returns only today's follow-ups", () => {
     const { followUps } = reports.getLegalClientsOverview(TODAY);
     expect(followUps).toHaveLength(1);

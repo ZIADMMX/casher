@@ -318,7 +318,7 @@ function getCaseFinancialBreakdown(caseId) {
 function getLegalClientsOverview(targetDate) {
   const clients = db.prepare(`
     SELECT
-      c.id, c.name, c.phone, c.email, c.created_at, c.legal_profile,
+      c.id, c.name, c.phone, c.email, c.created_at, c.legal_profile, c.is_active,
       (SELECT COUNT(*) FROM legal_cases lc WHERE lc.client_id = c.id) AS cases_count,
       (SELECT COUNT(*) FROM legal_cases lc WHERE lc.client_id = c.id
         AND lc.status IN ('active', 'adjourned')) AS active_cases,
@@ -340,7 +340,6 @@ function getLegalClientsOverview(targetDate) {
       (SELECT p.expires_at FROM customer_power_of_attorneys p WHERE p.customer_id = c.id
         ORDER BY (p.expires_at IS NULL) DESC, p.expires_at DESC, p.id DESC LIMIT 1) AS poa_expires_at
     FROM customers c
-    WHERE c.is_active = 1
     ORDER BY c.created_at DESC, c.id DESC
   `).all();
 

@@ -2,6 +2,7 @@ const { ipcMain } = require('electron');
 const authService = require('../services/auth.service');
 const { getPermissionForChannel } = require('../security/permissions');
 const { requireActiveLicense } = require('../services/licenseGuard.service');
+const { recordActivity } = require('../services/activityNotifications');
 const {
   checkActionRateLimit,
   normalizeActionPath,
@@ -82,7 +83,7 @@ function safeHandle(channel, schemaOrHandler, maybeHandler, options = {}) {
       }
 
       const session = authService.getCurrentSession(event?.sender?.id);
-      return await authService.runWithSession(session, async () => {
+      const result = await authService.runWithSession(session, async () => {
         if (typeof options.authorize === 'function') {
           await options.authorize(event, ...args);
           return handler(event, ...args);
@@ -94,6 +95,8 @@ function safeHandle(channel, schemaOrHandler, maybeHandler, options = {}) {
           return handler(event, ...args);
         });
       });
+      if (MUTATING_ACTION.test(channel.split(':').pop() || '')) recordActivity(channel, session);
+      return result;
     } catch (error) {
       const message = error instanceof Error && error.message
         ? error.message

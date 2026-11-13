@@ -1,5 +1,5 @@
 const { db, SALES_SCHEMA_VERSION } = require('../connection');
-const { foreignKeyViolationCounts, assertNoNewForeignKeyViolations } = require('./helpers');
+const { foreignKeyViolationCounts, assertNoNewForeignKeyViolations, addColumnIfMissing } = require('./helpers');
 
 function migrateSalesTable() {
   const currentVersion = db.pragma('user_version', { simple: true });
@@ -311,6 +311,20 @@ function migrateNotificationsTable() {
   console.log('تم التحقق من جدول notifications');
 }
 
+// v35: كل مستخدم له حالة "مقروء" خاصة بيه، ومفتاح لمنع تكرار نفس التنبيه.
+function migrateNotificationReads(dbInstance = db) {
+  dbInstance.exec(`
+    CREATE TABLE IF NOT EXISTS notification_reads (
+        notification_id INTEGER NOT NULL REFERENCES notifications(id) ON DELETE CASCADE,
+        user_id INTEGER NOT NULL,
+        read_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (notification_id, user_id)
+    );
+  `);
+  addColumnIfMissing('notifications', 'dedupe_key', 'TEXT', dbInstance);
+  dbInstance.exec('CREATE INDEX IF NOT EXISTS idx_notifications_dedupe ON notifications(dedupe_key, created_at)');
+}
+
 function migrateCashierAuditLogsTable() {
   db.exec(`
     CREATE TABLE IF NOT EXISTS cashier_audit_logs (
@@ -353,6 +367,7 @@ module.exports = {
   migrateUsersTable,
   migrateSettingsTable,
   migrateNotificationsTable,
+  migrateNotificationReads,
   migrateCashierAuditLogsTable,
   migrateRevokedTokens,
 };

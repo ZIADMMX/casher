@@ -435,6 +435,8 @@ app.whenReady().then(async () => {
   startSafeInterval('DailyDatabaseBackup', () => autoBackupDaily(), 6 * 60 * 60 * 1000);
   // الفاتورة الإلكترونية: ترسل المعلّق وتحدّث حالة المرسل. لا تعمل شيئًا قبل التفعيل.
   startSafeInterval('EInvoiceSubmission', () => require('./services/einvoice').flush(), 5 * 60_000);
+  // الإشعارات أقدم من 90 يوم بتتمسح عشان الجدول ما يكبرش من غير حد.
+  startSafeInterval('NotificationsCleanup', () => require('./repositories/notifications.repository').deleteOlderThan(90), 24 * 60 * 60 * 1000);
   configureUpdater();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

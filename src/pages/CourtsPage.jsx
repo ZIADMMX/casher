@@ -4,7 +4,7 @@ import CourtProfile from '../components/legal/CourtProfile.jsx';
 import LegalAmbient from '../components/legal/LegalAmbient.jsx';
 import LegalIcon from '../components/legal/LegalIcon.jsx';
 import LegalModalShell from '../components/legal/LegalModalShell.jsx';
-import { COURT_TYPES, CSV_HEADER, csvCell, csvToCourts, typeLabel } from '../components/legal/courtsData.js';
+import { COURT_TYPES, CSV_HEADER, csvCell, tableToCourts, typeLabel } from '../components/legal/courtsData.js';
 import '../styles/courts.css';
 
 const STEPS = ['معلومات المحكمة', 'الموقع والتواصل', 'مراجعة البيانات'];
@@ -103,7 +103,6 @@ export default function CourtsPage({ onNavigate }) {
   const [profileVersion, setProfileVersion] = useState(0);
   const [importing, setImporting] = useState(false);
   const [notice, setNotice] = useState('');
-  const importInputRef = useRef(null);
   const pageRef = useRef(null);
   const [showWizard, setShowWizard] = useState(false);
   const [editingCourt, setEditingCourt] = useState(null);
@@ -185,16 +184,16 @@ export default function CourtsPage({ onNavigate }) {
     await refreshAll();
   }
 
-  // Reads a CSV in the export's format; each row goes through the same validated create as the wizard.
-  async function importCourts(event) {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-    if (!file) return;
+  // Reads an Excel/CSV sheet in the export's columns; each row goes through the same validated create as the wizard.
+  async function importCourts() {
     setImporting(true);
     setError('');
     setNotice('');
     try {
-      const rows = csvToCourts(await file.text());
+      const table = await legalApi.readCourtsImportFile();
+      if (!table) return;
+      const rows = tableToCourts(table);
+      if (!rows.length) throw new Error('الملف مفيهوش محاكم.');
       let added = 0;
       const failed = [];
       for (const court of rows) {
@@ -346,10 +345,9 @@ export default function CourtsPage({ onNavigate }) {
           <button type="button" className="courts-btn courts-btn--primary" onClick={() => openWizard()}>
             <span aria-hidden="true">＋</span> إضافة محكمة
           </button>
-          <button type="button" className="courts-btn" onClick={() => importInputRef.current?.click()} disabled={importing}>
-            <LegalIcon name="download" /> {importing ? 'جارٍ الاستيراد...' : 'استيراد من ملف'}
+          <button type="button" className="courts-btn" onClick={importCourts} disabled={importing}>
+            <LegalIcon name="download" /> {importing ? 'جارٍ الاستيراد...' : 'استيراد من Excel'}
           </button>
-          <input ref={importInputRef} type="file" accept=".csv,text/csv" hidden onChange={importCourts} aria-label="ملف المحاكم (CSV)" />
           {!isEmpty && (
             <button type="button" className="courts-btn" onClick={exportCourts} disabled={exporting}>
               <LegalIcon name="upload" /> {exporting ? 'جارٍ التصدير...' : 'تصدير'}
@@ -369,6 +367,9 @@ export default function CourtsPage({ onNavigate }) {
               <p>أضف أول محكمة عشان تقدر تربط القضايا بجهة التقاضي، وتشوف الجلسات في تقويم واحد، وتطلع تقرير بعدد القضايا لكل محكمة.</p>
               <div className="courts-empty-actions">
                 <button type="button" className="courts-btn courts-btn--primary" onClick={() => openWizard()}>إضافة أول محكمة</button>
+                <button type="button" className="courts-btn" onClick={importCourts} disabled={importing}>
+                  <LegalIcon name="download" /> {importing ? 'جارٍ الاستيراد...' : 'استيراد ملف Excel'}
+                </button>
               </div>
               <div className="courts-empty-presets">
                 <span>أو ابدأ بقائمة جاهزة</span>

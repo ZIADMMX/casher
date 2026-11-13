@@ -931,6 +931,10 @@ function CustomersPage({ crmMode = false, crmTabs = null, onNavigate, startWithF
         <LegalClientDetailsModal
           customer={selectedLegalClient}
           onClose={() => setSelectedLegalClient(null)}
+          onArchiveChange={() => {
+            setSelectedLegalClient(null);
+            refetch();
+          }}
           onOpenCases={() => {
             setSelectedLegalClient(null);
             onNavigate?.('cases');

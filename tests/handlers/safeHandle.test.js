@@ -13,7 +13,10 @@ jest.mock('../../electron/services/auth.service', () => ({
   requirePermission: jest.fn(),
 }));
 
+jest.mock('../../electron/services/activityNotifications', () => ({ recordActivity: jest.fn() }));
+
 const authService = require('../../electron/services/auth.service');
+const { recordActivity } = require('../../electron/services/activityNotifications');
 const { safeHandle } = require('../../electron/handlers/safeHandle');
 
 describe('safeHandle IPC session context', () => {
@@ -82,4 +85,20 @@ describe('safeHandle IPC session context', () => {
       expect(authService.requirePermission).not.toHaveBeenCalled();
     }
   );
+
+  test('records an activity notification only after a successful change', async () => {
+    const session = { id: 7, username: 'owner' };
+    authService.getCurrentSession.mockReturnValue(session);
+    authService.requirePermission.mockImplementation(() => {});
+    safeHandle('products:delete', jest.fn(() => 'ok'));
+    safeHandle('products:getAll', jest.fn(() => []));
+    safeHandle('customers:update', jest.fn(() => { throw new Error('boom'); }));
+
+    await mockRegisteredHandlers.get('products:delete')({ sender: { id: 1 } }, 5);
+    await mockRegisteredHandlers.get('products:getAll')({ sender: { id: 1 } });
+    await expect(mockRegisteredHandlers.get('customers:update')({ sender: { id: 1 } }, {})).rejects.toThrow('boom');
+
+    expect(recordActivity).toHaveBeenCalledTimes(1);
+    expect(recordActivity).toHaveBeenCalledWith('products:delete', session);
+  });
 });

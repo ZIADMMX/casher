@@ -4,19 +4,23 @@ const { logError } = require('./logger.service');
 
 const NotificationsService = {
   // desktop: also show a Windows notification, for reminders that matter while the app is minimized.
-  notify({ userId = null, type, title, message, linkPage = null, desktop = false }) {
+  // dedupeKey: skip if the same alert was already raised in the last 24h (e.g. low stock on every sale).
+  notify({ userId = null, type, title, message, linkPage = null, desktop = false, dedupeKey = null }) {
     if (!type || !title || !message) {
       console.warn('تنبيه: محاولة إنشاء إشعار بدون بيانات مكتملة');
       return null;
     }
 
     try {
+      if (dedupeKey && NotificationsRepository.existsRecent(dedupeKey, userId)) return null;
+
       const notification = NotificationsRepository.create({
         userId,
         type,
         title,
         message,
         linkPage,
+        dedupeKey,
       });
 
       // إرسال فوري للنافذة الرئيسية المفتوحة (Real-Time IPC Push)
@@ -34,6 +38,7 @@ const NotificationsService = {
           if (!win) return;
           if (win.isMinimized()) win.restore();
           win.focus();
+          win.webContents.send('notification:clicked', notification);
         });
         toast.show();
       }
@@ -45,20 +50,21 @@ const NotificationsService = {
     }
   },
 
-  getAll(options, userId) {
-    return NotificationsRepository.getAll({ ...options, userId });
+  // withActivity: admins also see the "activity" notes recorded after every save/edit/delete.
+  getAll(options, userId, withActivity = false) {
+    return NotificationsRepository.getAll({ ...options, userId, withActivity });
   },
 
-  getUnreadCount(userId) {
-    return NotificationsRepository.getUnreadCount(userId);
+  getUnreadCount(userId, withActivity = false) {
+    return NotificationsRepository.getUnreadCount(userId, withActivity);
   },
 
-  markAsRead(id, userId) {
-    return NotificationsRepository.markAsRead(id, userId);
+  markAsRead(id, userId, withActivity = false) {
+    return NotificationsRepository.markAsRead(id, userId, withActivity);
   },
 
-  markAllAsRead(userId) {
-    return NotificationsRepository.markAllAsRead(userId);
+  markAllAsRead(userId, withActivity = false) {
+    return NotificationsRepository.markAllAsRead(userId, withActivity);
   },
 
   clearAll() {

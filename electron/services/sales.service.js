@@ -416,6 +416,7 @@ function createSale({
             NotificationsService.notify({
               type: 'out_of_stock',
               title: '🚫 نفاذ مخزون صنف بالكامل!',
+              dedupeKey: `out_of_stock:${variantId}`,
               message: `نفذت كمية الصنف (${updated.sku || 'صنف'} - ${updated.size || ''} ${updated.color || ''}) من المخزون تماماً`,
               linkPage: 'products',
             });
@@ -423,6 +424,7 @@ function createSale({
             NotificationsService.notify({
               type: 'low_stock',
               title: '⚠️ تنبيه: نقص وشيك في المخزون',
+              dedupeKey: `low_stock:${variantId}`,
               message: `متبقي ${updated.stock_quantity} قطع فقط من الصنف (${updated.sku || 'صنف'} - ${updated.size || ''} ${updated.color || ''})`,
               linkPage: 'products',
             });

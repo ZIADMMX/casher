@@ -172,8 +172,15 @@ function getCashierSummary(userId) {
   };
 }
 
+function hasLoggedIn(userId) {
+  return Boolean(db.prepare(
+    "SELECT 1 FROM cashier_audit_logs WHERE user_id = ? AND action_type = 'login' LIMIT 1"
+  ).get(userId));
+}
+
 module.exports = {
   log,
+  hasLoggedIn,
   getLogs,
   countLogs,
   getCashierSummary,

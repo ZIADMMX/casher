@@ -213,6 +213,19 @@ function login(username, password, callerId = 'default', { remember = true } = {
 
   if (remember) setSessionForCaller(callerId, token);
 
+  // First login ever (no earlier login in the audit log): a personal welcome notification.
+  try {
+    if (!require('../repositories/audit.repository').hasLoggedIn(user.id)) {
+      require('./notifications.service').notify({
+        userId: user.id,
+        type: 'welcome',
+        title: `أهلاً بيك يا ${user.full_name || user.username} 👋`,
+        message: 'دي أول مرة تدخل على السيستم. هتلاقي هنا كل التنبيهات المهمة أول بأول.',
+        dedupeKey: `welcome:${user.id}`,
+      });
+    }
+  } catch {}
+
   try {
     require('./audit.service').logAction({
       actionType: 'login',

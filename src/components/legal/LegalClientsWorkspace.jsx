@@ -78,6 +78,7 @@ function decorate(client) {
   return {
     ...client,
     kind,
+    archived: Number(client.is_active) === 0,
     kindLabel: kind === 'company' ? 'شركة' : kind === 'potential' ? 'محتمل' : 'فرد',
     fileCode: `CL-${1000 + Number(client.id)}`,
     power: powerStatus(client),
@@ -95,10 +96,11 @@ const FILTERS = [
   ['company', 'شركات'],
   ['potential', 'محتملون'],
   ['dues', 'عليهم مستحقات'],
+  ['archived', 'الأرشيف'],
 ];
 
 export default function LegalClientsWorkspace({ refreshKey, onOpenClient }) {
-  const [rows, setRows] = useState([]);
+  const [allRows, setRows] = useState([]);
   const [followUps, setFollowUps] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -126,6 +128,9 @@ export default function LegalClientsWorkspace({ refreshKey, onOpenClient }) {
     return () => { cancelled = true; };
   }, [refreshKey]);
 
+  const rows = useMemo(() => allRows.filter((c) => !c.archived), [allRows]);
+  const archivedRows = useMemo(() => allRows.filter((c) => c.archived), [allRows]);
+
   const stats = useMemo(() => {
     const now = new Date();
     const monthPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -150,8 +155,9 @@ export default function LegalClientsWorkspace({ refreshKey, onOpenClient }) {
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
-    const list = rows.filter((c) => {
-      if (filter === 'dues' ? c.outstanding <= 0 : filter !== 'all' && c.kind !== filter) return false;
+    const source = filter === 'archived' ? archivedRows : rows;
+    const list = source.filter((c) => {
+      if (filter === 'dues' ? c.outstanding <= 0 : !['all', 'archived'].includes(filter) && c.kind !== filter) return false;
       if (!term) return true;
       return c.name.toLowerCase().includes(term)
         || (c.phone || '').includes(term)
@@ -162,7 +168,7 @@ export default function LegalClientsWorkspace({ refreshKey, onOpenClient }) {
     else if (sort === 'dues') sorted.sort((a, b) => b.outstanding - a.outstanding);
     else sorted.sort((a, b) => b.contactStamp - a.contactStamp);
     return sorted;
-  }, [rows, search, filter, sort]);
+  }, [rows, archivedRows, search, filter, sort]);
 
   const counts = useMemo(() => ({
     all: rows.length,
@@ -170,7 +176,8 @@ export default function LegalClientsWorkspace({ refreshKey, onOpenClient }) {
     company: rows.filter((c) => c.kind === 'company').length,
     potential: stats.potential,
     dues: stats.duesClients,
-  }), [rows, stats]);
+    archived: archivedRows.length,
+  }), [rows, archivedRows, stats]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, pageCount);
@@ -343,7 +350,9 @@ export default function LegalClientsWorkspace({ refreshKey, onOpenClient }) {
               {pageRows.length === 0 && (
                 <tr>
                   <td colSpan={7} className="legal-empty">
-                    {rows.length ? 'لا توجد نتائج مطابقة' : 'لم يتم تسجيل أي موكلين بعد'}
+                    {filter === 'archived' && !archivedRows.length
+                      ? 'لا يوجد موكلون في الأرشيف'
+                      : rows.length ? 'لا توجد نتائج مطابقة' : 'لم يتم تسجيل أي موكلين بعد'}
                   </td>
                 </tr>
               )}

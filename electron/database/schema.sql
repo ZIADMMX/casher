@@ -556,8 +556,18 @@ CREATE TABLE IF NOT EXISTS notifications (
     message TEXT NOT NULL,
     link_page TEXT,
     is_read INTEGER NOT NULL DEFAULT 0,
+    dedupe_key TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- Per-user read state (v35). The dedupe_key index is created by the v35 migration,
+-- since older databases reach this file before that column exists.
+CREATE TABLE IF NOT EXISTS notification_reads (
+    notification_id INTEGER NOT NULL REFERENCES notifications(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL,
+    read_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (notification_id, user_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_notifications_unread ON notifications(is_read);

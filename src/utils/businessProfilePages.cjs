@@ -92,8 +92,7 @@ const SECTOR_PAGE_POLICIES = {
     allowedPages: [
       'today', 'pos', 'subscriptions', 'appointments', 'products', 'branches',
       'customers', 'crm', 'suppliers', 'shifts', 'reports', 'users', 'attendance',
-      'leaves', 'roles', 'salaries', 'settings', 'webhooks', 'enterprise', 'workflows',
-      'screen-designer', 'profile', 'commissions',
+      'leaves', 'roles', 'salaries', 'settings', 'profile', 'commissions',
     ],
     deniedPages: ['cases', 'salon', 'returns'],
   },

@@ -60,6 +60,14 @@ jest.mock('../../electron/repositories/settings.repository', () => {
   };
 });
 
+jest.mock('../../electron/repositories/audit.repository', () => ({
+  log: jest.fn(),
+  hasLoggedIn: jest.fn(() => true),
+}));
+jest.mock('../../electron/services/notifications.service', () => ({ notify: jest.fn() }));
+
+const auditRepo = require('../../electron/repositories/audit.repository');
+const notificationsService = require('../../electron/services/notifications.service');
 const usersRepo = require('../../electron/repositories/users.repository');
 const sessionService = require('../../electron/services/session.service');
 const settingsRepo = require('../../electron/repositories/settings.repository');
@@ -129,6 +137,20 @@ describe('auth.service', () => {
       permissions: ['*'],
       forcePasswordChange: false,
     });
+  });
+
+  test('welcomes a user on their first login only', () => {
+    usersRepo.getByUsername.mockReturnValue(cashier);
+    auditRepo.hasLoggedIn.mockReturnValueOnce(false);
+    authService.login('cashier', 'cashier123');
+    expect(notificationsService.notify).toHaveBeenCalledWith(expect.objectContaining({
+      userId: cashier.id, type: 'welcome', dedupeKey: `welcome:${cashier.id}`,
+    }));
+
+    notificationsService.notify.mockClear();
+    authService.logout();
+    authService.login('cashier', 'cashier123');
+    expect(notificationsService.notify).not.toHaveBeenCalled();
   });
 
   test('reports setup required when no users exist and creates the first admin', () => {

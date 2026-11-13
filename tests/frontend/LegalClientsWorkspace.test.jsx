@@ -31,6 +31,12 @@ vi.mock('../../src/api/legal.js', () => ({
         outstanding_fees: 0, last_contact_at: null, powers_count: 0,
         poa_number: null, poa_scope: null, poa_expires_at: null,
       },
+      {
+        id: 60, name: 'منى الأرشيف', phone: '0102', email: null, created_at: '2024-01-01', is_active: 0,
+        cases_count: 1, active_cases: 0, main_case_type: 'civil', contract_total: 0, paid_total: 0,
+        outstanding_fees: 0, last_contact_at: null, powers_count: 0,
+        poa_number: null, poa_scope: null, poa_expires_at: null,
+      },
     ],
     followUps: [{ id: 1, customer_id: 51, type: 'call', subject: 'عرض الأتعاب', client_name: 'كريم فؤاد' }],
   }),
@@ -48,6 +54,15 @@ describe('LegalClientsWorkspace', () => {
 
     expect(within(rows[2]).getByText('محتمل')).toBeInTheDocument();
     expect(within(rows[0]).getByText('CL-1042')).toBeInTheDocument();
+  });
+
+  it('keeps archived clients out of the list until the archive filter is chosen', async () => {
+    render(<LegalClientsWorkspace refreshKey={0} onOpenClient={() => {}} />);
+    await screen.findByRole('table');
+    expect(screen.queryByText('منى الأرشيف')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /الأرشيف/ }));
+    expect(screen.getByText('منى الأرشيف')).toBeInTheDocument();
+    expect(screen.queryByText('أحمد سمير')).not.toBeInTheDocument();
   });
 
   it('filters the list down to clients that owe fees', async () => {
