@@ -30,7 +30,8 @@ function createSchema() {
       id INTEGER PRIMARY KEY,
       name TEXT NOT NULL,
       phone TEXT,
-      email TEXT
+      email TEXT,
+      legal_profile TEXT
     );
     CREATE TABLE customer_power_of_attorneys (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -66,6 +67,8 @@ function createSchema() {
       power_of_attorney_num TEXT,
       status TEXT NOT NULL DEFAULT 'active',
       notes TEXT,
+      verdict_result TEXT,
+      verdict_date TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (client_id) REFERENCES customers(id),
@@ -492,6 +495,55 @@ describe('cases repository updates', () => {
     });
     expect(report.caseStats.fees_collected_total).toBe(300);
     expect(report.financialMovements[0]).toHaveProperty('paid_by_client', 1);
+  });
+
+  test('filters the law-firm report by court and client and compares with the previous period', () => {
+    db.prepare(`INSERT INTO customers (id, name, legal_profile) VALUES (2, 'موكل تاني', '{"national_id":"29001011234567"}')`).run();
+    db.prepare(`
+      INSERT INTO legal_cases (id, case_number, court_name, client_id, opponent_name, subject,
+        contract_amount, paid_amount, status, verdict_result)
+      VALUES (2, 'CASE-2', 'محكمة الأسرة', 2, 'خصم', 'نفقة', 500, 500, 'judged', 'favorable')
+    `).run();
+    db.prepare(`
+      INSERT INTO court_sessions (case_id, session_date, status) VALUES
+        (1, '2026-11-05 10:00:00', 'attended'),
+        (2, '2026-11-06 10:00:00', 'judged'),
+        (1, '2026-10-30 10:00:00', 'postponed')
+    `).run();
+    db.prepare(`
+      INSERT INTO case_financials (case_id, type, amount, date, paid_by_client) VALUES
+        (1, 'fee_payment', 300, '2026-11-05 09:00:00', 1),
+        (2, 'fee_payment', 200, '2026-11-06 09:00:00', 1),
+        (1, 'retainer_deposit', 400, '2026-11-05 09:00:00', 1),
+        (1, 'court_fee', 50, '2026-11-05 09:00:00', 1),
+        (1, 'other_expense', 30, '2026-11-05 09:00:00', 0),
+        (1, 'fee_payment', 100, '2026-10-31 09:00:00', 1)
+    `).run();
+    db.prepare(`
+      INSERT INTO customer_power_of_attorneys (customer_id, number, issued_at, scope, expires_at)
+      VALUES (1, '1/أ', '2025-01-01', 'عام', '2026-11-20')
+    `).run();
+
+    const all = casesRepository.getLawFirmReport('2026-11-01', '2026-11-07', {}, '2026-11-07');
+    expect(all.periodStats).toMatchObject({ total_sessions: 2, attended_sessions: 1, judged_sessions: 1, favorable_verdicts: 1 });
+    expect(all.financialStats).toMatchObject({ fees_collected: 500, expenses_paid_by_office: 30, office_net: 470, deposit_clients: 1 });
+    expect(all.previous).toMatchObject({ startDate: '2026-10-25', endDate: '2026-10-31', days: 7 });
+    expect(all.previous.financialStats.fees_collected).toBe(100);
+    expect(all.previous.periodStats.postponed_sessions).toBe(1);
+    expect(all.office).toMatchObject({
+      retainer_balance: 350, overdue_fees: 900, overdue_clients: 1, missing_national_id: 1, poa_expiring: 1,
+    });
+    expect(all.topClients.map((client) => [client.name, client.collected])).toEqual([['عميل', 300], ['موكل تاني', 200]]);
+    expect(all.filterOptions.courts).toEqual(['محكمة', 'محكمة الأسرة']);
+
+    const family = casesRepository.getLawFirmReport('2026-11-01', '2026-11-07', { courtName: 'محكمة الأسرة' }, '2026-11-07');
+    expect(family.financialMovements).toHaveLength(1);
+    expect(family.courtBreakdown).toEqual([expect.objectContaining({ court_name: 'محكمة الأسرة', held_count: 1 })]);
+    expect(family.office).toMatchObject({ overdue_fees: 0, poa_expiring: 0 });
+
+    const client = casesRepository.getLawFirmReport('2026-11-01', '2026-11-07', { clientId: 1 }, '2026-11-07');
+    expect(client.financialStats.fees_collected).toBe(300);
+    expect(client.caseStats.total_cases).toBe(1);
   });
 
   test('returns and accounts for every report movement beyond the former 100-row limit', () => {

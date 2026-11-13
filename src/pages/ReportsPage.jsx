@@ -14,7 +14,7 @@ function ReportsPage({ onNavigate }) {
     || settings?.onboarding_sector
     || 'retail';
 
-  if (profileKey === 'law_firm') return <LawFirmReportsPage />;
+  if (profileKey === 'law_firm') return <LawFirmReportsPage onNavigate={onNavigate} />;
   return profileKey === 'crm' ? <CRMReportsPage /> : <SalesReportsView onNavigate={onNavigate} />;
 }
 

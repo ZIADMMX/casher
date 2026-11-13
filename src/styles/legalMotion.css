@@ -113,10 +113,12 @@
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  overflow: hidden;
+  /* no overflow:hidden here: it would make this box the scroller and break the sticky canvas */
+  clip-path: inset(0);
 }
 
-.lt-ambient canvas { inline-size: 100%; block-size: 100%; display: block; }
+/* At most one viewport tall, riding along while the page scrolls. */
+.lt-ambient canvas { position: sticky; inset-block-start: 0; inline-size: 100%; block-size: min(100%, 100vh); display: block; }
 
 /* Shared window chrome */
 .legal-sheet-head {

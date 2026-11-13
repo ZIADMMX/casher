@@ -68,6 +68,8 @@ const PATHS = {
     <path d="m12.6 5.9 5.5 5.5-2.3 2.3-5.5-5.5z" />
     <path d="m16.4 2.1 5.5 5.5-2 2-5.5-5.5z" />
   </>,
+  chart: <><path d="M4 20h16M7 16v-5M12 16V7M17 16v-8" /></>,
+  printer: <><path d="M7 8V3h10v5M7 17H4v-7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v7h-3" /><rect x="7" y="14" width="10" height="7" rx="1" /></>,
 };
 
 export default function LegalIcon({ name, size = 18 }) {

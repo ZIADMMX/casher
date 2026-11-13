@@ -35,6 +35,8 @@ describe('reports.service.getLegalCaseReport', () => {
     });
 
     expect(report).toEqual({ financialMovements: [] });
-    expect(casesRepository.getLawFirmReport).toHaveBeenCalledWith('2026-11-02', '2026-11-08');
+    expect(casesRepository.getLawFirmReport).toHaveBeenCalledWith(
+      '2026-11-02', '2026-11-08', { courtName: undefined, clientId: undefined }, expect.any(String),
+    );
   });
 });

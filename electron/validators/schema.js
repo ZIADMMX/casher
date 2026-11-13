@@ -579,6 +579,17 @@ function isReportPeriod(value) {
 
 const reportPeriodSchema = v.any().refine(isReportPeriod, 'الفترة الزمنية للتقرير غير صالحة');
 
+// The legal report takes the same period forms plus an optional court / client filter.
+const legalReportQuerySchema = v.any().refine((value) => {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return isReportPeriod(value);
+  const { courtName, clientId, ...period } = value;
+  if (courtName !== undefined && courtName !== null
+    && (typeof courtName !== 'string' || courtName.length > 200)) return false;
+  if (clientId !== undefined && clientId !== null
+    && (!Number.isSafeInteger(clientId) || clientId <= 0)) return false;
+  return isReportPeriod(Object.keys(period).length ? period : 'month');
+}, 'الفترة الزمنية للتقرير غير صالحة');
+
 const kitchenStatusSchema = v.any().refine((value) => (
   typeof value === 'object' && value !== null && !Array.isArray(value)
   && ((Number.isSafeInteger(value.saleId) && value.saleId > 0)
@@ -770,6 +781,7 @@ module.exports = {
   shiftFiltersSchema,
   notificationOptionsSchema,
   reportPeriodSchema,
+  legalReportQuerySchema,
   reportLedgerQuerySchema,
   kitchenStatusSchema,
   positiveIdSchema,

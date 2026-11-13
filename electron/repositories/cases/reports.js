@@ -92,79 +92,170 @@ function getLawFirmDashboard(targetDate, nextWeekEndDate) {
   };
 }
 
-function getLawFirmReport(startDate, endDate) {
+const EXPENSE = "f.type NOT IN ('fee_payment', 'retainer_deposit')";
+
+// "AND ..." fragment narrowing rows of legal_cases (alias c) to one court and/or client.
+function caseFilter({ courtName, clientId } = {}) {
+  const parts = [];
+  const args = [];
+  if (courtName) { parts.push('c.court_name = ?'); args.push(courtName); }
+  if (clientId) { parts.push('c.client_id = ?'); args.push(clientId); }
+  return { sql: parts.map((part) => ` AND ${part}`).join(''), args };
+}
+
+// The same-length window right before the report period, for the "+N / +x%" deltas.
+function previousRange(startDate, endDate) {
+  const day = 86400000;
+  const start = Date.parse(`${startDate}T00:00:00Z`);
+  const length = Math.round((Date.parse(`${endDate}T00:00:00Z`) - start) / day) + 1;
+  const iso = (ms) => new Date(ms).toISOString().slice(0, 10);
+  return { startDate: iso(start - length * day), endDate: iso(start - day), days: length };
+}
+
+function getPeriodFigures(startDate, endDate, filter) {
+  const range = [startDate, endDate, ...filter.args];
+  const periodStats = db.prepare(`
+    SELECT
+      (SELECT COUNT(*) FROM legal_cases c
+        WHERE date(c.created_at, 'localtime') BETWEEN date(?) AND date(?)${filter.sql}) AS new_cases,
+      s.total_sessions, s.scheduled_sessions, s.postponed_sessions, s.attended_sessions,
+      s.judged_sessions, s.favorable_verdicts
+    FROM (
+      SELECT
+        COUNT(*) AS total_sessions,
+        COALESCE(SUM(s.status = 'scheduled'), 0) AS scheduled_sessions,
+        COALESCE(SUM(s.status = 'postponed'), 0) AS postponed_sessions,
+        COALESCE(SUM(s.status = 'attended'), 0) AS attended_sessions,
+        COALESCE(SUM(s.status = 'judged'), 0) AS judged_sessions,
+        COALESCE(SUM(s.status = 'judged' AND c.verdict_result = 'favorable'), 0) AS favorable_verdicts
+      FROM court_sessions s
+      JOIN legal_cases c ON c.id = s.case_id
+      WHERE date(s.session_date, 'localtime') BETWEEN date(?) AND date(?)${filter.sql}
+    ) s
+  `).get(...range, ...range);
+  const financialStats = db.prepare(`
+    SELECT
+      COALESCE(SUM(CASE WHEN f.type = 'fee_payment' THEN f.amount ELSE 0 END), 0) AS fees_collected,
+      COALESCE(SUM(CASE WHEN f.type = 'retainer_deposit' THEN f.amount ELSE 0 END), 0) AS client_deposits,
+      COALESCE(SUM(CASE WHEN ${EXPENSE} THEN f.amount ELSE 0 END), 0) AS court_expenses,
+      COALESCE(SUM(CASE WHEN ${EXPENSE} AND f.paid_by_client = 1 THEN f.amount ELSE 0 END), 0) AS expenses_paid_from_retainer,
+      COALESCE(SUM(CASE WHEN ${EXPENSE} AND f.paid_by_client = 0 THEN f.amount ELSE 0 END), 0) AS expenses_paid_by_office,
+      COUNT(DISTINCT CASE WHEN f.type = 'retainer_deposit' THEN c.client_id END) AS deposit_clients,
+      COUNT(*) AS movement_count
+    FROM case_financials f
+    LEFT JOIN legal_cases c ON c.id = f.case_id
+    WHERE date(f.date, 'localtime') BETWEEN date(?) AND date(?)${filter.sql}
+  `).get(...range);
+  // Client retainers are the client's money, so only office-paid expenses come out of the office's income.
+  financialStats.office_net = financialStats.fees_collected - financialStats.expenses_paid_by_office;
+  return { periodStats, financialStats };
+}
+
+function getLawFirmReport(startDate, endDate, filters = {}, today = endDate) {
+  const filter = caseFilter(filters);
+  const range = [startDate, endDate, ...filter.args];
+  const { periodStats, financialStats } = getPeriodFigures(startDate, endDate, filter);
+  const previous = previousRange(startDate, endDate);
+
   const caseStats = db.prepare(`
     SELECT
       COUNT(*) AS total_cases,
-      SUM(CASE WHEN status IN ('active', 'adjourned') THEN 1 ELSE 0 END) AS active_cases,
-      SUM(CASE WHEN status = 'judged' THEN 1 ELSE 0 END) AS judged_cases,
-      SUM(CASE WHEN status = 'closed' THEN 1 ELSE 0 END) AS closed_cases,
-      COALESCE(SUM(contract_amount), 0) AS contract_value,
-      COALESCE((SELECT SUM(amount) FROM case_financials WHERE type = 'fee_payment'), 0) AS fees_collected_total
-    FROM legal_cases
-  `).get();
-  const periodStats = db.prepare(`
+      COALESCE(SUM(c.status IN ('active', 'adjourned')), 0) AS active_cases,
+      COALESCE(SUM(c.status = 'judged'), 0) AS judged_cases,
+      COALESCE(SUM(c.status = 'closed'), 0) AS closed_cases,
+      COALESCE(SUM(c.contract_amount), 0) AS contract_value,
+      COALESCE((SELECT SUM(f.amount) FROM case_financials f JOIN legal_cases c ON c.id = f.case_id
+        WHERE f.type = 'fee_payment'${filter.sql}), 0) AS fees_collected_total
+    FROM legal_cases c
+    WHERE 1 = 1${filter.sql}
+  `).get(...filter.args, ...filter.args);
+
+  // Office-wide position today, not limited to the period.
+  const office = db.prepare(`
     SELECT
-      (SELECT COUNT(*) FROM legal_cases
-        WHERE date(created_at, 'localtime') BETWEEN date(?) AND date(?)) AS new_cases,
-      (SELECT COUNT(*) FROM court_sessions
-        WHERE date(session_date, 'localtime') BETWEEN date(?) AND date(?)) AS total_sessions,
-      (SELECT COUNT(*) FROM court_sessions
-        WHERE status = 'scheduled'
-          AND date(session_date, 'localtime') BETWEEN date(?) AND date(?)) AS scheduled_sessions,
-      (SELECT COUNT(*) FROM court_sessions
-        WHERE status = 'postponed'
-          AND date(session_date, 'localtime') BETWEEN date(?) AND date(?)) AS postponed_sessions,
-      (SELECT COUNT(*) FROM court_sessions
-        WHERE status = 'judged'
-          AND date(session_date, 'localtime') BETWEEN date(?) AND date(?)) AS judged_sessions
-  `).get(startDate, endDate, startDate, endDate, startDate, endDate,
-    startDate, endDate, startDate, endDate);
-  const financialStats = db.prepare(`
-    SELECT
-      COALESCE(SUM(CASE WHEN type = 'fee_payment' THEN amount ELSE 0 END), 0) AS fees_collected,
-      COALESCE(SUM(CASE WHEN type = 'retainer_deposit' THEN amount ELSE 0 END), 0) AS client_deposits,
-      COALESCE(SUM(CASE WHEN type NOT IN ('fee_payment', 'retainer_deposit') THEN amount ELSE 0 END), 0) AS court_expenses,
-      COALESCE(SUM(CASE WHEN type NOT IN ('fee_payment', 'retainer_deposit')
-        AND paid_by_client = 1 THEN amount ELSE 0 END), 0) AS expenses_paid_from_retainer,
-      COALESCE(SUM(CASE WHEN type NOT IN ('fee_payment', 'retainer_deposit')
-        AND paid_by_client = 0 THEN amount ELSE 0 END), 0) AS expenses_paid_by_office,
-      COUNT(*) AS movement_count
-    FROM case_financials
-    WHERE date(date, 'localtime') BETWEEN date(?) AND date(?)
-  `).get(startDate, endDate);
+      COALESCE((SELECT SUM(CASE WHEN f.type = 'retainer_deposit' THEN f.amount
+          WHEN ${EXPENSE} AND f.paid_by_client = 1 THEN -f.amount ELSE 0 END)
+        FROM case_financials f JOIN legal_cases c ON c.id = f.case_id WHERE 1 = 1${filter.sql}), 0) AS retainer_balance,
+      COALESCE((SELECT SUM(MAX(c.contract_amount - c.paid_amount, 0)) FROM legal_cases c
+        WHERE c.status IN ('active', 'adjourned')${filter.sql}), 0) AS overdue_fees,
+      (SELECT COUNT(DISTINCT c.client_id) FROM legal_cases c
+        WHERE c.status IN ('active', 'adjourned') AND c.contract_amount > c.paid_amount${filter.sql}) AS overdue_clients,
+      (SELECT COUNT(DISTINCT cust.id) FROM legal_cases c JOIN customers cust ON cust.id = c.client_id
+        WHERE COALESCE(CASE WHEN json_valid(cust.legal_profile)
+          THEN json_extract(cust.legal_profile, '$.national_id') END, '') = ''${filter.sql}) AS missing_national_id,
+      (SELECT COUNT(*) FROM customer_power_of_attorneys p
+        WHERE p.expires_at IS NOT NULL AND date(p.expires_at) BETWEEN date(?) AND date(?, '+30 days')
+          AND p.customer_id IN (SELECT c.client_id FROM legal_cases c WHERE 1 = 1${filter.sql})) AS poa_expiring,
+      (SELECT COUNT(*) FROM legal_case_tasks t JOIN legal_cases c ON c.id = t.case_id
+        WHERE t.kind = 'deadline' AND t.status IN ('pending', 'in_progress') AND c.status != 'closed'
+          AND date(t.due_at) <= date(?, '+30 days')${filter.sql}) AS appeal_deadlines
+  `).get(
+    ...filter.args, ...filter.args, ...filter.args, ...filter.args,
+    today, today, ...filter.args, today, ...filter.args,
+  );
+
   const courtBreakdown = db.prepare(`
     SELECT c.court_name, COUNT(s.id) AS sessions_count,
-      SUM(CASE WHEN s.status = 'scheduled' THEN 1 ELSE 0 END) AS scheduled_count,
-      SUM(CASE WHEN s.status = 'postponed' THEN 1 ELSE 0 END) AS postponed_count,
-      SUM(CASE WHEN s.status = 'judged' THEN 1 ELSE 0 END) AS judged_count
+      COALESCE(SUM(s.status = 'scheduled'), 0) AS scheduled_count,
+      COALESCE(SUM(s.status = 'postponed'), 0) AS postponed_count,
+      COALESCE(SUM(s.status = 'judged'), 0) AS judged_count,
+      COALESCE(SUM(s.status IN ('attended', 'judged')), 0) AS held_count
     FROM court_sessions s
     JOIN legal_cases c ON c.id = s.case_id
-    WHERE date(s.session_date, 'localtime') BETWEEN date(?) AND date(?)
+    WHERE date(s.session_date, 'localtime') BETWEEN date(?) AND date(?)${filter.sql}
     GROUP BY c.court_name
     ORDER BY sessions_count DESC, c.court_name COLLATE NOCASE
-  `).all(startDate, endDate);
+  `).all(...range);
+
+  const topClients = db.prepare(`
+    SELECT cust.id, cust.name, SUM(f.amount) AS collected,
+      (SELECT COUNT(*) FROM legal_cases x WHERE x.client_id = cust.id) AS cases_count
+    FROM case_financials f
+    JOIN legal_cases c ON c.id = f.case_id
+    JOIN customers cust ON cust.id = c.client_id
+    WHERE f.type = 'fee_payment' AND date(f.date, 'localtime') BETWEEN date(?) AND date(?)${filter.sql}
+    GROUP BY cust.id
+    ORDER BY collected DESC, cust.name COLLATE NOCASE
+    LIMIT 5
+  `).all(...range);
+
   const financialMovements = db.prepare(`
-    SELECT f.id, f.type, f.amount, f.date, f.description, f.receipt_number,
+    SELECT f.id, f.case_id, f.type, f.amount, f.date, f.description, f.receipt_number,
       f.paid_by_client,
-      c.case_number, c.court_name, cust.name AS client_name,
+      c.case_number, c.court_name, c.subject AS case_subject, c.client_id, cust.name AS client_name,
       u.full_name AS recorded_by_name
     FROM case_financials f
     LEFT JOIN legal_cases c ON c.id = f.case_id
     LEFT JOIN customers cust ON cust.id = c.client_id
     LEFT JOIN users u ON u.id = f.user_id
-    WHERE date(f.date, 'localtime') BETWEEN date(?) AND date(?)
+    WHERE date(f.date, 'localtime') BETWEEN date(?) AND date(?)${filter.sql}
     ORDER BY f.date DESC, f.id DESC
-  `).all(startDate, endDate);
+  `).all(...range);
+
+  const filterOptions = {
+    courts: db.prepare(`
+      SELECT DISTINCT court_name FROM legal_cases
+      WHERE TRIM(COALESCE(court_name, '')) != '' ORDER BY court_name COLLATE NOCASE
+    `).pluck().all(),
+    clients: db.prepare(`
+      SELECT DISTINCT cust.id, cust.name FROM legal_cases c
+      JOIN customers cust ON cust.id = c.client_id ORDER BY cust.name COLLATE NOCASE
+    `).all(),
+  };
 
   return {
     startDate,
     endDate,
+    filters: { courtName: filters.courtName || null, clientId: filters.clientId || null },
     caseStats,
     periodStats,
     financialStats,
+    previous: { ...previous, ...getPeriodFigures(previous.startDate, previous.endDate, filter) },
+    office,
     courtBreakdown,
+    topClients,
     financialMovements,
+    filterOptions,
   };
 }
 

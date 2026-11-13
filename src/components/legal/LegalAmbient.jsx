@@ -54,9 +54,12 @@ export default function LegalAmbient() {
     });
     scene.add(new Points(geometry, material));
 
-    const resize = () => renderer.setSize(host.clientWidth, host.clientHeight, false);
+    // Viewport-sized at most: long pages (reports) would otherwise get a canvas thousands of px tall,
+    // costing GPU fill and spreading the motes so thin they vanish. CSS keeps it sticky on scroll.
+    const resize = () => renderer.setSize(host.clientWidth, Math.min(host.clientHeight, window.innerHeight), false);
     const observer = new ResizeObserver(resize);
     observer.observe(host);
+    window.addEventListener('resize', resize);
     resize();
 
     let frame = 0;
@@ -78,6 +81,7 @@ export default function LegalAmbient() {
     return () => {
       cancelAnimationFrame(frame);
       observer.disconnect();
+      window.removeEventListener('resize', resize);
       geometry.dispose();
       material.dispose();
       texture.dispose();

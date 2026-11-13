@@ -247,15 +247,17 @@ function getLedgerForExport(periodParam) {
   return { ...filter, rows };
 }
 
+// periodParam: a preset, {period} or {startDate, endDate}, optionally narrowed by {courtName, clientId}.
 function getLegalCaseReport(periodParam = 'today') {
   const { startDate, endDate } = resolveDateRange(periodParam);
+  const { courtName, clientId } = (typeof periodParam === 'object' && periodParam) || {};
   if (!isValidReportDate(startDate) || !isValidReportDate(endDate)) {
     throw new Error('تاريخ فترة التقرير غير صالح');
   }
   if (startDate > endDate) {
     throw new Error('بداية فترة التقرير يجب أن تسبق نهايتها');
   }
-  return casesRepo.getLawFirmReport(startDate, endDate);
+  return casesRepo.getLawFirmReport(startDate, endDate, { courtName, clientId }, formatDate(new Date()));
 }
 
 module.exports = {
