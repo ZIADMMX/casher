@@ -113,9 +113,10 @@ function getCustomerLedger(customerId) {
   };
 }
 
-function getCustomerRecentSales(customerId) {
+function getCustomerRecentSales(customerId, limit = 10) {
   requireAuth();
-  return customersRepo.getRecentSales(customerId, 10);
+  const count = Number.isInteger(limit) ? Math.min(Math.max(limit, 1), 500) : 10;
+  return customersRepo.getRecentSales(customerId, count);
 }
 
 function getAllCustomersWithStats() {

@@ -26,8 +26,8 @@ function registerCustomersHandlers() {
     return customersService.getCustomerLedger(customerId);
   });
 
-  safeHandle('customers:getRecentSales', positiveIdSchema, (event, customerId) => {
-    return customersService.getCustomerRecentSales(customerId);
+  safeHandle('customers:getRecentSales', positiveIdSchema, (event, customerId, limit) => {
+    return customersService.getCustomerRecentSales(customerId, limit);
   });
 }
 

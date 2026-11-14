@@ -115,3 +115,60 @@
 
 @media (max-width: 560px) { .gmp-mac .gms-formgrid { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion: reduce) { .gmp-menu, .gmp-mac { animation: none; } .gmp-row { transition: none; } }
+
+/* ---- member profile (opens from the name in the directory) ---- */
+.gmp-name { padding: 0; border: 0; background: none; color: inherit; font: inherit; font-weight: 800; font-size: 0.92rem; text-align: start; cursor: pointer; border-radius: 6px; }
+.gmp-name:hover { color: #9A3A0B; text-decoration: underline; text-underline-offset: 4px; }
+.gmp-name:focus-visible { outline: 3px solid color-mix(in srgb, #C2410C 45%, transparent); outline-offset: 2px; }
+.gms-kpi.is-bad { --k: #B3261E; }
+
+.gpf { display: grid; gap: 16px; min-width: 0; }
+.gpf-hero { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; padding: 20px 24px; }
+.gpf-hero__who { flex: 1 1 220px; min-width: 0; }
+.gpf-hero__who h2 { margin: 0; font-size: 1.5rem; font-weight: 800; }
+.gpf-hero__who p { margin: 6px 0 0; color: var(--gco-muted); font-size: 0.86rem; }
+.gpf-hero__tags { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-block-start: 6px; }
+.gpf-hero__actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.gpf-kpis .gms-kpi { padding: 14px 16px; }
+.gpf-kpis .gms-kpi strong { font-size: 1.6rem; }
+@container gmp (min-width: 1000px) { .gpf-kpis { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+
+.gpf-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
+@container gmp (min-width: 980px) { .gpf-grid { grid-template-columns: minmax(0, 1fr) 320px; } }
+.gpf-col { display: grid; gap: 16px; min-width: 0; }
+.gpf-card { padding-block-end: 8px; }
+.gpf-card h3 { margin: 0; padding: 18px 22px 8px; font-size: 1.02rem; font-weight: 800; }
+.gpf-card h3 small { color: var(--gco-muted); font-weight: 700; }
+.gpf-card h4 { margin: 10px 22px 4px; color: var(--gco-muted); font-size: 0.8rem; font-weight: 800; }
+.gpf-sum { margin: 0; padding: 0 22px 10px; color: #5A3A26; font-size: 0.88rem; line-height: 1.8; }
+.gpf-sum b { color: #9A3A0B; }
+
+.gpf-bars { display: flex; align-items: flex-end; gap: 6px; block-size: 110px; margin: 0 22px 12px; }
+.gpf-bar { display: flex; flex: 1; flex-direction: column; justify-content: flex-end; align-items: center; gap: 4px; block-size: 100%; min-width: 0; }
+.gpf-bar i { inline-size: 100%; max-inline-size: 30px; border-radius: 8px 8px 3px 3px; background: #F3E4D6; }
+.gpf-bar i.is-on { background: linear-gradient(180deg, #FB923C, #C2410C); box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.4); }
+.gpf-bar small { color: var(--gco-muted); font-size: 0.68rem; font-weight: 700; white-space: nowrap; }
+
+.gpf-list { display: grid; }
+.gpf-row { display: grid; align-items: center; gap: 8px; padding: 11px 22px; border-block-start: 1px solid #F6E9DD; font-size: 0.86rem; grid-template-columns: 1.2fr 1fr 1fr 1fr 1fr; }
+.gpf-row > span { min-width: 0; overflow-wrap: anywhere; }
+.gpf-row.is-head { background: rgb(255 246 238 / 0.85); color: var(--gco-muted); font-size: 0.76rem; font-weight: 800; }
+.gpf-row:not(.is-head):hover { background: rgb(255 240 226 / 0.6); }
+
+.gpf-qr { display: grid; justify-items: center; gap: 10px; padding-block-end: 20px; }
+.gpf-qr h3 { justify-self: stretch; }
+.gpf-qr img, .gpf-qr__ph { inline-size: 200px; block-size: 200px; border-radius: 16px; background: #fff; border: 1px solid #F3E4D6; padding: 8px; }
+.gpf-qr__actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.gpf-facts { display: grid; gap: 12px; margin: 0; padding: 4px 22px 16px; }
+.gpf-facts dt { color: var(--gco-muted); font-size: 0.78rem; font-weight: 700; }
+.gpf-facts dd { margin: 2px 0 0; font-weight: 800; overflow-wrap: anywhere; }
+.gpf-facts dd small { font-weight: 600; color: var(--gco-muted); }
+.gpf .gms-health { margin: 0 22px 14px; }
+
+@container gmp (max-width: 700px) {
+  .gpf-row.is-head { display: none; }
+  .gpf-row { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; }
+  .gpf-row > span[data-label]::before { content: attr(data-label); display: block; color: var(--gco-muted); font-size: 0.7rem; font-weight: 800; }
+}
+.gpf-facts dd small { margin-inline-start: 6px; }
+.gpf-col > section[aria-label="سجل الدخول"] { order: 9; } /* the long log goes last */

@@ -48,7 +48,7 @@ const setup = (props = {}) => {
   render(<GymMembersPage onNavigate={onNavigate} {...props} />);
   return { onNavigate };
 };
-const rowOf = async (name) => (await screen.findByText(name, { selector: 'b' })).closest('[role="row"]');
+const rowOf = async (name) => (await screen.findByText(name, { selector: 'button.gmp-name' })).closest('[role="row"]');
 
 beforeEach(() => {
   customersApi.getAllCustomersWithStats.mockReset().mockResolvedValue(CUSTOMERS);

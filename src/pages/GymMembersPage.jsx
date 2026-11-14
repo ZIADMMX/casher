@@ -9,6 +9,7 @@ import Toast from '../components/ui/Toast.jsx';
 import LineIcon from '../components/icons/LineIcons.jsx';
 import Kpi from '../components/gym/GymKpi.jsx';
 import { AddMemberSheet, PaySheet } from '../components/gym/GymMembersSheets.jsx';
+import GymMemberProfile from '../components/gym/GymMemberProfile.jsx';
 import { openWhatsapp } from '../utils/whatsapp.js';
 import { FILTERS, STATUS, buildMembers, filterMembers, summarize } from '../utils/gymMembers.js';
 import '../styles/gymCheckout.css';
@@ -88,6 +89,7 @@ export default function GymMembersPage({ onNavigate }) {
   const [addOpen, setAddOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [payFor, setPayFor] = useState(null);
+  const [profileId, setProfileId] = useState(null);
   const [toast, setToast] = useState(null);
 
   const load = useCallback(async () => {
@@ -113,6 +115,7 @@ export default function GymMembersPage({ onNavigate }) {
 
   const members = useMemo(() => buildMembers(data), [data]);
   const summary = useMemo(() => summarize(members), [members]);
+  const selected = useMemo(() => members.find((m) => m.id === profileId) || null, [members, profileId]);
   const visible = useMemo(() => filterMembers(members, filter, query), [members, filter, query]);
   const counts = { all: summary.total, active: summary.active, expiring: summary.expiring, frozen: summary.frozen, expired: members.filter((m) => m.status === 'expired').length, none: summary.none };
 
@@ -141,6 +144,21 @@ export default function GymMembersPage({ onNavigate }) {
     <div className="gco gmp" dir="rtl">
       {toast && <Toast key={toast.id} message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
+      {selected ? (
+        <div className="gmp-body">
+          <GymMemberProfile
+            member={selected}
+            customer={data.customers.find((c) => c.id === selected.id)}
+            subs={data.subscriptions.filter((s) => s.customer_id === selected.id)}
+            onBack={() => setProfileId(null)}
+            onRenew={(m) => open('renew', m, { subscriptionId: m.sub.id })}
+            onOpenFile={(m) => open('open', m)}
+            onSubscribe={(m) => open('activate', m)}
+            onPay={setPayFor}
+            onCopy={copy}
+          />
+        </div>
+      ) : (<>
       <header className="gco-card gco-head">
         <div className="gco-head__title">
           <span className="gco-tile is-dark"><LineIcon name="users" size={30} /></span>
@@ -203,7 +221,7 @@ export default function GymMembersPage({ onNavigate }) {
               <div key={m.id} className="gmp-row" role="row">
                 <span role="cell" data-label="الاسم" className="gmp-who">
                   <span className="gms-avatar" aria-hidden="true">{(m.name || '؟').trim().charAt(0).toUpperCase()}</span>
-                  <b>{m.name}</b>
+                  <button type="button" className="gmp-name" onClick={() => setProfileId(m.id)} aria-label={`فتح بروفايل ${m.name}`}>{m.name}</button>
                 </span>
                 <span role="cell" data-label="الكود" className="gmp-code" dir="ltr">{m.code}</span>
                 <span role="cell" data-label="الهاتف" dir="ltr" className="gmp-phone">{m.phone || '—'}</span>
@@ -244,6 +262,8 @@ export default function GymMembersPage({ onNavigate }) {
         )}
       </section>
       </div>
+
+      </>)}
 
       {addOpen && (
         <AddMemberSheet

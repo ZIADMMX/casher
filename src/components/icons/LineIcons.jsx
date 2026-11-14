@@ -47,7 +47,8 @@ const PATHS = {
   userX: <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="m17 8 5 5" /><path d="m22 8-5 5" /></>,
   dots: <><circle cx="5" cy="12" r="1.4" /><circle cx="12" cy="12" r="1.4" /><circle cx="19" cy="12" r="1.4" /></>,
   message: <path d="M21 11.5a8.4 8.4 0 0 1-12.4 7.4L3 20.5l1.6-5.1A8.4 8.4 0 1 1 21 11.5Z" />,
-  dumbbell: <><path d="M6 7v10" /><path d="M18 7v10" /><path d="M3 10v4" /><path d="M21 10v4" /><path d="M6 12h12" /></>,
+  arrowRight: <><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></>,
+  dumbbell:<><path d="M6 7v10" /><path d="M18 7v10" /><path d="M3 10v4" /><path d="M21 10v4" /><path d="M6 12h12" /></>,
   idCard: <><rect x="2" y="4" width="20" height="16" rx="3" /><circle cx="8.5" cy="11" r="2.2" /><path d="M5.5 16.5c.6-1.6 1.7-2.3 3-2.3s2.4.7 3 2.3" /><path d="M15 9.5h4" /><path d="M15 13h4" /></>,
 };
 
