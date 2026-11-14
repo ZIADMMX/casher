@@ -5,6 +5,9 @@ const PAGE_MODULES = {
   kitchen: 'pos',
   subscriptions: 'subscriptions',
   trainers: 'subscriptions',
+  'gym-gate': 'subscriptions',
+  'gym-checkout': 'subscriptions',
+  'gym-attendance': 'subscriptions',
   commissions: 'commissions',
   returns: 'returns',
   products: 'inventory',
@@ -91,12 +94,15 @@ const SECTOR_PAGE_POLICIES = {
   },
   subscriptions_gym: {
     allowedPages: [
-      'today', 'pos', 'subscriptions', 'trainers', 'appointments', 'products', 'branches',
-      'customers', 'crm', 'suppliers', 'shifts', 'reports', 'users', 'attendance',
-      'leaves', 'roles', 'salaries', 'settings', 'profile', 'commissions',
+      'today', 'pos', 'gym-checkout', 'trainers', 'gym-gate', 'gym-attendance', 'appointments', 'products',
+      'customers', 'shifts', 'reports', 'users', 'attendance',
+      'leaves', 'roles', 'salaries', 'settings', 'profile',
     ],
-    // Hidden for gyms: technical/B2B pages a gym owner never opens.
-    deniedPages: ['cases', 'salon', 'returns', 'webhooks', 'enterprise', 'workflows', 'screen-designer'],
+    // Hidden for gyms: technical/B2B/retail pages a gym owner never opens.
+    deniedPages: [
+      'cases', 'salon', 'returns', 'webhooks', 'enterprise', 'workflows', 'screen-designer',
+      'commissions', 'branches', 'suppliers', 'crm',
+    ],
   },
   salon_barbershop: {
     allowedPages: [
@@ -167,6 +173,11 @@ function isBusinessProfilePageEnabled(pageKey, profileKey, isModuleEnabled) {
   }
 
   if (normalizedProfile === 'law_firm' && ['customers', 'today'].includes(pageKey)) {
+    return true;
+  }
+
+  // The gym's own screens are the sector itself, so a stray module toggle must not hide them.
+  if (normalizedProfile === 'subscriptions_gym' && ['gym-checkout', 'trainers', 'gym-gate', 'gym-attendance'].includes(pageKey)) {
     return true;
   }
 

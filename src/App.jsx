@@ -42,6 +42,9 @@ const ProfilePage = lazy(() => import('./pages/ProfilePage.jsx'));
 const KitchenDisplayPage = lazy(() => import('./pages/KitchenDisplayPage.jsx'));
 const SubscriptionsPage = lazy(() => import('./pages/SubscriptionsPage.jsx'));
 const GymTrainingPage = lazy(() => import('./pages/GymTrainingPage.jsx'));
+const GymGatePage = lazy(() => import('./pages/GymGatePage.jsx'));
+const GymCheckoutPage = lazy(() => import('./pages/GymCheckoutPage.jsx'));
+const GymAttendancePage = lazy(() => import('./pages/GymAttendancePage.jsx'));
 const CommissionsPage = lazy(() => import('./pages/CommissionsPage.jsx'));
 const EnterpriseManagementPage = lazy(() => import('./pages/EnterpriseManagementPage.jsx'));
 const RolesPage = lazy(() => import('./pages/RolesPage.jsx'));
@@ -72,6 +75,17 @@ function AppContent() {
     setAppointmentsTab(page === 'appointments' && options.tab ? options.tab : 'appointments');
     setActivePage(page);
   }
+
+  // Lets sector-specific themes (styles/sector-gym.css) key off the active business profile.
+  useEffect(() => {
+    document.documentElement.dataset.sector = profileKey;
+    return () => { delete document.documentElement.dataset.sector; };
+  }, [profileKey]);
+
+  // Old links (notifications, tutorials, "member file") still say 'subscriptions'; for a gym that is the checkout hub.
+  useEffect(() => {
+    if (profileKey === 'subscriptions_gym' && activePage === 'subscriptions') setActivePage('gym-checkout');
+  }, [profileKey, activePage]);
 
   // Clicking a Windows notification opens the page it points to.
   useEffect(() => {
@@ -224,7 +238,9 @@ function AppContent() {
   }
 
   function renderPage() {
-    if (!isBusinessProfilePageEnabled(activePage, profileKey, isModuleEnabled)) {
+    // The gym has no separate subscriptions page: it lives inside تحصيل الاشتراكات, so old links land there.
+    const page = profileKey === 'subscriptions_gym' && activePage === 'subscriptions' ? 'gym-checkout' : activePage;
+    if (!isBusinessProfilePageEnabled(page, profileKey, isModuleEnabled)) {
       if (profileKey === 'crm') return <CRMPage />;
       if (profileKey === 'law_firm') return <TodayPage onNavigate={navigateToPage} currentUser={currentUser} />;
       return <POSPage onNavigate={setActivePage} />;
@@ -239,6 +255,9 @@ function AppContent() {
       courts: 'cases.view',
       subscriptions: 'subscriptions.view',
       trainers: 'subscriptions.view',
+      'gym-gate': 'subscriptions.view',
+      'gym-checkout': 'subscriptions.view',
+      'gym-attendance': 'subscriptions.view',
       commissions: 'commissions.view',
       returns: 'pos.refund',
       products: 'products.view',
@@ -259,9 +278,9 @@ function AppContent() {
       workflows: 'enterprise.view',
       webhooks: 'settings.manage',
     };
-    const hasPageAccess = activePage === 'profile'
+    const hasPageAccess = page === 'profile'
       || (currentUser.role === 'admin' && !currentUser.systemRoleKey)
-      || hasPermission(currentUser, pagePermissions[activePage]);
+      || hasPermission(currentUser, pagePermissions[page]);
     if (!hasPageAccess) {
       return (
         <section className="page-loading-spinner" role="alert">
@@ -271,7 +290,7 @@ function AppContent() {
       );
     }
 
-    switch (activePage) {
+    switch (page) {
       case 'today':
         return <TodayPage onNavigate={navigateToPage} currentUser={currentUser} />;
       case 'products':
@@ -292,6 +311,12 @@ function AppContent() {
         return <SubscriptionsPage />;
       case 'trainers':
         return <GymTrainingPage />;
+      case 'gym-gate':
+        return <GymGatePage onNavigate={navigateToPage} />;
+      case 'gym-checkout':
+        return <GymCheckoutPage />;
+      case 'gym-attendance':
+        return <GymAttendancePage />;
       case 'commissions':
         return <CommissionsPage />;
       case 'returns':

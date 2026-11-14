@@ -344,12 +344,12 @@
       },
       {
         "title": "تسجيل دخول العضو على البوابة",
-        "pattern": "member_checkin|memberCheckIn|gym_visits",
+        "pattern": "member_checkin|memberCheckIn|gym_visits|gym_checkins|checkGymEntry",
         "weight": 3
       },
       {
         "title": "سجل حضور العضو",
-        "pattern": "member_attendance|visit_history",
+        "pattern": "member_attendance|visit_history|getGymAttendanceReport|getAttendanceReport",
         "weight": 1
       },
       {

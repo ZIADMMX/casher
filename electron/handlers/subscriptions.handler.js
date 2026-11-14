@@ -45,8 +45,9 @@ function registerSubscriptionsHandlers() {
     return subscriptionsService.unfreezeSubscription(subscriptionId, {});
   });
 
-  safeHandle('subscriptions:renew', (event, subscriptionId) => {
-    return subscriptionsService.renewSubscription(subscriptionId, {});
+  safeHandle('subscriptions:renew', (event, payload) => {
+    const { subscriptionId, payment } = payload || {};
+    return subscriptionsService.renewSubscription(subscriptionId, {}, payment || {});
   });
 
   safeHandle('subscriptions:getStats', () => {

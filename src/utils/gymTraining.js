@@ -7,7 +7,7 @@ export const WEEKDAYS = ['السبت', 'الأحد', 'الاثنين', 'الثل
 export const TONES = [
   { key: 'peach', label: 'خوخي' },
   { key: 'stone', label: 'رملي' },
-  { key: 'sky', label: 'سماوي' },
+  { key: 'sky', label: 'ذهبي' },
 ];
 
 const MONTHS = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];

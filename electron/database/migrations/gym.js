@@ -59,6 +59,19 @@ function ensureGymTraining(dbInstance) {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
     CREATE INDEX IF NOT EXISTS idx_gym_pt_sessions_trainer ON gym_pt_sessions(trainer_id, session_date);
+
+    CREATE TABLE IF NOT EXISTS gym_checkins (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      customer_id INTEGER REFERENCES customers(id),
+      code_text TEXT,
+      result TEXT NOT NULL CHECK (result IN ('allowed', 'warning', 'denied')),
+      reason TEXT NOT NULL,
+      subscription_id INTEGER,
+      gate TEXT NOT NULL DEFAULT 'بوابة 1',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_gym_checkins_time ON gym_checkins(created_at);
+    CREATE INDEX IF NOT EXISTS idx_gym_checkins_customer ON gym_checkins(customer_id, created_at);
   `);
 }
 

@@ -431,6 +431,9 @@ app.whenReady().then(async () => {
   startSafeInterval('CrmReminders', () => crmService.checkDueReminders(), 60_000);
   const dailyMessagesService = require('./services/dailyMessages.service');
   startSafeInterval('DailyMessagesSummary', () => dailyMessagesService.notifyDailySummary(), 10 * 60_000);
+  // Gym/subscription members whose membership ends within 3 days. The service itself
+  // notifies once a day, so restarts and the hourly tick don't repeat it.
+  startSafeInterval('ExpiringSubscriptions', () => require('./services/subscriptions.service').checkExpiringSubscriptions(), 60 * 60_000);
   const casesService = require('./services/cases.service');
   startSafeInterval('CourtSessionReminders', () => casesService.checkDueCourtSessionReminders(48), 60_000);
     startSafeInterval('LegalTaskReminders', () => casesService.checkDueCaseTaskReminders(), 60_000);

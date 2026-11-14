@@ -19,6 +19,12 @@
 :root {
   --color-primary: #C2410C;
   --color-on-primary: #FFFFFF;
+  /* Gym sector background: white fading into peach. */
+  --gym-peach-gradient: linear-gradient(160deg, #FFFFFF 0%, #FFF4EA 45%, #FFE3CC 100%);
+}
+
+[data-theme="dark"] {
+  --gym-peach-gradient: linear-gradient(160deg, #1E293B 0%, #0F172A 100%);
 }
 
 .pos-page-wrapper,

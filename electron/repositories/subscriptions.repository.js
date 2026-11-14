@@ -340,6 +340,12 @@ function freezeSubscription(subscriptionId, reason = null, userId = null) {
   const sub = getSubscriptionById(subscriptionId);
   if (!sub) throw new Error('الاشتراك غير موجود');
   if (sub.status !== 'active') throw new Error('يمكن تجميد الاشتراكات النشطة فقط');
+  // max_freeze_days = 0 means the package puts no cap on freezing.
+  const maxFreeze = Number(sub.max_freeze_days) || 0;
+  const usedFreeze = Number(sub.frozen_days_used) || 0;
+  if (maxFreeze > 0 && usedFreeze >= maxFreeze) {
+    throw new Error(`استنفد هذا الاشتراك أيام التجميد المسموحة (${maxFreeze} يوم)`);
+  }
 
   const freezeTx = db.transaction(() => {
     const now = new Date().toISOString();
@@ -374,11 +380,15 @@ function unfreezeSubscription(subscriptionId) {
     let daysFrozen = 0;
     const now = new Date();
     const nowIso = now.toISOString();
+    // The package's cap also limits the extension, so a long freeze can't pay
+    // the member back more days than the package allows.
+    const maxFreeze = Number(sub.max_freeze_days) || 0;
+    const allowance = maxFreeze > 0 ? Math.max(0, maxFreeze - (Number(sub.frozen_days_used) || 0)) : Infinity;
 
     if (freezeLog && freezeLog.freeze_date) {
       const freezeStart = new Date(freezeLog.freeze_date);
       const diffTime = Math.abs(now - freezeStart);
-      daysFrozen = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      daysFrozen = Math.min(Math.ceil(diffTime / (1000 * 60 * 60 * 24)), allowance);
 
       db.prepare(`
         UPDATE subscription_freeze_logs 

@@ -17,6 +17,9 @@ const PAGE_PERMISSIONS = {
   appointments: 'appointments.view',
   subscriptions: 'subscriptions.view',
   trainers: 'subscriptions.view',
+  'gym-gate': 'subscriptions.view',
+  'gym-checkout': 'subscriptions.view',
+  'gym-attendance': 'subscriptions.view',
   commissions: 'commissions.view',
   returns: 'pos.refund',
   products: 'products.view',
@@ -196,12 +199,48 @@ function Sidebar({ activePage, onNavigate, currentUser, onLogout, onOpenProfile,
       roles: ['admin', 'cashier'],
     },
     {
+      key: 'gym-checkout',
+      label: 'تحصيل الاشتراكات',
+      badge: 'دفع',
+      icon: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="2" y="5" width="20" height="14" rx="2" />
+          <path d="M2 10h20" />
+          <path d="M6 15h4" />
+        </svg>
+      ),
+      roles: ['admin', 'cashier'],
+    },
+    {
       key: 'trainers',
       label: 'الحصص والمدربين',
       badge: 'جديد',
       icon: (
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M6 7v10M18 7v10M3 10v4M21 10v4M6 12h12" />
+        </svg>
+      ),
+      roles: ['admin', 'cashier'],
+    },
+    {
+      key: 'gym-gate',
+      label: 'بوابة الاستقبال',
+      badge: 'QR',
+      icon: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M4 8V5h3M17 5h3v3M20 16v3h-3M7 19H4v-3M4 12h16" />
+        </svg>
+      ),
+      roles: ['admin', 'cashier'],
+    },
+    {
+      key: 'gym-attendance',
+      label: 'حضور الأعضاء',
+      icon: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+          <circle cx="8.5" cy="7" r="4" />
+          <polyline points="17 11 19 13 23 9" />
         </svg>
       ),
       roles: ['admin', 'cashier'],

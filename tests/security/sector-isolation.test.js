@@ -37,7 +37,7 @@ describe('Sector Page Isolation Policies', () => {
 
   test('CRM is separate from the law firm sector and follows the CRM module toggle elsewhere', () => {
     expect(PAGE_MODULES.crm).toBe('crm');
-    [...allSectors.filter((sector) => !['crm', 'law_firm'].includes(sector)), 'custom'].forEach((sector) => {
+    [...allSectors.filter((sector) => !['crm', 'law_firm', 'subscriptions_gym'].includes(sector)), 'custom'].forEach((sector) => {
       expect(isBusinessProfilePageEnabled('crm', sector, () => true)).toBe(true);
     });
     expect(isBusinessProfilePageEnabled('crm', 'law_firm', () => true)).toBe(false);
@@ -115,13 +115,21 @@ describe('Sector Page Isolation Policies', () => {
       });
     });
 
-    test('Subscriptions Gym has subscriptions and appointments, but NOT cases, salon, orders, returns', () => {
-      expect(isBusinessProfilePageEnabled('subscriptions', 'subscriptions_gym')).toBe(true);
+    test('Subscriptions Gym has its checkout hub and appointments, but NOT cases, salon, orders, returns', () => {
+      // The old subscriptions page now lives inside the checkout hub for gyms (the salon still uses it).
+      expect(isBusinessProfilePageEnabled('subscriptions', 'subscriptions_gym')).toBe(false);
+      expect(isBusinessProfilePageEnabled('gym-checkout', 'subscriptions_gym')).toBe(true);
       expect(isBusinessProfilePageEnabled('appointments', 'subscriptions_gym')).toBe(true);
       expect(isBusinessProfilePageEnabled('cases', 'subscriptions_gym')).toBe(false);
       expect(isBusinessProfilePageEnabled('salon', 'subscriptions_gym')).toBe(false);
       expect(isBusinessProfilePageEnabled('orders', 'subscriptions_gym')).toBe(false);
       expect(isBusinessProfilePageEnabled('returns', 'subscriptions_gym')).toBe(false);
+      ['commissions', 'branches', 'suppliers', 'crm'].forEach((page) => {
+        expect(isBusinessProfilePageEnabled(page, 'subscriptions_gym', () => true)).toBe(false);
+      });
+      ['gym-checkout', 'trainers', 'gym-gate', 'gym-attendance'].forEach((page) => {
+        expect(isBusinessProfilePageEnabled(page, 'subscriptions_gym', () => false)).toBe(true);
+      });
     });
 
     test('Salon Barbershop has its salon page, hides unrelated appointments, branches, suppliers, and workflows', () => {

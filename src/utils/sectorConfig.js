@@ -147,7 +147,7 @@ export const SECTOR_CONFIGS = {
     key: 'subscriptions_gym',
     name: 'صالات رياضية وجيم',
     badge: 'عضويات + باقات PT',
-    color: '#06B6D4',
+    color: '#F97316',
     searchPlaceholder: 'ابحث باسم العضو، رقم الهاتف، نوع الاشتراك، أو المكملات...',
     orderTerm: 'اشتراك / بيع مباشر',
     itemTerm: 'باقة / مكمل غذائي',

@@ -25,11 +25,17 @@ async function registerAttendance(page) {
   await page.getByRole('button', { name: 'تسجيل الانصراف' }).waitFor({ state: 'visible' });
 }
 
+// The tour opens a moment after the page does, so give it that moment before
+// deciding it is not there: its overlay swallows every later click.
 async function dismissPageTutorial(page) {
   const tutorial = page.getByRole('dialog', { name: 'جولة سريعة' });
-  if (await tutorial.isVisible()) {
-    await tutorial.getByRole('button', { name: 'إغلاق' }).click();
+  try {
+    await tutorial.waitFor({ state: 'visible', timeout: 5_000 });
+  } catch {
+    return;
   }
+  await tutorial.getByRole('button', { name: 'إغلاق' }).click();
+  await tutorial.waitFor({ state: 'hidden' });
 }
 
 test('grocery inventory uses grocery labels and product icons', async () => {
@@ -69,7 +75,7 @@ test('grocery inventory uses grocery labels and product icons', async () => {
       await tutorialCloseButton.click();
     }
     await page.getByRole('button', { name: 'المنتجات والمخزون' }).click();
-    await page.getByRole('heading', { name: /إدارة .* والمخزون/ }).waitFor({ state: 'visible' });
+    await page.locator('h1.prd-title').waitFor({ state: 'visible' });
     await dismissPageTutorial(page);
 
     const milkCard = page.locator('.fox-product-card').filter({ hasText: 'حليب كامل الدسم 1 لتر' });
@@ -537,14 +543,15 @@ test('core screens remain usable at different window sizes and customer/purchase
       BrowserWindow.getAllWindows()[0].setSize(1024, 768);
     });
     await page.getByRole('button', { name: 'المنتجات والمخزون' }).click();
-    await page.getByRole('heading', { name: /إدارة .* والمخزون/ }).waitFor({ state: 'visible' });
+    await page.locator('h1.prd-title').waitFor({ state: 'visible' });
     await dismissPageTutorial(page);
     assert.ok(
       await page.evaluate(() => document.documentElement.clientWidth >= 1000),
       'The resized application should expose the expected desktop viewport'
     );
 
-    await page.locator('.sidebar-nav-btn').filter({ hasText: /الديون|العملاء|الزبائن/ }).click();
+    // hasNotText 'CRM': the sidebar also has a CRM button whose label contains "العملاء".
+    await page.locator('.sidebar-nav-btn').filter({ hasText: /الديون|العملاء|الزبائن/ }).filter({ hasNotText: 'CRM' }).click();
     await page.getByRole('heading', { name: /مركز الاتصالات/ }).waitFor({ state: 'visible' });
     await dismissPageTutorial(page);
     await page.getByRole('button', { name: '+ إضافة عميل جديد' }).click();
@@ -648,7 +655,7 @@ test('law firm appointments use legal terminology and supported resource types',
     await page.locator('#login-password').fill('secure-password');
     await page.getByRole('button', { name: /Sign In/ }).click();
     await page.locator('#barcode-search-input').waitFor({ state: 'visible' });
-    await page.getByRole('button', { name: 'تخطي' }).click();
+    await dismissPageTutorial(page);
     await page.locator('.sidebar-links button').filter({ hasText: /حجوزات المواعيد/ }).click();
     try {
       await page.getByRole('heading', { name: /المواعيد والجلسات القانونية/ }).waitFor({ state: 'visible', timeout: 10_000 });

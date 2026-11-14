@@ -1,6 +1,12 @@
+const { db } = require('../database/db');
 const subscriptionsRepo = require('../repositories/subscriptions.repository');
 const subscriptionsCache = require('./subscriptions.cache');
 const NotificationsService = require('./notifications.service');
+const salesRepo = require('../repositories/sales.repository');
+const shiftsRepo = require('../repositories/shifts.repository');
+const inventoryRepo = require('../repositories/inventory.repository');
+const settingsRepo = require('../repositories/settings.repository');
+const { getCurrentSession } = require('./auth.service');
 
 /**
  * Subscriptions & Packages Service
@@ -8,6 +14,66 @@ const NotificationsService = require('./notifications.service');
  */
 
 const ALLOWED_PACKAGE_TYPES = ['time_based', 'session_based', 'product_quota', 'membership'];
+const PAYMENT_METHODS = ['cash', 'card', 'credit'];
+
+// The logged-in user, so freeze/renew/sale rows carry who did them even when the
+// handler passes nothing.
+const sessionOf = (userSession) => (userSession && userSession.id ? userSession : getCurrentSession() || {});
+
+// Selling or renewing a subscription is money taken at the counter, so it becomes a
+// sale row in the open shift; otherwise the gym's revenue never reaches the shift or the reports.
+const toCents = (value) => Math.round((Number(value) || 0) * 100);
+
+// One payment of the full price by default (old callers send payment_method / due_date). The
+// checkout screen sends `payments` [{ method, amount, due_date }] for split or installment
+// collection; their amounts must add up to the package price.
+function normalizePayments(price, { payments, payment_method = 'cash', due_date = null } = {}) {
+  if (!Array.isArray(payments) || payments.length === 0) {
+    const method = PAYMENT_METHODS.includes(payment_method) ? payment_method : 'cash';
+    return [{ method, cents: toCents(price), dueDate: method === 'credit' ? due_date : null }];
+  }
+
+  const list = payments.map((p) => ({ method: p?.method, cents: toCents(p?.amount), dueDate: p?.due_date || null }));
+  for (const p of list) {
+    if (!PAYMENT_METHODS.includes(p.method)) throw new Error('طريقة الدفع غير مدعومة');
+    if (p.cents <= 0) throw new Error('مبلغ كل دفعة يجب أن يكون أكبر من صفر');
+    if (p.method !== 'credit') p.dueDate = null;
+  }
+  if (list.reduce((sum, p) => sum + p.cents, 0) !== toCents(price)) {
+    throw new Error('مجموع الدفعات لا يساوي قيمة الباقة');
+  }
+  return list;
+}
+
+function recordSubscriptionSale(sub, payment = {}, userSession = {}) {
+  const price = Number(sub.package_price) || 0;
+  if (price <= 0) return null;
+  const payments = normalizePayments(price, payment);
+  if (payments.some((p) => p.method === 'credit' && !p.dueDate)) {
+    throw new Error('تاريخ الاستحقاق مطلوب في حالة البيع الآجل');
+  }
+
+  const session = sessionOf(userSession);
+  const shift = shiftsRepo.getCurrentOpenShift(session.id) || shiftsRepo.getCurrentOpenShift();
+  if (!shift) throw new Error('لا يمكن تحصيل الاشتراك لعدم وجود وردية مفتوحة. يرجى فتح وردية أولاً');
+
+  const warehouseId = inventoryRepo.getDefaultWarehouseId();
+  const branchId = warehouseId ? inventoryRepo.getWarehouseBranchId(warehouseId) : null;
+  // One sale row per payment, so each method lands in its own shift total.
+  return payments.map((p) => salesRepo.createSale({
+    shiftId: shift.id,
+    branchId,
+    warehouseId,
+    customerId: sub.customer_id,
+    customerName: sub.customer_name,
+    customerPhone: sub.customer_phone,
+    userId: session.id || null,
+    totalAmount: p.cents / 100,
+    discount: 0,
+    paymentMethod: p.method,
+    dueDate: p.dueDate,
+  }));
+}
 
 // --- PACKAGES ---
 
@@ -78,12 +144,16 @@ function subscribeCustomer(data, userSession = {}) {
     notes: notes || null
   };
 
-  const subId = subscriptionsRepo.subscribeCustomer(payload);
+  const subId = db.transaction(() => {
+    const id = subscriptionsRepo.subscribeCustomer(payload);
+    recordSubscriptionSale(subscriptionsRepo.getSubscriptionById(id), data, userSession);
+    return id;
+  })();
   subscriptionsCache.invalidate();
 
   // Notify customer subscription created
   NotificationsService.notify({
-    userId: userSession?.id || null,
+    userId: sessionOf(userSession).id || null,
     type: 'success',
     title: 'اشتراك جديد',
     message: `تم تفعيل ${pkg.name} بنجاح`,
@@ -117,7 +187,7 @@ function getActiveSubscriptionByCustomer(customerId) {
 }
 
 function consumeCredit(subscriptionId, creditsDeducted = 1, userSession = {}, saleId = null, notes = null) {
-  const userId = userSession?.id || null;
+  const userId = sessionOf(userSession).id || null;
   const updatedSub = subscriptionsRepo.consumeCredit(subscriptionId, creditsDeducted, userId, saleId, notes);
   subscriptionsCache.invalidate();
 
@@ -135,7 +205,7 @@ function consumeCredit(subscriptionId, creditsDeducted = 1, userSession = {}, sa
 }
 
 function freezeSubscription(subscriptionId, reason = null, userSession = {}) {
-  const userId = userSession?.id || null;
+  const userId = sessionOf(userSession).id || null;
   const frozenSub = subscriptionsRepo.freezeSubscription(subscriptionId, reason, userId);
   subscriptionsCache.invalidate();
 
@@ -151,7 +221,7 @@ function freezeSubscription(subscriptionId, reason = null, userSession = {}) {
 }
 
 function unfreezeSubscription(subscriptionId, userSession = {}) {
-  const userId = userSession?.id || null;
+  const userId = sessionOf(userSession).id || null;
   const unfrozenSub = subscriptionsRepo.unfreezeSubscription(subscriptionId, userId);
   subscriptionsCache.invalidate();
 
@@ -166,12 +236,16 @@ function unfreezeSubscription(subscriptionId, userSession = {}) {
   return unfrozenSub;
 }
 
-function renewSubscription(subscriptionId, userSession = {}) {
-  const userId = userSession?.id || null;
+function renewSubscription(subscriptionId, userSession = {}, payment = {}) {
+  const userId = sessionOf(userSession).id || null;
   const sub = subscriptionsRepo.getSubscriptionById(subscriptionId);
   if (!sub) throw new Error('الاشتراك غير موجود');
 
-  const renewedSub = subscriptionsRepo.renewSubscription(subscriptionId, sub.duration_days || 30, sub.total_credits || 0);
+  const renewedSub = db.transaction(() => {
+    const renewed = subscriptionsRepo.renewSubscription(subscriptionId, sub.duration_days || 30, sub.total_credits || 0);
+    recordSubscriptionSale(sub, payment, userSession);
+    return renewed;
+  })();
   subscriptionsCache.invalidate();
 
   NotificationsService.notify({
@@ -186,6 +260,11 @@ function renewSubscription(subscriptionId, userSession = {}) {
 }
 
 function checkExpiringSubscriptions() {
+  // Called on a timer, so the reminder goes out once a day however often it runs.
+  const today = new Date().toISOString().slice(0, 10);
+  if (settingsRepo.get('subscriptions_expiry_notified_on') === today) return;
+  settingsRepo.set('subscriptions_expiry_notified_on', today);
+
   subscriptionsRepo.updateAutoExpirationStatus();
   const allActive = subscriptionsRepo.getAllSubscriptions({ status: 'active' });
   const now = new Date();

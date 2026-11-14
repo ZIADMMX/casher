@@ -6,7 +6,7 @@ import { TONES, WEEKDAYS, dayOfMonth, monthName, timeLabel } from '../../utils/g
 
 const errText = (e) => (e instanceof Error ? e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : 'حدث خطأ غير متوقع');
 
-function Sheet({ title, subtitle, onClose, children, footer }) {
+export function Sheet({ title, subtitle, onClose, children, footer }) {
   return (
     <LegalModalShell onClose={onClose} size="md" labelledBy="gym-dialog-title" className="gym-sheet">
       {(close) => (

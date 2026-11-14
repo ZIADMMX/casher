@@ -29,7 +29,7 @@ export default function MembershipPlanModal({
   const [isActive, setIsActive] = useState(true);
   const [isFeatured, setIsFeatured] = useState(false);
   const [badgeText, setBadgeText] = useState('');
-  const [badgeColor, setBadgeColor] = useState('#3b82f6');
+  const [badgeColor, setBadgeColor] = useState('#F97316');
   const [selectedBranches, setSelectedBranches] = useState([]);
   const [serviceSearch, setServiceSearch] = useState('');
   const [showServiceDropdown, setShowServiceDropdown] = useState(false);
@@ -55,7 +55,7 @@ export default function MembershipPlanModal({
       setIsActive(initialData.is_active !== undefined ? Boolean(initialData.is_active) : true);
       setIsFeatured(Boolean(initialData.is_featured));
       setBadgeText(initialData.badge_text || '');
-      setBadgeColor(initialData.badge_color || '#3b82f6');
+      setBadgeColor(initialData.badge_color || '#F97316');
       setSelectedBranches(Array.isArray(initialData.branch_ids) ? initialData.branch_ids : []);
     } else {
       setName('');
@@ -72,7 +72,7 @@ export default function MembershipPlanModal({
       setIsActive(true);
       setIsFeatured(false);
       setBadgeText('');
-      setBadgeColor('#3b82f6');
+      setBadgeColor('#F97316');
       // Default to all branches if available
       if (availableBranches.length > 0) {
         setSelectedBranches(availableBranches.map((b) => b.id));

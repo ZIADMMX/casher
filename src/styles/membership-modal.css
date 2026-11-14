@@ -10,7 +10,7 @@
   align-items: center;
   justify-content: center;
   padding: 16px;
-  background-color: rgba(15, 23, 42, 0.65);
+  background-color: rgba(66, 32, 10, 0.45);
   backdrop-filter: blur(4px);
   animation: modalFadeIn 0.2s ease-out;
 }
@@ -19,7 +19,9 @@
   width: 100%;
   max-width: 760px;
   max-height: 90vh;
-  background: #ffffff;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.82) 0%, rgba(255, 244, 234, 0.78) 100%);
+  backdrop-filter: blur(22px) saturate(1.4);
+  border: 1px solid rgba(255, 255, 255, 0.7);
   border-radius: 16px;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
   display: flex;
@@ -27,7 +29,7 @@
   overflow: hidden;
   direction: rtl;
   font-family: inherit;
-  color: #1e293b;
+  color: #2A1D14;
   animation: modalSlideUp 0.25s ease-out;
 }
 
@@ -37,22 +39,22 @@
   align-items: center;
   justify-content: space-between;
   padding: 18px 24px;
-  border-bottom: 1px solid #f1f5f9;
-  background: #ffffff;
+  border-bottom: 1px solid #FBE3CF;
+  background: transparent;
 }
 
 .membership-modal-title {
   margin: 0;
   font-size: 1.25rem;
   font-weight: 700;
-  color: #0f172a;
+  color: #2A1D14;
 }
 
 .membership-modal-close-btn {
   background: transparent;
   border: none;
   font-size: 1.2rem;
-  color: #64748b;
+  color: #8A6A52;
   cursor: pointer;
   padding: 6px;
   border-radius: 8px;
@@ -63,8 +65,8 @@
 }
 
 .membership-modal-close-btn:hover {
-  background: #f1f5f9;
-  color: #0f172a;
+  background: #FFF1E4;
+  color: #2A1D14;
 }
 
 /* Modal Body */
@@ -106,22 +108,22 @@
 }
 
 .membership-icon-primary {
-  background: #e0f2fe;
-  color: #0284c7;
+  background: #FFE8D6;
+  color: #9A330A;
 }
 
 .membership-icon-teal {
-  background: #ccfbf1;
-  color: #0d9488;
+  background: #FDF3DC;
+  color: #B45309;
 }
 
 .membership-icon-cyan {
-  background: #cffafe;
-  color: #0891b2;
+  background: #FDF3DC;
+  color: #C2410C;
 }
 
 .membership-icon-settings {
-  background: #f0fdf4;
+  background: #FFF1E4;
   color: #16a34a;
 }
 
@@ -134,17 +136,17 @@
   margin: 0;
   font-size: 1rem;
   font-weight: 700;
-  color: #0f172a;
+  color: #2A1D14;
 }
 
 .membership-section-subtitle {
   font-size: 0.8rem;
-  color: #64748b;
+  color: #8A6A52;
 }
 
 .membership-divider {
   height: 1px;
-  background-color: #f1f5f9;
+  background-color: #FFF1E4;
   margin: 4px 0;
 }
 
@@ -159,7 +161,7 @@
 .membership-label {
   font-size: 0.85rem;
   font-weight: 600;
-  color: #334155;
+  color: #6B4A33;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -178,7 +180,7 @@
 .membership-link-btn {
   background: none;
   border: none;
-  color: #0284c7;
+  color: #9A330A;
   font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
@@ -194,10 +196,10 @@
   width: 100%;
   padding: 10px 14px;
   background: #ffffff;
-  border: 1px solid #cbd5e1;
+  border: 1px solid #F4CFAE;
   border-radius: 8px;
   font-size: 0.9rem;
-  color: #0f172a;
+  color: #2A1D14;
   outline: none;
   box-sizing: border-box;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
@@ -205,8 +207,8 @@
 
 .membership-input:focus,
 .membership-textarea:focus {
-  border-color: #0284c7;
-  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
+  border-color: #9A330A;
+  box-shadow: 0 0 0 3px rgba(194, 65, 12, 0.15);
 }
 
 .membership-textarea {
@@ -258,26 +260,26 @@
   gap: 4px;
   padding: 9px 8px;
   background: #ffffff;
-  border: 1px solid #cbd5e1;
+  border: 1px solid #F4CFAE;
   border-radius: 8px;
   font-size: 0.82rem;
   font-weight: 600;
-  color: #475569;
+  color: #6B4A33;
   cursor: pointer;
   transition: all 0.15s ease;
   white-space: nowrap;
 }
 
 .membership-cycle-btn:hover {
-  background: #f8fafc;
-  border-color: #94a3b8;
+  background: #FFFAF5;
+  border-color: #E8B98A;
 }
 
 .membership-cycle-btn.active {
-  background: #0891b2;
-  border-color: #0891b2;
+  background: #C2410C;
+  border-color: #C2410C;
   color: #ffffff;
-  box-shadow: 0 2px 4px rgba(8, 145, 178, 0.25);
+  box-shadow: 0 2px 4px rgba(194, 65, 12, 0.25);
 }
 
 /* Services Selector */
@@ -321,9 +323,9 @@
   align-items: center;
   gap: 6px;
   padding: 4px 10px;
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
-  color: #166534;
+  background: #FFF1E4;
+  border: 1px solid #F4CFAE;
+  color: #9A330A;
   border-radius: 20px;
   font-size: 0.8rem;
   font-weight: 500;
@@ -332,7 +334,7 @@
 .membership-chip-remove {
   background: none;
   border: none;
-  color: #166534;
+  color: #9A330A;
   cursor: pointer;
   font-size: 1rem;
   line-height: 1;
@@ -350,7 +352,7 @@
   left: 0;
   margin-top: 6px;
   background: #ffffff;
-  border: 1px solid #cbd5e1;
+  border: 1px solid #F4CFAE;
   border-radius: 10px;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
   z-index: 100;
@@ -364,17 +366,17 @@
   align-items: center;
   justify-content: space-between;
   padding: 10px 14px;
-  background: #f8fafc;
-  border-bottom: 1px solid #e2e8f0;
+  background: #FFFAF5;
+  border-bottom: 1px solid #FBE3CF;
   font-size: 0.8rem;
   font-weight: 600;
-  color: #475569;
+  color: #6B4A33;
 }
 
 .membership-dropdown-close {
   background: none;
   border: none;
-  color: #0284c7;
+  color: #9A330A;
   font-size: 0.75rem;
   font-weight: 600;
   cursor: pointer;
@@ -397,11 +399,11 @@
 }
 
 .membership-dropdown-item:hover {
-  background: #f1f5f9;
+  background: #FFF1E4;
 }
 
 .membership-dropdown-item.selected {
-  background: #e0f2fe;
+  background: #FFE8D6;
 }
 
 .membership-checkbox {
@@ -413,12 +415,12 @@
 .membership-item-name {
   flex: 1;
   font-weight: 500;
-  color: #1e293b;
+  color: #2A1D14;
 }
 
 .membership-item-price {
   font-size: 0.75rem;
-  color: #0284c7;
+  color: #9A330A;
   font-weight: 600;
 }
 
@@ -431,7 +433,7 @@
 
 .membership-helper-text {
   font-size: 0.75rem;
-  color: #64748b;
+  color: #8A6A52;
   margin-top: 2px;
 }
 
@@ -458,7 +460,7 @@
 .membership-slider {
   position: absolute;
   inset: 0;
-  background-color: #cbd5e1;
+  background-color: #F4CFAE;
   transition: 0.25s;
   border-radius: 24px;
 }
@@ -477,7 +479,7 @@
 }
 
 .membership-switch input:checked + .membership-slider {
-  background-color: #0891b2;
+  background-color: #C2410C;
 }
 
 .membership-switch input:checked + .membership-slider:before {
@@ -510,7 +512,7 @@
   width: 32px;
   height: 32px;
   border-radius: 6px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid #F4CFAE;
   box-shadow: inset 0 0 0 1px rgba(0,0,0,0.1);
 }
 
@@ -520,8 +522,8 @@
   align-items: center;
   justify-content: space-between;
   padding: 16px 24px;
-  background: #ffffff;
-  border-top: 1px solid #f1f5f9;
+  background: #FFF6EE;
+  border-top: 1px solid #FBE3CF;
   gap: 16px;
 }
 
@@ -533,7 +535,7 @@
 
 .membership-submit-btn {
   padding: 10px 24px;
-  background: #0891b2;
+  background: #C2410C;
   border: none;
   border-radius: 8px;
   color: #ffffff;
@@ -541,18 +543,18 @@
   font-weight: 700;
   cursor: pointer;
   transition: all 0.15s ease;
-  box-shadow: 0 2px 6px rgba(8, 145, 178, 0.3);
+  box-shadow: 0 2px 6px rgba(194, 65, 12, 0.3);
 }
 
 .membership-submit-btn:hover {
-  background: #0e7490;
+  background: #7C2A08;
   transform: translateY(-1px);
 }
 
 .membership-cancel-btn {
   background: none;
   border: none;
-  color: #0891b2;
+  color: #C2410C;
   font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
@@ -577,13 +579,13 @@
 
 .membership-price-label {
   font-size: 0.75rem;
-  color: #64748b;
+  color: #8A6A52;
 }
 
 .membership-price-val {
   font-size: 1.25rem;
   font-weight: 800;
-  color: #0f172a;
+  color: #2A1D14;
 }
 
 .membership-checklist {

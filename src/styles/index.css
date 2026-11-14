@@ -872,7 +872,7 @@
   justify-content: center;
   font-weight: 800;
   font-size: 24px;
-  box-shadow: 0 4px 14px rgba(46, 91, 255, 0.3);
+  box-shadow: 0 4px 14px rgba(242, 96, 12, 0.3);
 }
 
 .profile-visual-info {
@@ -957,7 +957,7 @@
 .profile-input-wrap:focus-within {
   border-color: #F2600C;
   background: #ffffff;
-  box-shadow: 0 0 0 3px rgba(46, 91, 255, 0.12);
+  box-shadow: 0 0 0 3px rgba(242, 96, 12, 0.12);
 }
 
 .profile-input-icon {
@@ -1045,13 +1045,13 @@
   font-weight: 700;
   font-family: inherit;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(46, 91, 255, 0.25);
+  box-shadow: 0 4px 12px rgba(242, 96, 12, 0.25);
   transition: all 0.2s ease;
 }
 
 .profile-save-btn:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(46, 91, 255, 0.35);
+  box-shadow: 0 6px 16px rgba(242, 96, 12, 0.35);
 }
 
 .profile-save-btn:disabled {
@@ -1099,7 +1099,7 @@
 .supplier-payment-form .supplier-payment-select:focus {
   border-color: #F2600C;
   background: #FFFFFF;
-  box-shadow: 0 0 0 3px rgba(46, 91, 255, 0.12);
+  box-shadow: 0 0 0 3px rgba(242, 96, 12, 0.12);
 }
 
 .supplier-payment-form .profile-input-wrap {
@@ -1153,7 +1153,7 @@
 
 .supplier-payment-form .profile-save-btn:focus-visible,
 .supplier-payment-form .profile-cancel-btn:focus-visible {
-  outline: 3px solid rgba(46, 91, 255, 0.28);
+  outline: 3px solid rgba(242, 96, 12, 0.28);
   outline-offset: 2px;
 }
 
@@ -1216,7 +1216,7 @@
   font-family: inherit;
   font-size: 13.5px;
   font-weight: 700;
-  box-shadow: 0 4px 14px rgba(46, 91, 255, 0.22);
+  box-shadow: 0 4px 14px rgba(242, 96, 12, 0.22);
   transition: all 0.2s ease;
   display: inline-flex;
   align-items: center;
@@ -1225,9 +1225,9 @@
 }
 
 .primary-btn:hover {
-  background: #1e45db;
+  background: #D14F00;
   transform: translateY(-1px);
-  box-shadow: 0 6px 18px rgba(46, 91, 255, 0.32);
+  box-shadow: 0 6px 18px rgba(242, 96, 12, 0.32);
 }
 
 .primary-btn:active {
@@ -1369,7 +1369,7 @@
 .fox-field-input-wrap:focus-within {
   border-color: #F2600C;
   background: #ffffff;
-  box-shadow: 0 0 0 3px rgba(46, 91, 255, 0.12);
+  box-shadow: 0 0 0 3px rgba(242, 96, 12, 0.12);
 }
 
 .field-icon {
@@ -1402,7 +1402,7 @@
 .fox-lux-input:focus {
   border-color: #F2600C;
   background: #ffffff;
-  box-shadow: 0 0 0 3px rgba(46, 91, 255, 0.12);
+  box-shadow: 0 0 0 3px rgba(242, 96, 12, 0.12);
 }
 
 .form-section-divider {
@@ -1516,13 +1516,13 @@
   font-weight: 700;
   font-family: inherit;
   cursor: pointer;
-  box-shadow: 0 4px 16px rgba(46, 91, 255, 0.28);
+  box-shadow: 0 4px 16px rgba(242, 96, 12, 0.28);
   transition: all 0.2s ease;
 }
 
 .fox-save-btn:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(46, 91, 255, 0.38);
+  box-shadow: 0 8px 24px rgba(242, 96, 12, 0.38);
 }
 
 .fox-save-btn:active {
@@ -2076,7 +2076,7 @@
 .custom-date-input:focus {
   border-color: #F2600C;
   background: #ffffff;
-  box-shadow: 0 0 0 2px rgba(46, 91, 255, 0.1);
+  box-shadow: 0 0 0 2px rgba(242, 96, 12, 0.1);
 }
 
 .apply-date-btn {
@@ -2214,7 +2214,7 @@
 
 .fox-hover-lift:hover {
   transform: translateY(-3px);
-  box-shadow: 0 8px 24px rgba(46, 91, 255, 0.1);
+  box-shadow: 0 8px 24px rgba(242, 96, 12, 0.1);
 }
 
 .fox-stat-card:hover {
@@ -2761,20 +2761,20 @@
 .btn-primary {
   background: linear-gradient(135deg, #F2600C 0%, #D35400 100%);
   color: #ffffff;
-  box-shadow: 0 4px 14px rgba(46, 91, 255, 0.25);
-  border-color: rgba(46, 91, 255, 0.3);
+  box-shadow: 0 4px 14px rgba(242, 96, 12, 0.25);
+  border-color: rgba(242, 96, 12, 0.3);
 }
 
 .btn-primary:hover:not(:disabled) {
   background: linear-gradient(135deg, #2448d6 0%, #173db0 100%);
   transform: translateY(-1px);
-  box-shadow: 0 6px 18px rgba(46, 91, 255, 0.35);
+  box-shadow: 0 6px 18px rgba(242, 96, 12, 0.35);
   color: #ffffff;
 }
 
 .btn-primary:active:not(:disabled) {
   transform: translateY(0);
-  box-shadow: 0 2px 6px rgba(46, 91, 255, 0.2);
+  box-shadow: 0 2px 6px rgba(242, 96, 12, 0.2);
 }
 
 .btn-secondary {
@@ -2858,7 +2858,7 @@
 .form-select:focus,
 .form-textarea:focus {
   border-color: #F2600C;
-  box-shadow: 0 0 0 3px rgba(46, 91, 255, 0.12);
+  box-shadow: 0 0 0 3px rgba(242, 96, 12, 0.12);
 }
 
 .form-input::placeholder {
@@ -3207,7 +3207,7 @@
 
 .search-bar-wrapper:focus-within {
   border-color: #F2600C;
-  box-shadow: 0 0 0 3px rgba(46, 91, 255, 0.12);
+  box-shadow: 0 0 0 3px rgba(242, 96, 12, 0.12);
 }
 
 .search-icon {
@@ -3398,7 +3398,7 @@
 .customer-form-card {
   margin-bottom: 22px;
   border: 1.5px solid #F2600C !important;
-  box-shadow: 0 4px 20px rgba(46, 91, 255, 0.08) !important;
+  box-shadow: 0 4px 20px rgba(242, 96, 12, 0.08) !important;
 }
 
 .text-muted {
@@ -3504,7 +3504,7 @@
 
 .supplier-card:hover {
   border-color: #F2600C;
-  box-shadow: 0 8px 24px rgba(46, 91, 255, 0.1);
+  box-shadow: 0 8px 24px rgba(242, 96, 12, 0.1);
   transform: translateY(-3px);
 }
 
@@ -3711,13 +3711,13 @@
   font-weight: 700;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: 0 2px 8px rgba(46, 91, 255, 0.3);
+  box-shadow: 0 2px 8px rgba(242, 96, 12, 0.3);
 }
 
 .license-banner-activate-btn:hover {
   background: linear-gradient(135deg, #2448d6 0%, #173db0 100%);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(46, 91, 255, 0.4);
+  box-shadow: 0 4px 12px rgba(242, 96, 12, 0.4);
 }
 
 /* ===== Luxury License Modal ===== */
@@ -3773,7 +3773,7 @@
   width: 44px;
   height: 44px;
   border-radius: 12px;
-  background: linear-gradient(135deg, rgba(46, 91, 255, 0.25) 0%, rgba(29, 78, 216, 0.45) 100%);
+  background: linear-gradient(135deg, rgba(242, 96, 12, 0.25) 0%, rgba(29, 78, 216, 0.45) 100%);
   border: 1px solid rgba(96, 165, 250, 0.35);
   display: flex;
   align-items: center;
@@ -3951,7 +3951,7 @@
 
 .license-key-textbox:focus {
   border-color: #F2600C;
-  box-shadow: 0 0 0 4px rgba(46, 91, 255, 0.15);
+  box-shadow: 0 0 0 4px rgba(242, 96, 12, 0.15);
 }
 
 .license-key-textbox::placeholder {
@@ -4012,7 +4012,7 @@
   font-size: 14px;
   font-weight: 800;
   cursor: pointer;
-  box-shadow: 0 4px 14px rgba(46, 91, 255, 0.3);
+  box-shadow: 0 4px 14px rgba(242, 96, 12, 0.3);
   transition: all 0.2s ease;
   display: inline-flex;
   align-items: center;
@@ -4023,7 +4023,7 @@
 .license-btn-submit:hover:not(:disabled) {
   background: linear-gradient(135deg, #2448d6 0%, #173db0 100%);
   transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(46, 91, 255, 0.4);
+  box-shadow: 0 6px 20px rgba(242, 96, 12, 0.4);
 }
 
 .license-btn-submit:disabled {
@@ -4108,7 +4108,7 @@
 }
 .sector-card-btn:hover:not(:disabled) {
   border-color: var(--primary-color, #F2600C);
-  box-shadow: 0 4px 12px rgba(46, 91, 255, 0.08);
+  box-shadow: 0 4px 12px rgba(242, 96, 12, 0.08);
   transform: translateY(-2px);
 }
 .sector-card-btn:disabled {

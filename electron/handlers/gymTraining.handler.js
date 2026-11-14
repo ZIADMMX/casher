@@ -1,5 +1,6 @@
 const { safeHandle } = require('./safeHandle');
 const gym = require('../services/gymTraining.service');
+const gate = require('../services/gymGate.service');
 
 // "subscriptions:" prefix: gym training reuses the subscriptions view/manage permissions.
 function registerGymTrainingHandlers() {
@@ -17,6 +18,13 @@ function registerGymTrainingHandlers() {
   safeHandle('subscriptions:createGymPtPackage', (event, data) => gym.createPackage(data));
   safeHandle('subscriptions:logGymPtSession', (event, id) => gym.logPtSession(id));
   safeHandle('subscriptions:changeGymPtTrainer', (event, data) => gym.changePackageTrainer(data));
+  // "check" and "get" count as reads, so reception staff with only subscriptions.view can run the gate.
+  safeHandle('subscriptions:checkGymEntry', (event, payload) => gate.scan({ code: payload?.code, gateName: payload?.gate }));
+  safeHandle('subscriptions:getGymGateOverview', () => gate.getOverview());
+  safeHandle('subscriptions:registerGymSession', (event, id) => gate.registerSession(id));
+  safeHandle('subscriptions:setGymCapacity', (event, value) => gate.setCapacity(value));
+  safeHandle('subscriptions:getGymAttendanceReport', (event, filters) => gate.getAttendanceReport(filters || {}));
+  safeHandle('subscriptions:getGymMemberCheckins', (event, payload) => gate.getMemberCheckins(payload?.customerId, payload?.filters || {}));
 }
 
 module.exports = { registerGymTrainingHandlers };
