@@ -1,5 +1,8 @@
+const { addColumnIfMissing } = require('./helpers');
+
 // Gym trainers, weekly group classes, class bookings and private-training packages.
-// Safe to run on every start: tables and indexes are created only when missing.
+// Also: timed freezes and upgrade history on subscriptions, and the gym member profile
+// (emergency contact, health notes, trainer). Safe to run on every start: tables and indexes are created only when missing.
 function ensureGymTraining(dbInstance) {
   dbInstance.exec(`
     CREATE TABLE IF NOT EXISTS gym_trainers (
@@ -72,7 +75,20 @@ function ensureGymTraining(dbInstance) {
     );
     CREATE INDEX IF NOT EXISTS idx_gym_checkins_time ON gym_checkins(created_at);
     CREATE INDEX IF NOT EXISTS idx_gym_checkins_customer ON gym_checkins(customer_id, created_at);
+
+    CREATE TABLE IF NOT EXISTS gym_member_profiles (
+      customer_id INTEGER PRIMARY KEY REFERENCES customers(id),
+      emergency_name TEXT,
+      emergency_phone TEXT,
+      health_notes TEXT,
+      trainer_id INTEGER REFERENCES gym_trainers(id),
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
   `);
+  // frozen_until: when a timed freeze ends by itself (NULL = open-ended freeze).
+  // upgraded_from_id: the cancelled subscription this one replaced.
+  addColumnIfMissing('customer_subscriptions', 'frozen_until', 'DATETIME', dbInstance);
+  addColumnIfMissing('customer_subscriptions', 'upgraded_from_id', 'INTEGER', dbInstance);
 }
 
 module.exports = { ensureGymTraining };

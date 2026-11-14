@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import LineIcon from '../icons/LineIcons.jsx';
 import * as customersApi from '../../api/customers.js';
 import * as subscriptionsApi from '../../api/subscriptions.js';
+import { ProfileSheet } from './GymMemberSheets.jsx';
 
 const DAY = 86400000;
 const WEEKS = 12;
@@ -44,19 +45,20 @@ function lastVisitText(visits, now = Date.now()) {
 
 // Attendance and recent payments of one member; both screens degrade to empty on failure.
 function useMemberExtras(customerId) {
-  const [extras, setExtras] = useState({ visits: [], payments: [], loading: true });
+  const [extras, setExtras] = useState({ visits: [], payments: [], profile: null, loading: true });
   useEffect(() => {
     let alive = true;
-    setExtras({ visits: [], payments: [], loading: true });
+    setExtras({ visits: [], payments: [], profile: null, loading: true });
     const from = `${dbDate(new Date(Date.now() - WEEKS * 7 * DAY))} 00:00:00`;
     const to = `${dbDate(new Date(Date.now() + DAY))} 00:00:00`;
     Promise.all([
       Promise.resolve(subscriptionsApi.getGymMemberCheckins?.(customerId, { from, to, limit: 500 })).catch(() => []),
       Promise.resolve(customersApi.getCustomerRecentSales?.(customerId)).catch(() => []),
-    ]).then(([rows, sales]) => {
+      Promise.resolve(subscriptionsApi.getGymMemberProfile?.(customerId)).catch(() => null),
+    ]).then(([rows, sales, profile]) => {
       if (!alive) return;
       const visits = (rows || []).filter((r) => r.result !== 'denied');
-      setExtras({ visits, payments: sales || [], loading: false });
+      setExtras({ visits, payments: sales || [], profile: profile || null, loading: false });
     });
     return () => { alive = false; };
   }, [customerId]);
@@ -85,8 +87,11 @@ function BalanceRing({ percent, value, unit }) {
 }
 
 /** One member: profile and attendance, the current subscription with its actions, recent payments. */
-export default function GymMemberDetail({ member, sub, customer, balance, busy, onPickSub, onDeduct, onFreeze, onUnfreeze, onRenew }) {
-  const { visits, payments, loading } = useMemberExtras(member.id);
+export default function GymMemberDetail({ member, sub, customer, balance, busy, onPickSub, onDeduct, onFreeze, onUnfreeze, onRenew, onUpgrade, onTransfer }) {
+  const { visits, payments, profile: loadedProfile, loading } = useMemberExtras(member.id);
+  const [savedProfile, setSavedProfile] = useState(null);
+  const [editing, setEditing] = useState(false);
+  const profile = savedProfile || loadedProfile;
   const [now] = useState(() => Date.now());
   const st = STATUS[sub.status] || { label: sub.status, tone: 'muted' };
   const weeks = useMemo(() => weeklyVisits(visits, now), [visits, now]);
@@ -131,7 +136,19 @@ export default function GymMemberDetail({ member, sub, customer, balance, busy, 
           <div><dt>البريد الإلكتروني</dt><dd dir="ltr">{customer?.email || '—'}</dd></div>
           <div><dt>تاريخ التسجيل</dt><dd>{fmtDate(customer?.created_at)}</dd></div>
           <div><dt>نقاط الولاء</dt><dd>{customer?.loyalty_points ?? 0}</dd></div>
+          <div><dt>جهة اتصال الطوارئ</dt><dd>{profile?.emergency_name || '—'}{profile?.emergency_phone && <small dir="ltr"> {profile.emergency_phone}</small>}</dd></div>
+          <div><dt>المدرب</dt><dd>{profile?.trainer_name || '—'}</dd></div>
         </dl>
+        {profile?.health_notes && (
+          <div className="gms-health" role="note">
+            <b><LineIcon name="info" size={16} /> ملاحظات صحية</b>
+            <p>{profile.health_notes}</p>
+          </div>
+        )}
+        <div className="gms-profile__foot">
+          <button type="button" className="gms-btn" onClick={() => setEditing(true)}><LineIcon name="edit" size={16} /> تعديل بيانات العضو</button>
+        </div>
+        {editing && <ProfileSheet member={member} profile={profile} onClose={() => setEditing(false)} onSaved={(p) => { setSavedProfile(p); setEditing(false); }} />}
       </article>
 
       <article className="gms-card gms-sub">
@@ -157,15 +174,17 @@ export default function GymMemberDetail({ member, sub, customer, balance, busy, 
             </dl>
             <div className="gms-track" aria-hidden="true"><i style={{ inlineSize: `${elapsed}%` }} /></div>
             <div className="gms-track__ends"><span>{fmtDate(sub.start_date)}</span><span>{fmtDate(sub.end_date)}</span></div>
-            {sub.status === 'frozen' && sub.last_freeze_date && <p className="gms-note">مجمد منذ {fmtDate(sub.last_freeze_date)}. عند فك التجميد يُمدَّد تاريخ الانتهاء بعدد أيام التجميد.</p>}
+            {sub.status === 'frozen' && sub.last_freeze_date && <p className="gms-note">مجمد منذ {fmtDate(sub.last_freeze_date)}. {sub.frozen_until ? `يُستأنف تلقائيًا في ${fmtDate(sub.frozen_until)}.` : 'عند فك التجميد يُمدَّد تاريخ الانتهاء بعدد أيام التجميد.'}</p>}
             {maxFreeze > 0 && <p className="gms-note">أيام التجميد المستخدمة {Number(sub.frozen_days_used) || 0} من {maxFreeze}</p>}
           </div>
         </div>
 
         <footer className="gms-sub__actions">
           <button type="button" className="gms-btn is-primary" disabled={busy} onClick={() => onRenew(sub)}><LineIcon name="refresh" size={17} /> تجديد</button>
+          {sub.status === 'active' && <button type="button" className="gms-btn" disabled={busy} onClick={() => onUpgrade(sub)}><LineIcon name="trendUp" size={17} /> ترقية الباقة</button>}
           {sub.status === 'active' && <button type="button" className="gms-btn" disabled={busy} onClick={() => onFreeze(sub)}><LineIcon name="snowflake" size={17} /> تجميد</button>}
           {sub.status === 'frozen' && <button type="button" className="gms-btn" disabled={busy} onClick={() => onUnfreeze(sub)}><LineIcon name="unlock" size={17} /> فك التجميد</button>}
+          {(sub.status === 'active' || sub.status === 'frozen') && <button type="button" className="gms-btn" disabled={busy} onClick={() => onTransfer(sub)}><LineIcon name="user" size={17} /> نقل</button>}
           {sub.package_type === 'session_based' && sub.status === 'active' && sub.remaining_credits > 0 && (
             <button type="button" className="gms-btn" disabled={busy} onClick={() => onDeduct(sub)}><LineIcon name="minus" size={17} /> خصم جلسة</button>
           )}

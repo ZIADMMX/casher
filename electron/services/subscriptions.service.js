@@ -6,6 +6,7 @@ const salesRepo = require('../repositories/sales.repository');
 const shiftsRepo = require('../repositories/shifts.repository');
 const inventoryRepo = require('../repositories/inventory.repository');
 const settingsRepo = require('../repositories/settings.repository');
+const customersRepo = require('../repositories/customers.repository');
 const { getCurrentSession } = require('./auth.service');
 
 /**
@@ -204,9 +205,10 @@ function consumeCredit(subscriptionId, creditsDeducted = 1, userSession = {}, sa
   return updatedSub;
 }
 
-function freezeSubscription(subscriptionId, reason = null, userSession = {}) {
+// days (optional): freeze for that many days; the subscription returns to active by itself.
+function freezeSubscription(subscriptionId, reason = null, userSession = {}, days = null) {
   const userId = sessionOf(userSession).id || null;
-  const frozenSub = subscriptionsRepo.freezeSubscription(subscriptionId, reason, userId);
+  const frozenSub = subscriptionsRepo.freezeSubscription(subscriptionId, reason, userId, days);
   subscriptionsCache.invalidate();
 
   NotificationsService.notify({
@@ -222,7 +224,7 @@ function freezeSubscription(subscriptionId, reason = null, userSession = {}) {
 
 function unfreezeSubscription(subscriptionId, userSession = {}) {
   const userId = sessionOf(userSession).id || null;
-  const unfrozenSub = subscriptionsRepo.unfreezeSubscription(subscriptionId, userId);
+  const unfrozenSub = subscriptionsRepo.unfreezeSubscription(subscriptionId);
   subscriptionsCache.invalidate();
 
   NotificationsService.notify({
@@ -257,6 +259,100 @@ function renewSubscription(subscriptionId, userSession = {}, payment = {}) {
   });
 
   return renewedSub;
+}
+
+// --- UPGRADE / TRANSFER ---
+
+const DAY_MS = 86400000;
+
+function audit(title, details, amount = 0) {
+  try {
+    require('./audit.service').logAction({ actionType: 'subscription_change', title, details, amount, severity: 'info' });
+  } catch {
+    // The audit trail must not block the member's change.
+  }
+}
+
+// The unused part of a subscription, as a 0..1 share: sessions left for session packages,
+// time left for the rest. It is what the member gets back as credit on an upgrade.
+function remainingShare(sub, now) {
+  if (sub.package_type === 'session_based') {
+    const total = Number(sub.total_credits) || 0;
+    return total > 0 ? Math.min(1, Math.max(0, (Number(sub.remaining_credits) || 0) / total)) : 0;
+  }
+  const start = new Date(sub.start_date).getTime();
+  const end = new Date(sub.end_date).getTime();
+  return end > start ? Math.min(1, Math.max(0, (end - now) / (end - start))) : 0;
+}
+
+// Upgrade price = new package price minus the value of what is left of the current one.
+function upgradeQuote(sub, pkg, now = Date.now()) {
+  if (!sub) throw new Error('الاشتراك غير موجود');
+  if (!pkg) throw new Error('الباقة المحددة غير موجودة');
+  if (sub.status !== 'active') throw new Error('يمكن ترقية الاشتراكات النشطة فقط');
+  if (pkg.id === sub.package_id) throw new Error('هذه هي الباقة الحالية للعضو');
+  if (pkg.is_active === 0) throw new Error('الباقة غير متاحة للبيع');
+  const currentCents = toCents(sub.package_price);
+  const newCents = toCents(pkg.price);
+  if (newCents <= currentCents) throw new Error('الترقية تكون لباقة أعلى سعرًا من الباقة الحالية');
+  const creditCents = Math.round(currentCents * remainingShare(sub, now));
+  return {
+    current_price: currentCents / 100,
+    new_price: newCents / 100,
+    credit: creditCents / 100,
+    amount_due: Math.max(newCents - creditCents, 0) / 100,
+  };
+}
+
+function getUpgradeQuote(subscriptionId, packageId) {
+  return upgradeQuote(subscriptionsRepo.getSubscriptionById(subscriptionId), subscriptionsRepo.getPackageById(packageId));
+}
+
+// Ends the current subscription and starts the new package today; the difference is collected
+// on the open shift like any other subscription sale.
+function upgradeSubscription(subscriptionId, packageId, payment = {}, userSession = {}) {
+  const sub = subscriptionsRepo.getSubscriptionById(subscriptionId);
+  const pkg = subscriptionsRepo.getPackageById(packageId);
+  const quote = upgradeQuote(sub, pkg);
+
+  const newId = db.transaction(() => {
+    const start = new Date();
+    const end = new Date(start.getTime() + (pkg.duration_days || 30) * DAY_MS);
+    // Collect first: a missing shift or a bad payment split aborts before the member is touched.
+    recordSubscriptionSale({ ...sub, package_price: quote.amount_due }, payment, userSession);
+    subscriptionsRepo.cancelSubscription(sub.id, `ترقية إلى ${pkg.name}`);
+    const id = subscriptionsRepo.subscribeCustomer({
+      customer_id: sub.customer_id,
+      package_id: pkg.id,
+      start_date: start.toISOString(),
+      end_date: end.toISOString(),
+      total_credits: pkg.total_credits || 0,
+      notes: `ترقية من ${sub.package_name}`,
+    });
+    subscriptionsRepo.setUpgradedFrom(id, sub.id);
+    return id;
+  })();
+  subscriptionsCache.invalidate();
+
+  audit(`ترقية اشتراك ${sub.customer_name}`, `من ${sub.package_name} إلى ${pkg.name}، المحصّل ${quote.amount_due} ج.م (رصيد الباقة السابقة ${quote.credit} ج.م)`, quote.amount_due);
+  return subscriptionsRepo.getSubscriptionById(newId);
+}
+
+// Moves a running subscription to another member (a friend, a family member). History stays
+// with the old member; the subscription and its remaining balance go to the new one.
+function transferSubscription(subscriptionId, toCustomerId) {
+  const sub = subscriptionsRepo.getSubscriptionById(subscriptionId);
+  if (!sub) throw new Error('الاشتراك غير موجود');
+  if (sub.status !== 'active' && sub.status !== 'frozen') throw new Error('يمكن نقل الاشتراكات النشطة أو المجمدة فقط');
+  const target = customersRepo.getById(Number(toCustomerId));
+  if (!target || target.is_active === 0) throw new Error('العضو المنقول إليه غير موجود');
+  if (target.id === sub.customer_id) throw new Error('الاشتراك مسجل بالفعل باسم هذا العضو');
+  if (subscriptionsRepo.getRunningSubscription(target.id)) throw new Error('العضو المنقول إليه لديه اشتراك فعّال بالفعل');
+
+  subscriptionsRepo.changeSubscriptionCustomer(sub.id, target.id, `منقول من ${sub.customer_name}`);
+  subscriptionsCache.invalidate();
+  audit(`نقل اشتراك ${sub.package_name}`, `من ${sub.customer_name} إلى ${target.name}`);
+  return subscriptionsRepo.getSubscriptionById(sub.id);
 }
 
 function checkExpiringSubscriptions() {
@@ -305,6 +401,9 @@ module.exports = {
   consumeCredit,
   freezeSubscription,
   unfreezeSubscription,
+  getUpgradeQuote,
+  upgradeSubscription,
+  transferSubscription,
   renewSubscription,
   checkExpiringSubscriptions,
   getSubscriptionStats

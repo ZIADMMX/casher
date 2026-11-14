@@ -37,8 +37,8 @@ function registerSubscriptionsHandlers() {
   });
 
   safeHandle('subscriptions:freeze', (event, payload) => {
-    const { subscriptionId, reason } = payload || {};
-    return subscriptionsService.freezeSubscription(subscriptionId, reason, {});
+    const { subscriptionId, reason, days } = payload || {};
+    return subscriptionsService.freezeSubscription(subscriptionId, reason, {}, days);
   });
 
   safeHandle('subscriptions:unfreeze', (event, subscriptionId) => {
@@ -48,6 +48,21 @@ function registerSubscriptionsHandlers() {
   safeHandle('subscriptions:renew', (event, payload) => {
     const { subscriptionId, payment } = payload || {};
     return subscriptionsService.renewSubscription(subscriptionId, {}, payment || {});
+  });
+
+  safeHandle('subscriptions:getUpgradeQuote', (event, payload) => {
+    const { subscriptionId, packageId } = payload || {};
+    return subscriptionsService.getUpgradeQuote(subscriptionId, packageId);
+  });
+
+  safeHandle('subscriptions:upgrade', (event, payload) => {
+    const { subscriptionId, packageId, payment } = payload || {};
+    return subscriptionsService.upgradeSubscription(subscriptionId, packageId, payment || {}, {});
+  });
+
+  safeHandle('subscriptions:transfer', (event, payload) => {
+    const { subscriptionId, toCustomerId } = payload || {};
+    return subscriptionsService.transferSubscription(subscriptionId, toCustomerId);
   });
 
   safeHandle('subscriptions:getStats', () => {

@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { vi } from 'vitest';
 import GymCheckoutPage from '../../src/pages/GymCheckoutPage.jsx';
 import { balanceOf } from '../../src/components/gym/GymSubscriptionsPanel.jsx';
@@ -25,6 +25,12 @@ vi.mock('../../src/api/subscriptions.js', () => ({
   updatePackage: vi.fn(),
   deletePackage: vi.fn(),
   getGymMemberCheckins: vi.fn(),
+  getGymMemberProfile: vi.fn(),
+  saveGymMemberProfile: vi.fn(),
+  getGymTrainers: vi.fn(),
+  getUpgradeQuote: vi.fn(),
+  upgradeSubscription: vi.fn(),
+  transferSubscription: vi.fn(),
 }));
 vi.mock('../../src/api/products.js', () => ({ getAllProductsWithVariants: Object.assign(vi.fn().mockResolvedValue([]), { isAvailable: () => true }) }));
 vi.mock('../../src/api/inventory.js', () => ({ getInventoryBranches: Object.assign(vi.fn().mockResolvedValue([]), { isAvailable: () => true }) }));
@@ -42,6 +48,12 @@ beforeEach(() => {
   customersApi.addCustomer.mockReset();
   customersApi.getCustomerRecentSales.mockReset().mockResolvedValue([]);
   subscriptionsApi.getGymMemberCheckins.mockReset().mockResolvedValue([]);
+  subscriptionsApi.getGymMemberProfile.mockReset().mockResolvedValue(null);
+  subscriptionsApi.saveGymMemberProfile.mockReset().mockResolvedValue({});
+  subscriptionsApi.getGymTrainers.mockReset().mockResolvedValue([{ id: 4, name: 'كابتن حسام', is_active: 1 }]);
+  subscriptionsApi.getUpgradeQuote.mockReset().mockResolvedValue({ current_price: 300, new_price: 600, credit: 120, amount_due: 480 });
+  subscriptionsApi.upgradeSubscription.mockReset().mockResolvedValue({});
+  subscriptionsApi.transferSubscription.mockReset().mockResolvedValue({});
   subscriptionsApi.getAllPackages.mockResolvedValue([{ id: 9, name: 'شهري', price: 600, duration_days: 30, is_active: 1 }]);
   subscriptionsApi.getAllSubscriptions.mockResolvedValue([
     { id: 5, customer_id: 1, customer_name: 'مروان', package_name: 'سنوي', package_price: 8400, status: 'expired', end_date: '2026-01-01', package_type: 'time_based' },
@@ -140,7 +152,7 @@ describe('members tab (moved from the old subscriptions page)', () => {
     expect(await screen.findByRole('dialog', { name: 'تجميد اشتراك' })).toHaveTextContent('ينتهي حاليًا');
     fireEvent.click(screen.getByRole('button', { name: 'سفر' }));
     fireEvent.click(screen.getByRole('button', { name: 'تأكيد التجميد' }));
-    await waitFor(() => expect(subscriptionsApi.freezeSubscription).toHaveBeenCalledWith(6, 'سفر'));
+    await waitFor(() => expect(subscriptionsApi.freezeSubscription).toHaveBeenCalledWith(6, 'سفر', 14));
 
     fireEvent.click(screen.getByRole('button', { name: 'قديم' }));
     fireEvent.click(await screen.findByRole('button', { name: 'فك التجميد' }));
@@ -189,6 +201,140 @@ describe('members tab (moved from the old subscriptions page)', () => {
     expect(stat).toHaveTextContent('1'); // the denied scan is not a visit
     expect(screen.getByText('آخر زيارة').closest('div')).toHaveTextContent('اليوم');
     expect(screen.getByRole('table', { name: 'آخر المدفوعات' })).toHaveTextContent('آجل');
+  });
+});
+
+describe('member changes: freeze days, upgrade, transfer, member data', () => {
+  const openMember = async (name) => {
+    render(<GymCheckoutPage />);
+    await screen.findByText('إجمالي الاشتراكات');
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(name) }));
+  };
+
+  test('freeze lets you choose the days, shows the new end date, and sends the days', async () => {
+    await openMember('سمير');
+    fireEvent.click(screen.getByRole('button', { name: 'تجميد' }));
+    const dialog = await screen.findByRole('dialog', { name: 'تجميد اشتراك' });
+    expect(dialog).toHaveTextContent('النهاية بعد التجميد');
+    fireEvent.click(screen.getByRole('button', { name: '30 يوم' }));
+    expect(dialog).toHaveTextContent('بعد 30 يوم');
+    fireEvent.click(screen.getByRole('button', { name: 'تأكيد التجميد' }));
+    await waitFor(() => expect(subscriptionsApi.freezeSubscription).toHaveBeenCalledWith(6, '', 30));
+  });
+
+  test('an open-ended freeze sends no days', async () => {
+    await openMember('سمير');
+    fireEvent.click(screen.getByRole('button', { name: 'تجميد' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'مفتوح' }));
+    fireEvent.click(screen.getByRole('button', { name: 'تأكيد التجميد' }));
+    await waitFor(() => expect(subscriptionsApi.freezeSubscription).toHaveBeenCalledWith(6, '', null));
+  });
+
+  test('freeze durations above the package allowance are disabled', async () => {
+    subscriptionsApi.getAllSubscriptions.mockResolvedValue([
+      { id: 6, customer_id: 2, customer_name: 'سمير', package_name: 'جلسات', package_price: 300, status: 'active', end_date: '2027-01-01', start_date: '2026-01-01', package_type: 'time_based', max_freeze_days: 10, frozen_days_used: 0 },
+    ]);
+    render(<GymCheckoutPage />);
+    await screen.findByText('إجمالي الاشتراكات');
+    fireEvent.click(screen.getByRole('button', { name: 'تجميد' }));
+    expect(await screen.findByRole('button', { name: '14 يوم' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '7 يوم' })).toBeEnabled();
+    expect(screen.getByRole('dialog', { name: 'تجميد اشتراك' })).toHaveTextContent('10 يوم متبقي');
+  });
+
+  test('upgrade: pick a pricier package, see the price, collect, and call the upgrade', async () => {
+    await openMember('سمير');
+    fireEvent.click(screen.getByRole('button', { name: 'ترقية الباقة' }));
+    const dialog = await screen.findByRole('dialog', { name: 'ترقية اشتراك' });
+    fireEvent.click(within(dialog).getByRole('button', { name: /شهري/ }));
+    await waitFor(() => expect(subscriptionsApi.getUpgradeQuote).toHaveBeenCalledWith(6, 9));
+    expect(await screen.findByText('المطلوب دفعه')).toBeInTheDocument();
+    expect(screen.getByLabelText('تفاصيل سعر الترقية')).toHaveTextContent('480');
+    fireEvent.click(screen.getByRole('button', { name: /متابعة للتحصيل/ }));
+    await screen.findByText(/الشيفت مفتوح/);
+    expect(screen.getByText('ترقية إلى شهري')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /✓ تحصيل/ }));
+    await waitFor(() => expect(subscriptionsApi.upgradeSubscription).toHaveBeenCalledWith(6, 9, { payments: [{ method: 'cash', amount: 480 }] }));
+    expect(await screen.findByRole('status')).toHaveTextContent('تمت ترقية سمير إلى شهري');
+  });
+
+  test('upgrade with nothing to collect confirms without a payment', async () => {
+    subscriptionsApi.getUpgradeQuote.mockResolvedValue({ current_price: 300, new_price: 600, credit: 600, amount_due: 0 });
+    await openMember('سمير');
+    fireEvent.click(screen.getByRole('button', { name: 'ترقية الباقة' }));
+    fireEvent.click(await screen.findByRole('button', { name: /شهري/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /بدون تحصيل/ }));
+    await waitFor(() => expect(subscriptionsApi.upgradeSubscription).toHaveBeenCalledWith(6, 9, {}));
+  });
+
+  test('a quote error is shown and no collection button appears', async () => {
+    subscriptionsApi.getUpgradeQuote.mockRejectedValue(new Error('يمكن ترقية الاشتراكات النشطة فقط'));
+    await openMember('سمير');
+    fireEvent.click(screen.getByRole('button', { name: 'ترقية الباقة' }));
+    fireEvent.click(await screen.findByRole('button', { name: /شهري/ }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('النشطة فقط');
+    expect(screen.queryByRole('button', { name: /متابعة للتحصيل/ })).not.toBeInTheDocument();
+  });
+
+  test('the upgrade button is only for active subscriptions', async () => {
+    await openMember('مروان'); // expired
+    expect(screen.queryByRole('button', { name: 'ترقية الباقة' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'نقل' })).not.toBeInTheDocument();
+  });
+
+  test('transfer: members with a running subscription are not offered, the chosen one receives it', async () => {
+    await openMember('سمير');
+    fireEvent.click(screen.getByRole('button', { name: 'نقل' }));
+    const dialog = await screen.findByRole('dialog', { name: 'نقل اشتراك' });
+    expect(within(dialog).queryByRole('button', { name: /سمير/ })).not.toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: /هاني/ }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'نقل الاشتراك' }));
+    await waitFor(() => expect(subscriptionsApi.transferSubscription).toHaveBeenCalledWith(6, 3));
+    expect(await screen.findByRole('status')).toHaveTextContent('إلى هاني');
+  });
+
+  test('a failed transfer keeps the dialog open and shows the reason', async () => {
+    subscriptionsApi.transferSubscription.mockRejectedValue(new Error('العضو المنقول إليه لديه اشتراك فعّال بالفعل'));
+    await openMember('سمير');
+    fireEvent.click(screen.getByRole('button', { name: 'نقل' }));
+    const dialog = await screen.findByRole('dialog', { name: 'نقل اشتراك' });
+    fireEvent.click(within(dialog).getByRole('button', { name: /هاني/ }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'نقل الاشتراك' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('لديه اشتراك فعّال');
+  });
+
+  test('member data: shows the saved profile and health notes, and saves edits', async () => {
+    subscriptionsApi.getGymMemberProfile.mockResolvedValue({ emergency_name: 'هند', emergency_phone: '0111 907 6620', health_notes: 'إصابة في الركبة', trainer_id: 4, trainer_name: 'كابتن حسام' });
+    subscriptionsApi.saveGymMemberProfile.mockResolvedValue({ emergency_name: 'منى', emergency_phone: '', health_notes: 'إصابة في الركبة', trainer_id: 4, trainer_name: 'كابتن حسام' });
+    await openMember('مروان');
+    expect(await screen.findByRole('note')).toHaveTextContent('إصابة في الركبة');
+    expect(screen.getByText('كابتن حسام')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'تعديل بيانات العضو' }));
+    const dialog = await screen.findByRole('dialog', { name: 'بيانات العضو' });
+    fireEvent.change(within(dialog).getByPlaceholderText('الاسم والصلة'), { target: { value: 'منى' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: /حفظ/ }));
+    await waitFor(() => expect(subscriptionsApi.saveGymMemberProfile).toHaveBeenCalledWith(1, expect.objectContaining({ emergency_name: 'منى', trainer_id: 4 })));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'بيانات العضو' })).not.toBeInTheDocument());
+    expect(screen.getByText('منى')).toBeInTheDocument();
+  });
+
+  test('a profile save error stays in the dialog', async () => {
+    subscriptionsApi.saveGymMemberProfile.mockRejectedValue(new Error('رقم هاتف الطوارئ غير صحيح'));
+    await openMember('مروان');
+    fireEvent.click(await screen.findByRole('button', { name: 'تعديل بيانات العضو' }));
+    const dialog = await screen.findByRole('dialog', { name: 'بيانات العضو' });
+    fireEvent.click(within(dialog).getByRole('button', { name: /حفظ/ }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('غير صحيح');
+  });
+
+  test('a frozen subscription with an end date says when it resumes', async () => {
+    subscriptionsApi.getAllSubscriptions.mockResolvedValue([
+      { id: 7, customer_id: 2, customer_name: 'سمير', package_name: 'قديم', package_price: 100, status: 'frozen', start_date: '2026-01-01', end_date: '2027-01-01', last_freeze_date: '2026-06-01', frozen_until: '2026-06-15T00:00:00.000Z', package_type: 'time_based' },
+    ]);
+    render(<GymCheckoutPage />);
+    await screen.findByText('إجمالي الاشتراكات');
+    expect(screen.getByText(/يُستأنف تلقائيًا في 15\/06\/2026/)).toBeInTheDocument();
   });
 });
 

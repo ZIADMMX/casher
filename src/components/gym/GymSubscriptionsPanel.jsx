@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import LineIcon from '../icons/LineIcons.jsx';
 import GymMemberDetail, { fmtDate } from './GymMemberDetail.jsx';
+import { TransferSheet, UpgradeSheet } from './GymMemberSheets.jsx';
 import * as subscriptionsApi from '../../api/subscriptions.js';
 import '../../styles/gymMembers.css';
 
@@ -17,6 +18,7 @@ const FILTERS = [
   { key: 'ended', label: 'منتهي' },
 ];
 const FREEZE_REASONS = ['سفر', 'إصابة أو ظرف صحي', 'ظرف شخصي'];
+const FREEZE_DAYS = [7, 14, 30, 60];
 const RANK = { active: 0, frozen: 1, expired: 2, depleted: 3 };
 const DAY = 86400000;
 const KPI_TICKS = 12;
@@ -54,6 +56,12 @@ export function groupMembers(subscriptions) {
   });
 }
 
+// Freeze days left on the package (null = no cap).
+function allowanceOf(sub) {
+  const max = Number(sub.max_freeze_days) || 0;
+  return max > 0 ? Math.max(max - (Number(sub.frozen_days_used) || 0), 0) : null;
+}
+
 const inFilter = (member, filter) => {
   const status = member.primary.status;
   if (filter === 'all') return true;
@@ -76,13 +84,16 @@ function Kpi({ label, value, hint, tone, ratio }) {
 }
 
 /** Members and their subscriptions: KPIs, a searchable member list, and the selected member's detail. */
-export default function GymSubscriptionsPanel({ subscriptions, stats, customers = [], loading, onChanged, onRenew, onError }) {
+export default function GymSubscriptionsPanel({ subscriptions, stats, customers = [], packages = [], loading, onChanged, onRenew, onError, onNotice = () => {} }) {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all');
   const [selectedId, setSelectedId] = useState(null);
   const [subId, setSubId] = useState(null);
   const [freezeTarget, setFreezeTarget] = useState(null);
   const [freezeReason, setFreezeReason] = useState('');
+  const [freezeDays, setFreezeDays] = useState(14); // null = until someone unfreezes
+  const [upgradeTarget, setUpgradeTarget] = useState(null);
+  const [transferTarget, setTransferTarget] = useState(null);
   const [busyId, setBusyId] = useState(null);
   const [now] = useState(() => Date.now()); // fixed for the render so "expires this week" does not drift
 
@@ -126,12 +137,15 @@ export default function GymSubscriptionsPanel({ subscriptions, stats, customers 
     event.preventDefault();
     const target = freezeTarget;
     setFreezeTarget(null);
-    await run(target.id, () => subscriptionsApi.freezeSubscription(target.id, freezeReason), 'فشل تجميد الاشتراك');
+    await run(target.id, () => subscriptionsApi.freezeSubscription(target.id, freezeReason, freezeDays), 'فشل تجميد الاشتراك');
     setFreezeReason('');
   }
 
   function pickMember(id) { setSelectedId(id); setSubId(null); }
-  const maxFreeze = Number(freezeTarget?.max_freeze_days) || 0;
+  const allowance = freezeTarget ? allowanceOf(freezeTarget) : null;
+  const runningIds = new Set(subscriptions.filter((s) => s.status === 'active' || s.status === 'frozen').map((s) => s.customer_id));
+  const newEnd = freezeTarget && freezeDays ? new Date(new Date(freezeTarget.end_date).getTime() + freezeDays * DAY) : null;
+  const finished = (message) => { setUpgradeTarget(null); setTransferTarget(null); onChanged(); onNotice(message); };
 
   return (
     <>
@@ -195,16 +209,21 @@ export default function GymSubscriptionsPanel({ subscriptions, stats, customers 
             busy={busyId === sub.id}
             onPickSub={setSubId}
             onDeduct={deduct}
-            onFreeze={(s) => { setFreezeTarget(s); setFreezeReason(''); }}
+            onFreeze={(s) => { setFreezeTarget(s); setFreezeReason(''); setFreezeDays(allowanceOf(s) === null || allowanceOf(s) >= 14 ? 14 : null); }}
             onUnfreeze={unfreeze}
             onRenew={onRenew}
+            onUpgrade={setUpgradeTarget}
+            onTransfer={setTransferTarget}
           />
         ) : <div className="gms-card gms-detail-empty">اختر عضوًا من القائمة لعرض تفاصيل اشتراكه.</div>}
       </div>
 
+      {upgradeTarget && <UpgradeSheet sub={upgradeTarget} packages={packages} onClose={() => setUpgradeTarget(null)} onDone={finished} />}
+      {transferTarget && <TransferSheet sub={transferTarget} customers={customers} busyIds={runningIds} onClose={() => setTransferTarget(null)} onDone={finished} />}
+
       {freezeTarget && (
         <div className="gco-overlay" onClick={() => setFreezeTarget(null)}>
-          <form className="gms-sheet" role="dialog" aria-modal="true" aria-label="تجميد اشتراك" onClick={(e) => e.stopPropagation()} onSubmit={confirmFreeze}>
+          <form className="gms-sheet gms-sheet--wide" role="dialog" aria-modal="true" aria-label="تجميد اشتراك" onClick={(e) => e.stopPropagation()} onSubmit={confirmFreeze}>
             <header>
               <div>
                 <h2>تجميد الاشتراك</h2>
@@ -212,10 +231,22 @@ export default function GymSubscriptionsPanel({ subscriptions, stats, customers 
               </div>
               <button type="button" className="gms-iconbtn" onClick={() => setFreezeTarget(null)} aria-label="إغلاق"><LineIcon name="x" size={17} /></button>
             </header>
-            <p className="gms-sheet__rule">يتوقف حساب الأيام والرصيد من الآن. عند فك التجميد يُمدَّد تاريخ الانتهاء تلقائيًا بعدد أيام التجميد الفعلية.</p>
+            <div className="gms-field">
+              <span>المدة</span>
+              <div className="gms-seg gms-seg--5" role="group" aria-label="مدة التجميد">
+                {FREEZE_DAYS.map((d) => (
+                  <button key={d} type="button" className={freezeDays === d ? 'is-on' : ''} aria-pressed={freezeDays === d} disabled={allowance !== null && d > allowance} onClick={() => setFreezeDays(d)}>{d} يوم</button>
+                ))}
+                <button type="button" className={freezeDays === null ? 'is-on' : ''} aria-pressed={freezeDays === null} onClick={() => setFreezeDays(null)}>مفتوح</button>
+              </div>
+            </div>
+            <p className="gms-sheet__rule">
+              {freezeDays ? `يبدأ التجميد الآن ويُستأنف الاشتراك تلقائيًا بعد ${freezeDays} يوم، ويُمدَّد تاريخ الانتهاء بنفس المدة.` : 'تجميد مفتوح: يتوقف الاشتراك حتى تفكّه يدويًا، ويُمدَّد تاريخ الانتهاء بعدد أيام التجميد الفعلية.'}
+            </p>
             <dl className="gms-sheet__facts">
               <div><dt>ينتهي حاليًا</dt><dd>{fmtDate(freezeTarget.end_date)}</dd></div>
-              <div><dt>الحد الأقصى للتجميد</dt><dd>{maxFreeze > 0 ? `${Math.max(maxFreeze - (Number(freezeTarget.frozen_days_used) || 0), 0)} يوم متبقي` : 'بدون حد'}</dd></div>
+              <div><dt>النهاية بعد التجميد</dt><dd>{newEnd ? fmtDate(newEnd) : 'تُحدَّد عند فك التجميد'}</dd></div>
+              <div><dt>الحد الأقصى للتجميد</dt><dd>{allowance === null ? 'بدون حد' : `${allowance} يوم متبقي`}</dd></div>
             </dl>
             <label className="gms-field">
               <span>سبب التجميد (اختياري)</span>

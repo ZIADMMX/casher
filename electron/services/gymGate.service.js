@@ -28,6 +28,7 @@ function decide(sub, balance, now) {
 function scan({ code, gateName } = {}) {
   const text = String(code ?? '').trim().slice(0, 60);
   if (!text) throw new Error('الكود فاضي');
+  subsRepo.releaseDueFreezes(); // a timed freeze that ended must not turn the member away
   const now = new Date();
   const customer = gate.findCustomer(text);
   const known = customer && customer.is_active !== 0;

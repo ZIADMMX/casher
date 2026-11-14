@@ -47,7 +47,12 @@ describe('Subscriptions Service Unit Tests', () => {
 
   test('freezeSubscription updates status to frozen', () => {
     const frozen = subscriptionsService.freezeSubscription(50, 'سفر العميل');
-    expect(subscriptionsRepo.freezeSubscription).toHaveBeenCalledWith(50, 'سفر العميل', null);
+    expect(subscriptionsRepo.freezeSubscription).toHaveBeenCalledWith(50, 'سفر العميل', null, null);
     expect(frozen.status).toBe('frozen');
+  });
+
+  test('freezeSubscription passes the number of days to the repository', () => {
+    subscriptionsService.freezeSubscription(50, 'سفر', {}, 14);
+    expect(subscriptionsRepo.freezeSubscription).toHaveBeenCalledWith(50, 'سفر', null, 14);
   });
 });

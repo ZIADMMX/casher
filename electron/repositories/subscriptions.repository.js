@@ -336,7 +336,9 @@ function consumeCredit(subscriptionId, creditsDeducted = 1, userId = null, saleI
   return getSubscriptionById(subscriptionId);
 }
 
-function freezeSubscription(subscriptionId, reason = null, userId = null) {
+// days = null freezes until someone unfreezes; a number freezes for that many days and the
+// subscription is released automatically (see releaseDueFreezes).
+function freezeSubscription(subscriptionId, reason = null, userId = null, days = null) {
   const sub = getSubscriptionById(subscriptionId);
   if (!sub) throw new Error('الاشتراك غير موجود');
   if (sub.status !== 'active') throw new Error('يمكن تجميد الاشتراكات النشطة فقط');
@@ -347,13 +349,22 @@ function freezeSubscription(subscriptionId, reason = null, userId = null) {
     throw new Error(`استنفد هذا الاشتراك أيام التجميد المسموحة (${maxFreeze} يوم)`);
   }
 
+  const freezeDays = days === null || days === undefined || days === '' ? null : Number(days);
+  if (freezeDays !== null && (!Number.isInteger(freezeDays) || freezeDays < 1 || freezeDays > 365)) {
+    throw new Error('مدة التجميد يجب أن تكون عدد أيام صحيح بين 1 و365');
+  }
+  if (freezeDays !== null && maxFreeze > 0 && usedFreeze + freezeDays > maxFreeze) {
+    throw new Error(`مدة التجميد تتجاوز المسموح. المتبقي ${maxFreeze - usedFreeze} يوم`);
+  }
+
   const freezeTx = db.transaction(() => {
     const now = new Date().toISOString();
+    const until = freezeDays ? new Date(new Date(now).getTime() + freezeDays * 86400000).toISOString() : null;
     db.prepare(`
       UPDATE customer_subscriptions 
-      SET status = 'frozen', last_freeze_date = ?
+      SET status = 'frozen', last_freeze_date = ?, frozen_until = ?
       WHERE id = ?
-    `).run(now, subscriptionId);
+    `).run(now, until, subscriptionId);
 
     db.prepare(`
       INSERT INTO subscription_freeze_logs (subscription_id, freeze_date, reason, user_id)
@@ -365,7 +376,8 @@ function freezeSubscription(subscriptionId, reason = null, userId = null) {
   return getSubscriptionById(subscriptionId);
 }
 
-function unfreezeSubscription(subscriptionId) {
+// `at` lets a timed freeze be released as of the moment it ended, not when the app noticed.
+function unfreezeSubscription(subscriptionId, at = null) {
   const sub = getSubscriptionById(subscriptionId);
   if (!sub) throw new Error('الاشتراك غير موجود');
   if (sub.status !== 'frozen') throw new Error('الاشتراك ليس مجتمداً');
@@ -378,7 +390,7 @@ function unfreezeSubscription(subscriptionId) {
     `).get(subscriptionId);
 
     let daysFrozen = 0;
-    const now = new Date();
+    const now = at ? new Date(at) : new Date();
     const nowIso = now.toISOString();
     // The package's cap also limits the extension, so a long freeze can't pay
     // the member back more days than the package allows.
@@ -405,7 +417,7 @@ function unfreezeSubscription(subscriptionId) {
 
     db.prepare(`
       UPDATE customer_subscriptions 
-      SET status = 'active', end_date = ?, frozen_days_used = ?
+      SET status = 'active', end_date = ?, frozen_days_used = ?, frozen_until = NULL
       WHERE id = ?
     `).run(newEndDateIso, totalFrozenUsed, subscriptionId);
   });
@@ -436,7 +448,35 @@ function renewSubscription(subscriptionId, additionalDays, additionalCredits = 0
   return getSubscriptionById(subscriptionId);
 }
 
+// Timed freezes whose end has passed go back to active, extending the end date, before expiry is judged.
+function releaseDueFreezes() {
+  const due = db.prepare(`
+    SELECT id, frozen_until FROM customer_subscriptions
+    WHERE status = 'frozen' AND frozen_until IS NOT NULL AND frozen_until <= ?
+  `).all(new Date().toISOString());
+  due.forEach((s) => unfreezeSubscription(s.id, s.frozen_until));
+  return due.length;
+}
+
+// A member can hold one running (active or frozen) subscription at a time when it is moved to them.
+function getRunningSubscription(customerId) {
+  return db.prepare("SELECT id FROM customer_subscriptions WHERE customer_id = ? AND status IN ('active', 'frozen') LIMIT 1").get(customerId) || null;
+}
+
+function cancelSubscription(subscriptionId, note) {
+  return db.prepare("UPDATE customer_subscriptions SET status = 'cancelled', notes = TRIM(COALESCE(notes, '') || ' ' || ?) WHERE id = ?").run(note, subscriptionId).changes;
+}
+
+function setUpgradedFrom(subscriptionId, fromId) {
+  return db.prepare('UPDATE customer_subscriptions SET upgraded_from_id = ? WHERE id = ?').run(fromId, subscriptionId).changes;
+}
+
+function changeSubscriptionCustomer(subscriptionId, customerId, note) {
+  return db.prepare("UPDATE customer_subscriptions SET customer_id = ?, notes = TRIM(COALESCE(notes, '') || ' ' || ?) WHERE id = ?").run(customerId, note, subscriptionId).changes;
+}
+
 function updateAutoExpirationStatus() {
+  releaseDueFreezes();
   const now = new Date().toISOString();
   db.prepare(`
     UPDATE customer_subscriptions 
@@ -476,5 +516,10 @@ module.exports = {
   unfreezeSubscription,
   renewSubscription,
   updateAutoExpirationStatus,
+  releaseDueFreezes,
+  getRunningSubscription,
+  cancelSubscription,
+  setUpgradedFrom,
+  changeSubscriptionCustomer,
   getSubscriptionStats
 };

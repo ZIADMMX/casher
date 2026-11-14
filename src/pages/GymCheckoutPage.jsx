@@ -209,6 +209,8 @@ export default function GymCheckoutPage() {
           subscriptions={subscriptions}
           stats={stats}
           customers={customers}
+          packages={packages}
+          onNotice={(message) => { setError(''); setDone(message); }}
           loading={loading}
           onChanged={load}
           onRenew={startRenewal}

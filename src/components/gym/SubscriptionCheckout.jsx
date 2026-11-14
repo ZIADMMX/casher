@@ -32,7 +32,7 @@ const isoDay = (offsetDays) => {
 const clock = () => new Date().toLocaleTimeString('ar-EG', { hour: 'numeric', minute: '2-digit' });
 
 /**
- * Collection screen shown when a member subscribes or renews.
+ * Collection screen shown when a member subscribes, renews or upgrades (mode: new | renew | upgrade).
  * onConfirm receives payments [{ method: 'cash'|'card'|'credit', amount, due_date? }]
  * that add up to `price`; it may return a promise (rejections are shown inline).
  */
@@ -218,7 +218,7 @@ export default function SubscriptionCheckout({ mode = 'new', customerName, custo
                 <h2>{customerName || 'عميل'}</h2>
                 <p>{customerPhone || 'بدون هاتف'} · {packageName}</p>
               </div>
-              <span className="sco__badge">{mode === 'renew' ? `تجديد ${packageName}` : `اشتراك جديد`}</span>
+              <span className="sco__badge">{{ renew: `تجديد ${packageName}`, upgrade: `ترقية إلى ${packageName}` }[mode] || 'اشتراك جديد'}</span>
             </div>
 
             <div className="sco__amounts">

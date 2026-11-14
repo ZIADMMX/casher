@@ -1,6 +1,7 @@
 const { safeHandle } = require('./safeHandle');
 const gym = require('../services/gymTraining.service');
 const gate = require('../services/gymGate.service');
+const members = require('../services/gymMembers.service');
 
 // "subscriptions:" prefix: gym training reuses the subscriptions view/manage permissions.
 function registerGymTrainingHandlers() {
@@ -24,6 +25,8 @@ function registerGymTrainingHandlers() {
   safeHandle('subscriptions:registerGymSession', (event, id) => gate.registerSession(id));
   safeHandle('subscriptions:setGymCapacity', (event, value) => gate.setCapacity(value));
   safeHandle('subscriptions:getGymAttendanceReport', (event, filters) => gate.getAttendanceReport(filters || {}));
+  safeHandle('subscriptions:getGymMemberProfile', (event, customerId) => members.getMemberProfile(customerId));
+  safeHandle('subscriptions:saveGymMemberProfile', (event, payload) => members.saveMemberProfile(payload?.customerId, payload?.data));
   safeHandle('subscriptions:getGymMemberCheckins', (event, payload) => gate.getMemberCheckins(payload?.customerId, payload?.filters || {}));
 }
 
