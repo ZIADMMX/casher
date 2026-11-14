@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import * as customersApi from '../../api/customers.js';
 import * as subscriptionsApi from '../../api/subscriptions.js';
@@ -87,8 +87,12 @@ export default function GymMemberProfile({ member, customer, subs, onBack, onRen
   const subRows = [...subs].sort((a, b) => b.id - a.id);
   const rankLabel = (s) => (s.status === 'cancelled' ? { label: 'ملغي', tone: 'muted' } : STATUS[statusOf(s, now)]);
 
+  // The list may have been scrolled far down: bring the profile into view when it opens.
+  const root = useRef(null);
+  useEffect(() => { root.current?.scrollIntoView?.({ block: 'start' }); }, []);
+
   return (
-    <div className="gpf" aria-label={`ملف العضو ${member.name}`}>
+    <div className="gpf" ref={root} aria-label={`ملف العضو ${member.name}`}>
       <header className="gms-card gpf-hero">
         <button type="button" className="gms-iconbtn" onClick={onBack} aria-label="العودة إلى قائمة الأعضاء"><LineIcon name="arrowRight" size={18} /></button>
         <span className="gms-avatar gms-avatar--lg" aria-hidden="true">{(member.name || '؟').trim().charAt(0).toUpperCase()}</span>
