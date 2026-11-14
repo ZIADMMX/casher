@@ -418,6 +418,14 @@ function runAllMigrations(dbInstance = db) {
     console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 35 (حالة قراءة الإشعارات لكل مستخدم).');
   }
 
+  if (currentVersion < 36) {
+    // أعمدة تجميد الاشتراك المؤقت وترقية الباقة (frozen_until و upgraded_from_id) اتضافت في آخر
+    // الدالة فقط، وقواعد البيانات اللي على v35 كانت بتخرج بدري ومكانتش بتاخدها.
+    ensureGymTraining(dbInstance);
+    dbInstance.pragma('user_version = 36');
+    console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 36 (تجميد مؤقت وترقية باقات الجيم).');
+  }
+
   // Earlier steps may rebuild the sales tables; make sure the guards exist at the end.
   ensureSalesLedgerGuards(dbInstance);
   ensureKitchenLedger(dbInstance);
