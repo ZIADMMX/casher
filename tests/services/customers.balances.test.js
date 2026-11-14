@@ -31,6 +31,16 @@ describe('customer credit balances', () => {
     expect(balances).toEqual({ 1: 100.25, 2: 0, 3: 0, 4: 0 });
   });
 
+  test('getRecentSales returns the newest sales of one customer and honours the limit', () => {
+    // The shared fixture only has the columns the balance query needs.
+    mockDb.exec('ALTER TABLE sales ADD COLUMN due_date TEXT; ALTER TABLE sales ADD COLUMN created_at TEXT;');
+    const sales = customersRepo.getRecentSales(1, 3);
+    expect(sales).toHaveLength(3);
+    expect(sales[0].id).toBeGreaterThan(sales[1].id);
+    expect(Object.keys(sales[0])).toEqual(['id', 'total_amount', 'payment_method', 'due_date', 'created_at']);
+    expect(customersRepo.getRecentSales(3)).toEqual([]);
+  });
+
   test('getBalance returns one customer balance without computing everyone', () => {
     expect(customersRepo.getBalance(1)).toBe(100.25);
     expect(customersRepo.getBalance(3)).toBe(0);

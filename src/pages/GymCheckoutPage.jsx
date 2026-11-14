@@ -184,7 +184,7 @@ export default function GymCheckoutPage() {
         <div className="gco-head__title">
           <span className="gco-tile is-dark"><LineIcon name="shield" size={30} /></span>
           <div>
-            <h1>إدارة الاشتراكات والباقات</h1>
+            <h1>الأعضاء والاشتراكات</h1>
             <p>اشتراكات الجلسات، العضويات الزمنية، وتجميد وتجديد باقات العملاء</p>
           </div>
         </div>
@@ -208,6 +208,7 @@ export default function GymCheckoutPage() {
         <GymSubscriptionsPanel
           subscriptions={subscriptions}
           stats={stats}
+          customers={customers}
           loading={loading}
           onChanged={load}
           onRenew={startRenewal}

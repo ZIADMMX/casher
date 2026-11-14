@@ -83,6 +83,7 @@ restoreBackup: () => ipcRenderer.invoke('backup:restore'),
   addManualDebt: (data) => ipcRenderer.invoke('customers:addManualDebt', data),
   recordCustomerPayment: (data) => ipcRenderer.invoke('customers:recordPayment', data),
   getCustomerLedger: (customerId) => ipcRenderer.invoke('customers:getLedger', customerId),
+  getCustomerRecentSales: (customerId) => ipcRenderer.invoke('customers:getRecentSales', customerId),
 
   // Excel export
 

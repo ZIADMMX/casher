@@ -113,6 +113,11 @@ function getCustomerLedger(customerId) {
   };
 }
 
+function getCustomerRecentSales(customerId) {
+  requireAuth();
+  return customersRepo.getRecentSales(customerId, 10);
+}
+
 function getAllCustomersWithStats() {
   requireAuth();
   const customers = customersRepo.getAll();
@@ -129,4 +134,4 @@ function getAllCustomersWithStats() {
   }));
 }
 
-module.exports = { addCustomer, addManualDebt, recordCustomerPayment, getCustomerLedger, getAllCustomersWithStats };
+module.exports = { addCustomer, addManualDebt, recordCustomerPayment, getCustomerLedger, getCustomerRecentSales, getAllCustomersWithStats };

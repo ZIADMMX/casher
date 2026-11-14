@@ -10,6 +10,7 @@ vi.mock('../../src/api/bridge.js', () => ({ isBridgeAvailable: () => true }));
 vi.mock('../../src/api/customers.js', () => ({
   getAllCustomersWithStats: Object.assign(vi.fn(), { isAvailable: () => true }),
   addCustomer: vi.fn(),
+  getCustomerRecentSales: vi.fn(),
 }));
 vi.mock('../../src/api/subscriptions.js', () => ({
   getAllPackages: vi.fn(),
@@ -23,6 +24,7 @@ vi.mock('../../src/api/subscriptions.js', () => ({
   createPackage: vi.fn(),
   updatePackage: vi.fn(),
   deletePackage: vi.fn(),
+  getGymMemberCheckins: vi.fn(),
 }));
 vi.mock('../../src/api/products.js', () => ({ getAllProductsWithVariants: Object.assign(vi.fn().mockResolvedValue([]), { isAvailable: () => true }) }));
 vi.mock('../../src/api/inventory.js', () => ({ getInventoryBranches: Object.assign(vi.fn().mockResolvedValue([]), { isAvailable: () => true }) }));
@@ -38,6 +40,8 @@ const CUSTOMERS = [
 beforeEach(() => {
   customersApi.getAllCustomersWithStats.mockReset().mockResolvedValue(CUSTOMERS);
   customersApi.addCustomer.mockReset();
+  customersApi.getCustomerRecentSales.mockReset().mockResolvedValue([]);
+  subscriptionsApi.getGymMemberCheckins.mockReset().mockResolvedValue([]);
   subscriptionsApi.getAllPackages.mockResolvedValue([{ id: 9, name: 'شهري', price: 600, duration_days: 30, is_active: 1 }]);
   subscriptionsApi.getAllSubscriptions.mockResolvedValue([
     { id: 5, customer_id: 1, customer_name: 'مروان', package_name: 'سنوي', package_price: 8400, status: 'expired', end_date: '2026-01-01', package_type: 'time_based' },
@@ -96,35 +100,49 @@ describe('activation + collection tab', () => {
   });
 });
 
-describe('subscriptions tab (moved from the old subscriptions page)', () => {
+describe('members tab (moved from the old subscriptions page)', () => {
   const openSubs = async () => {
     render(<GymCheckoutPage />);
     await screen.findByText('إجمالي الاشتراكات');
   };
+  const pickMember = (name) => fireEvent.click(screen.getByRole('button', { name: new RegExp(name) }));
 
-  test('shows the stats and every subscription', async () => {
+  test('shows the KPIs, one row per member, and the first member detail', async () => {
     await openSubs();
-    expect(screen.getByText('سنوي')).toBeInTheDocument();
-    expect(screen.getByText('جلسات')).toBeInTheDocument();
-    expect(screen.getByText('عرض 3 من 3')).toBeInTheDocument();
-    expect(screen.getByText('إجمالي الاشتراكات').nextSibling).toHaveTextContent('3');
+    expect(screen.getByText('عرض 2 من 2')).toBeInTheDocument();
+    expect(screen.getByText('إجمالي الاشتراكات').closest('article')).toHaveTextContent('3');
+    expect(screen.getByRole('region', { name: 'تفاصيل مروان' })).toBeInTheDocument(); // the first member is selected
+    expect(screen.getByRole('button', { name: /سمير/ })).toBeInTheDocument();
   });
 
-  test('deducts one session only for active session-based subscriptions', async () => {
+  test('a member with several subscriptions can switch between them', async () => {
     await openSubs();
-    const buttons = screen.getAllByRole('button', { name: 'خصم جلسة' });
-    expect(buttons).toHaveLength(1);
-    fireEvent.click(buttons[0]);
+    pickMember('سمير');
+    const group = screen.getByRole('group', { name: 'اشتراكات العضو' });
+    expect(group).toHaveTextContent('جلسات');
+    fireEvent.click(screen.getByRole('button', { name: 'قديم' }));
+    expect(screen.getByRole('button', { name: 'فك التجميد' })).toBeInTheDocument();
+  });
+
+  test('deducts one session only for an active session-based subscription', async () => {
+    await openSubs();
+    pickMember('سمير');
+    fireEvent.click(screen.getByRole('button', { name: 'خصم جلسة' }));
     await waitFor(() => expect(subscriptionsApi.consumeSubscriptionCredit).toHaveBeenCalledWith(6, 1, null, expect.any(String)));
+    pickMember('مروان');
+    expect(screen.queryByRole('button', { name: 'خصم جلسة' })).not.toBeInTheDocument();
   });
 
-  test('freezes with a reason, and unfreezes a frozen subscription', async () => {
+  test('freezes with a reason chip, and unfreezes a frozen subscription', async () => {
     await openSubs();
+    pickMember('سمير');
     fireEvent.click(screen.getByRole('button', { name: 'تجميد' }));
-    fireEvent.change(await screen.findByPlaceholderText(/سفر العميل/), { target: { value: 'سفر' } });
+    expect(await screen.findByRole('dialog', { name: 'تجميد اشتراك' })).toHaveTextContent('ينتهي حاليًا');
+    fireEvent.click(screen.getByRole('button', { name: 'سفر' }));
     fireEvent.click(screen.getByRole('button', { name: 'تأكيد التجميد' }));
     await waitFor(() => expect(subscriptionsApi.freezeSubscription).toHaveBeenCalledWith(6, 'سفر'));
 
+    fireEvent.click(screen.getByRole('button', { name: 'قديم' }));
     fireEvent.click(await screen.findByRole('button', { name: 'فك التجميد' }));
     await waitFor(() => expect(subscriptionsApi.unfreezeSubscription).toHaveBeenCalledWith(7));
   });
@@ -132,24 +150,45 @@ describe('subscriptions tab (moved from the old subscriptions page)', () => {
   test('an action failure is shown, not swallowed', async () => {
     subscriptionsApi.consumeSubscriptionCredit.mockRejectedValue(new Error('الرصيد منتهي'));
     await openSubs();
+    pickMember('سمير');
     fireEvent.click(screen.getByRole('button', { name: 'خصم جلسة' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('الرصيد منتهي');
   });
 
-  test('renew jumps to collection with that subscription selected', async () => {
+  test('renew jumps to collection with the selected subscription', async () => {
     await openSubs();
-    fireEvent.click(screen.getAllByRole('button', { name: 'تجديد' })[0]); // مروان / سنوي
+    pickMember('مروان');
+    fireEvent.click(screen.getByRole('button', { name: 'تجديد' })); // مروان / سنوي
     await screen.findByText(/الشيفت مفتوح/);
     fireEvent.click(screen.getByRole('button', { name: /✓ تحصيل/ }));
     await waitFor(() => expect(subscriptionsApi.renewSubscription).toHaveBeenCalledWith(5, { payments: [{ method: 'cash', amount: 8400 }] }));
   });
 
-  test('the search filters by member, phone or package', async () => {
+  test('the search and status filter narrow the member list', async () => {
     await openSubs();
     fireEvent.change(screen.getByLabelText('بحث في الاشتراكات'), { target: { value: '0111' } });
-    expect(screen.getByText('عرض 1 من 3')).toBeInTheDocument();
+    expect(screen.getByText('عرض 1 من 2')).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('بحث في الاشتراكات'), { target: { value: 'غير موجود' } });
     expect(screen.getByText(/لا توجد نتائج مطابقة للبحث/)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('بحث في الاشتراكات'), { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: 'منتهي' }));
+    expect(screen.getByText('عرض 1 من 2')).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'تفاصيل مروان' })).toBeInTheDocument();
+  });
+
+  test('shows attendance and recent payments of the selected member', async () => {
+    const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
+    subscriptionsApi.getGymMemberCheckins.mockResolvedValue([
+      { id: 2, result: 'allowed', created_at: now },
+      { id: 1, result: 'denied', created_at: now },
+    ]);
+    customersApi.getCustomerRecentSales.mockResolvedValue([{ id: 41, total_amount: 300, payment_method: 'credit', created_at: now }]);
+    await openSubs();
+    expect(await screen.findByText('فاتورة #41')).toBeInTheDocument();
+    const stat = screen.getByText('الحضور هذا الشهر').closest('div');
+    expect(stat).toHaveTextContent('1'); // the denied scan is not a visit
+    expect(screen.getByText('آخر زيارة').closest('div')).toHaveTextContent('اليوم');
+    expect(screen.getByRole('table', { name: 'آخر المدفوعات' })).toHaveTextContent('آجل');
   });
 });
 

@@ -183,6 +183,17 @@ function getCreditSales(customerId) {
   `).all(customerId);
 }
 
+// A member's latest sales (subscription collections and POS purchases), newest first.
+function getRecentSales(customerId, limit = 10) {
+  return db.prepare(`
+    SELECT id, total_amount, payment_method, due_date, created_at
+    FROM sales
+    WHERE customer_id = ?
+    ORDER BY created_at DESC, id DESC
+    LIMIT ?
+  `).all(customerId, limit);
+}
+
 function updateLegalProfile(id, profileJson) {
   return db.prepare('UPDATE customers SET legal_profile = ? WHERE id = ?').run(profileJson, id).changes;
 }
@@ -206,4 +217,5 @@ module.exports = {
   createPayment,
   getPayments,
   getCreditSales,
+  getRecentSales,
 };

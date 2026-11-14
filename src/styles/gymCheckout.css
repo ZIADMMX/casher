@@ -21,7 +21,12 @@
   min-height: 100%;
   padding: 22px 24px 48px;
   color: var(--gco-ink);
-  background: var(--gym-peach-gradient, linear-gradient(160deg, #FFFFFF 0%, #FFF4EA 45%, #FFE3CC 100%));
+  /* Glass needs something behind it to blur: soft orange light pools over the peach gradient. */
+  background:
+    radial-gradient(520px 380px at 12% -4%, rgb(251 146 60 / 0.30), transparent 70%),
+    radial-gradient(620px 460px at 96% 22%, rgb(253 186 116 / 0.34), transparent 70%),
+    radial-gradient(560px 420px at 40% 108%, rgb(234 88 12 / 0.16), transparent 70%),
+    var(--gym-peach-gradient, linear-gradient(160deg, #FFFFFF 0%, #FFF4EA 45%, #FFE3CC 100%));
 }
 
 .gco-card {

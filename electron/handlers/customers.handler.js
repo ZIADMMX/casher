@@ -25,6 +25,10 @@ function registerCustomersHandlers() {
   safeHandle('customers:getLedger', positiveIdSchema, (event, customerId) => {
     return customersService.getCustomerLedger(customerId);
   });
+
+  safeHandle('customers:getRecentSales', positiveIdSchema, (event, customerId) => {
+    return customersService.getCustomerRecentSales(customerId);
+  });
 }
 
 module.exports = { registerCustomersHandlers };
