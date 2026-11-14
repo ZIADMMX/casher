@@ -62,11 +62,98 @@ const { ensureWebhooks } = require('./webhooks');
 const { ensureGymTraining } = require('./gym');
 const { addColumnIfMissing } = require('./helpers');
 
+// The v1 -> v2 upgrade steps. Every one checks before it alters, so re-running is safe.
+function runLegacyMigrations(dbInstance = db) {
+  const migrations = [
+    ['migrateSalesTable', migrateSalesTable],
+    ['migrateUsersTable', migrateUsersTable],
+    ['migrateReviewsTables', migrateReviewsTables],
+    ['migrateLeaveRequestsTable', migrateLeaveRequestsTable],
+    ['migrateReturnsTable', migrateReturnsTable],
+    ['migrateSuppliersTable', migrateSuppliersTable],
+    ['migrateShiftsTable', migrateShiftsTable],
+    ['migrateSettingsTable', migrateSettingsTable],
+    ['migrateNotificationsTable', migrateNotificationsTable],
+    ['migrateCustomersTable', migrateCustomersTable],
+    ['migrateOrdersTables', migrateOrdersTables],
+    ['migrateAppointmentsTables', migrateAppointmentsTables],
+    ['migrateSubscriptionsTables', migrateSubscriptionsTables],
+    ['migrateCommissionsTables', migrateCommissionsTables],
+    ['migrateCRMTables', migrateCRMTables],
+    ['migrateCashierAuditLogsTable', migrateCashierAuditLogsTable],
+    ['migrateInventoryWarehouses', migrateInventoryWarehouses],
+    ['migrateChannelsTables', migrateChannelsTables],
+    ['migrateUIConfigTables', migrateUIConfigTables],
+    ['migrateOnboardingTables', migrateOnboardingTables],
+    ['migrateGroceryTables', migrateGroceryTables],
+    ['migrateCasesTables', () => migrateCasesTables(dbInstance)],
+  ];
+
+  for (const [name, fn] of migrations) {
+    try {
+      fn();
+    } catch (err) {
+      err.message = `[${name}] ${err.message}`;
+      throw err;
+    }
+  }
+}
+
+// Columns the app reads unconditionally. user_version can say "current" while one is missing
+// (a restored or copied database file skipped the v1 -> v2 steps), and a missing one breaks
+// shifts:getCurrent and selling with "no such column". One sentinel per legacy step.
+const LEGACY_SCHEMA_SENTINELS = [
+  ['sales', 'invoice_number'],
+  ['returns', 'shift_id'],
+  ['customer_payments', 'shift_id'],
+  ['orders', 'vehicle_plate'],
+  ['packages', 'is_active'],
+  ['crm_interactions', 'reminder_sent_at'],
+  ['onboarding_presets', 'starter_working_hours_json'],
+];
+
+function findLegacySchemaDrift(dbInstance = db) {
+  return LEGACY_SCHEMA_SENTINELS.filter(([table, column]) => (
+    !dbInstance.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === column)
+  ));
+}
+
+function describeDrift(drift) {
+  return drift.map(([table, column]) => `${table}.${column}`).join(', ');
+}
+
+function repairLegacySchemaDrift(dbInstance = db) {
+  const drift = findLegacySchemaDrift(dbInstance);
+  if (drift.length === 0) return;
+  console.warn(`[DB] نقص في أعمدة قاعدة البيانات: ${describeDrift(drift)}`);
+
+  // Safety copy first; the repair itself only adds missing columns and tables.
+  const file = dbInstance.name;
+  if (file && file !== ':memory:') {
+    try {
+      const backup = `${file}.pre-schema-repair-${Date.now()}.bak`;
+      dbInstance.exec(`VACUUM INTO '${backup.replace(/'/g, "''")}'`);
+    } catch (err) {
+      console.warn('[DB] تعذر أخذ نسخة احتياطية قبل إصلاح الأعمدة:', err.message);
+    }
+  }
+
+  runLegacyMigrations(dbInstance);
+  // No legacy step adds these two; fresh installs get them from schema.sql (e-invoice reads them).
+  addColumnIfMissing('sales', 'invoice_number', 'TEXT', dbInstance);
+  addColumnIfMissing('sales', 'notes', 'TEXT', dbInstance);
+
+  const left = findLegacySchemaDrift(dbInstance);
+  if (left.length > 0) console.error(`[DB] ما زال ينقص بعد الإصلاح: ${describeDrift(left)}`);
+  else console.log('[DB] تم إصلاح أعمدة قاعدة البيانات الناقصة.');
+}
+
 function runAllMigrations(dbInstance = db) {
   const currentVersion = dbInstance.pragma('user_version', { simple: true }) || 0;
 
   if (currentVersion >= DATABASE_SCHEMA_VERSION) {
-    // قاعدة البيانات محدثة بالفعل للإصدار المستهدف، تخطي الترحيلات لتسريع إقلاع التطبيق
+    // محدثة بالفعل للإصدار المستهدف: لا ترحيلات، فقط فحص سريع للأعمدة الأساسية
+    repairLegacySchemaDrift(dbInstance);
     return;
   }
 
@@ -77,39 +164,7 @@ function runAllMigrations(dbInstance = db) {
 
   // ترحيلات الإصدارات السابقة (v1 -> v2)
   if (currentVersion < 2) {
-    const migrations = [
-      ['migrateSalesTable', migrateSalesTable],
-      ['migrateUsersTable', migrateUsersTable],
-      ['migrateReviewsTables', migrateReviewsTables],
-      ['migrateLeaveRequestsTable', migrateLeaveRequestsTable],
-      ['migrateReturnsTable', migrateReturnsTable],
-      ['migrateSuppliersTable', migrateSuppliersTable],
-      ['migrateShiftsTable', migrateShiftsTable],
-      ['migrateSettingsTable', migrateSettingsTable],
-      ['migrateNotificationsTable', migrateNotificationsTable],
-      ['migrateCustomersTable', migrateCustomersTable],
-      ['migrateOrdersTables', migrateOrdersTables],
-      ['migrateAppointmentsTables', migrateAppointmentsTables],
-      ['migrateSubscriptionsTables', migrateSubscriptionsTables],
-      ['migrateCommissionsTables', migrateCommissionsTables],
-      ['migrateCRMTables', migrateCRMTables],
-      ['migrateCashierAuditLogsTable', migrateCashierAuditLogsTable],
-      ['migrateInventoryWarehouses', migrateInventoryWarehouses],
-      ['migrateChannelsTables', migrateChannelsTables],
-      ['migrateUIConfigTables', migrateUIConfigTables],
-      ['migrateOnboardingTables', migrateOnboardingTables],
-      ['migrateGroceryTables', migrateGroceryTables],
-      ['migrateCasesTables', () => migrateCasesTables(dbInstance)],
-    ];
-
-    for (const [name, fn] of migrations) {
-      try {
-        fn();
-      } catch (err) {
-        err.message = `[${name}] ${err.message}`;
-        throw err;
-      }
-    }
+    runLegacyMigrations(dbInstance);
     dbInstance.pragma('user_version = 2');
   }
 
@@ -372,4 +427,4 @@ function runAllMigrations(dbInstance = db) {
   ensureGymTraining(dbInstance);
 }
 
-module.exports = { runAllMigrations };
+module.exports = { runAllMigrations, findLegacySchemaDrift, repairLegacySchemaDrift };
