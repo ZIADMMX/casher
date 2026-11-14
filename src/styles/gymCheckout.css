@@ -71,7 +71,7 @@
 /* ---- tabs ---- */
 .gco-tabs { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px; border-radius: 18px; background: rgb(255 255 255 / 0.7); border: 1px solid rgb(255 255 255 / 0.8); justify-self: start; box-shadow: 0 6px 18px rgb(120 60 20 / 0.06); }
 .gco-tabs button { min-block-size: 46px; padding: 0 22px; border: 0; border-radius: 13px; background: transparent; color: #7A4E00; font: inherit; font-weight: 800; cursor: pointer; transition: background 140ms, color 140ms, box-shadow 140ms; }
-.gco-tabs button:hover { background: var(--gco-soft); }
+.gco-tabs button:hover:not(.is-on) { background: var(--gco-soft); } /* the active tab keeps its gradient on hover: white text needs it */
 .gco-tabs .is-on { background: var(--gco-grad); color: #fff; box-shadow: 0 6px 16px color-mix(in srgb, var(--gco-primary) 30%, transparent); }
 
 /* ---- notices ---- */
