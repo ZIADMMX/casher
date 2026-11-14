@@ -5,10 +5,9 @@ import {
   BufferGeometry,
   Clock,
   ConeGeometry,
-  CylinderGeometry,
   DirectionalLight,
-  DodecahedronGeometry,
   Group,
+  HemisphereLight,
   Mesh,
   MeshStandardMaterial,
   PerspectiveCamera,
@@ -16,381 +15,202 @@ import {
   Points,
   PointsMaterial,
   Scene,
+  SphereGeometry,
   WebGLRenderer,
 } from 'three';
 
 /**
  * Three3DLogo
- * مجسم ثلاثي الأبعاد تفاعلي لشعار الثعلب الذكي (FOX.CLOUD) مبني بـ Three.js
- * يعتمد على تصميم Low-Poly عصري بألوان وهوية المشروع:
- * - البرتقالي الناري (Fox Orange)
- * - الأبيض الثلجي (Fox White)
- * - الرمادي الداكن / الفحمي (Fox Charcoal)
- * - حركة حية (تأرجح خفيف، ذيل متحرك، وتفاعل مع حركة الماوس)
+ * ثعلب ثلاثي الأبعاد بأسلوب الإيموجي (🦊): أسطح ناعمة وألوان دافئة مريحة للعين.
+ * - برتقالي دافئ للرأس والجسم والذيل
+ * - كريمي للخدين والصدر وطرف الذيل
+ * - بني داكن للأنف وأطراف الأذنين والأقدام
+ * حركة هادئة: طفو، رمشة، تحريك الذيل، وميل الرأس نحو الماوس.
  */
 export default function Three3DLogo({
   width = 240,
   height = 240,
   interactive = true,
-  accentColor = 0xf05a24, // برتقالي الثعلب
-  whiteColor = 0xf8f9fa,  // أبيض الصدر والأذنين
-  darkColor = 0x1a1a20,   // الفحمي للأنف وحواف الأذنين
+  accentColor = 0xf0892b, // برتقالي دافئ
+  whiteColor = 0xfff3e2,  // كريمي
+  darkColor = 0x2e231d,   // بني داكن دافئ
   showParticles = true,
 }) {
   const containerRef = useRef(null);
 
   useEffect(() => {
     const container = containerRef.current;
-    if (!container) return;
+    if (!container) return undefined;
 
-    // 1. المشهد والكاميرا
     const scene = new Scene();
-    const camera = new PerspectiveCamera(40, width / height, 0.1, 100);
-    camera.position.set(0, 0.3, 4.6);
+    const camera = new PerspectiveCamera(38, width / height, 0.1, 100);
+    camera.position.set(0, 0.05, 5.6);
 
-    // 2. المحرك مع الشفافية وتنعيم الحواف
-    const renderer = new WebGLRenderer({
-      alpha: true,
-      antialias: true,
-      powerPreference: 'high-performance',
-    });
+    const renderer = new WebGLRenderer({ alpha: true, antialias: true, powerPreference: 'high-performance' });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(width, height);
     container.appendChild(renderer.domElement);
 
-    // المجموعة الشاملة للثعلب
+    // أسطح ناعمة (بدون flatShading) لشكل لطيف مثل الإيموجي
+    const mat = (color, roughness = 0.62) => new MeshStandardMaterial({ color, roughness, metalness: 0 });
+    const orangeMat = mat(accentColor);
+    const creamMat = mat(whiteColor, 0.7);
+    const darkMat = mat(darkColor, 0.45);
+    const eyeMat = mat(0x1b1410, 0.25);
+    const glintMat = new MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 0.6 });
+
+    const sphere = (material, r, [x, y, z], [sx, sy, sz] = [1, 1, 1], parent) => {
+      const m = new Mesh(new SphereGeometry(r, 40, 28), material);
+      m.position.set(x, y, z);
+      m.scale.set(sx, sy, sz);
+      parent.add(m);
+      return m;
+    };
+    const cone = (material, r, h, pos, rot, parent) => {
+      const m = new Mesh(new ConeGeometry(r, h, 40, 1), material);
+      m.position.set(...pos);
+      m.rotation.set(...rot);
+      parent.add(m);
+      return m;
+    };
+
     const rootGroup = new Group();
     scene.add(rootGroup);
+    const fox = new Group();
+    fox.position.y = -0.1;
+    rootGroup.add(fox);
 
-    // خامات الثعلب بنمط Low-Poly (Flat Shading) لإبراز تفاصيل الهوية
-    const orangeMat = new MeshStandardMaterial({
-      color: accentColor,
-      roughness: 0.35,
-      metalness: 0.15,
-      flatShading: true,
+    // ---- الجسم والصدر والأقدام ----
+    const body = new Group();
+    fox.add(body);
+    sphere(orangeMat, 0.62, [0, -0.78, -0.05], [0.95, 1.2, 0.8], body);
+    sphere(creamMat, 0.4, [0, -0.72, 0.27], [0.85, 1.3, 0.45], body);
+    sphere(darkMat, 0.17, [-0.25, -1.36, 0.22], [1.05, 0.75, 1.3], body);
+    sphere(darkMat, 0.17, [0.25, -1.36, 0.22], [1.05, 0.75, 1.3], body);
+
+    // ---- الرأس ----
+    const head = new Group();
+    head.position.set(0, 0.1, 0.05);
+    fox.add(head);
+    sphere(orangeMat, 0.66, [0, 0, 0], [1.22, 0.95, 1.0], head);
+
+    // الوجه السفلي الكريمي + خصلات الخدين المدببة للخارج والأسفل (علامة الثعلب)
+    [-1, 1].forEach((s) => {
+      sphere(creamMat, 0.34, [s * 0.28, -0.26, 0.42], [1, 0.7, 0.8], head);
+      cone(creamMat, 0.24, 0.62, [s * 0.5, -0.27, 0.24], [0.15, 0, s * (Math.PI / 2 + 0.55)], head);
+    });
+    sphere(creamMat, 0.26, [0, -0.3, 0.56], [1, 0.7, 0.8], head);
+
+    // الخطم البرتقالي والأنف
+    cone(orangeMat, 0.21, 0.52, [0, -0.06, 0.74], [Math.PI / 2, 0, 0], head);
+    sphere(darkMat, 0.075, [0, -0.1, 1.0], [1.2, 0.85, 1], head);
+
+    // العينان + لمعة + رمشة
+    const eyes = new Group();
+    head.add(eyes);
+    [-1, 1].forEach((s) => {
+      const eye = sphere(eyeMat, 0.082, [s * 0.27, 0.12, 0.58], [0.9, 1.15, 0.7], eyes);
+      eye.rotation.z = s * 0.15;
+      sphere(glintMat, 0.022, [s * 0.255, 0.16, 0.63], [1, 1, 1], eyes);
     });
 
-    const whiteMat = new MeshStandardMaterial({
-      color: whiteColor,
-      roughness: 0.4,
-      metalness: 0.05,
-      flatShading: true,
+    // الأذنان: خارجي برتقالي + داخلي كريمي + طرف داكن
+    const ears = [-1, 1].map((s) => {
+      const ear = new Group();
+      ear.position.set(s * 0.42, 0.86, -0.04);
+      ear.rotation.set(-0.1, 0, -s * 0.22);
+      cone(orangeMat, 0.33, 0.95, [0, 0, 0], [0, 0, 0], ear);
+      cone(creamMat, 0.19, 0.62, [0, -0.12, 0.08], [0, 0, 0], ear);
+      cone(darkMat, 0.0764, 0.22, [0, 0.365, 0], [0, 0, 0], ear).scale.set(1.15, 1.01, 1.15);
+      head.add(ear);
+      return { ear, s };
     });
 
-    const darkMat = new MeshStandardMaterial({
-      color: darkColor,
-      roughness: 0.25,
-      metalness: 0.3,
-      flatShading: true,
-    });
+    // ---- الذيل الكثيف: كرات متدرجة الحجم على قوس، طرفه كريمي ----
+    const tail = new Group();
+    tail.position.set(0.42, -1.1, -0.25);
+    fox.add(tail);
+    [
+      [0.00, 0.00, 0.00, 0.2],
+      [0.26, 0.12, -0.02, 0.27],
+      [0.5, 0.34, -0.04, 0.33],
+      [0.66, 0.62, -0.06, 0.35],
+      [0.7, 0.92, -0.08, 0.31],
+    ].forEach(([x, y, z, r]) => sphere(orangeMat, r, [x, y, z], [1, 1.1, 1], tail));
+    sphere(creamMat, 0.25, [0.68, 1.2, -0.09], [1, 1.15, 1], tail);
 
-    const eyeMat = new MeshStandardMaterial({
-      color: 0x050508,
-      emissive: 0x111116,
-      roughness: 0.1,
-      metalness: 0.9,
-    });
-
-    const goldEyeMat = new MeshStandardMaterial({
-      color: 0xffaa00,
-      emissive: 0xff7700,
-      emissiveIntensity: 0.5,
-      roughness: 0.2,
-      metalness: 0.8,
-    });
-
-    // 3. بناء مجسم الثعلب
-    const foxGroup = new Group();
-    rootGroup.add(foxGroup);
-
-    // --- الرأس (Head Group) ---
-    const headGroup = new Group();
-    headGroup.position.set(0, 0.35, 0.1);
-    foxGroup.add(headGroup);
-
-    // قبة الرأس والوجنتين (Main Head Shape)
-    const craniumGeo = new DodecahedronGeometry(0.62, 0);
-    const craniumMesh = new Mesh(craniumGeo, orangeMat);
-    craniumMesh.scale.set(1.05, 0.95, 1.0);
-    headGroup.add(craniumMesh);
-
-    // الخطم / الفم البارز (Snout / Muzzle)
-    const snoutGeo = new ConeGeometry(0.32, 0.72, 4);
-    const snoutMesh = new Mesh(snoutGeo, orangeMat);
-    snoutMesh.rotation.x = Math.PI / 2.3;
-    snoutMesh.position.set(0, -0.15, 0.62);
-    snoutMesh.scale.set(1.0, 1.0, 0.75);
-    headGroup.add(snoutMesh);
-
-    // فراء الخدين الأبيض (White Cheek Tufts)
-    const leftCheekGeo = new ConeGeometry(0.25, 0.5, 3);
-    const leftCheek = new Mesh(leftCheekGeo, whiteMat);
-    leftCheek.position.set(-0.48, -0.18, 0.32);
-    leftCheek.rotation.set(-0.2, 0.4, -1.2);
-    headGroup.add(leftCheek);
-
-    const rightCheekGeo = new ConeGeometry(0.25, 0.5, 3);
-    const rightCheek = new Mesh(rightCheekGeo, whiteMat);
-    rightCheek.position.set(0.48, -0.18, 0.32);
-    rightCheek.rotation.set(-0.2, -0.4, 1.2);
-    headGroup.add(rightCheek);
-
-    // الفراء الأبيض أسفل الخطم (Muzzle underfur)
-    const muzzleWhiteGeo = new ConeGeometry(0.24, 0.58, 3);
-    const muzzleWhite = new Mesh(muzzleWhiteGeo, whiteMat);
-    muzzleWhite.rotation.x = Math.PI / 2.3;
-    muzzleWhite.position.set(0, -0.22, 0.58);
-    muzzleWhite.scale.set(0.9, 0.9, 0.6);
-    headGroup.add(muzzleWhite);
-
-    // الأنف الأسود الصغير (Nose)
-    const noseGeo = new ConeGeometry(0.08, 0.16, 4);
-    const noseMesh = new Mesh(noseGeo, darkMat);
-    noseMesh.rotation.x = Math.PI / 2.2;
-    noseMesh.position.set(0, -0.06, 0.98);
-    headGroup.add(noseMesh);
-
-    // الأذن اليسرى (Left Ear)
-    const leftEarGroup = new Group();
-    leftEarGroup.position.set(-0.35, 0.52, 0.05);
-    leftEarGroup.rotation.set(-0.2, 0.15, 0.35);
-
-    const earOuterGeo = new ConeGeometry(0.28, 0.72, 3);
-    const leftEarOuter = new Mesh(earOuterGeo, orangeMat);
-    leftEarGroup.add(leftEarOuter);
-
-    const earInnerGeo = new ConeGeometry(0.2, 0.58, 3);
-    const leftEarInner = new Mesh(earInnerGeo, whiteMat);
-    leftEarInner.position.set(0, -0.04, 0.05);
-    leftEarGroup.add(leftEarInner);
-
-    const earTipGeo = new ConeGeometry(0.12, 0.24, 3);
-    const leftEarTip = new Mesh(earTipGeo, darkMat);
-    leftEarTip.position.set(0, 0.25, 0.01);
-    leftEarGroup.add(leftEarTip);
-    headGroup.add(leftEarGroup);
-
-    // الأذن اليمنى (Right Ear)
-    const rightEarGroup = new Group();
-    rightEarGroup.position.set(0.35, 0.52, 0.05);
-    rightEarGroup.rotation.set(-0.2, -0.15, -0.35);
-
-    const rightEarOuter = new Mesh(earOuterGeo, orangeMat);
-    rightEarGroup.add(rightEarOuter);
-
-    const rightEarInner = new Mesh(earInnerGeo, whiteMat);
-    rightEarInner.position.set(0, -0.04, 0.05);
-    rightEarGroup.add(rightEarInner);
-
-    const rightEarTip = new Mesh(earTipGeo, darkMat);
-    rightEarTip.position.set(0, 0.25, 0.01);
-    rightEarGroup.add(rightEarTip);
-    headGroup.add(rightEarGroup);
-
-    // العينان الذكيتان (Fox Eyes)
-    const eyeGeo = new ConeGeometry(0.07, 0.18, 4);
-    const leftEye = new Mesh(eyeGeo, goldEyeMat);
-    leftEye.position.set(-0.24, 0.02, 0.52);
-    leftEye.rotation.set(0.6, 0.5, -0.8);
-    leftEye.scale.set(0.7, 1.2, 0.5);
-    headGroup.add(leftEye);
-
-    const rightEye = new Mesh(eyeGeo, goldEyeMat);
-    rightEye.position.set(0.24, 0.02, 0.52);
-    rightEye.rotation.set(0.6, -0.5, 0.8);
-    rightEye.scale.set(0.7, 1.2, 0.5);
-    headGroup.add(rightEye);
-
-    // --- الجسد والصدر (Body & Chest) ---
-    const bodyGroup = new Group();
-    bodyGroup.position.set(0, -0.45, -0.05);
-    foxGroup.add(bodyGroup);
-
-    // الجذع البرتقالي الأنيق
-    const torsoGeo = new CylinderGeometry(0.42, 0.56, 1.05, 6);
-    const torsoMesh = new Mesh(torsoGeo, orangeMat);
-    torsoMesh.scale.set(1.0, 1.0, 0.85);
-    bodyGroup.add(torsoMesh);
-
-    // وشاح الصدر الأبيض الملكي (White Chest Fur)
-    const chestGeo = new ConeGeometry(0.35, 0.85, 3);
-    const chestMesh = new Mesh(chestGeo, whiteMat);
-    chestMesh.position.set(0, 0.12, 0.32);
-    chestMesh.rotation.set(-0.15, 0, 0);
-    chestMesh.scale.set(1.1, 1.0, 0.6);
-    bodyGroup.add(chestMesh);
-
-    // الشريط الجانبي الفحمي المستوحى من اللوجو
-    const flankGeo = new ConeGeometry(0.2, 0.7, 3);
-    const flankMesh = new Mesh(flankGeo, darkMat);
-    flankMesh.position.set(-0.25, -0.05, 0.25);
-    flankMesh.rotation.set(0.2, 0.3, 0.4);
-    flankMesh.scale.set(0.8, 0.9, 0.5);
-    bodyGroup.add(flankMesh);
-
-    // --- الذيل الرشيق الملتف (Sweeping Curved Tail) ---
-    const tailGroup = new Group();
-    tailGroup.position.set(0.22, -0.85, -0.2);
-    foxGroup.add(tailGroup);
-
-    // قاعدة الذيل
-    const tailBaseGeo = new CylinderGeometry(0.26, 0.16, 0.6, 5);
-    const tailBase = new Mesh(tailBaseGeo, orangeMat);
-    tailBase.position.set(0.18, 0.22, 0.1);
-    tailBase.rotation.set(0.4, 0.3, -0.7);
-    tailGroup.add(tailBase);
-
-    // وسط الذيل الكثيف الملتف للأمام
-    const tailMidGeo = new CylinderGeometry(0.38, 0.28, 0.75, 6);
-    const tailMid = new Mesh(tailMidGeo, orangeMat);
-    tailMid.position.set(0.48, 0.55, 0.25);
-    tailMid.rotation.set(0.3, 0.5, -0.4);
-    tailGroup.add(tailMid);
-
-    // طرف الذيل الأبيض المميز للثعلب (White Tail Tip)
-    const tailTipGeo = new ConeGeometry(0.32, 0.65, 5);
-    const tailTip = new Mesh(tailTipGeo, whiteMat);
-    tailTip.position.set(0.62, 1.05, 0.38);
-    tailTip.rotation.set(-0.2, 0.4, 0.4);
-    tailGroup.add(tailTip);
-
-    // --- جزيئات الشرار والضوء المدارية (Floating Embers) ---
+    // ---- شرارات دافئة هادئة ----
     let particles;
-    let particlesGeometry;
     let particlesMaterial;
     if (showParticles) {
-      const pCount = 35;
-      const positions = new Float32Array(pCount * 3);
-      for (let i = 0; i < pCount * 3; i += 3) {
-        const rad = 1.3 + Math.random() * 1.1;
+      const count = 22;
+      const positions = new Float32Array(count * 3);
+      for (let i = 0; i < count * 3; i += 3) {
+        const rad = 1.7 + Math.random() * 0.9;
         const theta = Math.random() * Math.PI * 2;
         const phi = Math.acos(Math.random() * 2 - 1);
         positions[i] = rad * Math.sin(phi) * Math.cos(theta);
         positions[i + 1] = rad * Math.sin(phi) * Math.sin(theta);
         positions[i + 2] = rad * Math.cos(phi);
       }
-      particlesGeometry = new BufferGeometry();
-      particlesGeometry.setAttribute('position', new BufferAttribute(positions, 3));
-      particlesMaterial = new PointsMaterial({
-        color: 0xffa040,
-        size: 0.045,
-        transparent: true,
-        opacity: 0.85,
-      });
-      particles = new Points(particlesGeometry, particlesMaterial);
+      const geo = new BufferGeometry();
+      geo.setAttribute('position', new BufferAttribute(positions, 3));
+      particlesMaterial = new PointsMaterial({ color: 0xffc27a, size: 0.04, transparent: true, opacity: 0.6 });
+      particles = new Points(geo, particlesMaterial);
       rootGroup.add(particles);
     }
 
-    // 4. الإضاءة السينمائية
-    const ambientLight = new AmbientLight(0xfff7ed, 1.1);
-    scene.add(ambientLight);
+    // ---- إضاءة ناعمة دافئة ----
+    scene.add(new AmbientLight(0xfff1e0, 0.9));
+    scene.add(new HemisphereLight(0xfff6ea, 0x8a5a3a, 0.8));
+    const key = new DirectionalLight(0xffffff, 1.7);
+    key.position.set(2.5, 3.5, 5);
+    scene.add(key);
+    const rim = new PointLight(0xffa24d, 2.2, 12);
+    rim.position.set(-3, 2, -2.5);
+    scene.add(rim);
 
-    // ضوء أمامي دافئ يبرز خطوط الثعلب
-    const dirLight = new DirectionalLight(0xffffff, 2.0);
-    dirLight.position.set(3, 4, 5);
-    scene.add(dirLight);
-
-    // ضوء خلفي ملون لإبراز حواف الأذنين والذيل (Rim Light)
-    const rimLight = new PointLight(0xff6a00, 3.2, 12);
-    rimLight.position.set(-3, 2, -2.5);
-    scene.add(rimLight);
-
-    const softFillLight = new PointLight(0x4080ff, 1.2, 10);
-    softFillLight.position.set(2, -2, 2);
-    scene.add(softFillLight);
-
-    // 5. التفاعل وحركة الماوس
-    let targetRotY = 0.15; // زاوية مائلة أنيقة افتراضياً
+    // ---- التفاعل ----
+    let targetRotY = 0.12;
     let targetRotX = 0;
-
     const handleMouseMove = (e) => {
-      if (!interactive) return;
       const rect = container.getBoundingClientRect();
-      const x = (e.clientX - rect.left) / rect.width - 0.5;
-      const y = (e.clientY - rect.top) / rect.height - 0.5;
-      targetRotY = 0.15 + x * 0.9;
-      targetRotX = y * 0.5;
+      targetRotY = 0.12 + ((e.clientX - rect.left) / rect.width - 0.5) * 0.8;
+      targetRotX = ((e.clientY - rect.top) / rect.height - 0.5) * 0.35;
     };
+    if (interactive) window.addEventListener('mousemove', handleMouseMove);
 
-    if (interactive) {
-      window.addEventListener('mousemove', handleMouseMove);
-    }
-
-    // 6. حلقة الرندرة والتحريك (Animation Loop)
     let animId;
     const clock = new Clock();
-
     const animate = () => {
       animId = requestAnimationFrame(animate);
-      const elapsed = clock.getElapsedTime();
+      const t = clock.getElapsedTime();
 
-      // طفو لطيف للثعلب (Breathing / Floating)
-      foxGroup.position.y = Math.sin(elapsed * 1.8) * 0.08;
+      fox.position.y = -0.1 + Math.sin(t * 1.6) * 0.06;
+      tail.rotation.z = Math.sin(t * 2.0) * 0.1;
+      tail.rotation.y = Math.cos(t * 1.4) * 0.12;
+      ears.forEach(({ ear, s }) => { ear.rotation.z = -s * 0.22 + Math.sin(t * 3 + s) * 0.02; });
+      // رمشة قصيرة كل ~3.5 ثوانٍ
+      eyes.scale.y = (t % 3.5) > 3.38 ? 0.12 : 1;
 
-      // حركة ذيل مرنة وحيوية (Tail Swish)
-      tailGroup.rotation.y = Math.sin(elapsed * 2.2) * 0.18;
-      tailGroup.rotation.z = Math.cos(elapsed * 1.5) * 0.08;
+      if (particles) particles.rotation.y = t * 0.06;
 
-      // حركة أذنين خفيفة تنبض بالحياة
-      leftEarGroup.rotation.z = 0.35 + Math.sin(elapsed * 3.5) * 0.02;
-      rightEarGroup.rotation.z = -0.35 - Math.sin(elapsed * 3.5) * 0.02;
-
-      // دوران الجزيئات حول الثعلب
-      if (particles) {
-        particles.rotation.y = elapsed * 0.08;
-        particles.rotation.x = Math.sin(elapsed * 0.05) * 0.1;
-      }
-
-      // سلاسة توجيه الرأس والمجسم نحو الماوس (Smooth Interpolation)
       if (interactive) {
-        foxGroup.rotation.y += (targetRotY - foxGroup.rotation.y) * 0.06;
-        foxGroup.rotation.x += (targetRotX - foxGroup.rotation.x) * 0.06;
+        fox.rotation.y += (targetRotY - fox.rotation.y) * 0.06;
+        fox.rotation.x += (targetRotX - fox.rotation.x) * 0.06;
       } else {
-        // دوران بطيء تلقائي إذا كان التفاعل مغلقاً
-        foxGroup.rotation.y = Math.sin(elapsed * 0.8) * 0.3 + 0.1;
+        fox.rotation.y = Math.sin(t * 0.8) * 0.3 + 0.1;
       }
-
       renderer.render(scene, camera);
     };
-
     animate();
 
-    // 7. التنظيف وإلغاء استهلاك الذاكرة
     return () => {
       cancelAnimationFrame(animId);
-      if (interactive) {
-        window.removeEventListener('mousemove', handleMouseMove);
-      }
-      if (container && renderer.domElement && container.contains(renderer.domElement)) {
-        container.removeChild(renderer.domElement);
-      }
-
-      // التخلص من الخامات والأشكال الهندسية
-      craniumGeo.dispose();
-      snoutGeo.dispose();
-      leftCheekGeo.dispose();
-      rightCheekGeo.dispose();
-      muzzleWhiteGeo.dispose();
-      noseGeo.dispose();
-      earOuterGeo.dispose();
-      earInnerGeo.dispose();
-      earTipGeo.dispose();
-      eyeGeo.dispose();
-      torsoGeo.dispose();
-      chestGeo.dispose();
-      flankGeo.dispose();
-      tailBaseGeo.dispose();
-      tailMidGeo.dispose();
-      tailTipGeo.dispose();
-
-      orangeMat.dispose();
-      whiteMat.dispose();
-      darkMat.dispose();
-      eyeMat.dispose();
-      goldEyeMat.dispose();
-
-      if (particlesGeometry) particlesGeometry.dispose();
-      if (particlesMaterial) particlesMaterial.dispose();
+      if (interactive) window.removeEventListener('mousemove', handleMouseMove);
+      if (renderer.domElement.parentNode === container) container.removeChild(renderer.domElement);
+      scene.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
+      [orangeMat, creamMat, darkMat, eyeMat, glintMat, particlesMaterial].forEach((m) => m?.dispose());
       renderer.dispose();
     };
   }, [width, height, interactive, accentColor, whiteColor, darkColor, showParticles]);
@@ -398,14 +218,7 @@ export default function Three3DLogo({
   return (
     <div
       ref={containerRef}
-      style={{
-        width,
-        height,
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        userSelect: 'none',
-      }}
+      style={{ width, height, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', userSelect: 'none' }}
     />
   );
 }
