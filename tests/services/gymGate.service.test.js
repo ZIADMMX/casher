@@ -53,6 +53,24 @@ describe('gym gate', () => {
     expect(gate.scan({ code: `GM-${member}` })).toMatchObject({ visitNumber: 2, repeat: false });
   });
 
+  it('summarises last visit and this month visits for every member in one query, ignoring denied scans', () => {
+    const m = newMember('زائر منتظم');
+    const never = newMember('لم يزر');
+    const now = new Date();
+    const thisMonth = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-01 09:00:00`;
+    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 15, 9);
+    const lastMonthStamp = `${lastMonth.getFullYear()}-${pad(lastMonth.getMonth() + 1)}-15 09:00:00`;
+    const insert = db.prepare("INSERT INTO gym_checkins (customer_id, code_text, result, reason, created_at) VALUES (?, 'x', ?, 'r', ?)");
+    insert.run(m, 'allowed', lastMonthStamp);
+    insert.run(m, 'allowed', thisMonth);
+    insert.run(m, 'warning', `${now.getFullYear()}-${pad(now.getMonth() + 1)}-01 18:30:00`);
+    insert.run(m, 'denied', `${now.getFullYear()}-${pad(now.getMonth() + 1)}-01 23:00:00`);
+
+    const summary = gate.getVisitSummary();
+    expect(summary.find((r) => r.customer_id === m)).toEqual({ customer_id: m, last_visit: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-01 18:30:00`, visits_month: 2 });
+    expect(summary.find((r) => r.customer_id === never)).toBeUndefined();
+  });
+
   it('counts a member with several subscriptions once in the attendance report', () => {
     const m = newMember('عضو متجدد');
     subscribe(m, 'time_based', { status: 'expired', endDays: -40 });

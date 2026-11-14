@@ -23,9 +23,11 @@ const optional = (isAvailable, call) => (isAvailable ? call() : []);
  * The gym's subscriptions hub: members' subscriptions (freeze, deduct a session), the package
  * catalog, and the activation / renewal flow that ends in the collection screen.
  */
-export default function GymCheckoutPage() {
-  const [tab, setTab] = useState('subs');
-  const [mode, setMode] = useState('new');
+export default function GymCheckoutPage({ intent = null }) {
+  // The members directory opens this page on a member: 'open' (their file), 'renew' or 'activate' (collection).
+  const collecting = intent?.action === 'renew' || intent?.action === 'activate';
+  const [tab, setTab] = useState(collecting ? 'collect' : 'subs');
+  const [mode, setMode] = useState(intent?.action === 'renew' ? 'renew' : 'new');
   const [customers, setCustomers] = useState([]);
   const [allPackages, setAllPackages] = useState([]);
   const [subscriptions, setSubscriptions] = useState([]);
@@ -36,9 +38,9 @@ export default function GymCheckoutPage() {
   const [loadError, setLoadError] = useState('');
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
-  const [customerId, setCustomerId] = useState(null);
+  const [customerId, setCustomerId] = useState(collecting ? intent.customerId : null);
   const [packageId, setPackageId] = useState(null);
-  const [subId, setSubId] = useState(null);
+  const [subId, setSubId] = useState(intent?.action === 'renew' ? intent.subscriptionId : null);
   const [done, setDone] = useState('');
   const [freeError, setFreeError] = useState('');
   const [addPackageRequest, setAddPackageRequest] = useState(0);
@@ -53,7 +55,7 @@ export default function GymCheckoutPage() {
       const [custs, pkgs, subs, subStats, prods, brs] = await Promise.all([
         optional(customersApi.getAllCustomersWithStats.isAvailable(), customersApi.getAllCustomersWithStats),
         subscriptionsApi.getAllPackages(),
-        subscriptionsApi.getAllSubscriptions(),
+        subscriptionsApi.getAllSubscriptions({ limit: 10000 }), // the default page size (100) would hide older members
         subscriptionsApi.getSubscriptionStats(),
         optional(productsApi.getAllProductsWithVariants.isAvailable(), productsApi.getAllProductsWithVariants),
         optional(inventoryApi.getInventoryBranches.isAvailable(), inventoryApi.getInventoryBranches),
@@ -215,6 +217,7 @@ export default function GymCheckoutPage() {
           onChanged={load}
           onRenew={startRenewal}
           onError={showError}
+          initialSelectedId={intent?.action === 'open' ? intent.customerId : null}
         />
       )}
 

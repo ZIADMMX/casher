@@ -401,6 +401,28 @@ describe('hub header and quick add', () => {
   });
 });
 
+describe('opened from the members directory (intent)', () => {
+  test('renew opens collection on that subscription, ready to collect', async () => {
+    render(<GymCheckoutPage intent={{ action: 'renew', customerId: 1, subscriptionId: 5 }} />);
+    await screen.findByText(/الشيفت مفتوح/);
+    expect(screen.getByRole('button', { name: /تجديد اشتراك/ })).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(screen.getByRole('button', { name: /✓ تحصيل/ }));
+    await waitFor(() => expect(subscriptionsApi.renewSubscription).toHaveBeenCalledWith(5, { payments: [{ method: 'cash', amount: 8400 }] }));
+  });
+
+  test('activate opens collection on a new subscription for that member', async () => {
+    render(<GymCheckoutPage intent={{ action: 'activate', customerId: 3 }} />);
+    expect(await screen.findByText('هاني')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /اشتراك جديد/ })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: /شهري/ })).toBeInTheDocument(); // the package list for the picked member
+  });
+
+  test('open lands on the subscriptions list with that member selected', async () => {
+    render(<GymCheckoutPage intent={{ action: 'open', customerId: 2 }} />);
+    expect(await screen.findByRole('heading', { name: 'سمير', level: 2 })).toBeInTheDocument();
+  });
+});
+
 describe('balanceOf', () => {
   test('session packages show the share of sessions left', () => {
     expect(balanceOf({ package_type: 'session_based', total_credits: 44, remaining_credits: 35 })).toMatchObject({ text: '35 من 44 جلسة', percent: 80 });

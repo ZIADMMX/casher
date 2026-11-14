@@ -112,4 +112,11 @@ function getMemberCheckins(customerId, filters = {}) {
   return gate.getMemberCheckins(Number(customerId), { from, to, limit: filters.limit || 100 });
 }
 
-module.exports = { decide, scan, registerSession, getOverview, setCapacity, getAttendanceReport, getMemberCheckins };
+// Last visit and this month's visit count for every member, in one query (the members directory).
+function getVisitSummary() {
+  const now = new Date();
+  return gate.getVisitSummary(`${now.getFullYear()}-${pad(now.getMonth() + 1)}-01 00:00:00`)
+    .map((r) => ({ customer_id: r.customer_id, last_visit: r.last_visit, visits_month: r.visits_month || 0 }));
+}
+
+module.exports = { decide, scan, registerSession, getOverview, setCapacity, getAttendanceReport, getMemberCheckins, getVisitSummary };

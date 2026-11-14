@@ -277,6 +277,8 @@ exportEmployees: () => ipcRenderer.invoke('export:employees'),
   getUpgradeQuote: (subscriptionId, packageId) => ipcRenderer.invoke('subscriptions:getUpgradeQuote', { subscriptionId, packageId }),
   upgradeSubscription: (subscriptionId, packageId, payment) => ipcRenderer.invoke('subscriptions:upgrade', { subscriptionId, packageId, payment }),
   transferSubscription: (subscriptionId, toCustomerId) => ipcRenderer.invoke('subscriptions:transfer', { subscriptionId, toCustomerId }),
+  getGymVisitSummary: () => ipcRenderer.invoke('subscriptions:getGymVisitSummary'),
+  getGymMemberProfiles: () => ipcRenderer.invoke('subscriptions:getGymMemberProfiles'),
   getGymMemberCheckins: (customerId, filters) => ipcRenderer.invoke('subscriptions:getGymMemberCheckins', { customerId, filters }),
 
   // Commissions & Incentives Engine

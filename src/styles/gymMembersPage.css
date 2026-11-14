@@ -1,0 +1,117 @@
+/* ==========================================================================
+   Gym members directory (الأعضاء): KPI strip, glass table, macOS-style popover menu and sheets.
+   Builds on the .gco tokens and the .gms glass cards; no blue anywhere (frozen uses a cool grey).
+   ========================================================================== */
+
+.gmp-body { display: grid; gap: 16px; container: gmp / inline-size; }
+
+/* ---- KPIs: vertical cards so six fit in a row ---- */
+.gmp-kpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.gmp-kpis .gms-kpi { grid-template-columns: 1fr; grid-template-areas: 'label' 'value' 'hint' 'ticks'; gap: 2px; padding: 16px 18px; }
+.gmp-kpis .gms-kpi strong { font-size: 2rem; }
+.gmp-kpis .gms-kpi__ticks { block-size: 22px; margin-block-start: 8px; }
+.gmp-kpis .gms-kpi__ticks i { flex: 1; inline-size: auto; max-inline-size: 7px; }
+.gms-kpi.is-ice { --k: #6F7F86; }
+.gms-kpi.is-mute { --k: #8A6A52; }
+@container gmp (min-width: 700px) { .gmp-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@container gmp (min-width: 1100px) { .gmp-kpis { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+
+/* ---- panel: search, filters, table ---- */
+.gmp-panel { padding: 0; }
+.gmp-tools { display: grid; gap: 12px; padding: 18px 20px; border-block-end: 1px solid #F3E4D6; }
+.gmp-tools .gms-search { min-block-size: 48px; }
+.gmp-tools .gms-chips small { margin-inline-start: 4px; font-weight: 800; opacity: 0.7; font-variant-numeric: tabular-nums; }
+.gms-pill.is-ice { background: #EEF1F2; color: #4D5B61; border-color: #D5DCDF; }
+
+.gmp-table { display: grid; }
+.gmp-row {
+  display: grid; align-items: center; gap: 8px; padding: 12px 18px; border-block-start: 1px solid #F6E9DD; font-size: 0.86rem;
+  grid-template-columns: minmax(140px, 1.5fr) 66px minmax(100px, 1fr) minmax(76px, 1fr) 84px minmax(98px, 1fr) minmax(78px, 0.9fr) 54px minmax(64px, 0.8fr) minmax(92px, 1fr) 176px;
+  transition: background 140ms;
+}
+.gmp-row:not(.is-head):hover { background: rgb(255 240 226 / 0.6); }
+.gmp-row.is-head { border-block-start: 0; background: rgb(255 246 238 / 0.85); color: var(--gco-muted); font-size: 0.76rem; font-weight: 800; }
+.gmp-row > span { min-width: 0; overflow-wrap: anywhere; }
+.gmp-who { display: flex; align-items: center; gap: 10px; }
+.gmp-who .gms-avatar { inline-size: 38px; block-size: 38px; border-radius: 12px; font-size: 1rem; }
+.gmp-who b { font-weight: 800; font-size: 0.92rem; }
+.gmp-code { color: #9A3A0B; font-weight: 800; font-variant-numeric: tabular-nums; }
+.gmp-phone { text-align: end; font-variant-numeric: tabular-nums; }
+.gmp-num { font-weight: 800; font-variant-numeric: tabular-nums; }
+.gmp-end { display: grid; gap: 1px; }
+.gmp-end b { font-weight: 700; }
+.gmp-end small { color: var(--gco-muted); font-size: 0.74rem; font-weight: 700; }
+.gmp-end.is-warn b, .gmp-end.is-warn small { color: #B45309; }
+.gmp-end.is-warn small { font-weight: 800; }
+.gmp-due { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.gmp-due .gms-pill { padding: 3px 9px; font-size: 0.74rem; }
+.gmp-pay { min-block-size: 28px; padding: 0 12px; border: 0; border-radius: 999px; font: inherit; font-size: 0.78rem; font-weight: 800; color: #fff; cursor: pointer; background: linear-gradient(160deg, color-mix(in srgb, var(--gco-primary) 82%, #fff), var(--gco-deep)); box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.35), 0 4px 10px color-mix(in srgb, var(--gco-primary) 28%, transparent); }
+.gmp-pay:hover { filter: brightness(1.08); }
+.gmp-actions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+.gmp-btn { min-block-size: 38px; padding: 0 12px; font-size: 0.84rem; }
+.gmp-actions .gms-iconbtn { inline-size: 38px; block-size: 38px; }
+.gmp-more { display: flex; justify-content: center; padding: 14px; border-block-start: 1px solid #F6E9DD; }
+.gmp-pay:focus-visible, .gmp-menu :is(a, button):focus-visible { outline: 3px solid color-mix(in srgb, #C2410C 45%, transparent); outline-offset: 1px; }
+.gmp-req { color: #C2410C; font-style: normal; }
+
+/* ---- narrow panel: every member becomes a card, no horizontal scroll ---- */
+@container gmp (max-width: 1159px) {
+  .gmp-row.is-head { display: none; }
+  .gmp-row { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 12px 14px; padding: 16px 18px; }
+  .gmp-row > span[data-label]::before { content: attr(data-label); display: block; margin-block-end: 2px; color: var(--gco-muted); font-size: 0.72rem; font-weight: 800; }
+  .gmp-row > .gmp-who, .gmp-row > .gmp-actions { grid-column: 1 / -1; }
+  .gmp-who::before, .gmp-actions::before { display: none !important; }
+  .gmp-phone { text-align: start; }
+  .gmp-actions { justify-content: flex-start; flex-wrap: wrap; padding-block-start: 4px; }
+}
+
+@container gmp (min-width: 600px) and (max-width: 1159px) {
+  .gmp-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+/* ---- macOS-style popover menu (frosted, rendered in <body>) ---- */
+.gmp-scrim { position: fixed; inset: 0; z-index: 1090; }
+.gmp-menu {
+  position: fixed; z-index: 1100; inline-size: 224px; padding: 6px; direction: rtl; transform-origin: top center;
+  border: 1px solid rgb(255 255 255 / 0.7); border-radius: 14px; color: #2A1D14;
+  background: linear-gradient(160deg, rgb(255 255 255 / 0.93), rgb(255 246 238 / 0.9));
+  backdrop-filter: blur(26px) saturate(1.9);
+  box-shadow: 0 0 0 0.5px rgb(66 32 10 / 0.16), inset 0 1px 0 rgb(255 255 255 / 0.9), 0 18px 48px rgb(66 32 10 / 0.30);
+  animation: gmp-pop 150ms cubic-bezier(0.2, 1.2, 0.4, 1);
+}
+.gmp-menu a, .gmp-menu button {
+  display: flex; align-items: center; gap: 10px; inline-size: 100%; min-block-size: 36px; padding: 0 10px; border: 0; border-radius: 8px;
+  background: transparent; color: inherit; font: inherit; font-size: 0.88rem; font-weight: 600; text-align: start; text-decoration: none; cursor: pointer;
+}
+.gmp-menu :is(a, button):hover:not(:disabled):not(.is-off) { color: #fff; background: linear-gradient(160deg, #FB923C, #C2410C); }
+.gmp-menu :is(button:disabled, .is-off) { opacity: 0.4; cursor: default; }
+.gmp-menu hr { margin: 5px 6px; border: 0; border-block-start: 1px solid rgb(120 60 20 / 0.14); }
+@keyframes gmp-pop { from { opacity: 0; transform: scale(0.94) translateY(-4px); } to { opacity: 1; transform: none; } }
+
+/* ---- macOS-style sheet ---- */
+.gmp-overlay { background: rgb(66 32 10 / 0.34); backdrop-filter: blur(6px) saturate(1.2); }
+.gmp-mac {
+  display: grid; gap: 14px; inline-size: min(100%, 540px); max-block-size: calc(100vh - 40px); overflow-y: auto; direction: rtl; color: #2A1D14;
+  border: 1px solid rgb(255 255 255 / 0.75); border-radius: 20px;
+  background: linear-gradient(165deg, rgb(255 255 255 / 0.95), rgb(255 246 238 / 0.9));
+  backdrop-filter: blur(34px) saturate(1.9);
+  box-shadow: 0 0 0 0.5px rgb(66 32 10 / 0.18), inset 0 1px 0 #fff, 0 36px 90px rgb(66 32 10 / 0.42);
+  animation: gmp-sheet 260ms cubic-bezier(0.2, 1.15, 0.35, 1);
+}
+.gmp-mac__bar { position: relative; display: grid; place-items: center; padding: 16px 18px 12px; border-block-end: 1px solid rgb(120 60 20 / 0.10); background: linear-gradient(180deg, rgb(255 255 255 / 0.7), rgb(255 255 255 / 0)); text-align: center; }
+.gmp-mac__bar h2 { margin: 0; font-size: 1.05rem; font-weight: 800; }
+.gmp-mac__bar p { margin: 2px 0 0; color: var(--gco-muted, #8A6A52); font-size: 0.82rem; }
+.gmp-mac__dot { position: absolute; inset-block-start: 16px; left: 16px; /* like macOS: always on the physical left, even in RTL */ display: grid; place-items: center; inline-size: 14px; block-size: 14px; padding: 0; border: 0.5px solid rgb(0 0 0 / 0.18); border-radius: 50%; background: radial-gradient(circle at 35% 30%, #FF8F86, #FF5F57); color: transparent; cursor: pointer; }
+.gmp-mac__dot:hover, .gmp-mac__dot:focus-visible { color: rgb(90 10 6 / 0.85); }
+.gmp-mac__dot:focus-visible { outline: 3px solid rgb(255 95 87 / 0.35); outline-offset: 2px; }
+.gmp-form { display: grid; gap: 14px; padding: 4px 22px 0; }
+.gmp-mac > footer, .gmp-form > footer { display: flex; justify-content: flex-end; gap: 10px; padding: 4px 0 20px; }
+.gmp-mac > footer { padding-inline: 22px; }
+.gmp-done { display: grid; justify-items: center; gap: 8px; padding: 10px 22px 4px; text-align: center; }
+.gmp-done p { margin: 0; color: #5A3A26; }
+.gmp-done b { color: #9A3A0B; font-size: 1.1rem; }
+.gmp-done__tick { display: grid; place-items: center; inline-size: 56px; block-size: 56px; border-radius: 50%; color: #fff; background: linear-gradient(160deg, #4ADE80, #15803D); box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.5), 0 10px 24px rgb(21 128 61 / 0.3); }
+@keyframes gmp-sheet { from { opacity: 0; transform: scale(0.94) translateY(10px); } to { opacity: 1; transform: none; } }
+
+@media (max-width: 560px) { .gmp-mac .gms-formgrid { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { .gmp-menu, .gmp-mac { animation: none; } .gmp-row { transition: none; } }

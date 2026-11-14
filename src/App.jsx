@@ -31,7 +31,7 @@ const InventoryManagementPage = lazy(() => import('./pages/InventoryManagementPa
 const AppointmentsPage = lazy(() => import('./pages/AppointmentsPage.jsx'));
 const CRMPage = lazy(() => import('./pages/CRMPage.jsx'));
 const ReportsPage = lazy(() => import('./pages/ReportsPage.jsx'));
-const CustomersPage = lazy(() => import('./pages/CustomersPage.jsx'));
+const CustomersEntry = lazy(() => import('./pages/CustomersEntry.jsx'));
 const SuppliersPage = lazy(() => import('./pages/SuppliersPage.jsx'));
 const ShiftsPage = lazy(() => import('./pages/ShiftsPage.jsx'));
 const UsersPage = lazy(() => import('./pages/UsersPage.jsx'));
@@ -43,8 +43,7 @@ const KitchenDisplayPage = lazy(() => import('./pages/KitchenDisplayPage.jsx'));
 const SubscriptionsPage = lazy(() => import('./pages/SubscriptionsPage.jsx'));
 const GymTrainingPage = lazy(() => import('./pages/GymTrainingPage.jsx'));
 const GymGatePage = lazy(() => import('./pages/GymGatePage.jsx'));
-const GymCheckoutPage = lazy(() => import('./pages/GymCheckoutPage.jsx'));
-const GymAttendancePage = lazy(() => import('./pages/GymAttendancePage.jsx'));
+const GymCheckoutPage = lazy(() => import('./pages/GymCheckoutPage.jsx'));const GymAttendancePage = lazy(() => import('./pages/GymAttendancePage.jsx'));
 const CommissionsPage = lazy(() => import('./pages/CommissionsPage.jsx'));
 const EnterpriseManagementPage = lazy(() => import('./pages/EnterpriseManagementPage.jsx'));
 const RolesPage = lazy(() => import('./pages/RolesPage.jsx'));
@@ -65,6 +64,7 @@ function AppContent() {
   const [caseToOpen, setCaseToOpen] = useState(null);
   const [openNewCaseOnLoad, setOpenNewCaseOnLoad] = useState(false);
   const [appointmentsTab, setAppointmentsTab] = useState('appointments');
+  const [gymIntent, setGymIntent] = useState(null); // set by the gym members directory to open a member in the subscriptions hub
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [licenseStatus, setLicenseStatus] = useState(null);
@@ -73,6 +73,7 @@ function AppContent() {
     setCaseToOpen(page === 'cases' ? options.caseId || null : null);
     setOpenNewCaseOnLoad(page === 'cases' && options.createCase === true);
     setAppointmentsTab(page === 'appointments' && options.tab ? options.tab : 'appointments');
+    setGymIntent(page === 'gym-checkout' ? options.gymIntent || null : null);
     setActivePage(page);
   }
 
@@ -81,6 +82,11 @@ function AppContent() {
     document.documentElement.dataset.sector = profileKey;
     return () => { delete document.documentElement.dataset.sector; };
   }, [profileKey]);
+
+  // A pending gym intent only applies to the page it was meant for.
+  useEffect(() => {
+    if (activePage !== 'gym-checkout') setGymIntent(null);
+  }, [activePage]);
 
   // Old links (notifications, tutorials, "member file") still say 'subscriptions'; for a gym that is the checkout hub.
   useEffect(() => {
@@ -314,7 +320,7 @@ function AppContent() {
       case 'gym-gate':
         return <GymGatePage onNavigate={navigateToPage} />;
       case 'gym-checkout':
-        return <GymCheckoutPage />;
+        return <GymCheckoutPage key={gymIntent ? `${gymIntent.action}-${gymIntent.customerId}` : 'hub'} intent={gymIntent} />;
       case 'gym-attendance':
         return <GymAttendancePage />;
       case 'commissions':
@@ -326,7 +332,7 @@ function AppContent() {
       case 'reports':
         return <ReportsPage onNavigate={setActivePage} />;
       case 'customers':
-        return <CustomersPage onNavigate={setActivePage} />;
+        return <CustomersEntry profileKey={profileKey} onNavigate={setActivePage} onNavigateWithOptions={navigateToPage} />;
       case 'crm':
         return <CRMPage />;
       case 'suppliers':

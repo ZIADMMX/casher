@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import LineIcon from '../icons/LineIcons.jsx';
 import GymMemberDetail, { fmtDate } from './GymMemberDetail.jsx';
+import Kpi from './GymKpi.jsx';
 import { TransferSheet, UpgradeSheet } from './GymMemberSheets.jsx';
 import * as subscriptionsApi from '../../api/subscriptions.js';
 import '../../styles/gymMembers.css';
@@ -21,7 +22,6 @@ const FREEZE_REASONS = ['سفر', 'إصابة أو ظرف صحي', 'ظرف شخ�
 const FREEZE_DAYS = [7, 14, 30, 60];
 const RANK = { active: 0, frozen: 1, expired: 2, depleted: 3 };
 const DAY = 86400000;
-const KPI_TICKS = 12;
 
 // What is left of a subscription: sessions for session packages, days for the rest.
 export function balanceOf(sub, now = Date.now()) {
@@ -69,25 +69,11 @@ const inFilter = (member, filter) => {
   return status === filter;
 };
 
-function Kpi({ label, value, hint, tone, ratio }) {
-  const on = Math.round(Math.min(1, Math.max(0, ratio)) * KPI_TICKS);
-  return (
-    <article className={`gms-card gms-kpi is-${tone}`}>
-      <span className="gms-kpi__label"><i aria-hidden="true" />{label}</span>
-      <strong>{value}</strong>
-      <small>{hint}</small>
-      <div className="gms-kpi__ticks" aria-hidden="true">
-        {Array.from({ length: KPI_TICKS }, (_, i) => <i key={i} className={i < on ? 'is-on' : ''} />)}
-      </div>
-    </article>
-  );
-}
-
 /** Members and their subscriptions: KPIs, a searchable member list, and the selected member's detail. */
-export default function GymSubscriptionsPanel({ subscriptions, stats, customers = [], packages = [], loading, onChanged, onRenew, onError, onNotice = () => {} }) {
+export default function GymSubscriptionsPanel({ subscriptions, stats, customers = [], packages = [], loading, onChanged, onRenew, onError, onNotice = () => {}, initialSelectedId = null }) {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all');
-  const [selectedId, setSelectedId] = useState(null);
+  const [selectedId, setSelectedId] = useState(initialSelectedId);
   const [subId, setSubId] = useState(null);
   const [freezeTarget, setFreezeTarget] = useState(null);
   const [freezeReason, setFreezeReason] = useState('');

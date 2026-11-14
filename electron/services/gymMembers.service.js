@@ -34,4 +34,6 @@ function saveMemberProfile(customerId, data = {}) {
   return repo.getProfile(id);
 }
 
-module.exports = { getMemberProfile, saveMemberProfile };
+const getAllMemberProfiles = () => repo.getAllProfiles();
+
+module.exports = { getMemberProfile, getAllMemberProfiles, saveMemberProfile };

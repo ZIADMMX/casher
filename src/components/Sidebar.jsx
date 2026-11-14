@@ -297,7 +297,9 @@ function Sidebar({ activePage, onNavigate, currentUser, onLogout, onOpenProfile,
       key: 'customers',
       label: profileKey === 'law_firm'
         ? 'الموكلون'
-        : `${getTerm('customer', 'العملاء')} والديون`,
+        : profileKey === 'subscriptions_gym'
+          ? 'الأعضاء'
+          : `${getTerm('customer', 'العملاء')} والديون`,
       icon: (
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />

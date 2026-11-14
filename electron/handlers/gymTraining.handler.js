@@ -27,6 +27,8 @@ function registerGymTrainingHandlers() {
   safeHandle('subscriptions:getGymAttendanceReport', (event, filters) => gate.getAttendanceReport(filters || {}));
   safeHandle('subscriptions:getGymMemberProfile', (event, customerId) => members.getMemberProfile(customerId));
   safeHandle('subscriptions:saveGymMemberProfile', (event, payload) => members.saveMemberProfile(payload?.customerId, payload?.data));
+  safeHandle('subscriptions:getGymVisitSummary', () => gate.getVisitSummary());
+  safeHandle('subscriptions:getGymMemberProfiles', () => members.getAllMemberProfiles());
   safeHandle('subscriptions:getGymMemberCheckins', (event, payload) => gate.getMemberCheckins(payload?.customerId, payload?.filters || {}));
 }
 

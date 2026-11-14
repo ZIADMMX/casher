@@ -117,11 +117,21 @@ function getMemberCheckins(customerId, { from, to, limit = 100 }) {
   `).all(customerId, { from, to, limit });
 }
 
+// One row per member who ever entered: last accepted visit and visits since monthStart (denied scans excluded).
+function getVisitSummary(monthStart) {
+  return db.prepare(`
+    SELECT customer_id, MAX(created_at) AS last_visit, SUM(created_at >= ?) AS visits_month
+    FROM gym_checkins
+    WHERE customer_id IS NOT NULL AND result != 'denied'
+    GROUP BY customer_id
+  `).all(monthStart);
+}
+
 const getCapacity = () => Number(settings.get('gym_capacity')) || 60;
 const setCapacity = (n) => settings.set('gym_capacity', n);
 
 module.exports = {
   findCustomer, getLatestSubscription, getBalance, insertCheckin, getVisitInfo, getLastAcceptedCheckin,
   getRecent, getHourly, countInside, getCapacity, setCapacity,
-  getAttendanceReport, getMemberCheckins,
+  getAttendanceReport, getMemberCheckins, getVisitSummary,
 };
