@@ -426,6 +426,13 @@ function runAllMigrations(dbInstance = db) {
     console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 36 (تجميد مؤقت وترقية باقات الجيم).');
   }
 
+  if (currentVersion < 37) {
+    // جدول أكواد QR العشوائية لأعضاء الجيم (gym_member_codes).
+    ensureGymTraining(dbInstance);
+    dbInstance.pragma('user_version = 37');
+    console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 37 (أكواد QR فريدة لأعضاء الجيم).');
+  }
+
   // Earlier steps may rebuild the sales tables; make sure the guards exist at the end.
   ensureSalesLedgerGuards(dbInstance);
   ensureKitchenLedger(dbInstance);

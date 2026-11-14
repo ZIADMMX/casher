@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { vi } from 'vitest';
 import GymMembersPage from '../../src/pages/GymMembersPage.jsx';
 import { analyzeVisits } from '../../src/utils/gymAttendance.js';
+import QRCode from 'qrcode';
 import * as customersApi from '../../src/api/customers.js';
 import * as subscriptionsApi from '../../src/api/subscriptions.js';
 
@@ -21,6 +22,7 @@ vi.mock('../../src/api/subscriptions.js', () => ({
   getGymVisitSummary: vi.fn(),
   getGymMemberProfiles: vi.fn(),
   getGymMemberProfile: vi.fn(),
+  getGymMemberCode: vi.fn(),
   getGymMemberCheckins: vi.fn(),
   getGymTrainers: vi.fn(),
   saveGymMemberProfile: vi.fn(),
@@ -59,6 +61,8 @@ const openProfile = async (name = 'مروان') => {
 };
 
 beforeEach(() => {
+  QRCode.toDataURL.mockClear();
+  subscriptionsApi.getGymMemberCode.mockReset().mockImplementation(async (id) => ({ customer_id: id, code: `GM-${id}`, qr: `GM-${id}-${String(id).repeat(12).slice(0, 12)}` }));
   customersApi.getAllCustomersWithStats.mockReset().mockResolvedValue(CUSTOMERS);
   customersApi.recordCustomerPayment.mockReset().mockResolvedValue({});
   customersApi.getCustomerLedger.mockReset().mockResolvedValue({
@@ -74,6 +78,29 @@ beforeEach(() => {
   subscriptionsApi.getGymMemberProfile.mockReset().mockResolvedValue({ emergency_name: 'والد مروان', emergency_phone: '0100999', health_notes: 'ركبة حساسة', trainer_name: 'كابتن حسام' });
   subscriptionsApi.getGymMemberCheckins.mockReset().mockResolvedValue(VISITS);
   subscriptionsApi.getGymTrainers.mockReset().mockResolvedValue([]);
+});
+
+describe('member QR', () => {
+  it('encodes each member own secret card code and still shows GM-<id>', async () => {
+    const { profile } = await openProfile('مروان');
+    await within(profile).findByAltText('QR GM-1');
+    expect(QRCode.toDataURL).toHaveBeenCalledWith('GM-1-111111111111', expect.anything());
+    expect(within(profile).getAllByText('GM-1').length).toBeGreaterThan(0);
+  });
+
+  it('gives another member a different QR payload', async () => {
+    const { profile } = await openProfile('سمير');
+    await within(profile).findByAltText('QR GM-2');
+    expect(QRCode.toDataURL).toHaveBeenCalledWith('GM-2-222222222222', expect.anything());
+    expect(QRCode.toDataURL).not.toHaveBeenCalledWith('GM-1-111111111111', expect.anything());
+  });
+
+  it('falls back to the plain GM-<id> when the secret code cannot be loaded', async () => {
+    subscriptionsApi.getGymMemberCode.mockRejectedValue(new Error('x'));
+    const { profile } = await openProfile('مروان');
+    await within(profile).findByAltText('QR GM-1');
+    expect(QRCode.toDataURL).toHaveBeenCalledWith('GM-1', expect.anything());
+  });
 });
 
 describe('analyzeVisits', () => {

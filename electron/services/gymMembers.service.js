@@ -36,4 +36,12 @@ function saveMemberProfile(customerId, data = {}) {
 
 const getAllMemberProfiles = () => repo.getAllProfiles();
 
-module.exports = { getMemberProfile, getAllMemberProfiles, saveMemberProfile };
+// What the member's card shows ("GM-<id>") and what its QR carries ("GM-<id>-<secret>").
+function getMemberCode(customerId) {
+  const id = Number(customerId);
+  if (!Number.isInteger(id) || id <= 0 || !customersRepo.getById(id)) throw new Error('العميل غير موجود');
+  const token = repo.ensureCode(id);
+  return { customer_id: id, code: `GM-${id}`, qr: `GM-${id}-${token}` };
+}
+
+module.exports = { getMemberProfile, getAllMemberProfiles, saveMemberProfile, getMemberCode };

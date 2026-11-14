@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import QRCode from 'qrcode';
+import useMemberQr from './useMemberQr.js';
 import * as customersApi from '../../api/customers.js';
 import * as subscriptionsApi from '../../api/subscriptions.js';
 import LineIcon from '../icons/LineIcons.jsx';
@@ -15,18 +15,6 @@ const day = (v) => (v ? (v instanceof Date ? v : new Date(String(v).replace(' ',
 const stamp = (v) => fromDb(v).toLocaleDateString('ar-EG', { day: 'numeric', month: 'short', year: 'numeric' });
 // Each source degrades on its own: a failing history query must not blank the whole profile.
 const soft = (call, fallback) => Promise.resolve().then(call).catch(() => fallback);
-
-function useQr(text) {
-  const [url, setUrl] = useState('');
-  useEffect(() => {
-    let alive = true;
-    QRCode.toDataURL(text, { margin: 1, width: 240, errorCorrectionLevel: 'M' })
-      .then((u) => alive && setUrl(u))
-      .catch(() => alive && setUrl(''));
-    return () => { alive = false; };
-  }, [text]);
-  return url;
-}
 
 function useHistory(customerId) {
   const [state, setState] = useState({ loading: true, visits: [], ledger: null, sales: [], profile: null });
@@ -62,7 +50,7 @@ function Bars({ values, label, caption }) {
 
 export default function GymMemberProfile({ member, customer, subs, onBack, onRenew, onOpenFile, onSubscribe, onPay, onCopy }) {
   const { loading, visits, ledger, sales, profile } = useHistory(member.id);
-  const qr = useQr(member.code);
+  const qr = useMemberQr(member.id);
   const [now] = useState(() => Date.now());
   const [visitsShown, setVisitsShown] = useState(SHOWN);
   const [moneyShown, setMoneyShown] = useState(SHOWN);

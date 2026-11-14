@@ -40,4 +40,5 @@ export const upgradeSubscription = bridgeMethod('upgradeSubscription');
 export const transferSubscription = bridgeMethod('transferSubscription');
 export const getGymVisitSummary = bridgeMethod('getGymVisitSummary');
 export const getGymMemberProfiles = bridgeMethod('getGymMemberProfiles');
+export const getGymMemberCode = bridgeMethod('getGymMemberCode');
 export const getGymMemberCheckins = bridgeMethod('getGymMemberCheckins');

@@ -76,6 +76,13 @@ function ensureGymTraining(dbInstance) {
     CREATE INDEX IF NOT EXISTS idx_gym_checkins_time ON gym_checkins(created_at);
     CREATE INDEX IF NOT EXISTS idx_gym_checkins_customer ON gym_checkins(customer_id, created_at);
 
+    -- One random secret per member: the QR carries "GM-<id>-<token>", so every card is different and cannot be guessed.
+    CREATE TABLE IF NOT EXISTS gym_member_codes (
+      customer_id INTEGER PRIMARY KEY REFERENCES customers(id) ON DELETE CASCADE,
+      token TEXT NOT NULL UNIQUE,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE TABLE IF NOT EXISTS gym_member_profiles (
       customer_id INTEGER PRIMARY KEY REFERENCES customers(id),
       emergency_name TEXT,

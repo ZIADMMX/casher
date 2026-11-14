@@ -3,6 +3,15 @@ const settings = require('./settings.repository');
 
 // "GM-1042" or "1042" is the member id; anything else is matched against the phone.
 function findCustomer(code) {
+  // A card printed from the QR: "GM-<id>-<token>". A wrong token is an unknown code, never a fallback to the id.
+  const card = /^GM-(\d{1,9})-([0-9a-f]{12})$/i.exec(code);
+  if (card) {
+    return db.prepare(`
+      SELECT c.id, c.name, c.phone, c.is_active FROM customers c
+      JOIN gym_member_codes g ON g.customer_id = c.id
+      WHERE c.id = ? AND g.token = ?
+    `).get(Number(card[1]), card[2].toLowerCase()) || null;
+  }
   const digits = /^(?:GM-?)?(\d{1,9})$/i.exec(code);
   if (digits) {
     const byId = db.prepare('SELECT id, name, phone, is_active FROM customers WHERE id = ?').get(Number(digits[1]));

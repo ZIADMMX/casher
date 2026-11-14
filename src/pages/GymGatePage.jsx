@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import QRCode from 'qrcode';
+import useMemberQr from '../components/gym/useMemberQr.js';
 import * as subsApi from '../api/subscriptions.js';
 import * as customersApi from '../api/customers.js';
 import { MemberPicker } from '../components/gym/GymBits.jsx';
@@ -37,19 +37,6 @@ function lastVisitLabel(stamp) {
   return `آخر زيارة منذ ${days} يوم`;
 }
 
-function useQr(text, size = 220) {
-  const [url, setUrl] = useState('');
-  useEffect(() => {
-    let alive = true;
-    if (!text) { setUrl(''); return undefined; }
-    QRCode.toDataURL(text, { margin: 1, width: size, errorCorrectionLevel: 'M' })
-      .then((u) => alive && setUrl(u))
-      .catch(() => alive && setUrl(''));
-    return () => { alive = false; };
-  }, [text, size]);
-  return url;
-}
-
 function Glyph({ tone }) {
   const d = tone === 'ok' ? 'm7 12.5 3.5 3.5L17 9' : tone === 'deny' ? 'M8 8l8 8M16 8l-8 8' : tone === 'warn' ? 'M12 7v6M12 16.5v.5' : 'M4 8V5h3M17 5h3v3M20 16v3h-3M7 19H4v-3M4 12h16';
   return (
@@ -60,7 +47,7 @@ function Glyph({ tone }) {
 }
 
 function MemberCard({ scan }) {
-  const qr = useQr(scan.member ? memberCode(scan.member.id) : '', 160);
+  const qr = useMemberQr(scan.member?.id, 160);
   if (!scan.member) {
     return (
       <div className="gate-card">
@@ -100,7 +87,7 @@ function QrDialog({ members, onClose }) {
   const [customerId, setCustomerId] = useState(null);
   const member = members.find((m) => m.id === customerId);
   const code = member ? memberCode(member.id) : '';
-  const qr = useQr(code, 480);
+  const qr = useMemberQr(member?.id, 480);
 
   const print = () => {
     const frame = document.createElement('iframe');

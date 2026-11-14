@@ -10,6 +10,12 @@ function getProfile(customerId) {
   `).get(customerId) || null;
 }
 
+// The member's secret QR token, created on first use (12 random hex characters).
+function ensureCode(customerId) {
+  db.prepare("INSERT OR IGNORE INTO gym_member_codes (customer_id, token) VALUES (?, lower(hex(randomblob(6))))").run(customerId);
+  return db.prepare('SELECT token FROM gym_member_codes WHERE customer_id = ?').get(customerId).token;
+}
+
 function getAllProfiles() {
   return db.prepare(`
     SELECT p.customer_id, p.emergency_name, p.emergency_phone, p.health_notes, p.trainer_id, t.name AS trainer_name
@@ -35,4 +41,4 @@ function trainerExists(trainerId) {
   return Boolean(db.prepare('SELECT 1 FROM gym_trainers WHERE id = ? AND is_active = 1').get(trainerId));
 }
 
-module.exports = { getProfile, getAllProfiles, saveProfile, trainerExists };
+module.exports = { getProfile, getAllProfiles, saveProfile, trainerExists, ensureCode };
