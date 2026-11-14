@@ -311,7 +311,7 @@ function ShiftReportPrint({ shift, reportType = 'Z' }) {
             💵 تفقيط فئات النقدية بالدرج:
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '6px' }}>
-            {[200, 100, 50, 20, 10, 5, 1].map((denom) => {
+            {[200, 100, 50, 20, 10, 5, 1, 0.5, 0.25].map((denom) => {
               const count = Number(breakdown[denom] || 0);
               if (count === 0) return null;
               return (
@@ -325,8 +325,8 @@ function ShiftReportPrint({ shift, reportType = 'Z' }) {
                   justifyContent: 'space-between',
                   alignItems: 'center'
                 }}>
-                  <span style={{ color: '#64748B' }}>{denom} ج.م × {count}</span>
-                  <strong style={{ color: '#0F172A' }}>{(denom * count).toFixed(0)}</strong>
+                  <span style={{ color: '#64748B' }}>{denom < 1 ? `${denom * 100} ق` : `${denom} ج.م`} × {count}</span>
+                  <strong style={{ color: '#0F172A' }}>{(denom * count).toFixed(denom < 1 ? 2 : 0)}</strong>
                 </div>
               );
             })}

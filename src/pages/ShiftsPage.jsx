@@ -3,6 +3,8 @@ import ShiftReportPrint from '../components/ShiftReportPrint.jsx';
 import { isBridgeAvailable } from '../api/bridge.js';
 import * as authApi from '../api/auth.js';
 import * as shiftsApi from '../api/shifts.js';
+import LineIcon from '../components/icons/LineIcons.jsx';
+import '../styles/shiftsPage.css';
 
 const EXPENSE_CATEGORIES = [
   'نثريات ومصروفات عامة',
@@ -13,7 +15,10 @@ const EXPENSE_CATEGORIES = [
   'أخرى',
 ];
 
-const CURRENCY_DENOMINATIONS = [200, 100, 50, 20, 10, 5, 1];
+// Notes and coins, in pounds; 0.5 and 0.25 are the 50 and 25 piastre coins.
+const CURRENCY_DENOMINATIONS = [200, 100, 50, 20, 10, 5, 1, 0.5, 0.25];
+const denomLabel = (d) => (d < 1 ? `${d * 100} ق` : `${d} ج`);
+const emptyBreakdown = () => Object.fromEntries(CURRENCY_DENOMINATIONS.map((d) => [d, '']));
 
 export default function ShiftsPage() {
   const [activeShift, setActiveShift] = useState(null);
@@ -43,15 +48,7 @@ export default function ShiftsPage() {
   const [openingPosStation] = useState('الدرج الرئيسي - POS 1');
   const [openingCashInput, setOpeningCashInput] = useState('');
   const [openUseBreakdown, setOpenUseBreakdown] = useState(false);
-  const [openCashBreakdown, setOpenCashBreakdown] = useState({
-    200: '',
-    100: '',
-    50: '',
-    20: '',
-    10: '',
-    5: '',
-    1: '',
-  });
+  const [openCashBreakdown, setOpenCashBreakdown] = useState(emptyBreakdown);
   const [safetyChecked, setSafetyChecked] = useState(true);
   const [openNotesInput, setOpenNotesInput] = useState('');
 
@@ -60,16 +57,8 @@ export default function ShiftsPage() {
   const [expenseNotes, setExpenseNotes] = useState('');
 
   const [actualCashInput, setActualCashInput] = useState('');
-  const [useBreakdown, setUseBreakdown] = useState(false);
-  const [cashBreakdown, setCashBreakdown] = useState({
-    200: '',
-    100: '',
-    50: '',
-    20: '',
-    10: '',
-    5: '',
-    1: '',
-  });
+  const [useBreakdown, setUseBreakdown] = useState(true);
+  const [cashBreakdown, setCashBreakdown] = useState(emptyBreakdown);
   const [closeNotesInput, setCloseNotesInput] = useState('');
   const [formError, setFormError] = useState('');
   const [actionSuccessMsg, setActionSuccessMsg] = useState('');
@@ -134,7 +123,7 @@ export default function ShiftsPage() {
     const currentHour = new Date().getHours();
     setOpeningShiftType(currentHour < 16 ? 'morning' : 'evening');
     setOpenUseBreakdown(false);
-    setOpenCashBreakdown({ 200: '', 100: '', 50: '', 20: '', 10: '', 5: '', 1: '' });
+    setOpenCashBreakdown(emptyBreakdown());
     setSafetyChecked(true);
     setFormError('');
     setShowOpenModal(true);
@@ -160,7 +149,7 @@ export default function ShiftsPage() {
       setShowOpenModal(false);
       setOpeningCashInput('');
       setOpenNotesInput('');
-      setOpenCashBreakdown({ 200: '', 100: '', 50: '', 20: '', 10: '', 5: '', 1: '' });
+      setOpenCashBreakdown(emptyBreakdown());
       setOpenUseBreakdown(false);
       showNotification('تم استلام الدرج وبدء الوردية بنجاح 🟢');
       loadData();
@@ -214,8 +203,8 @@ export default function ShiftsPage() {
       setShowCloseModal(false);
       setActualCashInput('');
       setCloseNotesInput('');
-      setCashBreakdown({ 200: '', 100: '', 50: '', 20: '', 10: '', 5: '', 1: '' });
-      setUseBreakdown(false);
+      setCashBreakdown(emptyBreakdown());
+      setUseBreakdown(true);
 
       // فتح نافذة Z-Report تلقائياً للطباعة
       setPreviewReport({ shift: closed, reportType: 'Z' });
@@ -284,359 +273,237 @@ export default function ShiftsPage() {
     });
   }, [shiftsList, sessionUser, filterStatus, searchTerm]);
 
+  const isAdmin = sessionUser?.role === 'admin';
+  const live = activeShift?.liveTotals;
+  const expectedCash = Number(live?.expectedCash || 0);
+  // Blind count: only admins see the expected cash and the resulting difference while counting.
+  const countedCash = Number(useBreakdown ? breakdownCalculatedTotal : actualCashInput) || 0;
+  const countedDiff = Math.round((countedCash - expectedCash) * 100) / 100;
+
   return (
-    <div className="shifts-page-container">
-      {/* Toast Notification */}
+    <div className="shifts-page-container shp">
       {actionSuccessMsg && (
-        <div style={{
-          background: '#DCFCE7',
-          color: '#15803D',
-          border: '1px solid #86EFAC',
-          padding: '12px 18px',
-          borderRadius: '12px',
-          marginBottom: '18px',
-          fontWeight: '700',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          boxShadow: '0 4px 12px rgba(22, 163, 74, 0.1)'
-        }}>
-          <span>✓</span>
+        <div className="shp-toast" role="status">
+          <LineIcon name="checkCircle" size={20} />
           <span>{actionSuccessMsg}</span>
         </div>
       )}
 
-      {/* Header Row */}
-      <div className="page-header-row">
-        <div>
-          <h1>
-            <span>⏰</span> إدارة الورديات وتقارير التقفيل (Z-Report)
-          </h1>
-          <p className="page-subtitle">
-            متابعة حركة الدرج، العهد النقدية، المصروفات، ومطابقة النقدية الفعلية لحماية أموال المتجر ومنع العجز
-          </p>
+      {/* Header */}
+      <header className="shp-card shp-head">
+        <div className="shp-head__title">
+          <span className="shp-tile"><LineIcon name="clock" size={28} /></span>
+          <div>
+            <h1>إدارة الورديات وتقارير التقفيل <em>(Z-Report)</em></h1>
+            <p>متابعة حركة الدرج، العهد النقدية، المصروفات، ومطابقة النقدية الفعلية لحماية أموال المتجر ومنع العجز</p>
+          </div>
         </div>
 
-        <div className="header-action-group">
+        <div className="shp-actions">
           {activeShift ? (
             <>
-              <button
-                type="button"
-                className="warning-btn"
-                onClick={() => {
-                  setFormError('');
-                  setShowExpenseModal(true);
-                }}
-              >
-                <span>💸</span> سحب مصروف من الدرج
+              <button type="button" className="shp-btn" onClick={() => { setFormError(''); setShowExpenseModal(true); }}>
+                <LineIcon name="download" /> سحب مصروف من الدرج
               </button>
-            {sessionUser?.role === 'admin' && (
-              <button
-                type="button"
-                className="secondary-btn"
-                onClick={handleShowXReport}
-              >
-                <span>📊</span> تقرير استطلاعي (X-Report)
-              </button>
-            )}
-              <button
-                type="button"
-                className="danger-btn"
-                onClick={() => {
-                  setFormError('');
-                  setShowCloseModal(true);
-                }}
-              >
-                <span>🔒</span> إغلاق الوردية (Z-Report)
+              {isAdmin && (
+                <button type="button" className="shp-btn" onClick={handleShowXReport}>
+                  <LineIcon name="chart" /> تقرير استطلاعي (X-Report)
+                </button>
+              )}
+              <button type="button" className="shp-btn shp-btn--primary" onClick={() => { setFormError(''); setShowCloseModal(true); }}>
+                <LineIcon name="lock" /> إغلاق الوردية (Z-Report)
               </button>
             </>
           ) : (
-            <button
-              type="button"
-              className="primary-btn"
-              onClick={handleOpenStartModal}
-            >
-              <span>🟢</span> فتح وردية جديدة واستلام الدرج
+            <button type="button" className="shp-btn shp-btn--primary" onClick={handleOpenStartModal}>
+              <LineIcon name="unlock" /> فتح وردية جديدة واستلام الدرج
             </button>
           )}
         </div>
-      </div>
+      </header>
 
-      {/* KPI Stats Cards - Admin Only */}
-      {sessionUser?.role === 'admin' && (
-        <div className="fox-stats-row">
-          <div className="fox-stat-card blue">
-            <div className="stat-icon">💰</div>
-            <span className="stat-label">مبيعات الورديات المغلقة</span>
-            <span className="stat-value">{kpis.totalSalesVolume?.toLocaleString('ar-EG')} ج.م</span>
-            <span className="stat-sub">{kpis.closedShiftsCount} وردية مكتملة ومقفلة</span>
-          </div>
-
-          <div className="fox-stat-card rose">
-            <div className="stat-icon">⚠️</div>
-            <span className="stat-label">إجمالي العجز المسجل</span>
-            <span className="stat-value" style={{ color: kpis.totalShortage > 0 ? '#DC2626' : '#64748B' }}>
-              {kpis.totalShortage?.toLocaleString('ar-EG')} ج.م
-            </span>
-            <span className="stat-sub">نقص مالي مرصود على الكاشيرية</span>
-          </div>
-
-          <div className="fox-stat-card emerald">
-            <div className="stat-icon">📈</div>
-            <span className="stat-label">إجمالي الفائض / الزيادات</span>
-            <span className="stat-value" style={{ color: kpis.totalOverage > 0 ? '#15803D' : '#64748B' }}>
-              {kpis.totalOverage?.toLocaleString('ar-EG')} ج.م
-            </span>
-            <span className="stat-sub">فائض نقدي مسجل فوق المبيعات</span>
-          </div>
-
-          <div className="fox-stat-card amber">
-            <div className="stat-icon">💸</div>
-            <span className="stat-label">مصروفات ونثريات الدرج</span>
-            <span className="stat-value" style={{ color: '#D97706' }}>
-              {kpis.totalExpensesAmount?.toLocaleString('ar-EG')} ج.م
-            </span>
-            <span className="stat-sub">سحوبات مسجلة خلال الورديات</span>
-          </div>
-        </div>
+      {/* KPIs: admin only */}
+      {isAdmin && (
+        <section className="shp-kpis" aria-label="مؤشرات الورديات">
+          <article className="shp-card shp-kpi shp-kpi--orange">
+            <span className="shp-kpi__icon"><LineIcon name="stopwatch" size={22} /></span>
+            <span className="shp-kpi__label">مبيعات الورديات المغلقة</span>
+            <span className="shp-kpi__value">{(kpis.totalSalesVolume || 0).toLocaleString('en-US')}<small>ج.م</small></span>
+            <span className="shp-kpi__sub">{kpis.closedShiftsCount} وردية مكتملة ومقفلة</span>
+          </article>
+          <article className="shp-card shp-kpi shp-kpi--red">
+            <span className="shp-kpi__icon"><LineIcon name="alert" size={22} /></span>
+            <span className="shp-kpi__label">إجمالي العجز المسجل</span>
+            <span className="shp-kpi__value">{(kpis.totalShortage || 0).toLocaleString('en-US')}<small>ج.م</small></span>
+            <span className="shp-kpi__sub">نقص مالي مرصود على الكاشيرية</span>
+          </article>
+          <article className="shp-card shp-kpi shp-kpi--green">
+            <span className="shp-kpi__icon"><LineIcon name="trendUp" size={22} /></span>
+            <span className="shp-kpi__label">إجمالي الفائض / الزيادات</span>
+            <span className="shp-kpi__value">{(kpis.totalOverage || 0).toLocaleString('en-US')}<small>ج.م</small></span>
+            <span className="shp-kpi__sub">فائض نقدي مسجل فوق المبيعات</span>
+          </article>
+          <article className="shp-card shp-kpi shp-kpi--blue">
+            <span className="shp-kpi__icon"><LineIcon name="banknote" size={22} /></span>
+            <span className="shp-kpi__label">مصروفات ونثريات الدرج</span>
+            <span className="shp-kpi__value">{(kpis.totalExpensesAmount || 0).toLocaleString('en-US')}<small>ج.م</small></span>
+            <span className="shp-kpi__sub">سحوبات مسجلة خلال الورديات</span>
+          </article>
+        </section>
       )}
 
-      {/* Active Shift Hero Card */}
+      {/* Current shift */}
       {activeShift ? (
-        <div className="active-shift-hero">
-          <div className="shift-hero-top">
-            <div className="shift-hero-info">
-              <div className="shift-hero-avatar">
-                <span>👤</span>
-              </div>
-              <div className="shift-hero-title-wrap">
+        <section className="shp-card shp-current" aria-label="الوردية الحالية">
+          <div className="shp-current__top">
+            <div className="shp-current__who">
+              <span className="shp-avatar"><LineIcon name="user" size={26} /></span>
+              <div>
                 <h3>
                   <span>الوردية الحالية نشطة (وردية #{activeShift.id})</span>
-                  <span className="badge-open">
-                    <span className="shift-live-dot" style={{ display: 'inline-block' }}></span> جارية الآن
-                  </span>
-                  <span style={{
-                    fontSize: '12px',
-                    padding: '3px 8px',
-                    borderRadius: '6px',
-                    background: activeShift.shift_type === 'evening' ? '#EEF2FF' : '#FEF3C7',
-                    color: activeShift.shift_type === 'evening' ? '#4338CA' : '#B45309',
-                    fontWeight: '700'
-                  }}>
-                    {activeShift.shift_type === 'evening' ? '🌙 مسائية' : '☀️ صباحية'}
+                  <span className="shp-chip shp-chip--live">جارية الآن</span>
+                  <span className={`shp-chip ${activeShift.shift_type === 'evening' ? 'shp-chip--night' : 'shp-chip--day'}`}>
+                    <LineIcon name={activeShift.shift_type === 'evening' ? 'moon' : 'sun'} size={14} />
+                    {activeShift.shift_type === 'evening' ? 'مسائية' : 'صباحية'}
                   </span>
                 </h3>
-                <p className="page-subtitle" style={{ margin: 0 }}>
-                  المسؤول: <strong style={{ color: '#0F172A' }}>{activeShift.cashier_username || activeShift.opened_by_name}</strong> | المحطة: <strong>{activeShift.pos_station || 'الدرج الرئيسي'}</strong> | وقت الاستلام: {new Date(activeShift.start_time).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })} ({new Date(activeShift.start_time).toLocaleDateString('ar-EG')})
+                <p className="shp-current__meta">
+                  المسؤول: <b>{activeShift.cashier_username || activeShift.opened_by_name}</b>
+                  <i>|</i>المحطة: <b>{activeShift.pos_station || 'الدرج الرئيسي'}</b>
+                  <i>|</i>وقت الاستلام: {new Date(activeShift.start_time).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })} — {new Date(activeShift.start_time).toLocaleDateString('ar-EG')}
                 </p>
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: '8px' }}>
-              {sessionUser?.role === 'admin' && (
-                <button
-                  type="button"
-                  className="secondary-btn"
-                  style={{ padding: '8px 14px', fontSize: '12.5px' }}
-                  onClick={handleShowXReport}
-                >
-                  <span>📊</span> معاينة X
+            <div className="shp-actions">
+              {isAdmin && (
+                <button type="button" className="shp-btn shp-btn--sm" onClick={handleShowXReport}>
+                  <LineIcon name="eye" size={16} /> معاينة X
                 </button>
               )}
-              <button
-                type="button"
-                className="danger-btn"
-                style={{ padding: '8px 16px', fontSize: '12.5px' }}
-                onClick={() => {
-                  setFormError('');
-                  setShowCloseModal(true);
-                }}
-              >
-                <span>🔒</span> تقفيل الدرج
+              <button type="button" className="shp-btn shp-btn--primary shp-btn--sm" onClick={() => { setFormError(''); setShowCloseModal(true); }}>
+                <LineIcon name="briefcase" size={16} /> تقفيل الدرج
               </button>
             </div>
           </div>
 
-          <div className="shift-hero-metrics">
-            <div className="shift-metric-item">
-              <span className="shift-metric-lbl">العهدة الابتدائية (الفكة)</span>
-              <span className="shift-metric-val">{Number(activeShift.opening_cash || 0).toFixed(2)} ج.م</span>
+          <div className="shp-metrics">
+            <div className="shp-metric">
+              <span>العهدة الابتدائية (الفكة)</span>
+              <strong>{Number(activeShift.opening_cash || 0).toFixed(2)}<small>ج.م</small></strong>
             </div>
-            <div className="shift-metric-item">
-              <span className="shift-metric-lbl">مبيعات الكاش (+)</span>
-              <span className="shift-metric-val green">+{Number(activeShift.liveTotals?.cashSales || 0).toFixed(2)} ج.م</span>
+            <div className="shp-metric shp-metric--green">
+              <span>مبيعات الكاش (+)</span>
+              <strong>+{Number(live?.cashSales || 0).toFixed(2)}<small>ج.م</small></strong>
             </div>
-            <div className="shift-metric-item">
-              <span className="shift-metric-lbl">مصروفات الدرج (-)</span>
-              <span className="shift-metric-val red">-{Number(activeShift.liveTotals?.totalExpenses || 0).toFixed(2)} ج.م</span>
+            <div className="shp-metric shp-metric--red">
+              <span>مصروفات الدرج (-)</span>
+              <strong>-{Number(live?.totalExpenses || 0).toFixed(2)}<small>ج.م</small></strong>
             </div>
-            {Number(activeShift.liveTotals?.cashExchangeNet || 0) !== 0 && (
-              <div className="shift-metric-item">
-                <span className="shift-metric-lbl">صافي فروق الاستبدال النقدية</span>
-                <span className={`shift-metric-val ${activeShift.liveTotals.cashExchangeNet > 0 ? 'green' : 'red'}`}>
-                  {activeShift.liveTotals.cashExchangeNet > 0 ? '+' : ''}
-                  {Number(activeShift.liveTotals.cashExchangeNet).toFixed(2)} ج.م
-                </span>
+            {Number(live?.cashExchangeNet || 0) !== 0 && (
+              <div className={`shp-metric ${live.cashExchangeNet > 0 ? 'shp-metric--green' : 'shp-metric--red'}`}>
+                <span>صافي فروق الاستبدال النقدية</span>
+                <strong>{live.cashExchangeNet > 0 ? '+' : ''}{Number(live.cashExchangeNet).toFixed(2)}<small>ج.م</small></strong>
               </div>
             )}
-            {sessionUser?.role === 'admin' && (
-              <div className="shift-metric-item" style={{ background: '#F0F9FF', padding: '6px 12px', borderRadius: '8px' }}>
-                <span className="shift-metric-lbl" style={{ color: '#0369A1' }}>النقدية المفترضة بالدرج (=)</span>
-                <span className="shift-metric-val blue">{Number(activeShift.liveTotals?.expectedCash || 0).toFixed(2)} ج.م</span>
+            {isAdmin && (
+              <div className="shp-metric shp-metric--brand">
+                <span>النقدية المفترضة بالدرج (=)</span>
+                <strong>{expectedCash.toFixed(2)}<small>ج.م</small></strong>
               </div>
             )}
           </div>
-        </div>
+        </section>
       ) : (
-        <div className="active-shift-empty">
-          <div className="shift-empty-icon">
-            <span>⚠️</span>
-          </div>
+        <section className="shp-card shp-empty" aria-label="لا توجد وردية مفتوحة">
+          <span className="shp-tile"><LineIcon name="alert" size={26} /></span>
           <div>
-            <h3 style={{ margin: '0 0 4px 0', fontSize: '17px', color: '#0F172A', fontWeight: '800' }}>
-              الدرج مغلق حالياً ولا توجد وردية مفتوحة
-            </h3>
-            <p style={{ margin: 0, color: '#64748B', fontSize: '13.5px' }}>
-              قم بفتح وردية جديدة وتسجيل العهدة الابتدائية لبدء تسجيل المبيعات ومطابقة النقدية بدقة.
-            </p>
+            <h3>الدرج مغلق حالياً ولا توجد وردية مفتوحة</h3>
+            <p>قم بفتح وردية جديدة وتسجيل العهدة الابتدائية لبدء تسجيل المبيعات ومطابقة النقدية بدقة.</p>
           </div>
-          <button
-            type="button"
-            className="primary-btn"
-            style={{ marginTop: '6px' }}
-            onClick={handleOpenStartModal}
-          >
-            <span>🟢</span> فتح وردية واستلام الدرج الآن
+          <button type="button" className="shp-btn shp-btn--primary" onClick={handleOpenStartModal}>
+            <LineIcon name="unlock" /> فتح وردية واستلام الدرج الآن
           </button>
-        </div>
+        </section>
       )}
 
-      {/* Shifts History Table Card */}
-      <div className="table-card">
-        <div className="table-toolbar">
+      {/* History */}
+      <section className="shp-card shp-history" aria-label="سجل الورديات">
+        <div className="shp-history__bar">
           <div>
-            <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '800', color: '#0F172A' }}>
-              سجل وتاريخ الورديات السابقة
-            </h3>
-            <span style={{ fontSize: '12px', color: '#64748B' }}>
-              عرض كافة تفاصيل التقفيل وتقارير Z-Report السابقة
-            </span>
+            <h3>سجل وتاريخ الورديات السابقة</h3>
+            <span>عرض كافة تفاصيل التقفيل وتقارير Z-Report السابقة</span>
           </div>
-
-          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-            <div className="search-box-wrap">
-              <span>🔍</span>
-              <input
-                type="text"
-                placeholder="بحث برقم الوردية أو اسم الكاشير..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-
-            <select
-              className="filter-select"
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-            >
+          <div className="shp-filters">
+            <label className="shp-search">
+              <LineIcon name="search" size={18} />
+              <input type="text" placeholder="بحث برقم الوردية أو اسم الكاشير..." aria-label="بحث في الورديات" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+            </label>
+            <select className="shp-select" aria-label="تصفية الحالة" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
               <option value="all">جميع الحالات</option>
               <option value="open">الورديات المفتوحة</option>
               <option value="closed">الورديات المقفلة</option>
-              <option value="shortage">الورديات التي بها عجز 🔴</option>
-              <option value="overage">الورديات التي بها زيادة 🟢</option>
+              <option value="shortage">الورديات التي بها عجز</option>
+              <option value="overage">الورديات التي بها زيادة</option>
             </select>
           </div>
         </div>
 
         {loading ? (
-          <div style={{ textAlign: 'center', padding: '50px', color: '#94A3B8' }}>
-            جاري تحميل سجل الورديات...
-          </div>
+          <div className="shp-state">جاري تحميل سجل الورديات...</div>
         ) : filteredShifts.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '50px', color: '#64748B' }}>
-            لا توجد أي ورديات مسجلة تطابق معايير البحث
-          </div>
+          <div className="shp-state">لا توجد أي ورديات مسجلة تطابق معايير البحث</div>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table className="shifts-table">
+          <div className="shp-table-wrap">
+            <table className="shp-table">
               <thead>
                 <tr>
-                  <th>#</th>
-                  <th>الكاشير المسؤول</th>
-                  <th>وقت البدء</th>
-                  <th>وقت الإغلاق</th>
-                  <th>العهدة</th>
-                  <th>مبيعات الكاش</th>
-                  <th>الفيزا والآجل</th>
-                  <th>المصروفات</th>
-                  <th>المتوقع</th>
-                  <th>الفعلي</th>
-                  <th>نتيجة المطابقة</th>
-                  <th>الحالة</th>
-                  <th>إجراءات</th>
+                  <th>#</th><th>الكاشير المسؤول</th><th>وقت البدء</th><th>وقت الإغلاق</th><th>العهدة</th><th>مبيعات الكاش</th>
+                  <th>الفيزا والآجل</th><th>المصروفات</th><th>المتوقع</th><th>الفعلي</th><th>نتيجة المطابقة</th><th>الحالة</th><th>إجراءات</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredShifts.map((s) => {
                   const isClosed = s.status === 'closed';
                   const diff = Number(s.cash_difference || 0);
-
+                  const night = s.shift_type === 'evening';
+                  const fmtDate = (v) => new Date(v).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' });
                   return (
                     <tr key={s.id}>
                       <td>
-                        <strong style={{ color: '#F2600C' }}>#{s.id}</strong>
-                        <div style={{ fontSize: '10.5px', color: s.shift_type === 'evening' ? '#4F46E5' : '#D97706', fontWeight: '700' }}>
-                          {s.shift_type === 'evening' ? '🌙 مسائية' : '☀️ صباحية'}
+                        <div className="shp-id">
+                          <b>#{s.id}</b>
+                          <small className={night ? 'is-night' : ''}><LineIcon name={night ? 'moon' : 'sun'} size={12} />{night ? 'مسائية' : 'صباحية'}</small>
                         </div>
                       </td>
-                      <td>
-                        <span style={{ fontWeight: 700, color: '#0F172A' }}>
-                          {s.cashier_username || s.opened_by_name}
-                        </span>
-                      </td>
-                      <td style={{ fontSize: '12px', color: '#64748B' }}>
-                        {new Date(s.start_time).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' })}
-                      </td>
-                      <td style={{ fontSize: '12px', color: '#64748B' }}>
-                        {s.end_time ? new Date(s.end_time).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' }) : 'جارية...'}
-                      </td>
-                      <td style={{ fontWeight: 600 }}>{Number(s.opening_cash || 0).toFixed(2)}</td>
-                      <td style={{ color: '#15803D', fontWeight: 700 }}>
-                        {Number(s.total_cash_sales || 0).toFixed(2)}
-                      </td>
-                      <td style={{ color: '#0369A1' }}>
-                        {(Number(s.total_card_sales || 0) + Number(s.total_credit_sales || 0)).toFixed(2)}
-                      </td>
-                      <td style={{ color: '#DC2626', fontWeight: 600 }}>{Number(s.total_expenses || 0).toFixed(2)}</td>
-                      <td style={{ fontWeight: 700 }}>{Number(s.expected_cash || 0).toFixed(2)}</td>
-                      <td style={{ fontWeight: 800 }}>
-                        {s.actual_cash != null ? Number(s.actual_cash).toFixed(2) : '-'}
-                      </td>
+                      <td><b>{s.cashier_username || s.opened_by_name}</b></td>
+                      <td className="shp-time">{fmtDate(s.start_time)}</td>
+                      <td className="shp-time">{s.end_time ? fmtDate(s.end_time) : <span className="shp-live">جارية...</span>}</td>
+                      <td>{Number(s.opening_cash || 0).toFixed(2)}</td>
+                      <td className="shp-num--green">{Number(s.total_cash_sales || 0).toFixed(2)}</td>
+                      <td className="shp-num--blue">{(Number(s.total_card_sales || 0) + Number(s.total_credit_sales || 0)).toFixed(2)}</td>
+                      <td className="shp-num--red">{Number(s.total_expenses || 0).toFixed(2)}</td>
+                      <td><b>{Number(s.expected_cash || 0).toFixed(2)}</b></td>
+                      <td><b>{s.actual_cash != null ? Number(s.actual_cash).toFixed(2) : '—'}</b></td>
                       <td>
                         {!isClosed ? (
-                          <span className="badge-open">قيد التشغيل</span>
+                          <span className="shp-chip shp-chip--open"><LineIcon name="clock" size={13} /> قيد التشغيل</span>
                         ) : diff === 0 ? (
-                          <span className="badge-match">مطابقة 100% ✓</span>
+                          <span className="shp-chip shp-chip--good"><LineIcon name="check" size={13} /> مطابقة 100%</span>
                         ) : diff < 0 ? (
-                          <span className="badge-shortage">عجز {Math.abs(diff).toFixed(2)} ج.م</span>
+                          <span className="shp-chip shp-chip--bad">عجز {Math.abs(diff).toFixed(2)} ج.م</span>
                         ) : (
-                          <span className="badge-overage">زيادة +{diff.toFixed(2)} ج.م</span>
+                          <span className="shp-chip shp-chip--good">زيادة +{diff.toFixed(2)} ج.م</span>
                         )}
                       </td>
                       <td>
-                        <span className={isClosed ? 'badge-neutral' : 'badge-match'}>
-                          {isClosed ? 'مقفلة' : 'مفتوحة'}
+                        <span className={`shp-chip ${isClosed ? 'shp-chip--muted' : 'shp-chip--ok'}`}>
+                          <LineIcon name={isClosed ? 'lock' : 'unlock'} size={13} /> {isClosed ? 'مقفلة' : 'مفتوحة'}
                         </span>
                       </td>
                       <td>
-                        <button
-                          type="button"
-                          className="secondary-btn"
-                          style={{ padding: '6px 12px', fontSize: '12px' }}
-                          onClick={() => handleViewShiftDetails(s.id)}
-                          title="عرض تقرير Z-Report وطباعته"
-                        >
-                          <span>📄 تقرير Z</span>
+                        <button type="button" className="shp-btn shp-btn--sm" onClick={() => handleViewShiftDetails(s.id)} title="عرض تقرير Z-Report وطباعته">
+                          <LineIcon name="file" size={15} /> تقرير Z
                         </button>
                       </td>
                     </tr>
@@ -646,459 +513,303 @@ export default function ShiftsPage() {
             </table>
           </div>
         )}
-      </div>
 
-      {/* MODAL 1: فتح وردية جديدة متطورة */}
+        {!loading && filteredShifts.length > 0 && (
+          <div className="shp-foot">
+            <span>عرض {filteredShifts.length === 1 ? 'وردية واحدة' : `${filteredShifts.length} وردية`}{activeShift ? ' — وردية نشطة لم تُقفل بعد' : ''}</span>
+            <span>آخر تحديث: <b>الآن</b></span>
+          </div>
+        )}
+      </section>
+
+      {/* MODAL: open a shift */}
       {showOpenModal && (
-        <div className="modal-overlay" onClick={() => setShowOpenModal(false)}>
-          <div className="modal-box" style={{ maxWidth: '560px' }} onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>🟢 استلام الدرج وبدء وردية جديدة</h3>
-              <button type="button" className="modal-close-btn" onClick={() => setShowOpenModal(false)}>×</button>
+        <ShiftSheet
+          width={660}
+          icon="unlock"
+          title="استلام الدرج وبدء وردية جديدة"
+          subtitle="سجّل العهدة الابتدائية وابدأ تسجيل المبيعات على هذه الوردية"
+          error={formError}
+          onClose={() => setShowOpenModal(false)}
+          onSubmit={handleOpenShift}
+          footer={<button type="submit" className="shp-btn shp-btn--primary"><LineIcon name="unlock" /> تأكيد استلام الدرج وبدء الوردية</button>}
+        >
+          <div className="shm-meta">
+            <div>
+              <span><LineIcon name="user" size={14} /> مستلم الوردية</span>
+              <strong>{sessionUser?.username || 'الكاشير'}<small>{isAdmin ? 'مدير' : 'كاشير'}</small></strong>
+            </div>
+            <div>
+              <span><LineIcon name="store" size={14} /> نقطة البيع</span>
+              <strong>{openingPosStation}</strong>
+            </div>
+            <div>
+              <span><LineIcon name="clock" size={14} /> توقيت الاستلام</span>
+              <strong>{new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}</strong>
+            </div>
+          </div>
+
+          {lastClosedShift && (
+            <div className="shm-handover">
+              <div>
+                <span className="shp-avatar"><LineIcon name="box" size={22} /></span>
+                <div>
+                  <h5>آخر وردية مغلقة: #{lastClosedShift.id} ({lastClosedShift.closed_by_username || lastClosedShift.cashier_username || 'كاشير'})</h5>
+                  <p>العهدة النقدية المتبقية: <strong>{Number(lastClosedShift.actual_cash || 0).toFixed(2)} ج.م</strong></p>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="shp-btn shp-btn--sm"
+                onClick={() => {
+                  const val = Number(lastClosedShift.actual_cash || 0);
+                  setOpeningCashInput(val > 0 ? String(val) : '0');
+                  setOpenUseBreakdown(false);
+                }}
+              >
+                <LineIcon name="bolt" size={15} /> استلام نفس العهدة
+              </button>
+            </div>
+          )}
+
+          <div className="shm-field">
+            <span>فترة الوردية (الشيفت)</span>
+            <div className="shm-pills" role="group" aria-label="فترة الوردية">
+              <button type="button" className={`shm-pill${openingShiftType === 'morning' ? ' is-on' : ''}`} aria-pressed={openingShiftType === 'morning'} onClick={() => setOpeningShiftType('morning')}>
+                <LineIcon name="sun" /> وردية صباحية
+              </button>
+              <button type="button" className={`shm-pill${openingShiftType === 'evening' ? ' is-on' : ''}`} aria-pressed={openingShiftType === 'evening'} onClick={() => setOpeningShiftType('evening')}>
+                <LineIcon name="moon" /> وردية مسائية
+              </button>
+            </div>
+          </div>
+
+          <div className="shm-field">
+            <div className="shm-row">
+              <span>العهدة النقدية الابتدائية (الفكة في الدرج) <em>*</em></span>
+              <button type="button" className="shm-link" onClick={() => setOpenUseBreakdown(!openUseBreakdown)}>
+                {openUseBreakdown ? 'إدخال المبلغ مباشرة' : 'حاسبة تفقيط الفئات'}
+              </button>
             </div>
 
-            <form onSubmit={handleOpenShift}>
-              <div className="modal-body">
-                {formError && <div className="form-error-banner">{formError}</div>}
-
-                {/* Staff & Station Info Grid */}
-                <div className="shift-staff-grid">
-                  <div className="shift-meta-item">
-                    <span className="shift-meta-label">👤 مستلم الوردية</span>
-                    <strong className="shift-meta-val">
-                      {sessionUser?.username || 'الكاشير'}
-                      <span style={{ fontSize: '10px', background: '#E2E8F0', padding: '1px 5px', borderRadius: '4px', color: '#475569' }}>
-                        {sessionUser?.role === 'admin' ? 'مدير' : 'كاشير'}
-                      </span>
-                    </strong>
-                  </div>
-                  <div className="shift-meta-item">
-                    <span className="shift-meta-label">🏬 نقطة البيع</span>
-                    <strong className="shift-meta-val">{openingPosStation}</strong>
-                  </div>
-                  <div className="shift-meta-item">
-                    <span className="shift-meta-label">🕒 توقيت الاستلام</span>
-                    <strong className="shift-meta-val" style={{ fontFamily: 'Space Grotesk' }}>
-                      {new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
-                    </strong>
-                  </div>
-                </div>
-
-                {/* Handover from Previous Shift Banner (if exists) */}
-                {lastClosedShift && (
-                  <div className="shift-handover-card">
-                    <div className="shift-handover-info">
-                      <div className="shift-handover-icon">📦</div>
-                      <div className="shift-handover-texts">
-                        <h5>آخر وردية مغلقة: #{lastClosedShift.id} ({lastClosedShift.closed_by_username || lastClosedShift.cashier_username || 'كاشير'})</h5>
-                        <p>
-                          العهدة النقدية المتبقية: <strong>{Number(lastClosedShift.actual_cash || 0).toFixed(2)} ج.م</strong>
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      className="shift-handover-btn"
-                      onClick={() => {
-                        const val = Number(lastClosedShift.actual_cash || 0);
-                        setOpeningCashInput(val > 0 ? String(val) : '0');
-                        setOpenUseBreakdown(false);
-                      }}
-                    >
-                      ⚡ استلام نفس العهدة
-                    </button>
-                  </div>
-                )}
-
-                {/* Shift Type (Morning / Evening only) */}
-                <div className="form-group">
-                  <label className="form-label">فترة الوردية (الشيفت)</label>
-                  <div className="shift-type-pills">
-                    <button
-                      type="button"
-                      className={`shift-type-btn ${openingShiftType === 'morning' ? 'active morning' : ''}`}
-                      onClick={() => setOpeningShiftType('morning')}
-                    >
-                      <span>☀️</span> وردية صباحية
-                    </button>
-                    <button
-                      type="button"
-                      className={`shift-type-btn ${openingShiftType === 'evening' ? 'active evening' : ''}`}
-                      onClick={() => setOpeningShiftType('evening')}
-                    >
-                      <span>🌙</span> وردية مسائية
-                    </button>
-                  </div>
-                </div>
-
-                {/* Opening Cash Input & Presets */}
-                <div className="form-group">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <label className="form-label" style={{ margin: 0 }}>
-                      العهدة النقدية الابتدائية (الفكة في الدرج) <span style={{ color: '#EF4444' }}>*</span>
-                    </label>
-                    <button
-                      type="button"
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: '#F2600C',
-                        fontSize: '12.5px',
-                        fontWeight: '700',
-                        cursor: 'pointer'
-                      }}
-                      onClick={() => setOpenUseBreakdown(!openUseBreakdown)}
-                    >
-                      {openUseBreakdown ? '⌨️ إدخال يدوي مباشر' : '🧮 حاسبة تفقيط الفئات'}
-                    </button>
-                  </div>
-
-                  {/* Quick Presets */}
-                  <div className="quick-presets-row">
-                    {[0, 200, 300, 500, 1000].map((preset) => (
-                      <button
-                        key={preset}
-                        type="button"
-                        className="preset-chip"
-                        onClick={() => {
-                          setOpeningCashInput(String(preset));
-                          setOpenUseBreakdown(false);
-                        }}
-                      >
-                        {preset === 0 ? 'بدون فكة (0)' : `${preset} ج.م`}
-                      </button>
-                    ))}
-                  </div>
-
-                  {!openUseBreakdown ? (
-                    <div style={{ position: 'relative' }}>
-                      <input
-                        type="number"
-                        step="0.5"
-                        min="0"
-                        className="form-input form-input-lg"
-                        placeholder="500"
-                        value={openingCashInput}
-                        onChange={(e) => setOpeningCashInput(e.target.value)}
-                        required
-                        autoFocus
-                      />
-                      <span style={{
-                        position: 'absolute',
-                        left: '14px',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        color: '#64748B',
-                        fontWeight: '700',
-                        fontSize: '13px'
-                      }}>
-                        ج.م
-                      </span>
-                    </div>
-                  ) : (
-                    /* Denominations breakdown */
-                    <div className="denominations-card" style={{ marginTop: '8px' }}>
-                      <span className="denom-title">💰 تفقيط فئات الفكة النقدية:</span>
-                      <div className="denom-grid">
-                        {CURRENCY_DENOMINATIONS.map((denom) => (
-                          <div key={denom} className="denom-row">
-                            <span className="denom-label">{denom} ج.م:</span>
-                            <input
-                              type="number"
-                              min="0"
-                              className="denom-input"
-                              placeholder="0"
-                              value={openCashBreakdown[denom] || ''}
-                              onChange={(e) => {
-                                const val = e.target.value.replace(/\D/g, '');
-                                setOpenCashBreakdown((prev) => ({ ...prev, [denom]: val }));
-                              }}
-                            />
-                          </div>
-                        ))}
-                      </div>
-                      <div className="denom-total-box">
-                        <span style={{ fontSize: '12.5px', color: '#64748B', fontWeight: '600' }}>إجمالي الفكة المحسوب:</span>
-                        <strong style={{ color: '#15803D', fontSize: '16px', fontFamily: 'Space Grotesk' }}>
-                          {openBreakdownCalculatedTotal.toFixed(2)} ج.م
-                        </strong>
-                      </div>
-                    </div>
-                  )}
-                  <span className="form-helper" style={{ marginTop: '6px' }}>
-                    أدخل المبلغ المتوفر في الدرج لحظة استلام الشيفت قبل أول عملية بيع.
-                  </span>
-                </div>
-
-                {/* Safety & Checklist */}
-                <div className="checklist-card">
-                  <label className="checklist-label">
-                    <input
-                      type="checkbox"
-                      className="checklist-checkbox"
-                      checked={safetyChecked}
-                      onChange={(e) => setSafetyChecked(e.target.checked)}
-                    />
-                    <span>✅ تم فحص وسلامة الدرج وطابعة الفواتير وجهاز الباركود وتجهيزات الكاشير</span>
-                  </label>
-                </div>
-
-                {/* Notes */}
-                <div className="form-group">
-                  <label className="form-label">ملاحظات الاستلام (اختياري)</label>
-                  <textarea
-                    className="form-input"
-                    placeholder="أي ملاحظات حول استلام الوردية وحالة الدرج..."
-                    rows="2"
-                    value={openNotesInput}
-                    onChange={(e) => setOpenNotesInput(e.target.value)}
-                  ></textarea>
-                </div>
-              </div>
-
-              <div className="modal-footer">
-                <button type="button" className="secondary-btn" onClick={() => setShowOpenModal(false)}>
-                  إلغاء
+            <div className="shm-chips">
+              {[0, 200, 300, 500, 1000].map((preset) => (
+                <button key={preset} type="button" className="shm-chip" onClick={() => { setOpeningCashInput(String(preset)); setOpenUseBreakdown(false); }}>
+                  {preset === 0 ? 'بدون فكة (0)' : `${preset} ج.م`}
                 </button>
-                <button type="submit" className="primary-btn">
-                  تأكيد استلام الدرج وبدء الوردية 🟢
-                </button>
-              </div>
-            </form>
+              ))}
+            </div>
+
+            {!openUseBreakdown ? (
+              <input
+                type="number" step="0.5" min="0" className="shm-input shm-input--lg" placeholder="500" aria-label="العهدة الابتدائية"
+                value={openingCashInput} onChange={(e) => setOpeningCashInput(e.target.value)} required autoFocus
+              />
+            ) : (
+              <>
+                <DenominationGrid breakdown={openCashBreakdown} onChange={(denom, val) => setOpenCashBreakdown((prev) => ({ ...prev, [denom]: val.replace(/\D/g, '') }))} />
+                <div className="shm-total shm-total--ok">
+                  <span>إجمالي الفكة المحسوب</span>
+                  <strong>{openBreakdownCalculatedTotal.toFixed(2)}<small>ج.م</small></strong>
+                </div>
+              </>
+            )}
+            <span className="shm-help">أدخل المبلغ المتوفر في الدرج لحظة استلام الشيفت قبل أول عملية بيع.</span>
           </div>
-        </div>
+
+          <label className="shm-check">
+            <input type="checkbox" checked={safetyChecked} onChange={(e) => setSafetyChecked(e.target.checked)} />
+            <span>تم فحص سلامة الدرج وطابعة الفواتير وجهاز الباركود وتجهيزات الكاشير</span>
+          </label>
+
+          <label className="shm-field">
+            <span>ملاحظات الاستلام (اختياري)</span>
+            <textarea placeholder="أي ملاحظات حول استلام الوردية وحالة الدرج..." rows="2" value={openNotesInput} onChange={(e) => setOpenNotesInput(e.target.value)} />
+          </label>
+        </ShiftSheet>
       )}
 
-      {/* MODAL 2: تسجيل مصروف من الدرج */}
+      {/* MODAL: expense */}
       {showExpenseModal && (
-        <div className="modal-overlay" onClick={() => setShowExpenseModal(false)}>
-          <div className="modal-box" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>💸 سحب وتسجيل مصروف من الدرج</h3>
-              <button type="button" className="modal-close-btn" onClick={() => setShowExpenseModal(false)}>×</button>
-            </div>
-
-            <form onSubmit={handleAddExpense}>
-              <div className="modal-body">
-                {formError && <div className="form-error-banner">{formError}</div>}
-
-                <div className="form-group">
-                  <label className="form-label">
-                    المبلغ المسحوب <span style={{ color: '#EF4444' }}>*</span>
-                  </label>
-                  <input
-                    type="number"
-                    step="0.5"
-                    min="0.5"
-                    className="form-input form-input-lg"
-                    placeholder="50"
-                    value={expenseAmount}
-                    onChange={(e) => setExpenseAmount(e.target.value)}
-                    required
-                    autoFocus
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">بند أو تصنيف المصروف</label>
-                  <select
-                    className="form-input"
-                    value={expenseCategory}
-                    onChange={(e) => setExpenseCategory(e.target.value)}
-                  >
-                    {EXPENSE_CATEGORIES.map((cat) => (
-                      <option key={cat} value={cat}>
-                        {cat}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">البيان / تفاصيل المصروف</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    placeholder="مثال: شاي وقهوة للضيوف، شراء أدوات نظافة..."
-                    value={expenseNotes}
-                    onChange={(e) => setExpenseNotes(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div className="modal-footer">
-                <button type="button" className="secondary-btn" onClick={() => setShowExpenseModal(false)}>
-                  إلغاء
-                </button>
-                <button type="submit" className="warning-btn">
-                  خصم المصروف من الدرج 💸
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <ShiftSheet
+          width={560}
+          icon="download"
+          title="سحب وتسجيل مصروف من الدرج"
+          subtitle="يُخصم المبلغ من النقدية المتوقعة بالدرج ويظهر في تقرير الوردية"
+          error={formError}
+          onClose={() => setShowExpenseModal(false)}
+          onSubmit={handleAddExpense}
+          footer={<button type="submit" className="shp-btn shp-btn--primary"><LineIcon name="download" /> خصم المصروف من الدرج</button>}
+        >
+          <label className="shm-field">
+            <span>المبلغ المسحوب <em>*</em></span>
+            <input type="number" step="0.5" min="0.5" className="shm-input shm-input--lg" placeholder="50" value={expenseAmount} onChange={(e) => setExpenseAmount(e.target.value)} required autoFocus />
+          </label>
+          <label className="shm-field">
+            <span>بند أو تصنيف المصروف</span>
+            <select value={expenseCategory} onChange={(e) => setExpenseCategory(e.target.value)}>
+              {EXPENSE_CATEGORIES.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
+            </select>
+          </label>
+          <label className="shm-field">
+            <span>البيان / تفاصيل المصروف</span>
+            <input type="text" className="shm-input" placeholder="مثال: شاي وقهوة للضيوف، شراء أدوات نظافة..." value={expenseNotes} onChange={(e) => setExpenseNotes(e.target.value)} />
+          </label>
+        </ShiftSheet>
       )}
 
-      {/* MODAL 3: إغلاق الوردية Z-Report والعد الأعمى */}
+      {/* MODAL: close shift (Z-Report) */}
       {showCloseModal && (
-        <div className="modal-overlay" onClick={() => setShowCloseModal(false)}>
-          <div className="modal-box" style={{ maxWidth: '520px' }} onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>🔒 تقفيل الوردية وإصدار تقرير (Z-Report)</h3>
-              <button type="button" className="modal-close-btn" onClick={() => setShowCloseModal(false)}>×</button>
+        <ShiftSheet
+          width={900}
+          icon="briefcase"
+          title={<>تقفيل الدرج وإصدار تقرير <em>Z-Report</em></>}
+          subtitle={isAdmin ? 'عدّ النقدية الفعلية بالدرج فئة بفئة، والنظام يحسب العجز أو الفائض تلقائياً' : 'عدّ النقدية الفعلية بالدرج فئة بفئة (عدّ أعمى: تتم المطابقة بعد التأكيد)'}
+          error={formError}
+          onClose={() => setShowCloseModal(false)}
+          onSubmit={handleCloseShift}
+          hint={<><LineIcon name="info" size={16} /> بعد التأكيد تُقفل الوردية نهائياً ولا يمكن التعديل عليها</>}
+          footer={<button type="submit" className="shp-btn shp-btn--primary"><LineIcon name="printer" /> تأكيد التقفيل وطباعة Z</button>}
+        >
+          {isAdmin && (
+            <div className="shm-summary">
+              <div className="shp-metric">
+                <span>العهدة الابتدائية</span>
+                <strong>{Number(activeShift?.opening_cash || 0).toFixed(2)}</strong>
+              </div>
+              <div className="shp-metric shp-metric--green">
+                <span>مبيعات الكاش (+)</span>
+                <strong>+{Number(live?.cashSales || 0).toFixed(2)}</strong>
+              </div>
+              <div className="shp-metric shp-metric--red">
+                <span>المصروفات (−)</span>
+                <strong>−{Number(live?.totalExpenses || 0).toFixed(2)}</strong>
+              </div>
+              <div className="shp-metric shp-metric--brand">
+                <span>المتوقع بالدرج (=)</span>
+                <strong>{expectedCash.toFixed(2)}</strong>
+              </div>
             </div>
+          )}
 
-            <form onSubmit={handleCloseShift}>
-              <div className="modal-body">
-                {formError && <div className="form-error-banner">{formError}</div>}
-
-                <div style={{
-                  background: '#F0F9FF',
-                  border: '1px solid #BAE6FD',
-                  padding: '12px 14px',
-                  borderRadius: '12px'
-                }}>
-                  <strong style={{ color: '#0369A1', fontSize: '13.5px' }}>نظام العد الأعمى (Blind Count):</strong>
-                  <p style={{ margin: '4px 0 0 0', fontSize: '12.5px', color: '#475569' }}>
-                    قم بعد المبلغ الكاش الفعلي الموجود في الدرج حالياً وأدخله هنا. سيقوم النظام بعمل مطابقة فورية وكشف أي عجز أو زيادة وإصدار تقرير Z-Report نهائي.
-                  </p>
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <label className="form-label" style={{ margin: 0 }}>
-                    النقدية الفعلية بالدرج <span style={{ color: '#EF4444' }}>*</span>
-                  </label>
-                  <button
-                    type="button"
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: '#F2600C',
-                      fontSize: '12.5px',
-                      fontWeight: '700',
-                      cursor: 'pointer'
-                    }}
-                    onClick={() => setUseBreakdown(!useBreakdown)}
-                  >
-                    {useBreakdown ? '⌨️ إدخال يدوي مباشر' : '💵 استخدام عداد الفئات النقدية'}
-                  </button>
-                </div>
-
-                {!useBreakdown ? (
-                  <div className="form-group">
-                    <input
-                      type="number"
-                      step="0.5"
-                      min="0"
-                      className="form-input form-input-lg"
-                      placeholder="المبلغ الفعلي..."
-                      value={actualCashInput}
-                      onChange={(e) => setActualCashInput(e.target.value)}
-                      required
-                      autoFocus
-                    />
-                  </div>
-                ) : (
-                  <div className="denominations-card">
-                    <div className="denominations-grid">
-                      {CURRENCY_DENOMINATIONS.map((denom) => (
-                        <div key={denom} className="denom-row">
-                          <span className="denom-lbl">{denom} ج.م ×</span>
-                          <input
-                            type="number"
-                            min="0"
-                            className="denom-input"
-                            placeholder="0"
-                            value={cashBreakdown[denom]}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setCashBreakdown((prev) => ({ ...prev, [denom]: val }));
-                            }}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                    <div className="denom-total-box">
-                      <span style={{ fontSize: '12.5px', color: '#64748B', fontWeight: '600' }}>إجمالي العد المحسوب:</span>
-                      <strong style={{ color: '#15803D', fontSize: '16px', fontFamily: 'Space Grotesk' }}>
-                        {breakdownCalculatedTotal.toFixed(2)} ج.م
-                      </strong>
-                    </div>
-                  </div>
-                )}
-
-                <div className="form-group">
-                  <label className="form-label">ملاحظات التقفيل (اختياري)</label>
-                  <textarea
-                    className="form-input"
-                    placeholder="أي ملاحظات حول الوردية أو تسليم الدرج..."
-                    rows="2"
-                    value={closeNotesInput}
-                    onChange={(e) => setCloseNotesInput(e.target.value)}
-                  ></textarea>
-                </div>
-              </div>
-
-              <div className="modal-footer">
-                <button type="button" className="secondary-btn" onClick={() => setShowCloseModal(false)}>
-                  إلغاء
-                </button>
-                <button type="submit" className="danger-btn">
-                  تأكيد تقفيل الوردية وإصدار Z-Report 🔒
-                </button>
-              </div>
-            </form>
+          <div className="shm-row">
+            <h3 className="shm-section"><LineIcon name="banknote" size={18} /> عدّ فئات النقدية الفعلية</h3>
+            <button type="button" className="shm-link" onClick={() => setUseBreakdown(!useBreakdown)}>
+              {useBreakdown ? 'إدخال الإجمالي مباشرة' : 'استخدام عداد الفئات'}
+            </button>
           </div>
-        </div>
+
+          {useBreakdown ? (
+            <DenominationGrid breakdown={cashBreakdown} onChange={(denom, val) => setCashBreakdown((prev) => ({ ...prev, [denom]: val }))} />
+          ) : (
+            <label className="shm-field">
+              <span>النقدية الفعلية بالدرج <em>*</em></span>
+              <input type="number" step="0.5" min="0" className="shm-input shm-input--lg" placeholder="المبلغ الفعلي..." value={actualCashInput} onChange={(e) => setActualCashInput(e.target.value)} required autoFocus />
+            </label>
+          )}
+
+          <div className="shm-totals">
+            {isAdmin && (
+              <div className="shm-total">
+                <span>المتوقع بالدرج</span>
+                <strong>{expectedCash.toFixed(2)}<small>ج.م</small></strong>
+              </div>
+            )}
+            <div className="shm-total shm-total--brand">
+              <span>النقدية الفعلية المعدودة</span>
+              <strong>{countedCash.toFixed(2)}<small>ج.م</small></strong>
+            </div>
+            {isAdmin && (
+              <div className={`shm-total ${countedDiff < 0 ? 'shm-total--bad' : 'shm-total--good'}`}>
+                <span>{countedDiff < 0 ? 'عجز في الدرج' : countedDiff > 0 ? 'فائض في الدرج' : 'الدرج مطابق'}</span>
+                <strong>{countedDiff > 0 ? '+' : countedDiff < 0 ? '−' : ''}{Math.abs(countedDiff).toFixed(2)}<small>ج.م</small></strong>
+              </div>
+            )}
+          </div>
+
+          <label className="shm-field">
+            <span>ملاحظات التقفيل (سبب العجز أو الفائض إن وجد)</span>
+            <textarea placeholder="أي ملاحظات حول الوردية أو تسليم الدرج..." rows="2" value={closeNotesInput} onChange={(e) => setCloseNotesInput(e.target.value)} />
+          </label>
+        </ShiftSheet>
       )}
 
-      {/* MODAL 4: معاينة وطباعة تقرير الوردية Z / X */}
+      {/* MODAL: preview / print Z or X report (keeps the print classes the print CSS relies on) */}
       {previewReport && (
         <div className="modal-overlay" onClick={() => setPreviewReport(null)}>
-          <div className="modal-box" style={{ maxWidth: '540px', borderRadius: '16px' }} onClick={(e) => e.stopPropagation()}>
+          <div className="modal-box shm-report" style={{ maxWidth: '560px', borderRadius: '24px' }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-header" style={{ padding: '16px 20px' }}>
               <h3 style={{ fontSize: '17px', fontWeight: '800', margin: 0 }}>
                 {previewReport.reportType === 'Z' || previewReport.shift.status === 'closed'
-                  ? '🧾 تقرير التقفيل النهائي (Z-Report)'
-                  : '📊 تقرير استطلاعي للوردية (X-Report)'}
+                  ? 'تقرير التقفيل النهائي (Z-Report)'
+                  : 'تقرير استطلاعي للوردية (X-Report)'}
               </h3>
-              <button type="button" className="modal-close-btn" onClick={() => setPreviewReport(null)}>×</button>
+              <button type="button" className="modal-close-btn" onClick={() => setPreviewReport(null)} aria-label="إغلاق">×</button>
             </div>
 
-            <div style={{
-              maxHeight: '72vh',
-              overflowY: 'auto',
-              padding: '18px 20px',
-              background: '#F1F5F9'
-            }}>
-              <div style={{
-                background: '#FFFFFF',
-                borderRadius: '14px',
-                padding: '18px 20px',
-                boxShadow: '0 4px 14px rgba(0,0,0,0.06)',
-                border: '1px solid #E2E8F0'
-              }}>
+            <div className="shm-preview">
+              <div>
                 <ShiftReportPrint shift={previewReport.shift} reportType={previewReport.reportType} />
               </div>
             </div>
 
             <div className="modal-footer" style={{ padding: '14px 20px' }}>
-              <button type="button" className="secondary-btn" onClick={() => setPreviewReport(null)}>
-                إغلاق
-              </button>
-              <button
-                type="button"
-                className="primary-btn"
-                style={{ padding: '10px 22px', fontSize: '14px', fontWeight: '700' }}
-                onClick={handlePrint}
-                disabled={isPrinting}
-              >
-                <span>🖨️</span> طباعة التقرير الحراري
+              <button type="button" className="shp-btn" onClick={() => setPreviewReport(null)}>إغلاق</button>
+              <button type="button" className="shp-btn shp-btn--primary" onClick={handlePrint} disabled={isPrinting}>
+                <LineIcon name="printer" /> طباعة التقرير الحراري
               </button>
             </div>
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ---- local building blocks ------------------------------------------------
+
+// Shared modal shell: gradient sheet, icon tile, title, scrolling body and a sticky footer.
+function ShiftSheet({ width = 820, icon, title, subtitle, error, hint, onClose, onSubmit, footer, children }) {
+  return (
+    <div className="shm-overlay" onClick={onClose}>
+      <form className="shm" style={{ '--shm-w': `${width}px` }} onClick={(e) => e.stopPropagation()} onSubmit={onSubmit} role="dialog" aria-modal="true">
+        <header className="shm__head">
+          <span className="shp-tile"><LineIcon name={icon} size={26} /></span>
+          <div>
+            <h2>{title}</h2>
+            {subtitle && <p>{subtitle}</p>}
+          </div>
+          <button type="button" className="shm-close" onClick={onClose} aria-label="إغلاق"><LineIcon name="x" size={20} /></button>
+        </header>
+        <div className="shm__body">
+          {error && <div className="shm-error" role="alert">{error}</div>}
+          {children}
+        </div>
+        <footer className="shm__foot">
+          <span className="shm__hint">{hint}</span>
+          <button type="button" className="shp-btn" onClick={onClose}>إلغاء</button>
+          {footer}
+        </footer>
+      </form>
+    </div>
+  );
+}
+
+// One cell per denomination: tag, count input and the running subtotal.
+function DenominationGrid({ breakdown, onChange }) {
+  return (
+    <div className="shm-denoms">
+      {CURRENCY_DENOMINATIONS.map((denom) => {
+        const count = Number(breakdown[denom] || 0);
+        return (
+          <div key={denom} className="shm-denom">
+            <span className="shm-denom__tag">{denomLabel(denom)}</span>
+            <input type="number" min="0" inputMode="numeric" placeholder="0" aria-label={`عدد فئة ${denomLabel(denom)}`} value={breakdown[denom] || ''} onChange={(e) => onChange(denom, e.target.value)} />
+            <span className="shm-denom__x" aria-hidden="true">×</span>
+            <span className="shm-denom__sub">{(denom * count).toFixed(2)}</span>
+          </div>
+        );
+      })}
     </div>
   );
 }
