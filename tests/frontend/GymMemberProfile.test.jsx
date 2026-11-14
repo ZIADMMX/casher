@@ -194,3 +194,11 @@ describe('member profile', () => {
     expect(within(profile).getByText('لا توجد حركة مالية.')).toBeInTheDocument();
   });
 });
+
+describe('deep-linking to a member profile (from the gate "ملف العضو")', () => {
+  it('opens the given member straight away, no list click', async () => {
+    render(<GymMembersPage onNavigate={vi.fn()} openMemberId={2} />);
+    expect(await screen.findByLabelText('ملف العضو سمير')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'فتح بروفايل مروان' })).not.toBeInTheDocument();
+  });
+});

@@ -275,7 +275,7 @@ export default function GymGatePage({ onNavigate }) {
               <>
                 {canSession && <button type="button" className="gate-btn" onClick={registerSession}>تسجيل الحصة</button>}
                 {scan.registered && <span className="gate-hero__done">تم خصم حصة · متبقي {scan.subscription.remainingCredits}</span>}
-                {scan.member && onNavigate && <button type="button" className="gate-btn" onClick={() => onNavigate('subscriptions')}>ملف العضو</button>}
+                {scan.member && onNavigate && <button type="button" className="gate-btn" onClick={() => onNavigate('customers', { memberIntent: { customerId: scan.member.id } })}>ملف العضو</button>}
                 <span className="gate-timer"><span>العودة للمسح تلقائيًا</span><i key={`${scan.id}-${scan.registered ? 1 : 0}`} style={{ '--reset': `${RESET_MS}ms` }} /></span>
                 <button type="button" className="gate-btn gate-btn--solid" onClick={reset}>مسح جديد</button>
               </>

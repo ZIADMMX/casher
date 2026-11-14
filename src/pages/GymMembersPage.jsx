@@ -79,7 +79,7 @@ function RowMenu({ member, onCopy }) {
  * subscription state, visits and balance. Renewing and opening a member's file hand over to
  * the subscriptions hub (GymCheckoutPage), which owns freeze / upgrade / transfer / collection.
  */
-export default function GymMembersPage({ onNavigate }) {
+export default function GymMembersPage({ onNavigate, openMemberId = null }) {
   const [data, setData] = useState({ customers: [], subscriptions: [], visits: [], profiles: [] });
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -89,7 +89,7 @@ export default function GymMembersPage({ onNavigate }) {
   const [addOpen, setAddOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [payFor, setPayFor] = useState(null);
-  const [profileId, setProfileId] = useState(null);
+  const [profileId, setProfileId] = useState(openMemberId); // the gate and other screens can deep-link straight to a member's profile
   const [toast, setToast] = useState(null);
 
   const load = useCallback(async () => {

@@ -65,6 +65,7 @@ function AppContent() {
   const [openNewCaseOnLoad, setOpenNewCaseOnLoad] = useState(false);
   const [appointmentsTab, setAppointmentsTab] = useState('appointments');
   const [gymIntent, setGymIntent] = useState(null); // set by the gym members directory to open a member in the subscriptions hub
+  const [memberIntent, setMemberIntent] = useState(null); // opens a specific member's profile in the gym members directory (e.g. from the gate)
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [licenseStatus, setLicenseStatus] = useState(null);
@@ -74,6 +75,7 @@ function AppContent() {
     setOpenNewCaseOnLoad(page === 'cases' && options.createCase === true);
     setAppointmentsTab(page === 'appointments' && options.tab ? options.tab : 'appointments');
     setGymIntent(page === 'gym-checkout' ? options.gymIntent || null : null);
+    setMemberIntent(page === 'customers' ? options.memberIntent || null : null);
     setActivePage(page);
   }
 
@@ -86,6 +88,7 @@ function AppContent() {
   // A pending gym intent only applies to the page it was meant for.
   useEffect(() => {
     if (activePage !== 'gym-checkout') setGymIntent(null);
+    if (activePage !== 'customers') setMemberIntent(null);
   }, [activePage]);
 
   // Old links (notifications, tutorials, "member file") still say 'subscriptions'; for a gym that is the checkout hub.
@@ -332,7 +335,7 @@ function AppContent() {
       case 'reports':
         return <ReportsPage onNavigate={setActivePage} />;
       case 'customers':
-        return <CustomersEntry profileKey={profileKey} onNavigate={setActivePage} onNavigateWithOptions={navigateToPage} />;
+        return <CustomersEntry key={memberIntent ? `m-${memberIntent.customerId}` : 'list'} profileKey={profileKey} memberIntent={memberIntent} onNavigate={setActivePage} onNavigateWithOptions={navigateToPage} />;
       case 'crm':
         return <CRMPage />;
       case 'suppliers':

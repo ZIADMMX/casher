@@ -283,6 +283,12 @@ describe('customers route isolation', () => {
     expect(screen.queryByText('الصفحة القديمة للعملاء')).not.toBeInTheDocument();
   });
 
+  it('a gate memberIntent opens that member\'s profile directly', async () => {
+    render(<CustomersEntry profileKey="subscriptions_gym" memberIntent={{ customerId: 1 }} onNavigate={vi.fn()} onNavigateWithOptions={vi.fn()} />);
+    expect(await screen.findByLabelText('ملف العضو مروان')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'الأعضاء' })).not.toBeInTheDocument();
+  });
+
   it.each(['retail', 'grocery', 'cafe_restaurant', 'electronics', 'maintenance', 'spare_parts', 'salon_barbershop', 'law_firm', 'custom', 'crm', undefined])(
     'keeps the shared customers page for %s',
     (profileKey) => {
