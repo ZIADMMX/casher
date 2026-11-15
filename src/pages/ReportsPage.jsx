@@ -3,6 +3,7 @@ import { useBusinessProfile } from '../contexts/BusinessProfileContext.jsx';
 import CRMReportsPage from './CRMReportsPage.jsx';
 import LawFirmReportsPage from '../components/legal/LawFirmReportsPage.jsx';
 import SalesReportsView from '../components/reports/SalesReportsView.jsx';
+import GymReportsView from '../components/reports/GymReportsView.jsx';
 
 // One sales report for every selling sector (retail, restaurant, salon, clinic...).
 // Sectors whose work is not invoices get their own report.
@@ -15,6 +16,7 @@ function ReportsPage({ onNavigate }) {
     || 'retail';
 
   if (profileKey === 'law_firm') return <LawFirmReportsPage onNavigate={onNavigate} />;
+  if (profileKey === 'subscriptions_gym') return <GymReportsView onNavigate={onNavigate} />;
   return profileKey === 'crm' ? <CRMReportsPage /> : <SalesReportsView onNavigate={onNavigate} />;
 }
 

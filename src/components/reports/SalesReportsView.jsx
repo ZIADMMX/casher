@@ -48,6 +48,33 @@ const LEDGER_TABS = [
 const PAGE_SIZE = 6;
 const CURRENCY = 'ج.م';
 
+// User-facing wording. The default is the sector-neutral commercial copy; a sector can pass its own
+// (e.g. the gym calls invoices "تحصيلات" and products "باقات") without changing any of the numbers.
+const DEFAULT_LEX = {
+  title: 'التقارير والتحليلات',
+  netSales: 'صافي المبيعات',
+  netSalesFoot: 'بعد خصم المرتجعات',
+  profit: 'صافي الربح التقديري',
+  invoices: 'عدد الفواتير',
+  invoiceUnit: 'فاتورة',
+  invoicesPerDay: 'فاتورة / يوم',
+  avgInvoice: 'متوسط الفاتورة',
+  returns: 'المرتجعات والخصومات',
+  trendTitle: 'المبيعات حسب الفترة',
+  trendTotal: 'إجمالي',
+  emptyPeriod: 'لا توجد مبيعات في هذه الفترة',
+  paymentsTitle: 'طرق الدفع',
+  paymentsSub: 'توزيع المبيعات حسب طريقة الدفع',
+  creditLine: 'مبيعات آجلة في الفترة',
+  topTitle: 'الأصناف الأعلى مبيعًا',
+  itemCol: 'الصنف',
+  staffTitle: 'أداء الموظفين',
+  staffUnit: 'فاتورة',
+  ledgerTitle: 'أحدث الفواتير',
+  invoiceNoCol: 'رقم الفاتورة',
+  searchPlaceholder: 'ابحث برقم الفاتورة أو العميل أو الموظف أو المبلغ',
+};
+
 const numberFmt = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
 const dayMonthFmt = new Intl.DateTimeFormat('ar-EG-u-nu-latn', { day: 'numeric', month: 'long', timeZone: 'UTC' });
 const yearFmt = new Intl.DateTimeFormat('ar-EG-u-nu-latn', { year: 'numeric', timeZone: 'UTC' });
@@ -161,7 +188,7 @@ function niceMax(value) {
   return step * 4;
 }
 
-function TrendPanel({ report }) {
+function TrendPanel({ report, lex }) {
   const bars = useMemo(() => bucketTrend(report.trend || []), [report.trend]);
   const max = niceMax(Math.max(...bars.map((b) => Math.max(b.total, b.prevTotal)), 0));
   const ticks = [4, 3, 2, 1, 0].map((i) => (max / 4) * i);
@@ -171,9 +198,9 @@ function TrendPanel({ report }) {
     <section className="rep-card rep-panel rep-trend">
       <header className="rep-panel__head">
         <div>
-          <h2 className="rep-panel__title">المبيعات حسب الفترة</h2>
+          <h2 className="rep-panel__title">{lex.trendTitle}</h2>
           <p className="rep-panel__sub">
-            إجمالي <Money value={report.kpis.grossSales} />
+            {lex.trendTotal} <Money value={report.kpis.grossSales} />
             {best && best.total > 0 && (
               <> · أعلى يوم {weekdayFmt.format(asDate(best.day))} {dayMonthFmt.format(asDate(best.day))}</>
             )}
@@ -186,7 +213,7 @@ function TrendPanel({ report }) {
       </header>
 
       {bars.every((b) => !b.total && !b.prevTotal) ? (
-        <p className="rep-empty">لا توجد مبيعات في هذه الفترة</p>
+        <p className="rep-empty">{lex.emptyPeriod}</p>
       ) : (
         <div className="rep-chart" role="img" aria-label="مقارنة المبيعات بالفترة السابقة">
           <div className="rep-chart__axis" aria-hidden="true">
@@ -222,15 +249,15 @@ function TrendPanel({ report }) {
   );
 }
 
-function PaymentsPanel({ report, onNavigate }) {
+function PaymentsPanel({ report, onNavigate, lex }) {
   const { payments, credit } = report;
   const hasSales = payments.some((p) => p.total > 0);
   return (
     <section className="rep-card rep-panel rep-payments">
       <header className="rep-panel__head">
         <div>
-          <h2 className="rep-panel__title">طرق الدفع</h2>
-          <p className="rep-panel__sub">توزيع المبيعات حسب طريقة الدفع</p>
+          <h2 className="rep-panel__title">{lex.paymentsTitle}</h2>
+          <p className="rep-panel__sub">{lex.paymentsSub}</p>
         </div>
       </header>
 
@@ -259,7 +286,7 @@ function PaymentsPanel({ report, onNavigate }) {
         <div className="rep-callout">
           <AlertIcon size={18} />
           <div>
-            <strong>مبيعات آجلة في الفترة: <Money value={credit.total} /></strong>
+            <strong>{lex.creditLine}: <Money value={credit.total} /></strong>
             <p>
               على {credit.customers} {credit.customers === 1 ? 'عميل' : 'عملاء'}
               {onNavigate && (
@@ -278,7 +305,7 @@ function PaymentsPanel({ report, onNavigate }) {
   );
 }
 
-function TopItemsPanel({ report }) {
+function TopItemsPanel({ report, lex }) {
   const [sortBy, setSortBy] = useState('revenue');
   const items = sortBy === 'revenue' ? report.topSelling : report.topByQuantity;
   const max = Math.max(...items.map((i) => (sortBy === 'revenue' ? i.revenue : i.qtySold)), 1);
@@ -286,7 +313,7 @@ function TopItemsPanel({ report }) {
   return (
     <section className="rep-card rep-panel rep-top">
       <header className="rep-panel__head">
-        <h2 className="rep-panel__title">الأصناف الأعلى مبيعًا</h2>
+        <h2 className="rep-panel__title">{lex.topTitle}</h2>
         <div className="rep-segment rep-segment--sm" role="tablist" aria-label="ترتيب الأصناف">
           {[{ key: 'revenue', label: 'بالإيراد' }, { key: 'quantity', label: 'بالكمية' }].map((tab) => (
             <button
@@ -304,13 +331,13 @@ function TopItemsPanel({ report }) {
       </header>
 
       {items.length === 0 ? (
-        <p className="rep-empty">لا توجد مبيعات في هذه الفترة</p>
+        <p className="rep-empty">{lex.emptyPeriod}</p>
       ) : (
         <table className="rep-top-table">
           <thead>
             <tr>
               <th scope="col" className="rep-top-table__rank">#</th>
-              <th scope="col">الصنف</th>
+              <th scope="col">{lex.itemCol}</th>
               <th scope="col" className="rep-top-table__bar-col">{sortBy === 'revenue' ? 'نسبة من الإيراد' : 'نسبة من الكمية'}</th>
               <th scope="col">الكمية</th>
               <th scope="col">الإيراد</th>
@@ -343,15 +370,15 @@ function TopItemsPanel({ report }) {
   );
 }
 
-function StaffPanel({ report }) {
+function StaffPanel({ report, lex }) {
   const max = Math.max(...report.staff.map((s) => s.total), 1);
   return (
     <section className="rep-card rep-panel rep-staff">
       <header className="rep-panel__head">
-        <h2 className="rep-panel__title">أداء الموظفين</h2>
+        <h2 className="rep-panel__title">{lex.staffTitle}</h2>
       </header>
       {report.staff.length === 0 ? (
-        <p className="rep-empty">لا توجد مبيعات في هذه الفترة</p>
+        <p className="rep-empty">{lex.emptyPeriod}</p>
       ) : (
         <ul className="rep-staff-list">
           {report.staff.map((person) => (
@@ -361,7 +388,7 @@ function StaffPanel({ report }) {
                 <div className="rep-staff-item__info">
                   <span className="rep-staff-item__name">{person.name}</span>
                   <span className="rep-staff-item__meta">
-                    <bdi>{person.invoiceCount}</bdi> فاتورة · متوسط <Money value={person.avgInvoice} />
+                    <bdi>{person.invoiceCount}</bdi> {lex.staffUnit} · متوسط <Money value={person.avgInvoice} />
                   </span>
                 </div>
                 <bdi className="rep-staff-item__total">{money(person.total)}</bdi>
@@ -382,7 +409,7 @@ function pageNumbers(page, pageCount) {
   return list.flatMap((p, i) => (i > 0 && p - list[i - 1] > 1 ? ['…', p] : [p]));
 }
 
-function LedgerPanel({ periodParam, singleDay, onOpenInvoice }) {
+function LedgerPanel({ periodParam, singleDay, onOpenInvoice, lex }) {
   const [method, setMethod] = useState('all');
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
@@ -414,7 +441,7 @@ function LedgerPanel({ periodParam, singleDay, onOpenInvoice }) {
     <section className="rep-card rep-panel rep-ledger">
       <header className="rep-ledger__head">
         <div className="rep-ledger__title">
-          <h2 className="rep-panel__title">أحدث الفواتير</h2>
+          <h2 className="rep-panel__title">{lex.ledgerTitle}</h2>
           {data && <span className="rep-pill"><bdi>{numberFmt.format(data.total)}</bdi> مستند</span>}
         </div>
         <div className="rep-ledger__tools">
@@ -425,7 +452,7 @@ function LedgerPanel({ periodParam, singleDay, onOpenInvoice }) {
               value={searchInput}
               maxLength={60}
               onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="ابحث برقم الفاتورة أو العميل أو الموظف أو المبلغ"
+              placeholder={lex.searchPlaceholder}
               aria-label="بحث في الفواتير"
             />
           </label>
@@ -453,7 +480,7 @@ function LedgerPanel({ periodParam, singleDay, onOpenInvoice }) {
           <table className="rep-table">
             <thead>
               <tr>
-                <th scope="col">رقم الفاتورة</th>
+                <th scope="col">{lex.invoiceNoCol}</th>
                 <th scope="col">العميل</th>
                 <th scope="col">الموظف</th>
                 <th scope="col">الأصناف</th>
@@ -529,7 +556,8 @@ function LedgerPanel({ periodParam, singleDay, onOpenInvoice }) {
   );
 }
 
-export default function SalesReportsView({ onNavigate }) {
+export default function SalesReportsView({ onNavigate, lexicon, extraPanels = null, hideTopItems = false }) {
+  const lex = { ...DEFAULT_LEX, ...(lexicon || {}) };
   const [preset, setPreset] = useState('week');
   const [range, setRange] = useState(null); // { startDate, endDate } when a custom range is applied
   const [draft, setDraft] = useState({ startDate: '', endDate: '', userId: '' });
@@ -606,7 +634,7 @@ export default function SalesReportsView({ onNavigate }) {
             <ChevronSideIcon size={14} />
             <span className="rep-breadcrumb__current">التقارير</span>
           </nav>
-          <h1 className="rep-title">التقارير والتحليلات</h1>
+          <h1 className="rep-title">{lex.title}</h1>
           {report && (
             <p className="rep-subtitle">
               {presetLabel}: {describeRange(report.startDate, report.endDate)} · مقارنة بـ{' '}
@@ -678,15 +706,15 @@ export default function SalesReportsView({ onNavigate }) {
             <KpiCard
               icon={CurrencyIcon}
               tone="primary"
-              label="صافي المبيعات"
-              footer={<><Growth value={report.growth.sales} /><span>بعد خصم المرتجعات</span></>}
+              label={lex.netSales}
+              footer={<><Growth value={report.growth.sales} /><span>{lex.netSalesFoot}</span></>}
             >
               <Money value={k.netSales} />
             </KpiCard>
             <KpiCard
               icon={TrendUpIcon}
               tone="success"
-              label="صافي الربح التقديري"
+              label={lex.profit}
               footer={<><Growth value={report.growth.profit} /><span>هامش <bdi>{k.margin}%</bdi></span></>}
             >
               <Money value={k.profit} />
@@ -694,15 +722,15 @@ export default function SalesReportsView({ onNavigate }) {
             <KpiCard
               icon={FileTextIcon}
               tone="info"
-              label="عدد الفواتير"
-              footer={<><Growth value={report.growth.invoices} /><span><bdi>{report.invoicesPerDay}</bdi> فاتورة / يوم</span></>}
+              label={lex.invoices}
+              footer={<><Growth value={report.growth.invoices} /><span><bdi>{report.invoicesPerDay}</bdi> {lex.invoicesPerDay}</span></>}
             >
-              <bdi>{numberFmt.format(k.invoiceCount)}</bdi> <span className="rep-money__unit">فاتورة</span>
+              <bdi>{numberFmt.format(k.invoiceCount)}</bdi> <span className="rep-money__unit">{lex.invoiceUnit}</span>
             </KpiCard>
             <KpiCard
               icon={BagIcon}
               tone="violet"
-              label="متوسط الفاتورة"
+              label={lex.avgInvoice}
               footer={<><Growth value={report.growth.avgInvoice} /><span>كان <Money value={report.prevKpis.avgInvoice} /></span></>}
             >
               <Money value={k.avgInvoice} />
@@ -710,7 +738,7 @@ export default function SalesReportsView({ onNavigate }) {
             <KpiCard
               icon={UndoIcon}
               tone="danger"
-              label="المرتجعات والخصومات"
+              label={lex.returns}
               footer={(
                 <>
                   <span className="rep-growth rep-growth--down"><bdi>{k.returnCount}</bdi> مرتجع</span>
@@ -722,20 +750,27 @@ export default function SalesReportsView({ onNavigate }) {
             </KpiCard>
           </div>
 
-          <div className="rep-grid rep-grid--wide-start">
-            <TrendPanel report={report} />
-            <PaymentsPanel report={report} onNavigate={onNavigate} />
-          </div>
+          {extraPanels}
 
           <div className="rep-grid rep-grid--wide-start">
-            <TopItemsPanel report={report} />
-            <StaffPanel report={report} />
+            <TrendPanel report={report} lex={lex} />
+            <PaymentsPanel report={report} onNavigate={onNavigate} lex={lex} />
           </div>
+
+          {hideTopItems ? (
+            <StaffPanel report={report} lex={lex} />
+          ) : (
+            <div className="rep-grid rep-grid--wide-start">
+              <TopItemsPanel report={report} lex={lex} />
+              <StaffPanel report={report} lex={lex} />
+            </div>
+          )}
 
           <LedgerPanel
             periodParam={periodParam}
             singleDay={report.startDate === report.endDate}
             onOpenInvoice={setOpenSaleId}
+            lex={lex}
           />
 
           <p className="rep-integrity">
