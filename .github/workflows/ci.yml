@@ -1,0 +1,22 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    # Windows: the app ships on Windows and better-sqlite3 is a native module.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Jest keeps open handles after the run, so it needs --forceExit.
+      - run: pnpm exec jest --runInBand --forceExit
+      - run: pnpm exec vitest run
