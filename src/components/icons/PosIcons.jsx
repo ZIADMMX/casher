@@ -134,6 +134,8 @@ const PlugIcon = make(<><path d="M9 2v5M15 2v5M6 7h12v4a6 6 0 0 1-12 0zM12 17v5"
 const LaptopIcon = make(<><rect x="4" y="5" width="16" height="11" rx="1" /><path d="M2 19h20" /></>);
 const WrenchIcon = make(<path d="M14 6a4 4 0 0 0 5 5l-9 9a2 2 0 0 1-3-3l9-9a4 4 0 0 0-2-2z" />);
 const BatteryIcon = make(<><rect x="2" y="7" width="17" height="10" rx="2" /><path d="M22 11v2M6 10v4M10 10v4" /></>);
+const DropIcon = make(<path d="M12 3c4 5 6 8 6 11a6 6 0 0 1-12 0c0-3 2-6 6-11z" />);
+const PillIcon = make(<><rect x="3" y="8" width="18" height="8" rx="4" transform="rotate(-35 12 12)" /><path d="M9.5 8.5l5 7" /></>);
 const DumbbellIcon = make(<><path d="M6 7v10M3 9v6M18 7v10M21 9v6M6 12h12" /></>);
 export const TrophyIcon = make(<><path d="M8 3h8v6a4 4 0 0 1-8 0z" /><path d="M8 5H4a3 3 0 0 0 4 4M16 5h4a3 3 0 0 1-4 4M12 13v4M8 21h8M9 17h6" /></>);
 const BreadIcon = make(<><path d="M5 11a4 4 0 0 1 2-7h10a4 4 0 0 1 2 7v9H5z" /><path d="M9 11v4M15 11v4" /></>);
@@ -150,7 +152,7 @@ const EMOJI_ICONS = {
   '🧢': CapIcon, '🎒': BackpackIcon, '✂️': ScissorsIcon, '💆': SpaIcon, '💈': BarberIcon, '📱': PhoneIcon,
   '🎧': HeadphonesIcon, '🔌': PlugIcon, '💻': LaptopIcon, '🖥️': LaptopIcon, '🔧': WrenchIcon,
   '🔋': BatteryIcon, '🏋️‍♂️': DumbbellIcon, '🏆': TrophyIcon, '🥖': BreadIcon, '🥚': EggIcon,
-  '🍋': LemonIcon, '🛍️': BagIcon,
+  '🍋': LemonIcon, '🛍️': BagIcon, '💧': DropIcon, '💊': PillIcon, '📦': BoxIcon,
 };
 
 /**

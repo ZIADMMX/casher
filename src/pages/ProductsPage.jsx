@@ -372,7 +372,7 @@ function ProductsPage({ onNavigate }) {
         <div>
           <h1 className="prd-title">إدارة {termProducts}</h1>
           <p className="prd-subtitle">
-            {kpis.products} {termProducts} · {kpis.categories} تصنيفات · الأسعار والخيارات فقط — الكميات في{' '}
+            {kpis.products} {termProducts} · {kpis.categories} تصنيفات · الأسعار والخيارات من هنا — تعديل الكميات من{' '}
             <button type="button" className="prd-link-btn" onClick={() => onNavigate?.('branches')}>قسم المخزون</button>
           </p>
         </div>
@@ -532,6 +532,8 @@ function ProductsPage({ onNavigate }) {
                 const tone = toneOf(product.categoryName);
                 const emoji = getCategoryIcon(product.categoryName, product.name, sectorKey);
                 const optionCount = product.variants?.length || 0;
+                const stock = (product.variants || []).reduce((sum, v) => sum + (Number(v.stock_quantity) || 0), 0);
+                const isLow = (product.variants || []).some((v) => (Number(v.stock_quantity) || 0) <= (Number(v.low_stock_threshold) || 0));
                 return (
                   <article key={product.id} className={`prd-card prd-card--${tone}`}>
                     <div className="prd-card__top">
@@ -552,8 +554,8 @@ function ProductsPage({ onNavigate }) {
                       </div>
                       <dl className="prd-card__facts">
                         <div>
-                          <dt>الخيارات</dt>
-                          <dd>{optionCount <= 1 ? 'متغير واحد' : `${optionCount} خيارات`}</dd>
+                          <dt>المتاح{optionCount > 1 ? ` · ${optionCount} خيارات` : ''}</dt>
+                          <dd className={isLow ? 'is-low' : undefined}>{stock <= 0 ? 'نفد' : `${stock} ${quantityLabel}`}</dd>
                         </div>
                         <div>
                           <dt>آخر تعديل</dt>

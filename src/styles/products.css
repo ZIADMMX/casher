@@ -406,6 +406,7 @@
 }
 .prd-card__facts dt { color: var(--color-text-muted); font-size: var(--text-xs); }
 .prd-card__facts dd { font-size: var(--text-md); font-weight: var(--weight-bold); }
+.prd-card__facts dd.is-low { color: var(--color-danger-text); }
 
 .prd-card__actions { display: flex; gap: var(--space-2); }
 

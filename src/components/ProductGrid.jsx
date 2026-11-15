@@ -62,9 +62,13 @@ export function getCategoryIcon(catName = '', prodName = '', sectorKey = 'retail
 
   // صالات رياضية وجيم
   if (sectorKey === 'subscriptions_gym' || text.includes('جيم') || text.includes('اشتراك') || text.includes('بروتين') || text.includes('كرياتين') || text.includes('حصة')) {
-    if (text.includes('بروتين') || text.includes('مكمل') || text.includes('كرياتين')) return '🥤';
+    if (text.includes('ماء') || text.includes('مياه') || text.includes('ميه') || text.includes('water')) return '💧';
+    if (text.includes('فيتامين') || text.includes('اوميجا') || text.includes('كبسول') || text.includes('vitamin')) return '💊';
+    if (text.includes('بروتين') || text.includes('مكمل') || text.includes('كرياتين') || text.includes('مشروب') || text.includes('طاقة')) return '🥤';
+    if (text.includes('سناك') || text.includes('شوكولاتة')) return '🍫';
     if (text.includes('حصة') || text.includes('تدريب') || text.includes('pt')) return '🏆';
-    return '🏋️‍♂️';
+    if (text.includes('اشتراك') || text.includes('عضوية')) return '🏋️‍♂️';
+    return '📦';
   }
 
   // التجزئة والملابس الافتراضي
