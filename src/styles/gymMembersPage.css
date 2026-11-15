@@ -172,3 +172,5 @@
 }
 .gpf-facts dd small { margin-inline-start: 6px; }
 .gpf-col > section[aria-label="سجل الدخول"] { order: 9; } /* the long log goes last */
+.gms-iconbtn--wa { color: #1FA855; }
+.gms-iconbtn--wa:hover { border-color: #1FA855; background: #EAFBF0; }

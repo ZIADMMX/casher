@@ -62,7 +62,7 @@ function RowMenu({ member, onCopy }) {
           <div className="gmp-scrim" onClick={close} />
           <div className="gmp-menu" role="menu" style={{ top: at.top, left: at.left }}>
             <a role="menuitem" className={noPhone ? 'is-off' : ''} href={noPhone ? undefined : `tel:${member.phone}`} onClick={close}><LineIcon name="phone" size={16} /> اتصال</a>
-            <button type="button" role="menuitem" disabled={noPhone} onClick={pick(() => openWhatsapp(member.phone))}><LineIcon name="message" size={16} /> واتساب</button>
+            <button type="button" role="menuitem" disabled={noPhone} onClick={pick(() => openWhatsapp(member.phone))}><LineIcon name="whatsapp" size={16} /> واتساب</button>
             <hr />
             <button type="button" role="menuitem" disabled={noPhone} onClick={pick(() => onCopy(member.phone, 'رقم الهاتف'))}><LineIcon name="file" size={16} /> نسخ رقم الهاتف</button>
             <button type="button" role="menuitem" onClick={pick(() => onCopy(member.code, 'كود العضو'))}><LineIcon name="idCard" size={16} /> نسخ كود العضو</button>
@@ -250,6 +250,7 @@ export default function GymMembersPage({ onNavigate, openMemberId = null }) {
                   ) : (
                     <button type="button" className="gms-btn is-primary gmp-btn" onClick={() => open('activate', m)} aria-label={`اشتراك جديد لـ ${m.name}`}><LineIcon name="bolt" size={16} /> اشتراك الآن</button>
                   )}
+                  {m.phone && <button type="button" className="gms-iconbtn gms-iconbtn--wa" title="واتساب" aria-label={`واتساب ${m.name}`} onClick={() => openWhatsapp(m.phone)}><LineIcon name="whatsapp" size={18} /></button>}
                   <RowMenu member={m} onCopy={copy} />
                 </span>
               </div>

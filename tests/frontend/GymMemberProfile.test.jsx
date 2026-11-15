@@ -185,6 +185,17 @@ describe('member profile', () => {
     expect(onNavigate).toHaveBeenLastCalledWith('gym-checkout', { gymIntent: { action: 'activate', customerId: 2 } });
   });
 
+  it('the header WhatsApp icon opens wa.me on the member number, and is hidden with no phone', async () => {
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null);
+    const { profile } = await openProfile('مروان');
+    fireEvent.click(within(profile).getByRole('button', { name: 'واتساب مروان' }));
+    expect(open).toHaveBeenCalledWith('https://wa.me/201000000001', '_blank');
+    open.mockRestore();
+
+    const { profile: noPhone } = await openProfile('سمير');
+    expect(within(noPhone).queryByRole('button', { name: /واتساب/ })).not.toBeInTheDocument();
+  });
+
   it('still opens when the history queries fail', async () => {
     subscriptionsApi.getGymMemberCheckins.mockRejectedValue(new Error('x'));
     customersApi.getCustomerLedger.mockRejectedValue(new Error('x'));

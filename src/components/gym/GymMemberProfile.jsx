@@ -5,6 +5,7 @@ import * as subscriptionsApi from '../../api/subscriptions.js';
 import LineIcon from '../icons/LineIcons.jsx';
 import Kpi from './GymKpi.jsx';
 import { STATUS, statusOf } from '../../utils/gymMembers.js';
+import { openWhatsapp } from '../../utils/whatsapp.js';
 import { RESULT, WEEKDAYS, analyzeVisits, fromDb, hourLabel, timeLabel } from '../../utils/gymAttendance.js';
 
 const SHOWN = 20;
@@ -100,6 +101,7 @@ export default function GymMemberProfile({ member, customer, subs, onBack, onRen
           {member.sub && <button type="button" className="gms-btn" onClick={() => onOpenFile(member)}><LineIcon name="idCard" size={16} /> إدارة الاشتراك</button>}
           {member.debt > 0 && <button type="button" className="gms-btn" onClick={() => onPay(member)}><LineIcon name="banknote" size={16} /> سداد المستحق</button>}
           {member.phone && <a className="gms-iconbtn" href={`tel:${member.phone}`} aria-label={`اتصال بـ ${member.name}`}><LineIcon name="phone" size={18} /></a>}
+          {member.phone && <button type="button" className="gms-iconbtn gms-iconbtn--wa" onClick={() => openWhatsapp(member.phone)} aria-label={`واتساب ${member.name}`} title="فتح واتساب على رقم العضو"><LineIcon name="whatsapp" size={18} /></button>}
         </div>
       </header>
 

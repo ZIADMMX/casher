@@ -203,6 +203,15 @@ describe('GymMembersPage', () => {
     expect(within(await screen.findByRole('menu')).getByRole('menuitem', { name: /واتساب/ })).toBeDisabled();
   });
 
+  it('the row WhatsApp icon opens wa.me on the member number (and is hidden with no phone)', async () => {
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null);
+    setup();
+    fireEvent.click(within(await rowOf('مروان')).getByRole('button', { name: 'واتساب مروان' }));
+    expect(open).toHaveBeenCalledWith('https://wa.me/201000000001', '_blank');
+    expect(within(await rowOf('يوسف')).queryByRole('button', { name: 'واتساب يوسف' })).not.toBeInTheDocument();
+    open.mockRestore();
+  });
+
   it('records a payment from the balance column', async () => {
     setup();
     const row = await rowOf('يوسف');
