@@ -12,6 +12,7 @@ const { personalProfileSchema } = require('../validators/schema');
 const MAX_FAILED_LOGIN_ATTEMPTS = 5;
 const LOGIN_LOCKOUT_MS = 60 * 1000; // 1 minute lockout
 const loginAttempts = new Map();
+const REMOTE_CALLERS = new Set(['lan-api', 'rest-api']);
 const requestSession = new AsyncLocalStorage();
 
 function recordFailedLoginAttempt(usernameKey) {
@@ -143,7 +144,10 @@ function getDummyHash() {
  * clients (LAN API) keep their token themselves and send it with each request.
  */
 function login(username, password, callerId = 'default', { remember = true } = {}) {
-  const normUser = String(username || '').trim().toLowerCase();
+  // Remote clients (LAN / REST) get their own lockout bucket, so guessing an owner's
+  // password from the network cannot lock the owner out of the till itself.
+  const normUser = (REMOTE_CALLERS.has(callerId) ? `${callerId}:` : '')
+    + String(username || '').trim().toLowerCase();
 
   // Check brute-force lockout
   const attemptInfo = loginAttempts.get(normUser);
@@ -152,7 +156,7 @@ function login(username, password, callerId = 'default', { remember = true } = {
     throw new Error(`تم قفل الحساب مؤقتًا بسبب كثرة المحاولات الخاطئة. يرجى المحاولة بعد ${remainingSeconds} ثانية.`);
   }
 
-  const user = usersRepo.getByUsername(username);
+  const user = usersRepo.getByUsername(typeof username === 'string' ? username : '');
 
   if (!user) {
     bcrypt.compareSync(String(password || ''), getDummyHash());
@@ -168,7 +172,8 @@ function login(username, password, callerId = 'default', { remember = true } = {
     throw new Error('اسم المستخدم أو كلمة المرور غير صحيحة');
   }
 
-  const isValid = bcrypt.compareSync(password, user.password_hash);
+  // A missing or non-string password must fail like a wrong one, not throw a distinct error.
+  const isValid = bcrypt.compareSync(String(password ?? ''), user.password_hash);
   if (!isValid) {
     recordFailedLoginAttempt(normUser);
     try {

@@ -2,12 +2,15 @@ const { safeHandle } = require('./safeHandle');
 const aiService = require('../services/ai.service');
 
 function registerAIHandlers() {
+  // The renderer only ever gets the masked key; the real one stays in the main process.
+  const withoutKey = (settings) => ({ ...settings, apiKey: undefined });
+
   safeHandle('ai:getSettings', () => {
-    return aiService.getAISettings();
+    return withoutKey(aiService.getAISettings());
   });
 
   safeHandle('ai:saveSettings', (event, settingsData) => {
-    return aiService.saveAISettings(settingsData);
+    return withoutKey(aiService.saveAISettings(settingsData));
   });
 
   safeHandle('ai:askClaude', (event, payload) => {

@@ -29,6 +29,8 @@ const PROTECTED_KEYS = new Set([
   // ETA e-invoice API secret (electron/services/einvoice/config.js): written and
   // read only through the e-invoice screen, never echoed back to the renderer.
   'eta_client_secret',
+  // AI provider key (electron/services/ai/llmClient.js): sealed by the vault, read only by the main process.
+  'codecraft_api_key',
 ]);
 
 const SettingsRepository = {

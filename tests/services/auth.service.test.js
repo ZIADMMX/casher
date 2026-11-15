@@ -761,6 +761,27 @@ describe('auth.service', () => {
       expect(() => authService.login('admin', 'admin123')).toThrow(/تم قفل الحساب مؤقتًا بسبب كثرة المحاولات الخاطئة/);
     });
 
+    test('a missing password fails with the generic error and counts as a failed attempt', () => {
+      usersRepo.getByUsername.mockReturnValue(admin);
+      expect(() => authService.login('admin', undefined)).toThrow('اسم المستخدم أو كلمة المرور غير صحيحة');
+      expect(() => authService.login('admin', { x: 1 })).toThrow('اسم المستخدم أو كلمة المرور غير صحيحة');
+      for (let i = 0; i < 2; i++) {
+        expect(() => authService.login('admin', undefined)).toThrow('اسم المستخدم أو كلمة المرور غير صحيحة');
+      }
+      expect(() => authService.login('admin', undefined)).toThrow(/تم تجاوز الحد الأقصى/);
+    });
+
+    test('lockout from the LAN API does not lock the same account on this machine', () => {
+      usersRepo.getByUsername.mockReturnValue(admin);
+      for (let i = 0; i < 4; i++) {
+        expect(() => authService.login('admin', 'wrong', 'lan-api', { remember: false })).toThrow('اسم المستخدم أو كلمة المرور غير صحيحة');
+      }
+      expect(() => authService.login('admin', 'wrong', 'lan-api', { remember: false })).toThrow(/تم تجاوز الحد الأقصى/);
+      expect(() => authService.login('admin', 'admin123', 'lan-api', { remember: false })).toThrow(/قفل الحساب مؤقتًا/);
+
+      expect(authService.login('admin', 'admin123').token).toBeTruthy();
+    });
+
     test('clears failed attempts counter upon successful login', () => {
       const freshUser = {
         id: 10,

@@ -77,12 +77,15 @@ function sendJSON(res, statusCode, data) {
 function parseBody(req) {
   return new Promise((resolve, reject) => {
     let body = '';
+    let size = 0;
     req.on('data', (chunk) => {
-      body += chunk;
-      // Protection against huge payloads (> 10MB)
-      if (body.length > 10 * 1024 * 1024) {
-        reject(new Error('Payload too large'));
+      size += chunk.length;
+      // Huge payloads (> 10MB): drop the connection, otherwise the rest keeps filling memory.
+      if (size > 10 * 1024 * 1024) {
+        req.destroy();
+        return reject(new Error('Payload too large'));
       }
+      body += chunk;
     });
     req.on('end', () => {
       if (!body) return resolve({});

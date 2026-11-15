@@ -4,6 +4,7 @@ const http = require('node:http');
 const { URL } = require('node:url');
 const SettingsRepository = require('../../repositories/settings.repository');
 const { logError } = require('../logger.service');
+const { encryptSecret, decryptSecret } = require('../../security/vault');
 
 const DEFAULT_API_KEY = '';
 
@@ -12,7 +13,8 @@ const DEFAULT_API_URL = '';
 const DEFAULT_MODEL = 'gpt-4o-mini';
 
 function getAISettings() {
-  const apiKey = SettingsRepository.get('codecraft_api_key') || DEFAULT_API_KEY;
+  // Stored sealed by the vault; a key saved by an older build in plain text still reads fine.
+  const apiKey = decryptSecret(SettingsRepository.get('codecraft_api_key')) || DEFAULT_API_KEY;
   const apiUrl = SettingsRepository.get('codecraft_api_url') || DEFAULT_API_URL;
   const model = SettingsRepository.get('ai_model') || DEFAULT_MODEL;
   const isEnabled = SettingsRepository.get('ai_enabled') !== '0';
@@ -22,12 +24,12 @@ function getAISettings() {
     apiUrl,
     model,
     isEnabled,
-    maskedKey: apiKey ? `${apiKey.substring(0, 10)}...${apiKey.slice(-4)}` : '',
+    maskedKey: apiKey ? `••••${apiKey.slice(-4)}` : '',
   };
 }
 
 function saveAISettings(settingsData) {
-  if (settingsData.apiKey !== undefined) SettingsRepository.set('codecraft_api_key', settingsData.apiKey);
+  if (settingsData.apiKey !== undefined) SettingsRepository.set('codecraft_api_key', encryptSecret(settingsData.apiKey));
   if (settingsData.apiUrl !== undefined) SettingsRepository.set('codecraft_api_url', settingsData.apiUrl);
   if (settingsData.model !== undefined) SettingsRepository.set('ai_model', settingsData.model);
   if (settingsData.isEnabled !== undefined) SettingsRepository.set('ai_enabled', settingsData.isEnabled ? '1' : '0');

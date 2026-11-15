@@ -33,6 +33,20 @@ describe('AI Service Unit Tests', () => {
     saveAISettings({ apiKey: '', apiUrl: '', model: 'gpt-4o-mini', isEnabled: false });
   });
 
+  test('the API key is stored sealed and never listed with the ordinary settings', () => {
+    const SettingsRepository = require('../../electron/repositories/settings.repository');
+    saveAISettings({ apiKey: 'sk-secret-abcdef', isEnabled: true });
+
+    const stored = SettingsRepository.get('codecraft_api_key');
+    expect(stored).not.toContain('sk-secret-abcdef');
+    expect(SettingsRepository.getAll()).not.toHaveProperty('codecraft_api_key');
+    expect(() => SettingsRepository.setMany({ codecraft_api_key: 'x' })).toThrow();
+    expect(getAISettings().apiKey).toBe('sk-secret-abcdef');
+    expect(getAISettings().maskedKey).toBe('••••cdef');
+
+    saveAISettings({ apiKey: '', isEnabled: false });
+  });
+
   test('askClaude function is exported and defined', () => {
     expect(typeof askClaude).toBe('function');
   });
