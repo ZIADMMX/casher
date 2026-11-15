@@ -275,7 +275,7 @@ function saveScaleConfig(data) {
 }
 
 function findVariantByPlu(pluCode) {
-  // مطابقة الـ PLU كـ كود في أول الباركود أو الـ SKU أو معرف الـ Variant
+  // مطابقة تامة فقط على الـ SKU أو الباركود: أي مطابقة جزئية أو بالـ id كانت بتفوتر صنف غلط.
   const numPlu = String(parseInt(pluCode, 10)); // إزالة الأصفار على الشمال
   const paddedPlu = pluCode.padStart(5, '0');
 
@@ -291,10 +291,9 @@ function findVariantByPlu(pluCode) {
     WHERE pv.sku = ?
        OR pv.barcode = ?
        OR pv.sku = ?
-       OR pv.barcode LIKE ?
-       OR pv.id = ?
+       OR pv.barcode = ?
     LIMIT 1
-  `).get(paddedPlu, paddedPlu, numPlu, `%${paddedPlu}%`, parseInt(numPlu, 10) || -1);
+  `).get(paddedPlu, paddedPlu, numPlu, numPlu);
 }
 
 // ==========================================
