@@ -6,7 +6,8 @@ const variantsRepo = require('../repositories/productVariants.repository');
 const shiftsRepo = require('../repositories/shifts.repository');
 const tablesRepo = require('../repositories/tables.repository');
 const productsCache = require('./products.cache');
-const NotificationsService = require('./notifications.service');
+const eventBus = require('./eventBus.service');
+require('../listeners/sales.listener');
 const { requireAuth, getCurrentSession, hasGrantedPermission } = require('./auth.service');
 const { logError } = require('../services/logger.service');
 const inventoryRepo = require('../repositories/inventory.repository');
@@ -123,13 +124,18 @@ function createSale({
       let stockDeductionFactor = 1;
 
       if (item.unitId) {
+        let unit = null;
         try {
-          const unit = require('../repositories/grocery.repository').getUnitById(item.unitId);
-          if (unit) {
-            effectiveUnitPrice = Number(unit.selling_price);
-            stockDeductionFactor = Number(unit.conversion_factor) || 1;
-          }
+          unit = require('../repositories/grocery.repository').getUnitById(item.unitId);
         } catch {}
+        // A unit of another product would carry that product's (cheaper) price.
+        if (unit && Number(unit.variant_id) !== Number(item.variantId)) {
+          throw new Error('وحدة القياس لا تخص هذا الصنف');
+        }
+        if (unit) {
+          effectiveUnitPrice = Number(unit.selling_price);
+          stockDeductionFactor = Number(unit.conversion_factor) || 1;
+        }
       } else if (tableTab) {
         // A table check: the price was fixed by the server when the round was sent.
         effectiveUnitPrice = Number(item.unitPrice);
@@ -348,93 +354,25 @@ function createSale({
     const saleId = runTransaction();
     productsCache.refreshStockFromDatabase();
 
-    // الفاتورة الإلكترونية: تتسجل في الطابور وتتبعت للمصلحة في الخلفية.
-    // لا ترمي للخارج — عطل المنظومة أو النت ما ينفعش يوقف البيع.
-    require('./einvoice').enqueueSale(saleId);
-
-    // تسجيل حركة البيع في سجل تدقيق الكاشير
-    try {
-      const auditService = require('./audit.service');
-      const methodLabel = paymentMethod === 'cash' ? 'نقدي (كاش)' : paymentMethod === 'card' ? 'فيزا / بطاقة' : 'آجل';
-      auditService.logAction({
-        actionType: 'sale_created',
-        title: `إصدار فاتورة بيع #${saleId}`,
-        details: `فاتورة بيع #${saleId} [${methodLabel}] بإجمالي ${totalAmount.toFixed(2)} ج.م (عدد الأصناف: ${verifiedItems.length})`,
-        amount: totalAmount,
-        shiftId: activeShift ? activeShift.id : null,
-        userId: session.id,
-        username: session.username,
-        severity: 'success',
-      });
-
-      if (effectiveDiscount > 0) {
-        auditService.logAction({
-          actionType: 'discount_applied',
-          title: `تطبيق خصم (${effectiveDiscount.toFixed(2)} ج.م) على فاتورة #${saleId}`,
-          details: `${appliedPromotion && appliedPromotion.discount > normalizedDiscount ? `عرض ${appliedPromotion.name}؛ ` : ''}خصم على فاتورة #${saleId} بقيمة ${effectiveDiscount.toFixed(2)} ج.م من أصل ${subtotal.toFixed(2)} ج.م`,
-          amount: effectiveDiscount,
-          shiftId: activeShift ? activeShift.id : null,
-          userId: session.id,
-          username: session.username,
-          severity: 'warning',
-        });
-      }
-    } catch (auditErr) {
-      console.warn('تنبيه تسجيل حركة البيع في سجل التدقيق:', auditErr.message);
-    }
-
-    // تقييم وتدقيق العمولات التلقائية للموظف، من الأسعار المعتمدة على الخادم لا من أسعار الشاشة
-    try {
-      const commissionsService = require('./commissions.service');
-      commissionsService.evaluateSaleCommissions({
-        items: verifiedItems.map((item) => ({ ...item, price: item.unitPrice })),
-        totalAmount: afterDiscount,
-        // With a fully discounted sale totalAmount is 0, and the commission code falls back to items - discount.
-        discount: effectiveDiscount,
-        paymentMethod,
-      }, saleId, session?.id);
-    } catch (e) {
-      console.warn('تنبيه فحص العمولات:', e.message);
-    }
-
-    // إشعارات حول الفاتورة والرصيد
-    try {
-      if (paymentMethod === 'credit') {
-        NotificationsService.notify({
-          type: 'sale_credit',
-          title: '👤 مبيعات بالآجل (دين جديد)',
-          message: `تم تسجيل فاتورة بيع آجل #${saleId} للعميل "${customerName.trim()}" بقيمة ${totalAmount.toFixed(2)} ج.م (ميعاد الاستحقاق: ${dueDate})`,
-          linkPage: 'customers',
-        });
-      }
-
-      // فحص مستويات المخزون بعد البيع
-      for (const variantId of requestedByVariant.keys()) {
-        const updated = variantsRepo.getById(variantId);
-        if (updated) {
-          if (updated.stock_quantity === 0) {
-            NotificationsService.notify({
-              type: 'out_of_stock',
-              title: '🚫 نفاذ مخزون صنف بالكامل!',
-              dedupeKey: `out_of_stock:${variantId}`,
-              message: `نفذت كمية الصنف (${updated.sku || 'صنف'} - ${updated.size || ''} ${updated.color || ''}) من المخزون تماماً`,
-              linkPage: 'products',
-            });
-          } else if (updated.stock_quantity <= (updated.low_stock_threshold ?? 5)) {
-            NotificationsService.notify({
-              type: 'low_stock',
-              title: '⚠️ تنبيه: نقص وشيك في المخزون',
-              dedupeKey: `low_stock:${variantId}`,
-              message: `متبقي ${updated.stock_quantity} قطع فقط من الصنف (${updated.sku || 'صنف'} - ${updated.size || ''} ${updated.color || ''})`,
-              linkPage: 'products',
-            });
-          }
-        }
-      }
-    } catch (notifErr) {
-      // سجل الأخطاء المتعلقة بالإشعارات لكن لا توقف عملية البيع
-      logError('SaleNotifications', notifErr);
-    }
+    // إطلاق حدث إتمام البيع عبر ناقل الأحداث لتشغيل الخدمات التابعة
+    // (الفاتورة الإلكترونية، سجل التدقيق، العمولات، تنبيهات المخزون والآجل)
+    // بشكل منفصل وآمن دون مقاطعة أو إبطاء عملية البيع للكاشير.
+    eventBus.emit('sale:created', {
+      saleId,
+      totalAmount,
+      subtotal,
+      effectiveDiscount,
+      normalizedDiscount,
+      afterDiscount,
+      paymentMethod,
+      customerName,
+      dueDate,
+      verifiedItems,
+      appliedPromotion,
+      activeShift,
+      session,
+      requestedVariantIds: Array.from(requestedByVariant.keys()),
+    });
 
     return { saleId, totalAmount, tabClosed: tableTab ? tablesRepo.countUnpaidItems(tableTab.id) === 0 : undefined };
   } catch (err) {

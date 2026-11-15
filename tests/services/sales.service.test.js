@@ -24,6 +24,9 @@ jest.mock('../../electron/repositories/inventory.repository', () => ({
   getStockQuantity: jest.fn((warehouseId, variantId) => (variantId === 1 ? 10 : 1)),
   applyStockChange: jest.fn(),
 }));
+jest.mock('../../electron/repositories/grocery.repository', () => ({
+  getUnitById: jest.fn(),
+}));
 jest.mock('../../electron/services/notifications.service', () => ({ notify: jest.fn() }));
 jest.mock('../../electron/services/subscriptions.service', () => ({ consumeCredit: jest.fn() }));
 jest.mock('../../electron/services/commissions.service', () => ({ evaluateSaleCommissions: jest.fn() }));
@@ -58,6 +61,39 @@ describe('sales.service.createSale', () => {
       color: 'black',
       low_stock_threshold: 0,
     }));
+  });
+
+  test('a unit that belongs to another product cannot set the price', () => {
+    const { getUnitById } = require('../../electron/repositories/grocery.repository');
+    getUnitById.mockReturnValue({ id: 9, variant_id: 2, selling_price: 0.5, conversion_factor: 1 });
+    expect(() => createSale({
+      items: [{ variantId: 1, unitId: 9, quantity: 1 }],
+      paymentMethod: 'cash',
+    })).toThrow('وحدة القياس لا تخص هذا الصنف');
+    expect(salesRepo.createSale).not.toHaveBeenCalled();
+
+    getUnitById.mockReturnValue({ id: 9, variant_id: 1, selling_price: 5, conversion_factor: 1 });
+    createSale({ items: [{ variantId: 1, unitId: 9, quantity: 2 }], paymentMethod: 'cash' });
+    expect(salesRepo.createSale).toHaveBeenCalledWith(expect.objectContaining({ totalAmount: 10 }));
+  });
+
+  test('selling a carton deducts factor x quantity from stock and charges the carton price', () => {
+    const { getUnitById } = require('../../electron/repositories/grocery.repository');
+    getUnitById.mockReturnValue({ id: 9, variant_id: 1, selling_price: 30, conversion_factor: 6 });
+    const result = createSale({ items: [{ variantId: 1, unitId: 9, quantity: 1 }], paymentMethod: 'cash' });
+    expect(result.totalAmount).toBe(30);
+    expect(inventoryRepo.applyStockChange).toHaveBeenCalledWith(expect.objectContaining({
+      variantId: 1, delta: -6, movementType: 'sale',
+    }));
+  });
+
+  test('a carton that needs more base units than in stock is refused before anything is saved', () => {
+    const { getUnitById } = require('../../electron/repositories/grocery.repository');
+    getUnitById.mockReturnValue({ id: 9, variant_id: 1, selling_price: 30, conversion_factor: 12 });
+    expect(() => createSale({ items: [{ variantId: 1, unitId: 9, quantity: 1 }], paymentMethod: 'cash' }))
+      .toThrow('الكمية المتاحة غير كافية');
+    expect(salesRepo.createSale).not.toHaveBeenCalled();
+    expect(inventoryRepo.applyStockChange).not.toHaveBeenCalled();
   });
 
   test('rejects sale when there is no active open shift', () => {
