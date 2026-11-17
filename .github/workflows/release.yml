@@ -1,0 +1,34 @@
+name: Release
+
+# Pushing a tag like v1.0.2 tests, builds the Windows installer and publishes it to
+# GitHub Releases; installed apps pick it up through electron-updater.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Tag must match package.json version
+        shell: bash
+        run: |
+          v=$(node -p "require('./package.json').version")
+          [ "v$v" = "${GITHUB_REF_NAME}" ] || { echo "Tag ${GITHUB_REF_NAME} != package.json v$v"; exit 1; }
+      - run: pnpm exec jest --runInBand --forceExit
+      - run: pnpm exec vitest run
+      - run: pnpm run release:win
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Required by verify-license-time and the obfuscation step. Add it under Settings > Secrets > Actions.
+          FOX_LICENSE_TIME_URL: ${{ secrets.FOX_LICENSE_TIME_URL }}

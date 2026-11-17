@@ -218,14 +218,19 @@ npm run package:mac
 
 ## التحديث التلقائي
 
-التحديث التلقائي يعمل فقط في نسخة Windows المعبأة، وعند ضبط المتغير `KASHIEAR_UPDATE_URL` على مجلد يحتوي على ملفات `latest.yml` والمثبت وملف blockmap:
+التحديث التلقائي يعمل في نسخة Windows المعبأة فقط. التطبيق بيفحص GitHub Releases (`ZIADMMX/casher`) عند التشغيل وكل 4 ساعات، وينزّل التحديث في الخلفية ويسأل المستخدم يعيد التشغيل، ولو اختار "لاحقًا" بيتثبت عند إغلاق البرنامج.
 
-```powershell
-$env:KASHIEAR_UPDATE_URL = "https://updates.example.com/kashiear/"
-npm run package:win
+لإصدار تحديث لكل العملاء (بيتم تلقائيًا عبر GitHub Actions في `.github/workflows/release.yml`):
+
+1. ارفع رقم `version` في `package.json` (لازم يكون أكبر من الحالي) واعمل commit.
+2. اعمل tag بنفس الرقم وارفعه:
+
+```bash
+git tag v1.0.2
+git push origin v1.0.2
 ```
 
-يجب رفع ملفات الإصدار الموجودة في `release/` إلى رابط التحديث. لا تفعل التحديث التلقائي أثناء التطوير.
+الـ workflow يشغّل الاختبارات ويبني المثبت ويرفعه مع `latest.yml` على Release منشور، ويظهر التحديث عند كل المستخدمين. مطلوب مرة واحدة: أضف secret باسم `FOX_LICENSE_TIME_URL` في Settings > Secrets and variables > Actions. لو الاختبارات فشلت أو الـ tag مش مطابق لـ `version` مفيش إصدار بيتنشر. للإصدار من جهازك استخدم `npm run release:win` مع `GH_TOKEN`. لو عايز سيرفر خاص بدل GitHub اضبط `KASHIEAR_UPDATE_URL` على مجلد فيه `latest.yml` والمثبت وملف blockmap.
 
 ## اختبار إصدار Windows
 

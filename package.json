@@ -23,6 +23,7 @@
     "rebuild": "electron-rebuild -f -w better-sqlite3",
     "package": "npm run verify:license-time && npm run build && npm run rebuild && electron-builder --win --x64",
     "package:win": "npm run verify:license-time && npm run build && npm run rebuild && electron-builder --win --x64 --publish never",
+    "release:win": "npm run verify:license-time && npm run build && npm run rebuild && electron-builder --win --x64 --publish always",
     "package:dir": "npm run verify:license-time && npm run build && npm run rebuild && electron-builder --win --x64 --dir",
     "package:linux": "npm run verify:license-time && npm run build && npm run rebuild && electron-builder --linux --x64 --publish never",
     "package:mac": "npm run verify:license-time && npm run build && npm run rebuild && electron-builder --mac --publish never"
@@ -84,6 +85,7 @@
       ],
       "icon": "build/icon.icns"
     },
+    "publish": [{ "provider": "github", "owner": "ZIADMMX", "repo": "casher", "releaseType": "release" }],
     "npmRebuild": false,
     "nodeGypRebuild": false
   },
