@@ -1,0 +1,38 @@
+name: Rollout
+
+# Changes how many installs receive the newest published release.
+# 0 pauses it (kill switch: nobody who has not updated yet gets it), 10/50 widen it, 100 releases it to everyone.
+# Installs that already downloaded the update keep it; ship a fixed, higher version to replace a bad one.
+on:
+  workflow_dispatch:
+    inputs:
+      percent:
+        description: 'Share of installs that get the update (0-100)'
+        required: true
+        default: '100'
+
+permissions:
+  contents: write
+
+jobs:
+  rollout:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Set the rollout share on the latest release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PERCENT: ${{ inputs.percent }}
+        run: |
+          release=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest")
+          release_id=$(echo "$release" | jq -r .id)
+          asset_id=$(echo "$release" | jq -r '.assets[] | select(.name=="latest.yml") | .id')
+          gh api -H "Accept: application/octet-stream" "repos/$GITHUB_REPOSITORY/releases/assets/$asset_id" > latest.yml
+          node scripts/set-rollout.js latest.yml "$PERCENT"
+          gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$asset_id"
+          gh api --method POST "https://uploads.github.com/repos/$GITHUB_REPOSITORY/releases/$release_id/assets?name=latest.yml" \
+            -H "Content-Type: application/x-yaml" --input latest.yml
+          cat latest.yml

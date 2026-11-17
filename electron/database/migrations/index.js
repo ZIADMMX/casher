@@ -1,5 +1,6 @@
 const { db, DATABASE_SCHEMA_VERSION } = require('../connection');
 const { initDatabase } = require('../initDatabase');
+const { backupBeforeMigration } = require('../preMigrationBackup');
 const {
   migrateSalesTable,
   migrateUsersTable,
@@ -163,6 +164,10 @@ function runAllMigrations(dbInstance = db) {
   }
 
   console.log(`[DB] بدء فحص وترقية قاعدة البيانات (الإصدار الحالي: ${currentVersion} -> المستهدف: ${DATABASE_SCHEMA_VERSION})...`);
+
+  // نسخة احتياطية قبل أي تغيير في الجداول: لو الترقية فشلت أو أفسدت شيئًا ترجع منها.
+  const preMigrationBackup = backupBeforeMigration(dbInstance, currentVersion, DATABASE_SCHEMA_VERSION);
+  if (preMigrationBackup) console.log(`[DB] نسخة احتياطية قبل الترقية: ${preMigrationBackup}`);
 
   // إذا كانت قاعدة بيانات جديدة أو قديمة بدون schema، قم بتهيئتها
   initDatabase();

@@ -36,3 +36,18 @@ jobs:
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           # Required by verify-license-time and the obfuscation step. Add it under Settings > Secrets > Actions.
           FOX_LICENSE_TIME_URL: ${{ secrets.FOX_LICENSE_TIME_URL }}
+      # The release is built as a draft (installed apps cannot see it). It goes live only after latest.yml
+      # says how many installs may take it: ROLLOUT_PERCENT repo variable, 10 by default. Widen it later
+      # with the "Rollout" workflow; set it to 0 there to stop a bad release.
+      - name: Publish the release at a staged percentage
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PERCENT: ${{ vars.ROLLOUT_PERCENT || '10' }}
+        run: |
+          node scripts/set-rollout.js release/latest.yml "$PERCENT"
+          release_id=$(gh api "repos/$GITHUB_REPOSITORY/releases" --paginate --jq ".[] | select(.tag_name==\"$GITHUB_REF_NAME\") | .id" | head -n1)
+          asset_id=$(gh api "repos/$GITHUB_REPOSITORY/releases/$release_id" --jq '.assets[] | select(.name=="latest.yml") | .id')
+          gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$asset_id"
+          gh api --method POST "https://uploads.github.com/repos/$GITHUB_REPOSITORY/releases/$release_id/assets?name=latest.yml" -H "Content-Type: application/x-yaml" --input release/latest.yml
+          gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$release_id" -F draft=false
