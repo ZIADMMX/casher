@@ -468,6 +468,7 @@ async function runShutdownSteps() {
     }
   }
 }
+  startSafeInterval('WebhookRetries', () => require('./services/webhooks.service').retryPending(), 60_000);
 
 app.on('before-quit', (event) => {
   if (isShuttingDown) return;

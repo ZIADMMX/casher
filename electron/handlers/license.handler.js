@@ -1,23 +1,29 @@
 const licenseService = require('../services/license.service');
-const licenseClock = require('../services/licenseClock.service');
 const authService = require('../services/auth.service');
 const { exportAllData } = require('../services/export.service');
 const { safeHandle } = require('./safeHandle');
+const { trustedNowFor } = require('../services/licenseGuard.service');
 
 function registerLicenseHandlers() {
   safeHandle('license:getStatus', async () => {
-    const now = await licenseClock.getTrustedNow();
+    const now = await trustedNowFor();
     return licenseService.getLicenseStatus(now);
   });
 
   safeHandle('license:activate', async (event, payload) => {
-    const now = await licenseClock.getTrustedNow();
     // Older callers sent the key as a bare string; the object form carries the
     // accepted agreement version alongside it.
     const { key, acceptedEulaVersion } = typeof payload === 'string'
       ? { key: payload, acceptedEulaVersion: null }
       : (payload || {});
+    const now = await trustedNowFor(key);
     return licenseService.activateSoftware(key, now, { acceptedEulaVersion });
+  });
+
+  // Is the licence server really reachable (not just a wifi icon)? Runs the cached check, so it costs at most one request a quarter hour.
+  safeHandle('license:getConnection', async () => {
+    try { await trustedNowFor(); } catch { /* the failure itself is what we report */ }
+    return { reachable: require('../services/licenseClock.service').getReachability() };
   });
 
   safeHandle('license:getAgreement', () => licenseService.getAgreement());

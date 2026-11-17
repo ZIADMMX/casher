@@ -193,6 +193,7 @@ exportEmployees: () => ipcRenderer.invoke('export:employees'),
   // License & Software Activation
   getLicenseStatus: () => ipcRenderer.invoke('license:getStatus'),
   activateSoftware: (key, acceptedEulaVersion) => ipcRenderer.invoke('license:activate', { key, acceptedEulaVersion }),
+  getConnectionState: () => ipcRenderer.invoke('license:getConnection'),
   getLicenseAgreement: () => ipcRenderer.invoke('license:getAgreement'),
   exportAllData: (credentials) => ipcRenderer.invoke('license:exportData', credentials),
   onLicenseStatusChanged: (callback) => {

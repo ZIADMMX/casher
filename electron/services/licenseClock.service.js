@@ -9,6 +9,9 @@ const CONFIG_PATH = path.resolve(__dirname, '..', '..', 'license-time.config.jso
 // Within one run the monotonic clock is trusted, so the server is asked only
 // every 15 minutes (keeps each cashier at ~100 requests a day).
 const CACHE_DURATION_MS = 15 * 60_000;
+// After a failed check the server is not asked again for this long: offline, every IPC call and timer
+// would otherwise wait up to 5 s on a dead connection (wifi up, no internet).
+const RETRY_AFTER_FAILURE_MS = 60_000;
 // How long the shop may keep selling without reaching the time server,
 // counted from the last successful check.
 const OFFLINE_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -30,6 +33,7 @@ const SERVER_TRIAL_START_KEY = 'license_server_trial_start';
 let cachedTime = null;
 let runtimeMark = null;
 let pendingRequest = null;
+let lastFailure = null; // { at, error } of the last failed server check
 let anchorStore = null;
 
 function getAnchorStore() {
@@ -114,6 +118,7 @@ function offlineTrustedNow(networkError) {
 async function fetchTrustedTimeOrFallback(endpoint) {
   try {
     const { serverTime, trialStart } = await fetchTrustedTime(endpoint);
+    lastFailure = null;
     saveAnchor(serverTime);
     try {
       getAnchorStore().set(SERVER_TRIAL_START_KEY, String(trialStart));
@@ -123,6 +128,7 @@ async function fetchTrustedTimeOrFallback(endpoint) {
     return serverTime;
   } catch (error) {
     if (error.code === 'LICENSE_TIME_ROLLBACK') throw error;
+    lastFailure = { at: performance.now(), error };
     return offlineTrustedNow(error);
   }
 }
@@ -236,6 +242,10 @@ async function getTrustedNow() {
     return cachedTime.serverTime + (monotonicNow - cachedTime.monotonicTime);
   }
 
+  if (lastFailure && monotonicNow - lastFailure.at < RETRY_AFTER_FAILURE_MS) {
+    return offlineTrustedNow(lastFailure.error);
+  }
+
   if (!pendingRequest) {
     pendingRequest = fetchTrustedTimeOrFallback(endpoint).finally(() => {
       pendingRequest = null;
@@ -244,9 +254,16 @@ async function getTrustedNow() {
   return pendingRequest;
 }
 
+// For the sidebar light: true/false once a server check has run, null when it never ran or no server is configured.
+function getReachability() {
+  if (lastFailure) return false;
+  return cachedTime ? true : null;
+}
+
 function resetForTesting() {
   cachedTime = null;
   pendingRequest = null;
+  lastFailure = null;
   anchorStore = null;
   runtimeMark = null;
 }
@@ -257,6 +274,8 @@ function setAnchorStoreForTesting(store) {
 
 module.exports = {
   getTrustedNow,
+  getReachability,
+  getTimeEndpoint,
   resetForTesting,
   setAnchorStoreForTesting,
   OFFLINE_GRACE_MS,

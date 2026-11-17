@@ -165,7 +165,16 @@ function getAgreement() {
   };
 }
 
+// A lifetime key is signed and bound to this machine, so it never depends on trusted time:
+// such a shop keeps working with no internet at all, and can even be activated offline.
+function isLifetimeKey(keyInput = dbRepo.get('license_key')) {
+  if (!keyInput) return false;
+  const verification = verifyLicenseKey(String(keyInput), getMachineHardwareId(), Date.now());
+  return verification.valid && verification.isLifetime === true;
+}
+
 module.exports = {
+  isLifetimeKey,
   getMachineHardwareId,
   verifyLicenseKey,
   getLicenseStatus,

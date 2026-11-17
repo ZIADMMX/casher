@@ -1,0 +1,30 @@
+/* Small connection icon, bottom corner. Collapsed to the icon; the word slides out on hover/focus. */
+.conn-badge {
+  position: fixed;
+  inset-block-end: 14px;
+  inset-inline-start: 14px;
+  z-index: var(--z-toast, 1000);
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  block-size: 30px;
+  padding: 0 7px;
+  border: 1px solid #CDE9D9;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #1F7A4D;
+  font: 700 12px/1 'Cairo', sans-serif;
+  box-shadow: 0 6px 16px -8px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(8px);
+  transition: color 0.4s, border-color 0.4s, gap 0.3s, padding 0.3s;
+  cursor: default;
+}
+.conn-badge span { max-inline-size: 0; overflow: hidden; white-space: nowrap; transition: max-inline-size 0.35s cubic-bezier(0.22, 1, 0.36, 1); }
+.conn-badge:hover, .conn-badge.is-offline { gap: 6px; padding-inline-end: 12px; }
+.conn-badge:hover span, .conn-badge.is-offline span { max-inline-size: 90px; }
+.conn-badge.is-offline { border-color: #F5D9A8; color: #9A6A0B; background: #FFF8EA; animation: conn-pop 0.5s cubic-bezier(0.22, 1, 0.36, 1); }
+.conn-badge__slash { stroke-dasharray: 24; stroke-dashoffset: 24; animation: conn-draw 0.5s 0.1s ease forwards; }
+@keyframes conn-draw { to { stroke-dashoffset: 0; } }
+@keyframes conn-pop { from { transform: scale(0.85); opacity: 0.4; } }
+@media (prefers-reduced-motion: reduce) { .conn-badge, .conn-badge span, .conn-badge__slash { animation: none; transition: none; } .conn-badge__slash { stroke-dashoffset: 0; } }
+@media print { .conn-badge { display: none; } }

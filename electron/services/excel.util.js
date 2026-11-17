@@ -39,9 +39,6 @@ async function readTableFile(filePath) {
     throw new Error('صيغة الملف غير مدعومة؛ استخدم Excel أو CSV');
   }
 
-  // #region agent log
-  fetch('http://127.0.0.1:7663/ingest/cb7ceca9-c700-418f-a333-62e87ee82704',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'9ca281'},body:JSON.stringify({sessionId:'9ca281',hypothesisId:'C',location:'excel.util.js:readTableFile',message:'قراءة جدول Excel عبر exceljs',data:{engine:'exceljs',extension,sheetCount:workbook.worksheets.length},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
 
   const worksheet = workbook.worksheets[0];
   if (!worksheet) return [];
@@ -96,9 +93,6 @@ async function writeXlsxFile(filePath, sheetName, dataOrColumns) {
 
   await workbook.xlsx.writeFile(filePath);
 
-  // #region agent log
-  fetch('http://127.0.0.1:7663/ingest/cb7ceca9-c700-418f-a333-62e87ee82704',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'9ca281'},body:JSON.stringify({sessionId:'9ca281',hypothesisId:'C',location:'excel.util.js:writeXlsxFile',message:'كتابة xlsx عبر exceljs',data:{engine:'exceljs',rowCount:dataOrColumns.length},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
 }
 
 function sanitizeCsvCell(value) {

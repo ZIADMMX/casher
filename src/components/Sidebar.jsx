@@ -70,7 +70,6 @@ function Sidebar({ activePage, onNavigate, currentUser, onLogout, onOpenProfile,
   const [isTeamMenuOpen, setIsTeamMenuOpen] = useState(false);
   const [isRestarting, setIsRestarting] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(readCollapsed);
-  const [isOnline, setIsOnline] = useState(() => navigator.onLine);
 
   useEffect(() => {
     try {
@@ -80,15 +79,6 @@ function Sidebar({ activePage, onNavigate, currentUser, onLogout, onOpenProfile,
     }
   }, [isCollapsed]);
 
-  useEffect(() => {
-    const update = () => setIsOnline(navigator.onLine);
-    window.addEventListener('online', update);
-    window.addEventListener('offline', update);
-    return () => {
-      window.removeEventListener('online', update);
-      window.removeEventListener('offline', update);
-    };
-  }, []);
   const { settings } = useSettings();
   const { configuration, isModuleEnabled, getTerm } = useBusinessProfile();
   const profileKey = configuration?.profile?.key || settings?.business_type || settings?.onboarding_sector || 'retail';
@@ -545,10 +535,6 @@ function Sidebar({ activePage, onNavigate, currentUser, onLogout, onOpenProfile,
       <div className="sidebar-chips">
         <span className="sidebar-chip sidebar-chip--brand">POS</span>
         {sectorLabel && <span className="sidebar-chip">{sectorLabel}</span>}
-        <span className={`sidebar-chip sidebar-chip--status ${isOnline ? 'is-online' : 'is-offline'}`}>
-          <span className="sidebar-dot" aria-hidden="true" />
-          {isOnline ? 'متصل' : 'غير متصل'}
-        </span>
       </div>
 
       {/* Navigation Links */}

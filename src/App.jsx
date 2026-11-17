@@ -9,6 +9,7 @@ import ProfileModal from './components/ProfileModal.jsx';
 import ReviewModal from './components/ReviewModal.jsx';
 import NotificationToast from './components/NotificationToast.jsx';
 import RateLimitNotice from './components/RateLimitNotice.jsx';
+import ConnectionBadge from './components/ConnectionBadge.jsx';
 import LicenseLockScreen from './components/LicenseLockScreen.jsx';
 import LicenseBanner from './components/LicenseBanner.jsx';
 import { UserProvider, useUser } from './contexts/UserContext.jsx';
@@ -452,3 +453,4 @@ function App() {
 }
 
 export default App;
+            <ConnectionBadge />

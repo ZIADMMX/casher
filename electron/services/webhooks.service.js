@@ -3,6 +3,8 @@ const repo = require('../repositories/webhooks.repository');
 
 const WEBHOOK_EVENTS = ['sale.created', 'return.processed', 'customer.created'];
 const DELIVERY_TIMEOUT_MS = 10000;
+// Minutes to wait after the 1st, 2nd, 3rd, 4th failed delivery; the 5th failure gives up (last_error shows it).
+const RETRY_WAIT_MINUTES = [1, 5, 30, 120];
 
 function clean(data) {
   const name = String(data?.name || '').trim();
@@ -24,9 +26,9 @@ function sign(secret, body) {
   return `sha256=${crypto.createHmac('sha256', secret).update(body).digest('hex')}`;
 }
 
-// One signed POST; the result is stored on the row so the page shows the last delivery.
-async function deliver(hook, event, payload) {
-  const body = JSON.stringify({ event, created_at: new Date().toISOString(), data: payload });
+// One signed POST of an already built body; the result is stored on the row so the page shows the last delivery.
+// retry = worth sending again later (no connection, timeout, 5xx, 429); a 4xx is the receiver refusing it.
+async function send(hook, event, body) {
   try {
     const response = await fetch(hook.url, {
       method: 'POST',
@@ -39,16 +41,37 @@ async function deliver(hook, event, payload) {
       signal: AbortSignal.timeout(DELIVERY_TIMEOUT_MS),
     });
     repo.recordDelivery(hook.id, response.status, response.ok ? null : `HTTP ${response.status}`);
-    return { ok: response.ok, status: response.status };
+    return { ok: response.ok, status: response.status, retry: response.status >= 500 || response.status === 429 };
   } catch (error) {
     const message = error?.name === 'TimeoutError' ? 'انتهت مهلة الاتصال' : (error?.message || 'فشل الاتصال');
     repo.recordDelivery(hook.id, null, message);
-    return { ok: false, status: null, error: message };
+    return { ok: false, status: null, error: message, retry: true };
   }
 }
 
-// Fire-and-forget: a slow or dead endpoint must never block or fail the sale itself.
-// shortcut: no retry queue, failed deliveries are only shown on the page; add an outbox table if customers need guaranteed delivery.
+const deliver = (hook, event, payload) =>
+  send(hook, event, JSON.stringify({ event, created_at: new Date().toISOString(), data: payload }));
+
+// A dead endpoint or a dropped connection never blocks or fails the sale: the delivery waits in webhook_outbox.
+async function deliverWithRetry(hook, event, payload) {
+  const body = JSON.stringify({ event, created_at: new Date().toISOString(), data: payload });
+  const result = await send(hook, event, body);
+  if (!result.ok && result.retry) repo.queueRetry(hook.id, event, body, 1, RETRY_WAIT_MINUTES[0]);
+  return result;
+}
+
+// Called every minute: sends the queued deliveries that are due, with the same body they first had.
+async function retryPending() {
+  for (const row of repo.dueRetries()) {
+    const hook = repo.getWebhook(row.webhook_id);
+    if (!hook || !hook.is_active) { repo.deleteRetry(row.id); continue; }
+    const result = await send(hook, row.event, row.body);
+    if (result.ok || !result.retry || row.attempts >= RETRY_WAIT_MINUTES.length) repo.deleteRetry(row.id);
+    else repo.rescheduleRetry(row.id, row.attempts + 1, RETRY_WAIT_MINUTES[row.attempts]);
+  }
+}
+
+// Fire-and-forget.
 function dispatch(event, payload) {
   let hooks;
   try {
@@ -58,7 +81,7 @@ function dispatch(event, payload) {
     return;
   }
   for (const hook of hooks) {
-    deliver(hook, event, payload).catch(() => {});
+    deliverWithRetry(hook, event, payload).catch(() => {});
   }
 }
 
@@ -66,6 +89,7 @@ module.exports = {
   WEBHOOK_EVENTS,
   sign,
   dispatch,
+  retryPending,
   list: () => repo.listWebhooks(),
   create: (data) => repo.createWebhook({ ...clean(data), secret: `whsec_${crypto.randomBytes(24).toString('hex')}` }),
   update: (id, data) => {

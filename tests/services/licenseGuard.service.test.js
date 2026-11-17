@@ -3,6 +3,7 @@ jest.mock('../../electron/services/licenseClock.service', () => ({
 }));
 jest.mock('../../electron/services/license.service', () => ({
   getLicenseStatus: jest.fn(),
+  isLifetimeKey: jest.fn(() => false),
 }));
 
 const licenseClock = require('../../electron/services/licenseClock.service');
@@ -50,6 +51,24 @@ describe('licenseGuard.service', () => {
     });
 
     await expect(requireActiveLicense()).rejects.toThrow('انتهت صلاحية مفتاح التفعيل هذا');
+  });
+
+  test('a lifetime key keeps working when the time server cannot be reached', async () => {
+    licenseClock.getTrustedNow.mockRejectedValue(new Error('تعذر التحقق من وقت الترخيص عبر الإنترنت'));
+    licenseService.isLifetimeKey.mockReturnValue(true);
+    const status = { isExpired: false, isActivated: true };
+    licenseService.getLicenseStatus.mockReturnValue(status);
+
+    await expect(requireActiveLicense()).resolves.toBe(status);
+    expect(licenseService.getLicenseStatus).toHaveBeenCalledWith(expect.any(Number), { updateClock: false });
+  });
+
+  test('a trial or time-limited key is still refused when the time server cannot be reached', async () => {
+    licenseClock.getTrustedNow.mockRejectedValue(new Error('تعذر التحقق من وقت الترخيص عبر الإنترنت'));
+    licenseService.isLifetimeKey.mockReturnValue(false);
+
+    await expect(requireActiveLicense()).rejects.toThrow('تعذر التحقق');
+    expect(licenseService.getLicenseStatus).not.toHaveBeenCalled();
   });
 
   test('allows operations only while the license is active', async () => {

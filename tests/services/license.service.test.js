@@ -153,6 +153,17 @@ describe('license.service', () => {
     expect(result.reason).toBe('انتهت صلاحية مفتاح التفعيل هذا');
   });
 
+  test('isLifetimeKey is true only for a saved lifetime key of this machine', () => {
+    const hwid = licenseService.getMachineHardwareId();
+    expect(licenseService.isLifetimeKey()).toBe(false);
+
+    mockStore.license_key = licenseKeys.generateLicenseKey({ hwid, expiryTimestamp: 9999999999999 });
+    expect(licenseService.isLifetimeKey()).toBe(true);
+    expect(licenseService.isLifetimeKey(licenseKeys.generateLicenseKey({ hwid: 'ABCDEF12', expiryTimestamp: 9999999999999 }))).toBe(false);
+    expect(licenseService.isLifetimeKey(licenseKeys.generateLicenseKey({ hwid, expiryTimestamp: 1700000000000 + 86_400_000 }))).toBe(false);
+    expect(licenseService.isLifetimeKey('not a key')).toBe(false);
+  });
+
   test('6. verifyLicenseKey accepts lifetime key', () => {
     const hwid = licenseService.getMachineHardwareId();
     const expiryTimestamp = 9999999999999; // Lifetime

@@ -43,4 +43,18 @@ function recordDelivery(id, status, error) {
   `).run(status, error, id);
 }
 
-module.exports = { listWebhooks, getWebhook, createWebhook, updateWebhook, deleteWebhook, recordDelivery };
+const MAX_QUEUED = 500; // per webhook: a dead endpoint must not fill the database
+
+function queueRetry(webhookId, event, body, attempts, waitMinutes) {
+  const waiting = db.prepare('SELECT COUNT(*) AS n FROM webhook_outbox WHERE webhook_id = ?').get(webhookId).n;
+  if (waiting >= MAX_QUEUED) return false;
+  db.prepare(`INSERT INTO webhook_outbox (webhook_id, event, body, attempts, next_at) VALUES (?, ?, ?, ?, datetime('now', ?))`)
+    .run(webhookId, event, body, attempts, `+${waitMinutes} minutes`);
+  return true;
+}
+const dueRetries = () => db.prepare("SELECT * FROM webhook_outbox WHERE next_at <= datetime('now') ORDER BY id LIMIT 50").all();
+const deleteRetry = (id) => db.prepare('DELETE FROM webhook_outbox WHERE id = ?').run(id);
+const rescheduleRetry = (id, attempts, waitMinutes) =>
+  db.prepare("UPDATE webhook_outbox SET attempts = ?, next_at = datetime('now', ?) WHERE id = ?").run(attempts, `+${waitMinutes} minutes`, id);
+
+module.exports = { queueRetry, dueRetries, deleteRetry, rescheduleRetry, listWebhooks, getWebhook, createWebhook, updateWebhook, deleteWebhook, recordDelivery };

@@ -58,7 +58,7 @@ function safeHandle(channel, schemaOrHandler, maybeHandler, options = {}) {
     }
 
     try {
-      if (channel !== 'license:getStatus' && channel !== 'license:activate') {
+      if (channel !== 'license:getStatus' && channel !== 'license:activate' && channel !== 'license:getConnection') {
         await requireActiveLicense(event);
       }
 

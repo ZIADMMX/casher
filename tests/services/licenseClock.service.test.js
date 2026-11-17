@@ -131,6 +131,51 @@ describe('licenseClock.service', () => {
       dateSpy.mockRestore();
     });
 
+    test('after a failed check the server is not asked again for a minute, then once more', async () => {
+      const { performance } = require('node:perf_hooks');
+      let mono = 5_000;
+      const perf = jest.spyOn(performance, 'now').mockImplementation(() => mono);
+      licenseClock.setAnchorStoreForTesting(anchoredStore());
+      global.fetch = jest.fn(async () => { throw new Error('offline'); });
+
+      for (let i = 0; i < 5; i++) await licenseClock.getTrustedNow();
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+
+      mono += 61_000;
+      await licenseClock.getTrustedNow();
+      expect(global.fetch).toHaveBeenCalledTimes(2);
+      perf.mockRestore();
+    });
+
+    test('the server is used again as soon as the retry window ends and it answers', async () => {
+      const { performance } = require('node:perf_hooks');
+      let mono = 5_000;
+      const perf = jest.spyOn(performance, 'now').mockImplementation(() => mono);
+      licenseClock.setAnchorStoreForTesting(anchoredStore());
+      global.fetch = jest.fn(async () => { throw new Error('offline'); });
+      await licenseClock.getTrustedNow();
+
+      global.fetch = jest.fn(signedFetch({ utc: '2030-01-02T03:04:05.000Z', trialStart: TRIAL_START }));
+      mono += 61_000;
+      await licenseClock.getTrustedNow();
+      mono += 1_000;
+      await licenseClock.getTrustedNow(); // answered: cached again, no extra request
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+      perf.mockRestore();
+    });
+
+    test('reachability: unknown before any check, true after an answer, false after a failure', async () => {
+      expect(licenseClock.getReachability()).toBeNull();
+      await licenseClock.getTrustedNow();
+      expect(licenseClock.getReachability()).toBe(true);
+
+      licenseClock.resetForTesting();
+      licenseClock.setAnchorStoreForTesting(anchoredStore());
+      global.fetch = jest.fn(async () => { throw new Error('offline'); });
+      await licenseClock.getTrustedNow();
+      expect(licenseClock.getReachability()).toBe(false);
+    });
+
     test('a successful check saves an anchor for later offline use', async () => {
       await licenseClock.getTrustedNow();
 
