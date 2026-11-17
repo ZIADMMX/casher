@@ -32,3 +32,10 @@ CREATE TABLE IF NOT EXISTS inbox (
   created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_inbox_token ON inbox(token, id);
+
+-- The customer's answer to a quote on the tracking page (approve / decline), until the desktop confirms it.
+CREATE TABLE IF NOT EXISTS tracking_decisions (
+  token TEXT PRIMARY KEY,
+  decision TEXT NOT NULL CHECK (decision IN ('approve', 'decline')),
+  decided_at INTEGER NOT NULL
+);

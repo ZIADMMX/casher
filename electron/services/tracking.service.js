@@ -102,6 +102,11 @@ function getPreviewHtml(orderId) {
   return renderTrackingHtml(buildSnapshot(orderId));
 }
 
+const credentials = () => ({
+  device: require('../security/deviceId').getDeviceId(),
+  key: secret('tracking_write_key', () => crypto.randomBytes(32).toString('hex')),
+});
+
 // ---- the public link ----
 function baseUrl() {
   const { getTimeEndpoint } = require('./licenseClock.service');
@@ -136,16 +141,61 @@ async function publishOne(orderId, { force = false } = {}) {
   const res = await fetch(`${base}/api/track/${order.tracking_token}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      device: require('../security/deviceId').getDeviceId(),
-      key: secret('tracking_write_key', () => crypto.randomBytes(32).toString('hex')),
-      data,
-    }),
+    body: JSON.stringify({ ...credentials(), data }),
     signal: AbortSignal.timeout(15_000),
   });
   if (!res.ok) throw new Error(`tracking publish failed (${res.status})`);
   repo.setTrackingHash(order.id, hash);
   return true;
+}
+
+// The workshop stops sharing: the page disappears from the Worker, and the next link is a new one.
+async function revokeLink(orderId) {
+  const order = repo.getOrder(Number(orderId));
+  if (!order) throw new Error('أمر الشغل غير موجود');
+  if (!order.tracking_token) return true;
+  const base = baseUrl();
+  if (!base) throw new Error('إلغاء الرابط محتاج خادم الترخيص (FOX_LICENSE_TIME_URL) متظبط');
+  let res;
+  try {
+    res = await fetch(`${base}/api/track/${order.tracking_token}`, {
+      method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(credentials()), signal: AbortSignal.timeout(15_000),
+    });
+  } catch {
+    throw new Error('تعذر الوصول للخادم لإلغاء الرابط. اتأكد من الإنترنت وحاول تاني');
+  }
+  // 403/404: already gone or not ours any more; either way the link is dead for the customer
+  if (!res.ok && res.status !== 404) throw new Error(`تعذر إلغاء الرابط (${res.status})`);
+  repo.clearTrackingToken(order.id);
+  return true;
+}
+
+// What the customer answered on the page while the order waited for approval.
+async function applyDecision(orderId) {
+  const base = baseUrl();
+  const order = repo.getOrder(orderId);
+  if (!base || !order?.tracking_token || order.status !== 'awaiting_approval') return null;
+  const call = (extra) => fetch(`${base}/api/track/${order.tracking_token}/decision`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...credentials(), ...extra }), signal: AbortSignal.timeout(15_000),
+  });
+  const res = await call({});
+  if (!res.ok) throw new Error(`tracking decision failed (${res.status})`);
+  const { decision } = await res.json();
+  if (!decision) return null;
+  if (decision === 'approve') {
+    workshop.setStatus(order.id, 'in_progress');
+    repo.insertEvent(order.id, 'note', null, 'وافق العميل على العرض\nمن صفحة المتابعة');
+  } else {
+    repo.insertEvent(order.id, 'note', null, 'العميل رفض العرض أو طلب تعديله\nهنتواصل معاك');
+  }
+  try {
+    require('./notifications.service').notify({
+      type: 'workshop_approval_answer', title: decision === 'approve' ? 'العميل وافق على العرض' : 'العميل رفض العرض',
+      message: `${order.order_number} · ${order.customer_name}`, linkPage: 'work-orders', dedupeKey: `wo_answer:${order.id}:${decision}`,
+    });
+  } catch { /* a missing notification never blocks the answer */ }
+  await call({ consume: true }); // confirm only after it was applied: a crash in between just re-applies the same answer
+  return decision;
 }
 
 let running = false;
@@ -155,6 +205,7 @@ async function publishPending() {
   try {
     for (const row of repo.listTrackedOrders()) {
       try { await publishOne(row.id); } catch { /* offline or server down: the next round retries */ }
+      try { await applyDecision(row.id); } catch { /* same */ }
     }
   } finally {
     running = false;
@@ -200,4 +251,4 @@ function setLineDone(lineId, done) {
   return true;
 }
 
-module.exports = { buildSnapshot, getPreviewHtml, getLink, publishOne, publishPending, start, addUpdate, addPhoto, removePhoto, listPhotos, setLineDone };
+module.exports = { buildSnapshot, getPreviewHtml, getLink, revokeLink, applyDecision, publishOne, publishPending, start, addUpdate, addPhoto, removePhoto, listPhotos, setLineDone };

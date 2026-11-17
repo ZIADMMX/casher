@@ -179,7 +179,55 @@ async function inboxRoutes(request, env, url, now) {
   return json({ error: 'not found' }, 404);
 }
 
+// The customer's answer to a quote, kept apart from the snapshot so republishing never erases it.
+async function decisionFor(env, token) {
+  const row = await env.DB.prepare('SELECT decision, decided_at FROM tracking_decisions WHERE token = ?').bind(token).first();
+  return row || null;
+}
+
+async function trackingOwner(env, token, body) {
+  if (!DEVICE_PATTERN.test(String(body?.device)) || !KEY_PATTERN.test(String(body?.key))) return json({ error: 'device and key are required' }, 400);
+  const known = await env.DB.prepare('SELECT first_seen FROM devices WHERE device_id = ?').bind(body.device).first();
+  if (!known) return json({ error: 'unknown device' }, 403);
+  const row = await env.DB.prepare('SELECT key_hash FROM tracking WHERE token = ?').bind(token).first();
+  if (!row || row.key_hash !== (await sha256Hex(body.key))) return json({ error: 'forbidden' }, 403);
+  return null;
+}
+
 async function trackingRoutes(request, env, url, now) {
+  // the workshop revokes a link, or reads (and confirms) what the customer answered
+  const owned = url.pathname.match(/^\/api\/track\/([^/]+)(\/decision)?$/);
+  if (owned && ((owned[2] && request.method === 'POST') || (!owned[2] && request.method === 'DELETE'))) {
+    if (!TOKEN_PATTERN.test(owned[1])) return json({ error: 'bad token' }, 400);
+    let body;
+    try { body = JSON.parse(await request.text()); } catch { return json({ error: 'bad json' }, 400); }
+    const denied = await trackingOwner(env, owned[1], body);
+    if (denied) return denied;
+    if (!owned[2]) {
+      await env.DB.prepare('DELETE FROM tracking WHERE token = ?').bind(owned[1]).run();
+      await env.DB.prepare('DELETE FROM tracking_decisions WHERE token = ?').bind(owned[1]).run();
+      return json({ ok: true });
+    }
+    const decision = await decisionFor(env, owned[1]);
+    if (decision && body.consume) await env.DB.prepare('DELETE FROM tracking_decisions WHERE token = ?').bind(owned[1]).run();
+    return json({ decision: decision?.decision || null, decided_at: decision?.decided_at || null });
+  }
+
+  const answer = url.pathname.match(/^\/t\/([^/]+)\/decision$/);
+  if (answer && request.method === 'POST') {
+    if (!TOKEN_PATTERN.test(answer[1])) return json({ error: 'not found' }, 404);
+    let body;
+    try { body = JSON.parse(await request.text()); } catch { return json({ error: 'bad json' }, 400); }
+    if (!['approve', 'decline'].includes(body?.decision)) return json({ error: 'bad decision' }, 400);
+    const row = await env.DB.prepare('SELECT data FROM tracking WHERE token = ?').bind(answer[1]).first();
+    if (!row) return json({ error: 'not found' }, 404);
+    // only while the workshop is really waiting for the answer
+    if (JSON.parse(row.data).order?.status !== 'awaiting_approval') return json({ error: 'not waiting for approval' }, 409);
+    await env.DB.prepare('INSERT OR IGNORE INTO tracking_decisions (token, decision, decided_at) VALUES (?, ?, ?)').bind(answer[1], body.decision, now).run();
+    const saved = await decisionFor(env, answer[1]);
+    return json({ ok: true, decision: saved?.decision || body.decision });
+  }
+
   const put = url.pathname.match(/^\/api\/track\/([^/]+)$/);
   if (put && request.method === 'PUT') {
     if (!TOKEN_PATTERN.test(put[1])) return json({ error: 'bad token' }, 400);
@@ -190,8 +238,11 @@ async function trackingRoutes(request, env, url, now) {
     if (!TOKEN_PATTERN.test(page[1])) return notFoundPage();
     const row = await env.DB.prepare('SELECT data FROM tracking WHERE token = ?').bind(page[1]).first();
     if (!row) return page[2] ? json({ error: 'not found' }, 404) : notFoundPage();
-    if (page[2]) return new Response(row.data, { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' } });
-    return new Response(trackingPage.renderTrackingHtml(JSON.parse(row.data), { pollUrl: `/t/${page[1]}/data` }), { headers: PAGE_HEADERS });
+    const data = JSON.parse(row.data);
+    const decision = await decisionFor(env, page[1]);
+    if (decision) data.decision = decision.decision;
+    if (page[2]) return new Response(JSON.stringify(data), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' } });
+    return new Response(trackingPage.renderTrackingHtml(data, { pollUrl: `/t/${page[1]}/data`, decisionUrl: `/t/${page[1]}/decision` }), { headers: PAGE_HEADERS });
   }
   return null;
 }

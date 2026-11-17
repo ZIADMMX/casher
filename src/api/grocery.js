@@ -2,6 +2,8 @@
 // Supermarket & Grocery APIs
 import { bridgeMethod } from './bridge.js';
 
+export const getGroceryBatchBoard = bridgeMethod('getGroceryBatchBoard');
+export const writeOffGroceryBatch = bridgeMethod('writeOffGroceryBatch');
 export const resolveGroceryBarcode = bridgeMethod('resolveGroceryBarcode');
 export const parseGroceryScaleBarcode = bridgeMethod('parseGroceryScaleBarcode');
 export const parseGroceryQuickMultiplier = bridgeMethod('parseGroceryQuickMultiplier');

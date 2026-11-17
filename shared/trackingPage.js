@@ -244,6 +244,12 @@ function extra(){
   if(s.address)h+='<a class="btn p" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(s.address)+'">'+ic("nav")+"الاتجاهات إلى الورشة</a>";
   if(s.phone)h+='<a class="btn" href="tel:'+e(s.phone)+'">'+ic("phone")+"اتصل بنا  <bdi>"+e(s.phone)+"</bdi></a>";
   h+="</section>";
+ }else if(o.status==="awaiting_approval"){
+  var du=document.documentElement.getAttribute("data-decision"),dec=D.decision;
+  h='<section class="card rise" style="--i:2"><div class="due"><small>تكلفة الأعمال المقترحة</small><b><em>ج.م</em><span id="due" data-v="0">0</span></b><p>راجع البنود تحت ثم أبلغنا بقرارك.</p></div>'+
+   (dec?'<p class="note"><span>'+(dec==="approve"?"تم إرسال موافقتك للورشة. هنبدأ الشغل قريبًا.":"تم إرسال رفضك للورشة. هنتواصل معاك.")+"</span></p>"
+    :du?'<button class="btn p" type="button" id="ap">موافقة على العرض</button><button class="btn" type="button" id="dc">رفض أو طلب تعديل</button><p class="mut" id="decerr" style="text-align:center;margin:8px 0 0"></p>'
+    :'<p class="note"><span>الموافقة متاحة من الرابط الأصلي للعميل.</span></p>')+"</section>";
  }else if(o.status==="delivered"&&D.invoice){
   var iv=D.invoice;
   h='<section class="card rise" style="--i:2"><div class="inv"><div style="display:flex;gap:12px;align-items:center"><div class="ic">'+ic("doc")+'</div><div><b>الفاتورة #'+e(iv.number)+'</b><div class="mut">'+e(dt(iv.at))+" · "+e(tm(iv.at))+'</div></div></div><span class="chip g">مدفوعة</span></div>'+
@@ -252,7 +258,12 @@ function extra(){
    (D.next_service?'<p class="note">'+ic("cal")+"<span>"+e(D.next_service)+"</span></p>":"")+"</section>";
  }
  if(box.getAttribute("data-k")!==h){box.setAttribute("data-k",h);box.innerHTML=h}
- countUp($("#due"),o.status==="delivered"?(D.invoice&&D.invoice.total):D.due);
+ countUp($("#due"),o.status==="delivered"?(D.invoice&&D.invoice.total):o.status==="awaiting_approval"?D.total:D.due);
+ var du2=document.documentElement.getAttribute("data-decision");
+ ["ap","dc"].forEach(function(id){var b=$("#"+id);if(!b)return;b.onclick=function(){
+  var x=id==="ap"?"approve":"decline";b.disabled=true;
+  fetch(du2,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({decision:x})}).then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(){D.decision=x;extra()}).catch(function(){b.disabled=false;var m=$("#decerr");if(m)m.textContent="تعذر إرسال القرار. جرّب تاني."});
+ }});
 }
 function photos(){
  var box=$("#photos"),ph=D.photos||[];
@@ -305,11 +316,11 @@ if(url){setInterval(function(){
 const CSP = "default-src 'none'; img-src data: https:; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'none'";
 
 // pollUrl: لو موجود الصفحة بتسأل عليه كل 15 ثانية (الرابط العام). من غيره الصفحة ثابتة (المعاينة جوه البرنامج).
-function renderTrackingHtml(data, { pollUrl = '' } = {}) {
+function renderTrackingHtml(data, { pollUrl = '', decisionUrl = '' } = {}) {
   // JSON inside a non-executed script tag: only '<' needs escaping so no </script> can close it.
   const json = JSON.stringify(data).replace(/</g, '\\u003c');
   return `<!doctype html>
-<html lang="ar" dir="rtl"${pollUrl ? ` data-poll="${pollUrl.replace(/"/g, '&quot;')}"` : ''}>
+<html lang="ar" dir="rtl"${pollUrl ? ` data-poll="${pollUrl.replace(/"/g, '&quot;')}"` : ''}${decisionUrl ? ` data-decision="${decisionUrl.replace(/"/g, '&quot;')}"` : ''}>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">

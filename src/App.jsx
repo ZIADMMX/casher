@@ -45,6 +45,7 @@ const KitchenDisplayPage = lazy(() => import('./pages/KitchenDisplayPage.jsx'));
 const ReservationsPage = lazy(() => import('./pages/ReservationsPage.jsx'));
 const DeliveryOrdersPage = lazy(() => import('./pages/DeliveryOrdersPage.jsx'));
 const MaintenanceWorkshopPage = lazy(() => import('./pages/MaintenanceWorkshopPage.jsx'));
+const BatchesPage = lazy(() => import('./pages/BatchesPage.jsx'));
 const SubscriptionsPage = lazy(() => import('./pages/SubscriptionsPage.jsx'));
 const VehiclesPage = lazy(() => import('./pages/VehiclesPage.jsx'));
 const WorkOrdersPage = lazy(() => import('./pages/WorkOrdersPage.jsx'));
@@ -273,6 +274,7 @@ function AppContent() {
       reservations: 'pos.view',
       'delivery-orders': 'pos.view',
       'maintenance-workshop': 'enterprise.view',
+      batches: 'products.view',
       salon: 'pos.view',
       appointments: 'appointments.view',
       courts: 'cases.view',
@@ -336,6 +338,8 @@ function AppContent() {
         return <ReservationsPage />;
       case 'delivery-orders':
         return <DeliveryOrdersPage />;
+      case 'batches':
+        return <BatchesPage />;
       case 'maintenance-workshop':
         return <MaintenanceWorkshopPage onNavigate={navigateToPage} />;
       case 'salon':

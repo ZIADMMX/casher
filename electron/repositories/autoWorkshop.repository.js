@@ -137,6 +137,7 @@ const countPhotos = (orderId) => db.prepare('SELECT COUNT(*) AS n FROM work_orde
 const deletePhoto = (id) => db.prepare('DELETE FROM work_order_photos WHERE id = ?').run(id).changes;
 const setLineDone = (lineId, done) => db.prepare('UPDATE work_order_lines SET done = ? WHERE id = ?').run(done ? 1 : 0, lineId).changes;
 const setTrackingToken = (id, token) => db.prepare('UPDATE work_orders SET tracking_token = ? WHERE id = ? AND tracking_token IS NULL').run(token, id).changes;
+const clearTrackingToken = (id) => db.prepare('UPDATE work_orders SET tracking_token = NULL, tracking_hash = NULL WHERE id = ?').run(id).changes;
 const setTrackingHash = (id, hash) => db.prepare('UPDATE work_orders SET tracking_hash = ? WHERE id = ?').run(hash, id);
 // Orders that have a link and are still open, or closed in the last 30 days (the customer may reopen the page after pickup).
 const listTrackedOrders = () => db.prepare(`SELECT id, tracking_hash FROM work_orders WHERE tracking_token IS NOT NULL AND (closed_at IS NULL OR closed_at >= datetime('now', '-30 days'))`).all();
@@ -271,7 +272,7 @@ module.exports = {
   listBoardOrders, insertIntake, getIntake, insertReading, getReadings, markReminderSent, listVehicles, getReminder, setVehicleActive, openOrderCount, vehicleCounts,
   getVehicle, getVehicleByPlate, searchVehicles, insertVehicle, updateVehicle, raiseOdometer, customerExists,
   getOrder, listOrders, insertOrder, updateOrderFields, setStatus, markBilled,
-  insertEvent, listEvents, insertPhoto, listPhotos, countPhotos, deletePhoto, setLineDone, setTrackingToken, setTrackingHash, listTrackedOrders, getVehicleDueReminder,
+  insertEvent, listEvents, insertPhoto, listPhotos, countPhotos, deletePhoto, setLineDone, setTrackingToken, clearTrackingToken, setTrackingHash, listTrackedOrders, getVehicleDueReminder,
   getLines, getLine, insertLine, deleteLine, setLineQuantity,
   getCustomer, listVehiclesOfCustomer, listOrderIdsOfCustomer, getSaleBrief, laborVariantId, lastSupply, setVariantCost, setOpenLinesCost, getPartsOrder, getPartsOrderItems, insertPartsOrder, setPartsOrderStatus, unlinkPartsOrder, getVariantForLine,
   insertReminder, completeReminder, getReminders, getDueReminders,

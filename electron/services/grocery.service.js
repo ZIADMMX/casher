@@ -382,6 +382,70 @@ function getExpirySummary(daysAhead = 30) {
   };
 }
 
+const SOON_DAYS = 30;
+const round2 = (n) => Math.round(n * 100) / 100;
+
+/**
+ * شاشة التشغيلات: كل التشغيلات اللي لسه فيها كمية، بحالة الصلاحية وترتيب الصرف (FIFO: الأقرب انتهاءً يتباع الأول).
+ * filter: all | expired | soon | ok
+ */
+function getBatchBoard(filter = 'all') {
+  const rows = require('../database/db').db.prepare(`
+    SELECT b.id, b.variant_id, b.batch_number, b.expiry_date, b.quantity, b.purchase_price, b.notes, p.name AS product_name, pv.sku,
+      CAST(julianday(date(b.expiry_date)) - julianday(date('now', 'localtime')) AS INTEGER) AS days_remaining
+    FROM product_batches b JOIN product_variants pv ON pv.id = b.variant_id JOIN products p ON p.id = pv.product_id
+    WHERE b.quantity > 0 ORDER BY pv.id, b.expiry_date, b.id`).all();
+
+  const nextInLine = new Set(); // the batch of each product that the till sells from first
+  const batches = rows.map((b) => {
+    const status = b.days_remaining < 0 ? 'expired' : b.days_remaining <= SOON_DAYS ? 'soon' : 'ok';
+    const first = status !== 'expired' && !nextInLine.has(b.variant_id);
+    if (first) nextInLine.add(b.variant_id);
+    return { ...b, status, sells_first: first, value: round2(b.quantity * (Number(b.purchase_price) || 0)) };
+  });
+  const sum = (list) => round2(list.reduce((s, b) => s + b.value, 0));
+  const of = (status) => batches.filter((b) => b.status === status);
+  return {
+    summary: {
+      total: batches.length, expired: of('expired').length, soon: of('soon').length,
+      expired_value: sum(of('expired')), soon_value: sum(of('soon')),
+    },
+    batches: filter === 'all' || !filter ? batches : of(String(filter)),
+  };
+}
+
+/** Throws a batch away (expired, damaged): takes it out of the batch AND the stock, and leaves a movement and an audit line. */
+function writeOffBatch({ batchId, quantity, reason } = {}) {
+  const { db } = require('../database/db');
+  const inventoryRepo = require('../repositories/inventory.repository');
+  const batch = db.prepare('SELECT * FROM product_batches WHERE id = ?').get(Number(batchId));
+  if (!batch) throw new Error('التشغيلة غير موجودة');
+  const qty = Number(quantity);
+  if (!Number.isFinite(qty) || qty <= 0) throw new Error('الكمية غير صالحة');
+  if (qty > batch.quantity) throw new Error(`الكمية أكبر من المتبقي في التشغيلة (${batch.quantity})`);
+  const why = String(reason ?? '').replace(/\s+/g, ' ').trim().slice(0, 120);
+  if (!why) throw new Error('اكتب سبب الإتلاف');
+  const warehouseId = batch.warehouse_id || inventoryRepo.getDefaultWarehouseId();
+  if (!warehouseId) throw new Error('مفيش مخزن متحدد للتشغيلة دي');
+
+  db.transaction(() => {
+    if (db.prepare('UPDATE product_batches SET quantity = quantity - ? WHERE id = ? AND quantity >= ?').run(qty, batch.id, qty).changes !== 1) {
+      throw new Error('كمية التشغيلة اتغيّرت، أعد المحاولة');
+    }
+    inventoryRepo.applyStockChange({
+      warehouseId, variantId: batch.variant_id, delta: -qty, movementType: 'adjustment', referenceType: 'batch_writeoff', referenceId: batch.id,
+      notes: `إتلاف تشغيلة ${batch.batch_number || batch.id}: ${why}`,
+    });
+  })();
+  try {
+    require('./audit.service').logAction({
+      actionType: 'batch_writeoff', title: `إتلاف تشغيلة ${batch.batch_number || batch.id}`,
+      details: `${qty} وحدة - ${why}`, amount: round2(qty * (Number(batch.purchase_price) || 0)), severity: 'warning',
+    });
+  } catch { /* an audit failure never undoes a write-off that already happened */ }
+  return getBatchBoard('all');
+}
+
 function deductFifoBatchQuantity(variantId, quantity) {
   if (!variantId || !quantity || quantity <= 0) return;
   return groceryRepo.deductFifoBatchQuantity(variantId, quantity);
@@ -433,6 +497,8 @@ module.exports = {
   getExpiringBatches,
   getExpiredBatches,
   getExpirySummary,
+  getBatchBoard,
+  writeOffBatch,
   deductFifoBatchQuantity,
   getScaleConfig,
   saveScaleConfig,

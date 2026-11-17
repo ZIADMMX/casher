@@ -44,6 +44,9 @@ export default function CustomerTrackingCard({ order, busy, onChanged, notify })
     const { url } = await link();
     openWhatsapp(order.customer_phone, `أهلًا ${order.customer_name}، تقدر تتابع حالة سيارتك لحظة بلحظة من هنا: ${url}`);
   });
+  const revoke = () => {
+    if (window.confirm('إلغاء الرابط الحالي؟ العميل مش هيقدر يفتحه تاني، وأي رابط بعد كده هيكون جديد.')) run(() => workshopApi.revokeTrackingLink(order.id), 'تم إلغاء الرابط');
+  };
   const showPreview = () => run(async () => setPreview(await workshopApi.previewTracking(order.id)));
 
   const post = (e) => {
@@ -66,6 +69,7 @@ export default function CustomerTrackingCard({ order, busy, onChanged, notify })
         <button type="button" className="wk-btn" disabled={working} onClick={copy}><LineIcon name="file" size={16} /> نسخ الرابط</button>
         {order.customer_phone && <button type="button" className="wk-btn" disabled={working} onClick={send}><LineIcon name="message" size={16} /> إرسال واتساب</button>}
         <button type="button" className="wk-btn" disabled={working} onClick={showPreview}><LineIcon name="eye" size={16} /> معاينة</button>
+        {order.tracking_token && <button type="button" className="wk-btn" disabled={working} onClick={revoke}><LineIcon name="x" size={16} /> إلغاء الرابط</button>}
       </div>
 
       {live && order.status === 'in_progress' && order.lines.length > 0 && (

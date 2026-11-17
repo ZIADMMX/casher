@@ -14,6 +14,7 @@ const PAGE_PERMISSIONS = {
   reservations: 'pos.view',
   'delivery-orders': 'pos.view',
   'maintenance-workshop': 'enterprise.view',
+  batches: 'products.view',
   salon: 'pos.view',
   cases: 'cases.view',
   courts: 'cases.view',
@@ -205,6 +206,16 @@ function Sidebar({ activePage, onNavigate, currentUser, onLogout, onOpenProfile,
         </svg>
       ),
       roles: ['admin', 'cashier'],
+    },
+    {
+      key: 'batches',
+      label: 'التشغيلات والصلاحية',
+      icon: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M3 7l9-4 9 4-9 4zM3 12l9 4 9-4M3 17l9 4 9-4" />
+        </svg>
+      ),
+      roles: ['admin', 'manager', 'cashier'],
     },
     {
       key: 'maintenance-workshop',

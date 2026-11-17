@@ -11,6 +11,7 @@ export const receiveVehicle = bridgeMethod('receiveVehicle');
 export const getVehicleCheckIn = bridgeMethod('getVehicleCheckIn');
 export const printVehicleCheckIn = bridgeMethod('printVehicleCheckIn');
 export const createTrackingLink = bridgeMethod('createTrackingLink');
+export const revokeTrackingLink = bridgeMethod('revokeTrackingLink');
 export const previewTracking = bridgeMethod('previewTracking');
 export const getWorkOrderPhotos = bridgeMethod('getWorkOrderPhotos');
 export const addWorkOrderUpdate = bridgeMethod('addWorkOrderUpdate');

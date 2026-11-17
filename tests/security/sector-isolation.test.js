@@ -218,3 +218,12 @@ describe('Pages added with the restaurant and maintenance features', () => {
     });
   });
 });
+
+describe('Batches page', () => {
+  test('the batches and expiry screen belongs to the grocery sector only', () => {
+    expect(isBusinessProfilePageEnabled('batches', 'grocery')).toBe(true);
+    ['retail', 'cafe_restaurant', 'maintenance', 'auto_workshop', 'subscriptions_gym', 'salon_barbershop', 'law_firm', 'crm', 'custom'].forEach((profile) => {
+      expect(isBusinessProfilePageEnabled('batches', profile)).toBe(false);
+    });
+  });
+});

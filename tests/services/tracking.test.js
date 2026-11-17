@@ -136,3 +136,65 @@ describe('الرابط والنشر', () => {
     await expect(tracking.publishOne(order.id)).rejects.toThrow('403');
   });
 });
+
+describe('revoking the link', () => {
+  test('tells the Worker, forgets the token, and the next link is a new one', async () => {
+    const { token } = tracking.getLink(order.id);
+    const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue({ ok: true, status: 200 });
+    await tracking.revokeLink(order.id);
+    expect(fetchMock.mock.calls[0][0]).toBe(`https://fox.example.workers.dev/api/track/${token}`);
+    expect(fetchMock.mock.calls[0][1].method).toBe('DELETE');
+    expect(db.prepare('SELECT tracking_token FROM work_orders WHERE id = ?').get(order.id).tracking_token).toBeNull();
+    expect(tracking.getLink(order.id).token).not.toBe(token);
+  });
+
+  test('keeps the link if the server cannot be reached, so it can be retried', async () => {
+    const { token } = tracking.getLink(order.id);
+    jest.spyOn(global, 'fetch').mockRejectedValue(new Error('offline'));
+    await expect(tracking.revokeLink(order.id)).rejects.toThrow('تعذر الوصول');
+    expect(db.prepare('SELECT tracking_token FROM work_orders WHERE id = ?').get(order.id).tracking_token).toBe(token);
+  });
+
+  test('an order with no link has nothing to revoke', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch');
+    expect(await tracking.revokeLink(order.id)).toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('the customer answers the quote on the page', () => {
+  const answer = (decision) => jest.spyOn(global, 'fetch').mockImplementation(async (url, init) => ({
+    ok: true, status: 200, json: async () => ({ decision: JSON.parse(init.body).consume ? null : decision }),
+  }));
+  const waiting = () => { workshop.setStatus(order.id, 'diagnosing'); workshop.setStatus(order.id, 'awaiting_approval'); tracking.getLink(order.id); };
+
+  test('an approval starts the work, leaves a note for the customer, and is confirmed afterwards', async () => {
+    waiting();
+    const fetchMock = answer('approve');
+    expect(await tracking.applyDecision(order.id)).toBe('approve');
+    expect(workshop.getOrder(order.id).status).toBe('in_progress');
+    expect(tracking.buildSnapshot(order.id).timeline.some((t) => t.title === 'وافق العميل على العرض')).toBe(true);
+    expect(JSON.parse(fetchMock.mock.calls.at(-1)[1].body).consume).toBe(true);
+  });
+
+  test('a refusal keeps the order waiting and says so in the history', async () => {
+    waiting();
+    answer('decline');
+    expect(await tracking.applyDecision(order.id)).toBe('decline');
+    expect(workshop.getOrder(order.id).status).toBe('awaiting_approval');
+    expect(tracking.buildSnapshot(order.id).timeline.some((t) => t.title.includes('رفض'))).toBe(true);
+  });
+
+  test('no answer yet, or an order that is not waiting, changes nothing', async () => {
+    waiting();
+    answer(null);
+    expect(await tracking.applyDecision(order.id)).toBeNull();
+    expect(workshop.getOrder(order.id).status).toBe('awaiting_approval');
+
+    workshop.setStatus(order.id, 'in_progress');
+    global.fetch.mockClear();
+    const fetchMock = global.fetch;
+    expect(await tracking.applyDecision(order.id)).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});

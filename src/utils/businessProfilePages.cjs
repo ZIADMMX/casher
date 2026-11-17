@@ -6,6 +6,7 @@ const PAGE_MODULES = {
   reservations: 'pos',
   'delivery-orders': 'pos',
   'maintenance-workshop': 'enterprise',
+  batches: 'inventory',
   subscriptions: 'subscriptions',
   trainers: 'subscriptions',
   'gym-gate': 'subscriptions',
@@ -47,7 +48,7 @@ const PAGE_MODULES = {
 const SECTOR_PAGE_POLICIES = {
   grocery: {
     allowedPages: [
-      'today', 'pos', 'returns', 'products', 'branches',
+      'today', 'pos', 'returns', 'products', 'batches', 'branches',
       'customers', 'crm', 'suppliers', 'shifts', 'reports', 'users', 'attendance',
       'leaves', 'roles', 'salaries', 'settings', 'webhooks', 'enterprise', 'workflows',
       'screen-designer', 'profile',

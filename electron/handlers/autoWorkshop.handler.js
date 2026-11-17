@@ -25,6 +25,7 @@ function registerAutoWorkshopHandlers() {
     tracking.publishOne(orderId).catch(() => {}); // so the page already exists when the customer opens it; the 15 s loop retries on failure
     return link;
   });
+  safeHandle('enterprise:revokeTrackingLink', (event, orderId) => tracking.revokeLink(orderId));
   safeHandle('enterprise:previewTracking', (event, orderId) => tracking.getPreviewHtml(orderId));
   safeHandle('enterprise:getWorkOrderPhotos', (event, orderId) => tracking.listPhotos(orderId));
   safeHandle('enterprise:addWorkOrderUpdate', (event, payload) => tracking.addUpdate(payload?.orderId, payload?.data));

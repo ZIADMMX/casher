@@ -58,6 +58,9 @@ function registerGroceryHandlers() {
     return groceryService.getExpiredBatches();
   });
 
+  safeHandle('grocery:getBatchBoard', (event, filter) => groceryService.getBatchBoard(filter));
+  safeHandle('grocery:writeOffBatch', (event, data) => groceryService.writeOffBatch(data || {}));
+
   safeHandle('grocery:getExpirySummary', (event, daysAhead) => {
     return groceryService.getExpirySummary(daysAhead);
   });

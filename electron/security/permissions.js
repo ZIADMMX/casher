@@ -142,6 +142,7 @@ function getPermissionForChannel(channel, args = []) {
     }
     if (isReadAction(action)) return 'products.view';
     if (action === 'saveScaleConfig') return 'settings.manage';
+    if (action === 'writeOffBatch') return 'inventory.adjust';
     if (/delete|remove/i.test(action)) return 'products.delete';
     return 'products.edit';
   }
