@@ -125,7 +125,7 @@ const SCREEN_NAMES = {
 
 /**
  * خطوة "المنتجات" في شاشة نقطة البيع تختلف صياغتها حسب قطاع النشاط (profile key).
- * القطاعات: retail, electronics, maintenance, subscriptions_gym, grocery, spare_parts
+ * القطاعات: retail, maintenance, subscriptions_gym, grocery
  */
 const POS_STEP_PRODUCTS_BY_SECTOR = {
   default: {

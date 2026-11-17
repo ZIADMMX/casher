@@ -1,0 +1,129 @@
+[
+  {
+    "name": "getSalesSummary",
+    "description": "إجمالي المبيعات وعدد الفواتير والخصومات لفترة. افتراضياً اليوم.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "string",
+          "description": "YYYY-MM-DD"
+        },
+        "to": {
+          "type": "string",
+          "description": "YYYY-MM-DD"
+        }
+      }
+    }
+  },
+  {
+    "name": "getTopProducts",
+    "description": "أعلى 5 أصناف مبيعاً (بالكمية) منذ تاريخ. افتراضياً من أول الشهر.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "since": {
+          "type": "string",
+          "description": "YYYY-MM-DD"
+        }
+      }
+    }
+  },
+  {
+    "name": "getLowStock",
+    "description": "الأصناف المهددة بالنفاد (خطر حرج أو تحذير) مع الأيام المتبقية. أول 15 صنف.",
+    "parameters": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "searchProducts",
+    "description": "بحث عن صنف بالاسم أو الكود أو الباركود: السعر والكمية المتاحة.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ]
+    }
+  },
+  {
+    "name": "getCustomerBalance",
+    "description": "مديونية عميل (آجل ناقص المدفوع) بالاسم. بترجع حتى 5 عملاء مطابقين.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ]
+    }
+  },
+  {
+    "name": "getSuppliers",
+    "description": "الموردين مع المبلغ المتبقي لكل مورد وعدد الفواتير غير المسددة (الأعلى مديونية أولاً، حتى 10).",
+    "parameters": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "getCurrentShift",
+    "description": "حالة الوردية المفتوحة الآن وإجمالي مبيعاتها (كاش وكارت وآجل).",
+    "parameters": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "createPurchaseDraft",
+    "description": "يجهّز مسودة فاتورة شراء غير مدفوعة لمورد. لا تُنفَّذ إلا بعد تأكيد المستخدم. استخدم variantId و purchasePrice من نتائج الأدوات الأخرى.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "supplierId": {
+          "type": "integer"
+        },
+        "items": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "properties": {
+              "variantId": {
+                "type": "integer"
+              },
+              "productName": {
+                "type": "string"
+              },
+              "suggestedQuantity": {
+                "type": "number"
+              },
+              "unitPurchasePrice": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "variantId",
+              "productName",
+              "suggestedQuantity",
+              "unitPurchasePrice"
+            ]
+          }
+        }
+      },
+      "required": [
+        "supplierId",
+        "items"
+      ]
+    }
+  }
+]

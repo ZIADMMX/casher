@@ -298,7 +298,7 @@ describe('customers route isolation', () => {
     expect(screen.queryByRole('heading', { name: 'الأعضاء' })).not.toBeInTheDocument();
   });
 
-  it.each(['retail', 'grocery', 'cafe_restaurant', 'electronics', 'maintenance', 'spare_parts', 'salon_barbershop', 'law_firm', 'custom', 'crm', undefined])(
+  it.each(['retail', 'grocery', 'cafe_restaurant', 'maintenance', 'salon_barbershop', 'law_firm', 'custom', 'crm', undefined])(
     'keeps the shared customers page for %s',
     (profileKey) => {
       entry(profileKey);

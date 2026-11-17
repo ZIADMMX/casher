@@ -1,0 +1,39 @@
+{
+  "damageTypes": {
+    "scratch": "خدش",
+    "dent": "طعجة",
+    "break": "كسر"
+  },
+  "fuel": [
+    { "level": 0, "mark": "E", "label": "خزان فارغ", "warn": true },
+    { "level": 1, "mark": "¼", "label": "ربع خزان", "warn": true },
+    { "level": 2, "mark": "½", "label": "نصف خزان", "warn": false },
+    { "level": 3, "mark": "¾", "label": "ثلاثة أرباع", "warn": false },
+    { "level": 4, "mark": "F", "label": "خزان ممتلئ", "warn": false }
+  ],
+  "checklist": {
+    "exterior": [
+      { "key": "spare_tire", "label": "إطار احتياطي" },
+      { "key": "tools_jack", "label": "عدة الأدوات والعفريتة" },
+      { "key": "extinguisher", "label": "طفاية الحريق" },
+      { "key": "rim_covers", "label": "أغطية الجنوط" }
+    ],
+    "interior": [
+      { "key": "radio", "label": "الراديو" },
+      { "key": "papers", "label": "الرخصة والأوراق" },
+      { "key": "manual", "label": "دليل السيارة" },
+      { "key": "floor_mats", "label": "فرش الأرضية" }
+    ]
+  },
+  "photoSlots": [
+    { "key": "front", "label": "الأمام" },
+    { "key": "right", "label": "الجانب الأيمن" },
+    { "key": "dash", "label": "لوحة العدّادات" },
+    { "key": "extra", "label": "صورة إضافية" }
+  ],
+  "complaintChips": ["الفرامل", "الزيت", "التكييف", "صوت غريب", "الكهرباء"],
+  "diagram": {
+    "viewBox": "0 0 100 200",
+    "shapes": "<path class=\"cd-body\" d=\"M32 16C40 6 60 6 68 16L72 42L73 150L69 184C60 194 40 194 31 184L27 150L28 42Z\"/><path class=\"cd-glass\" d=\"M36 62H64L68 80H32Z\"/><rect class=\"cd-roof\" x=\"37\" y=\"84\" width=\"26\" height=\"46\" rx=\"7\"/><path class=\"cd-glass\" d=\"M33 136H67L63 154H37Z\"/><rect class=\"cd-wheel\" x=\"17\" y=\"44\" width=\"8\" height=\"22\" rx=\"3\"/><rect class=\"cd-wheel\" x=\"75\" y=\"44\" width=\"8\" height=\"22\" rx=\"3\"/><rect class=\"cd-wheel\" x=\"17\" y=\"138\" width=\"8\" height=\"22\" rx=\"3\"/><rect class=\"cd-wheel\" x=\"75\" y=\"138\" width=\"8\" height=\"22\" rx=\"3\"/><ellipse class=\"cd-light\" cx=\"39\" cy=\"15\" rx=\"6\" ry=\"3\"/><ellipse class=\"cd-light\" cx=\"61\" cy=\"15\" rx=\"6\" ry=\"3\"/><rect class=\"cd-light\" x=\"35\" y=\"181\" width=\"9\" height=\"4\" rx=\"2\"/><rect class=\"cd-light\" x=\"56\" y=\"181\" width=\"9\" height=\"4\" rx=\"2\"/><ellipse class=\"cd-light\" cx=\"23\" cy=\"72\" rx=\"4\" ry=\"3\"/><ellipse class=\"cd-light\" cx=\"77\" cy=\"72\" rx=\"4\" ry=\"3\"/><path class=\"cd-line\" d=\"M34 36Q50 30 66 36\"/><path class=\"cd-line\" d=\"M34 168Q50 174 66 168\"/>"
+  }
+}

@@ -13,6 +13,8 @@ const RESOURCE_PERMISSIONS = {
   'branches': 'inventory',
   'sales': 'pos',
   'tables': 'pos',
+  'loyalty': 'pos',
+  'delivery': 'pos',
   'returns': 'pos',
   'customers': 'customers',
   'crm': 'customers',
@@ -99,8 +101,12 @@ function getPermissionForChannel(channel, args = []) {
     if (action === 'saveSettings') return 'settings.manage';
     if (action === 'getSettings') return 'settings.view';
     if (action === 'createPurchaseDraft') return 'purchases.manage';
+    // The agent checks each tool's own permission (e.g. purchases.manage) before it runs one.
+    if (/^(confirm|discard)AgentProposal$/.test(action)) return 'ai.view';
     return `ai.${isReadAction(action) ? 'view' : 'manage'}`;
   }
+  if (resource === 'loyalty') return action === 'adjust' ? 'customers.edit' : 'pos.view';
+  if (resource === 'delivery') return isReadAction(action) ? 'pos.view' : 'pos.sell';
   if (resource === 'crm') {
     if (/^(get|check|list|export|openAttachment)/i.test(action)) return 'customers.view';
     return /^(create|add|import)/i.test(action) ? 'customers.create' : 'customers.edit';

@@ -197,17 +197,6 @@ export function sectorTermsFor(profileKey) {
         counter1: 'فواتير المبيعات اليوم',
         counter2: 'متوسط قيمة الفاتورة',
       };
-    case 'spare_parts':
-      return {
-        ...STOCK_CARDS,
-        Icon: CarIcon,
-        title: 'الحالة اليومية للمحل',
-        subtitle: 'قطع غيار السيارات',
-        invoiceLabel: 'فاتورة بيع',
-        newBillBtn: 'فاتورة بيع جديدة',
-        counter1: 'فواتير المبيعات اليوم',
-        counter2: 'متوسط قيمة الفاتورة',
-      };
     default:
       return {
         ...STOCK_CARDS,

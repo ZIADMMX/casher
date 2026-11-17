@@ -1,0 +1,13 @@
+{
+  "name": "fox-agent-service",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Stateless LLM brain for the Fox POS assistant. No DB access: the desktop app owns the tools.",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test",
+    "eval": "node evals/run.js"
+  },
+  "engines": { "node": ">=20" }
+}

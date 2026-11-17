@@ -129,7 +129,9 @@ function NoAccess({ action }) {
   );
 }
 
-function InventoryManagementPage() {
+const TAB_KEYS = ['branches', 'warehouses', 'stock', 'transfers', 'counts', 'movements'];
+
+function InventoryManagementPage({ initialTab = 'branches' }) {
   const { currentUser } = useUser();
   const can = {
     manage: hasPermission(currentUser, 'inventory.manage'),
@@ -137,7 +139,7 @@ function InventoryManagementPage() {
     adjust: hasPermission(currentUser, 'inventory.adjust'),
   };
 
-  const [tab, setTab] = useState('branches');
+  const [tab, setTab] = useState(TAB_KEYS.includes(initialTab) ? initialTab : 'branches');
   const [branches, setBranches] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
   const [stock, setStock] = useState([]);

@@ -1,5 +1,6 @@
 const { safeHandle } = require('./safeHandle');
 const aiService = require('../services/ai.service');
+const agentService = require('../services/agent/agent.service');
 
 function registerAIHandlers() {
   // The renderer only ever gets the masked key; the real one stays in the main process.
@@ -51,6 +52,10 @@ function registerAIHandlers() {
     const { reportType, dateRange } = payload || {};
     return aiService.generateArabicReport(reportType, dateRange);
   });
+
+  safeHandle('ai:askAgent', (event, payload) => agentService.askAgent(payload));
+  safeHandle('ai:confirmAgentProposal', (event, payload) => agentService.confirmProposal(payload?.id));
+  safeHandle('ai:discardAgentProposal', (event, payload) => agentService.rejectProposal(payload?.id));
 
   safeHandle('ai:createPurchaseDraft', (event, payload) => {
     const { items, supplierId, notes } = payload || {};

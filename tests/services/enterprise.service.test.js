@@ -33,6 +33,30 @@ describe('Enterprise Framework Service Unit Tests', () => {
     expect(getActiveBusinessProfile()?.key).toBeDefined();
   });
 
+  test('an install that still has a dropped sector goes back to retail on start', () => {
+    const previous = db.prepare("SELECT value FROM settings WHERE key = 'business_type'").get();
+    try {
+      const insert = db.prepare("INSERT OR REPLACE INTO business_profiles (key, name, is_active, settings_json) VALUES (?, ?, ?, '{}')");
+      insert.run('electronics', 'Electronics', 0);
+      insert.run('spare_parts', 'Spare parts', 0);
+      db.prepare('UPDATE business_profiles SET is_active = 0').run();
+      db.prepare("UPDATE business_profiles SET is_active = 1 WHERE key = 'electronics'").run();
+      db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('business_type', 'electronics')").run();
+
+      seedEnterpriseDefaults();
+
+      const keys = getBusinessProfiles().map((profile) => profile.key);
+      expect(keys).not.toContain('electronics');
+      expect(keys).not.toContain('spare_parts');
+      expect(getActiveBusinessProfile().key).toBe('retail');
+      expect(db.prepare("SELECT value FROM settings WHERE key = 'business_type'").get().value).toBe('retail');
+    } finally {
+      // the active profile follows this setting, so leave it as it was for the tests after this one
+      if (previous) db.prepare("UPDATE settings SET value = ? WHERE key = 'business_type'").run(previous.value);
+      else db.prepare("DELETE FROM settings WHERE key = 'business_type'").run();
+    }
+  });
+
   test('reenables the team module for an existing active business profile', () => {
     setActiveBusinessProfile('retail');
     setModuleEnabled('users', false);
@@ -205,8 +229,8 @@ describe('Enterprise Framework Service Unit Tests', () => {
   });
 
   test('setActiveBusinessProfile switches current active profile', () => {
-    const active = setActiveBusinessProfile('electronics');
-    expect(active.key).toBe('electronics');
+    const active = setActiveBusinessProfile('maintenance');
+    expect(active.key).toBe('maintenance');
     expect(active.is_active).toBe(1);
 
     const configuration = getActiveBusinessConfiguration();
@@ -218,8 +242,8 @@ describe('Enterprise Framework Service Unit Tests', () => {
     expect(moduleStates.get('customers')).toBe(0);
     expect(moduleStates.get('returns')).toBe(1);
     expect(moduleStates.get('shifts')).toBe(1);
-    expect(configuration.settings.terms.order).toBe('طلب توريد / صيانة');
-    expect(attributeKeys).toContain('serial_number');
+    expect(configuration.settings.terms.order).toBe('امر صيانة / تذكرة');
+    expect(attributeKeys).toContain('imei_serial');
     expect(attributeKeys).not.toContain('size');
 
     setActiveBusinessProfile('retail');
@@ -346,9 +370,9 @@ describe('Enterprise Framework Service Unit Tests', () => {
       `).run(productId, `PROFILE-TEST-${Date.now()}`, 1, 2, 1).lastInsertRowid;
 
       saveVariantAttributeValues(variantId, { [materialId]: 'Cotton' });
-      setActiveBusinessProfile('electronics');
-      const electronicsAttributes = getAttributeDefinitions();
-      const serialId = electronicsAttributes.find((attribute) => attribute.attribute_key === 'serial_number')?.id;
+      setActiveBusinessProfile('maintenance');
+      const maintenanceAttributes = getAttributeDefinitions();
+      const serialId = maintenanceAttributes.find((attribute) => attribute.attribute_key === 'imei_serial')?.id;
       expect(serialId).toBeDefined();
       saveVariantAttributeValues(variantId, { [serialId]: 'SN-001' });
 

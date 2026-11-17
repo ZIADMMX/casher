@@ -149,52 +149,7 @@
       },
       {
         "title": "ربط تطبيقات الدليفري",
-        "pattern": "talabat|elmenus|deliveryIntegration",
-        "weight": 1
-      },
-      {
-        "title": "فاتورة إلكترونية (ETA)",
-        "pattern": "eta_uuid|submitToEta|etaReceipt|e_receipt|einvoice",
-        "weight": 2
-      }
-    ]
-  },
-  "electronics": {
-    "name": "إلكترونيات وتكنولوجيا",
-    "features": [
-      {
-        "title": "بيع POS",
-        "pattern": "createSale",
-        "weight": 3
-      },
-      {
-        "title": "بحث بالسيريال / IMEI",
-        "pattern": "serial_number",
-        "weight": 1
-      },
-      {
-        "title": "سيريال فريد لكل وحدة (يتباع مرة واحدة)",
-        "pattern": "product_serials|unit_serials|serial_status",
-        "weight": 3
-      },
-      {
-        "title": "شهادة ضمان على الفاتورة",
-        "pattern": "warranty_until|warranty_certificate|printWarranty",
-        "weight": 2
-      },
-      {
-        "title": "مطالبات الضمان",
-        "pattern": "warranty_claim",
-        "weight": 1
-      },
-      {
-        "title": "تقسيط",
-        "pattern": "sale_installment|installment_plan|InstallmentPlan",
-        "weight": 2
-      },
-      {
-        "title": "مرتجعات",
-        "pattern": "findSaleForReturn|processReturn",
+        "pattern": "delivery_orders|pollInbox",
         "weight": 1
       },
       {
@@ -229,17 +184,17 @@
       },
       {
         "title": "إبلاغ العميل إن الجهاز جاهز",
-        "pattern": "ticketReadyWhatsApp|notifyCustomerReady|ready_notification",
+        "pattern": "ticketReadyWhatsApp|notifyCustomerReady|ready_notification|openWhatsapp|getMaintenanceBoard",
         "weight": 1
       },
       {
         "title": "ضمان على الإصلاح",
-        "pattern": "repair_warranty",
+        "pattern": "repair_warranty|warrantyUntilFor|warranty_claims",
         "weight": 1
       },
       {
         "title": "تحصيل فاتورة التذكرة في POS",
-        "pattern": "ticket_id|workflow_ticket_id",
+        "pattern": "ticket_id|workflow_ticket_id|markTicketBilled",
         "weight": 2
       }
     ]
@@ -249,7 +204,7 @@
     "features": [
       {
         "title": "سجل سيارات العميل (لوحة/ماركة/موديل)",
-        "pattern": "vehicle_plate",
+        "pattern": "vehicle_plate|vehicles",
         "weight": 3
       },
       {
@@ -269,43 +224,8 @@
       },
       {
         "title": "خصم القطع من المخزون",
-        "pattern": "work_order_parts|jobCardParts",
+        "pattern": "work_order_parts|jobCardParts|workOrderId",
         "weight": 1
-      },
-      {
-        "title": "فاتورة إلكترونية (ETA)",
-        "pattern": "eta_uuid|submitToEta|etaReceipt|e_receipt|einvoice",
-        "weight": 2
-      }
-    ]
-  },
-  "spare_parts": {
-    "name": "قطع غيار وسيارات",
-    "features": [
-      {
-        "title": "بيع POS",
-        "pattern": "createSale",
-        "weight": 3
-      },
-      {
-        "title": "بحث برقم OEM",
-        "pattern": "oem_number",
-        "weight": 2
-      },
-      {
-        "title": "توافق القطعة مع ماركة/موديل/سنة",
-        "pattern": "part_compatibility|fitment|compatible_models",
-        "weight": 3
-      },
-      {
-        "title": "قطع بديلة (cross-reference)",
-        "pattern": "cross_reference|alternative_parts",
-        "weight": 1
-      },
-      {
-        "title": "أسعار جملة وقطاعي",
-        "pattern": "price_tier|wholesale_price",
-        "weight": 2
       },
       {
         "title": "فاتورة إلكترونية (ETA)",
@@ -334,7 +254,7 @@
       },
       {
         "title": "حصص مدرب خاص (رصيد)",
-        "pattern": "consumeCredit",
+        "pattern": "getGymPtPackages|logPtSession|GymMemberPtCard",
         "weight": 2
       },
       {

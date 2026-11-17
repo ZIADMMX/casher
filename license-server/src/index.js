@@ -19,6 +19,12 @@
 //   GET /t/<token>           -> the page the customer opens (QR/link on the check-in receipt)
 //   GET /t/<token>/data      -> latest snapshot as JSON (the page polls it)
 //
+// Delivery-app orders inbox (the desktop cannot be reached from the internet, so this holds the orders until it asks):
+//   POST /d/<token>                 public webhook an app / integrator posts an order JSON to (<= 64 KB)
+//   PUT  /api/inbox/<token>         the desktop registers its inbox (device + key, like the tracking pages)
+//   POST /api/inbox/<token>/pull    the desktop takes the waiting orders  { device, key }
+//   POST /api/inbox/<token>/ack     the desktop confirms what it saved   { device, key, ids }
+//
 // Secret: TIME_SIGNING_KEY = base64 PKCS#8 Ed25519 private key
 // (node scripts/time-server-init.js --print-secret | npx wrangler secret put TIME_SIGNING_KEY).
 
@@ -32,6 +38,9 @@ const MAX_TRACK_BYTES = 1_500_000;
 // shortcut: shared addresses (mobile carriers, CGNAT) can make an honest new shop inherit a stranger's trial;
 // clear the table to reset: wrangler d1 execute foxcloud-license --remote --command "DELETE FROM trial_ips".
 const IP_WINDOW_MS = 30 * 24 * 3600 * 1000;
+const MAX_INBOX_BYTES = 64_000;
+const MAX_INBOX_WAITING = 500;
+const KEEP_INBOX_MS = 7 * 24 * 3600 * 1000;
 const KEEP_TRACK_MS = 90 * 24 * 3600 * 1000;
 
 let signingKey = null;
@@ -117,6 +126,59 @@ async function publishTracking(request, env, token, now) {
   return json({ ok: true });
 }
 
+// The desktop proves it owns an inbox the same way it owns a tracking page: its device is known and it holds the key.
+async function inboxOwner(env, token, body) {
+  if (!DEVICE_PATTERN.test(String(body?.device)) || !KEY_PATTERN.test(String(body?.key))) return json({ error: 'device and key are required' }, 400);
+  const known = await env.DB.prepare('SELECT first_seen FROM devices WHERE device_id = ?').bind(body.device).first();
+  if (!known) return json({ error: 'unknown device' }, 403);
+  const owner = await env.DB.prepare('SELECT key_hash FROM inbox_owners WHERE token = ?').bind(token).first();
+  return { owner, keyHash: await sha256Hex(body.key) };
+}
+
+async function inboxRoutes(request, env, url, now) {
+  const hook = url.pathname.match(/^\/d\/([^/]+)$/);
+  if (hook && request.method === 'POST') {
+    if (!TOKEN_PATTERN.test(hook[1])) return json({ error: 'not found' }, 404);
+    const raw = await request.text();
+    if (raw.length > MAX_INBOX_BYTES) return json({ error: 'too large' }, 413);
+    try { JSON.parse(raw); } catch { return json({ error: 'bad json' }, 400); }
+    const owner = await env.DB.prepare('SELECT key_hash FROM inbox_owners WHERE token = ?').bind(hook[1]).first();
+    if (!owner) return json({ error: 'not found' }, 404);
+    const waiting = await env.DB.prepare('SELECT COUNT(*) AS n FROM inbox WHERE token = ?').bind(hook[1]).first();
+    if (Number(waiting?.n) >= MAX_INBOX_WAITING) return json({ error: 'inbox full' }, 429);
+    await env.DB.prepare('INSERT INTO inbox (token, payload, created_at) VALUES (?, ?, ?)').bind(hook[1], raw, now).run();
+    await env.DB.prepare('DELETE FROM inbox WHERE created_at < ?').bind(now - KEEP_INBOX_MS).run();
+    return json({ ok: true });
+  }
+
+  const api = url.pathname.match(/^\/api\/inbox\/([^/]+)(\/pull|\/ack)?$/);
+  if (!api) return null;
+  const token = api[1];
+  if (!TOKEN_PATTERN.test(token)) return json({ error: 'bad token' }, 400);
+  let body;
+  try { body = JSON.parse(await request.text()); } catch { return json({ error: 'bad json' }, 400); }
+  const checked = await inboxOwner(env, token, body);
+  if (checked instanceof Response) return checked;
+  const { owner, keyHash } = checked;
+
+  if (!api[2] && request.method === 'PUT') {
+    if (owner && owner.key_hash !== keyHash) return json({ error: 'forbidden' }, 403);
+    if (!owner) await env.DB.prepare('INSERT INTO inbox_owners (token, key_hash, created_at) VALUES (?, ?, ?)').bind(token, keyHash, now).run();
+    return json({ ok: true });
+  }
+  if (!owner || owner.key_hash !== keyHash) return json({ error: 'forbidden' }, 403);
+  if (api[2] === '/pull' && request.method === 'POST') {
+    const rows = await env.DB.prepare('SELECT id, payload FROM inbox WHERE token = ? ORDER BY id LIMIT 50').bind(token).all();
+    return json({ items: (rows.results || []).map((r) => ({ id: r.id, payload: r.payload })) });
+  }
+  if (api[2] === '/ack' && request.method === 'POST') {
+    const ids = (Array.isArray(body.ids) ? body.ids : []).map(Number).filter(Number.isSafeInteger).slice(0, 50);
+    for (const id of ids) await env.DB.prepare('DELETE FROM inbox WHERE token = ? AND id = ?').bind(token, id).run();
+    return json({ ok: true, acked: ids.length });
+  }
+  return json({ error: 'not found' }, 404);
+}
+
 async function trackingRoutes(request, env, url, now) {
   const put = url.pathname.match(/^\/api\/track\/([^/]+)$/);
   if (put && request.method === 'PUT') {
@@ -147,6 +209,8 @@ export async function handle(request, env, now = Date.now()) {
   const url = new URL(request.url);
   const tracked = await trackingRoutes(request, env, url, now);
   if (tracked) return tracked;
+  const inbox = await inboxRoutes(request, env, url, now);
+  if (inbox) return inbox;
   if (url.pathname !== '/api/license/time' || request.method !== 'GET') {
     return json({ error: 'not found' }, 404);
   }

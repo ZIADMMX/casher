@@ -10,9 +10,7 @@ describe('Sector Page Isolation Policies', () => {
     'grocery',
     'retail',
     'cafe_restaurant',
-    'electronics',
     'maintenance',
-    'spare_parts',
     'subscriptions_gym',
     'salon_barbershop',
     'law_firm',
@@ -29,9 +27,8 @@ describe('Sector Page Isolation Policies', () => {
     });
   });
 
-  test('normalizes auto_workshop alias to spare_parts', () => {
-    expect(normalizeSectorKey('auto_workshop')).toBe('spare_parts');
-    expect(normalizeSectorKey('spare_parts')).toBe('spare_parts');
+  test('auto_workshop is its own sector, not an alias of another one', () => {
+    expect(normalizeSectorKey('auto_workshop')).toBe('auto_workshop');
     expect(normalizeSectorKey(null)).toBe('custom');
   });
 
@@ -88,13 +85,6 @@ describe('Sector Page Isolation Policies', () => {
       expect(isBusinessProfilePageEnabled('subscriptions', 'cafe_restaurant')).toBe(false);
     });
 
-    test('Electronics does NOT have cases, salon, appointments, subscriptions', () => {
-      expect(isBusinessProfilePageEnabled('cases', 'electronics')).toBe(false);
-      expect(isBusinessProfilePageEnabled('salon', 'electronics')).toBe(false);
-      expect(isBusinessProfilePageEnabled('appointments', 'electronics')).toBe(false);
-      expect(isBusinessProfilePageEnabled('subscriptions', 'electronics')).toBe(false);
-    });
-
     test('Maintenance does NOT have cases, salon, appointments, subscriptions', () => {
       expect(isBusinessProfilePageEnabled('cases', 'maintenance')).toBe(false);
       expect(isBusinessProfilePageEnabled('salon', 'maintenance')).toBe(false);
@@ -104,8 +94,35 @@ describe('Sector Page Isolation Policies', () => {
       expect(isBusinessProfilePageEnabled('commissions', 'maintenance')).toBe(true);
     });
 
-    test('Spare parts (and auto_workshop) does NOT have cases, salon, appointments, subscriptions', () => {
-      ['spare_parts', 'auto_workshop'].forEach((profile) => {
+    test('Workshop reports and service reminders exist in the auto workshop and in no other sector', () => {
+      ['workshop-reports', 'service-reminders'].forEach((page) => {
+        expect(isBusinessProfilePageEnabled(page, 'auto_workshop')).toBe(true);
+        [...allSectors, 'custom'].forEach((profile) => expect(isBusinessProfilePageEnabled(page, profile)).toBe(false));
+      });
+    });
+
+    test('The auto workshop has no CRM screen, but keeps its customers (vehicle owners)', () => {
+      expect(isBusinessProfilePageEnabled('crm', 'auto_workshop')).toBe(false);
+      expect(isBusinessProfilePageEnabled('customers', 'auto_workshop')).toBe(true);
+    });
+
+    test('The auto workshop hides the commissions and general reports pages', () => {
+      expect(isBusinessProfilePageEnabled('commissions', 'auto_workshop')).toBe(false);
+      expect(isBusinessProfilePageEnabled('reports', 'auto_workshop')).toBe(false);
+      expect(isBusinessProfilePageEnabled('reports', 'maintenance')).toBe(true);
+    });
+
+    test('Vehicles and work orders pages belong to the auto workshop only', () => {
+      expect(isBusinessProfilePageEnabled('vehicles', 'auto_workshop')).toBe(true);
+      expect(isBusinessProfilePageEnabled('work-orders', 'auto_workshop')).toBe(true);
+      ['maintenance', 'subscriptions_gym', 'retail', 'custom'].forEach((profile) => {
+        expect(isBusinessProfilePageEnabled('vehicles', profile)).toBe(false);
+        expect(isBusinessProfilePageEnabled('work-orders', profile)).toBe(false);
+      });
+    });
+
+    test('The auto workshop does NOT have cases, salon, appointments, subscriptions', () => {
+      ['auto_workshop'].forEach((profile) => {
         expect(isBusinessProfilePageEnabled('cases', profile)).toBe(false);
         expect(isBusinessProfilePageEnabled('salon', profile)).toBe(false);
         expect(isBusinessProfilePageEnabled('appointments', profile)).toBe(false);
@@ -180,6 +197,24 @@ describe('Sector Page Isolation Policies', () => {
       expect(isBusinessProfilePageEnabled('cases', 'grocery', mockAlwaysTrue)).toBe(false);
       expect(isBusinessProfilePageEnabled('salon', 'retail', mockAlwaysTrue)).toBe(false);
       expect(isBusinessProfilePageEnabled('products', 'law_firm', mockAlwaysTrue)).toBe(false);
+    });
+  });
+});
+
+describe('Pages added with the restaurant and maintenance features', () => {
+  test('reservations and delivery orders belong to the restaurant sector only', () => {
+    ['reservations', 'delivery-orders'].forEach((page) => {
+      expect(isBusinessProfilePageEnabled(page, 'cafe_restaurant')).toBe(true);
+      ['retail', 'grocery', 'maintenance', 'auto_workshop', 'subscriptions_gym', 'salon_barbershop', 'law_firm', 'crm', 'custom'].forEach((profile) => {
+        expect(isBusinessProfilePageEnabled(page, profile)).toBe(false);
+      });
+    });
+  });
+
+  test('the maintenance workshop screen belongs to the maintenance sector only', () => {
+    expect(isBusinessProfilePageEnabled('maintenance-workshop', 'maintenance')).toBe(true);
+    ['retail', 'grocery', 'cafe_restaurant', 'auto_workshop', 'subscriptions_gym', 'salon_barbershop', 'law_firm', 'crm', 'custom'].forEach((profile) => {
+      expect(isBusinessProfilePageEnabled('maintenance-workshop', profile)).toBe(false);
     });
   });
 });

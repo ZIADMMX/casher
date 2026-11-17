@@ -5,7 +5,7 @@ describe('Today page sector cards', () => {
     for (const key of ['auto_workshop', 'maintenance', 'salon_barbershop', 'subscriptions_gym']) {
       expect(sectorTermsFor(key).mode).toBe('appointments');
     }
-    for (const key of ['grocery', 'retail', 'electronics', 'spare_parts', 'cafe_restaurant', 'custom', undefined]) {
+    for (const key of ['grocery', 'retail', 'cafe_restaurant', 'custom', undefined]) {
       expect(sectorTermsFor(key).mode).toBe('stock');
     }
     expect(sectorTermsFor('grocery').title).toContain('سوبر ماركت');

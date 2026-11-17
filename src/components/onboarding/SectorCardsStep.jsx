@@ -53,20 +53,6 @@ export const SECTOR_CARDS = [
     ),
   },
   {
-    key: 'electronics',
-    soon: true,
-    title: 'إلكترونيات وتكنولوجيا',
-    subtitle: 'Tech & Phones',
-    desc: 'هواتف، أجهزة، إكسسوارات، شواحن، وفواتير ضمان بالسيريال',
-    badge: 'سيريال + فواتير ضمان',
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="5" y="2" width="14" height="20" rx="2" ry="2" />
-        <line x1="12" y1="18" x2="12.01" y2="18" />
-      </svg>
-    ),
-  },
-  {
     key: 'maintenance',
     title: 'ورش صيانة ومراكز خدمة',
     subtitle: 'Maintenance & Repair',
@@ -109,17 +95,14 @@ export const SECTOR_CARDS = [
     ),
   },
   {
-    key: 'spare_parts',
-    soon: true,
-    title: 'قطع غيار وسيارات',
-    subtitle: 'Auto Parts & Vehicles',
-    desc: 'قطع غيار، كود OEM، موديلات وسنوات الصنع، وأوامر شغل سيارات ومصنعيات',
-    badge: 'كود OEM + موديل وسنة',
+    key: 'auto_workshop',
+    title: 'ورش إصلاح سيارات',
+    subtitle: 'Auto Repair Workshop',
+    desc: 'سجل مركبات العملاء، استلام السيارة بحالة الهيكل والوقود والتوقيع، أوامر شغل وتذكيرات الصيانة',
+    badge: 'مركبات + استلام + أوامر شغل',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M5 17h14v-5l-2-5H7l-2 5v5z" />
-        <circle cx="7.5" cy="17.5" r="2.5" />
-        <circle cx="16.5" cy="17.5" r="2.5" />
+        <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94z" />
       </svg>
     ),
   },

@@ -35,17 +35,6 @@ const DEFAULT_PROFILES = [
     }
   },
   {
-    key: 'electronics',
-    name: '💻 إلكترونيات وتكنولوجيا (Electronics & Tech)',
-    is_active: 0,
-    settings_json: {
-      attributes: ['brand', 'model', 'serial_number', 'warranty_months'],
-      term_order: 'طلب توريد / صيانة',
-      term_customer: 'عميل شركات / فرد',
-      enabled_modules: ['pos', 'inventory', 'commissions', 'crm', 'purchases', 'reports', 'settings', 'enterprise']
-    }
-  },
-  {
     key: 'maintenance',
     name: '🛠️ ورشة صيانة وخدمات (Maintenance & Repair)',
     is_active: 0,
@@ -87,17 +76,6 @@ const DEFAULT_PROFILES = [
       term_order: 'طلب توريد',
       term_customer: 'عميل متجر',
       enabled_modules: ['pos', 'inventory', 'purchases', 'reports', 'settings', 'enterprise']
-    }
-  },
-  {
-    key: 'spare_parts',
-    name: '🚘 قطع غيار وسيارات (Auto Spare Parts)',
-    is_active: 0,
-    settings_json: {
-      attributes: ['car_make', 'car_model', 'year', 'oem_number'],
-      term_order: 'طلب قطع غيار',
-      term_customer: 'مركز خدمة / عميل',
-      enabled_modules: ['inventory', 'pos', 'purchases', 'reports', 'settings', 'enterprise']
     }
   },
   {

@@ -4,6 +4,9 @@ const { DEFAULT_MODULES, DEFAULT_PROFILES, PROFILE_BASELINE_MODULES, DEFAULT_ROL
 const { setActiveBusinessProfile } = require('./profiles');
 const { seedDefaultWorkflows } = require('./workflows');
 
+// Sectors that were dropped: installs that still have them go back to retail.
+const RETIRED_PROFILES = ['electronics', 'spare_parts'];
+
 function seedEnterpriseDefaults() {
   if (!enterpriseRepo.hasSystemModulesTable()) return false;
 
@@ -24,7 +27,18 @@ function seedEnterpriseDefaults() {
     }
 
     // Seed Business Profiles
-    const existingProfiles = enterpriseRepo.getBusinessProfiles();
+    let existingProfiles = enterpriseRepo.getBusinessProfiles();
+    const retired = existingProfiles.filter((profile) => RETIRED_PROFILES.includes(profile.key));
+    if (retired.length) {
+      const wasActive = retired.some((profile) => profile.is_active);
+      for (const profile of retired) enterpriseRepo.removeBusinessProfile(profile.key, 'retail');
+      existingProfiles = enterpriseRepo.getBusinessProfiles();
+      if (wasActive) {
+        if (!existingProfiles.some((profile) => profile.key === 'retail')) enterpriseRepo.upsertBusinessProfile(DEFAULT_PROFILES[0]);
+        setActiveBusinessProfile('retail');
+        existingProfiles = enterpriseRepo.getBusinessProfiles();
+      }
+    }
     const profileKeys = new Set(existingProfiles.map((profile) => profile.key));
     for (const p of DEFAULT_PROFILES) {
       if (!profileKeys.has(p.key)) {

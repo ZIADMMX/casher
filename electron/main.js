@@ -125,6 +125,7 @@ const { registerLicenseHandlers } = require('./handlers/license.handler');
 const { registerImportHandlers } = require('./handlers/import.handler');
 const { registerSubscriptionsHandlers } = require('./handlers/subscriptions.handler');
 const { registerGymTrainingHandlers } = require('./handlers/gymTraining.handler');
+const { registerAutoWorkshopHandlers } = require('./handlers/autoWorkshop.handler');
 const { registerCommissionsHandlers } = require('./handlers/commissions.handler');
 const { registerCRMHandlers } = require('./handlers/crm.handler');
 const { registerEnterpriseHandlers } = require('./handlers/enterprise.handler');
@@ -138,6 +139,8 @@ const { registerBundlePromotionHandlers } = require('./handlers/bundlePromotions
 const { registerPayrollHandlers } = require('./handlers/payroll.handler');
 const { registerReviewsHandlers } = require('./handlers/reviews.handler');
 const { registerWebhooksHandlers } = require('./handlers/webhooks.handler');
+const { registerLoyaltyHandlers } = require('./handlers/loyalty.handler');
+const { registerDeliveryHandlers } = require('./handlers/delivery.handler');
 const { registerSalonHandlers } = require('./handlers/salon.handler');
 const { registerCasesHandlers } = require('./handlers/cases.handler');
 const { registerCourtsHandlers } = require('./handlers/courts.handler');
@@ -157,7 +160,25 @@ app.commandLine.appendSwitch('disk-cache-size', '104857600'); // 100MB Disk Cach
 app.commandLine.appendSwitch('js-flags', '--max-old-space-size=2048'); // 2GB V8 Heap لمنع اختناق الذاكرة
 
 // تعيين معرف التطبيق لربط أيقونة شريط المهام والإشعارات بشكل صحيح على ويندوز
-app.setAppUserModelId('com.foxcloud.pos');
+// The installed app gets its shortcut (with this id) from the NSIS installer. A development run has no installer,
+// and Windows silently drops toasts from an id it has never seen, so dev uses its own id plus a shortcut made below.
+const APP_USER_MODEL_ID = app.isPackaged ? 'com.foxcloud.pos' : 'com.foxcloud.pos.dev';
+app.setAppUserModelId(APP_USER_MODEL_ID);
+
+function ensureDevToastShortcut() {
+  if (process.platform !== 'win32' || app.isPackaged || !process.env.APPDATA) return;
+  try {
+    const shortcut = path.join(process.env.APPDATA, 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'foxcloud POS (Dev).lnk');
+    shell.writeShortcutLink(shortcut, 'create', {
+      target: process.execPath,
+      args: `"${app.getAppPath()}"`,
+      appUserModelId: APP_USER_MODEL_ID,
+      description: 'foxcloud POS (development)',
+    });
+  } catch (err) {
+    logError('DevToastShortcut', err);
+  }
+}
 
 let mainWindow = null;
 let dbReady = false;
@@ -310,6 +331,7 @@ app.on('second-instance', () => {
 
 app.whenReady().then(async () => {
   if (!hasSingleInstanceLock) return;
+  ensureDevToastShortcut();
 
   try {
     try {
@@ -373,6 +395,7 @@ app.whenReady().then(async () => {
   registerCommissionsHandlers();
   registerCRMHandlers();
   registerEnterpriseHandlers();
+  registerAutoWorkshopHandlers();
   registerInventoryHandlers();
   registerLanHandlers();
   registerCentralClientHandlers();
@@ -381,6 +404,8 @@ app.whenReady().then(async () => {
   registerPayrollHandlers();
   registerReviewsHandlers();
   registerWebhooksHandlers();
+  registerLoyaltyHandlers();
+  registerDeliveryHandlers();
   registerSalonHandlers();
   registerCasesHandlers();
   registerCourtsHandlers();
@@ -439,9 +464,19 @@ app.whenReady().then(async () => {
     startSafeInterval('LegalTaskReminders', () => casesService.checkDueCaseTaskReminders(), 60_000);
   startSafeInterval('DailyDatabaseBackup', () => autoBackupDaily(), 6 * 60 * 60 * 1000);
   // الإشعارات أقدم من 90 يوم بتتمسح عشان الجدول ما يكبرش من غير حد.
-  startSafeInterval('NotificationsCleanup', () => require('./repositories/notifications.repository').deleteOlderThan(90), 24 * 60 * 60 * 1000);
+  startSafeInterval('NotificationsCleanup', () => {
+    const notificationsRepo = require('./repositories/notifications.repository');
+    notificationsRepo.deleteOlderThan(90);
+    notificationsRepo.deleteActivity();
+  }, 24 * 60 * 60 * 1000);
+  // ورشة السيارات: أوامر متأخرة ومواعيد صيانة مستحقة (إشعار ويندوز، مرة في اليوم لكل أمر).
+  startSafeInterval('WorkshopAlerts', () => require('./services/autoWorkshop.service').checkWorkshopAlerts(), 10 * 60_000);
   // الفاتورة الإلكترونية: ترسل المعلّق وتحدّث حالة المرسل. لا تعمل شيئًا قبل التفعيل.
+  startSafeInterval('DeliveryInbox', () => require('./services/delivery.service').pollInbox(), 20_000);
+  startSafeInterval('ReservationReminders', () => require('./services/reservations.service').checkDueReminders(), 60_000);
+  startSafeInterval('WebhookRetries', () => require('./services/webhooks.service').retryPending(), 60_000);
   startSafeInterval('EInvoiceSubmission', () => require('./services/einvoice').flush(), 5 * 60_000);
+  require('./services/tracking.service').start();
   configureUpdater();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -468,7 +503,6 @@ async function runShutdownSteps() {
     }
   }
 }
-  startSafeInterval('WebhookRetries', () => require('./services/webhooks.service').retryPending(), 60_000);
 
 app.on('before-quit', (event) => {
   if (isShuttingDown) return;

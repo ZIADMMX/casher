@@ -64,25 +64,6 @@ export const SECTOR_CONFIGS = {
       subscriptions: false,
     },
   },
-  electronics: {
-    key: 'electronics',
-    name: 'إلكترونيات وتكنولوجيا',
-    badge: 'سيريال + فواتير ضمان',
-    color: '#8B5CF6',
-    searchPlaceholder: 'ابحث بالسيريال (SN)، الـ IMEI، اسم الجهاز، أو الكود...',
-    orderTerm: 'فاتورة ضمان ومبيعات',
-    itemTerm: 'جهاز / قطعة',
-    unitTerm: 'جهاز',
-    quickFilters: ['الكل', 'هواتف ذكية', 'إكسسوارات وشواحن', 'صوتيات وسماعات', 'شاشات وكمبيوتر'],
-    features: {
-      variants: true,
-      scaleBarcode: false,
-      serialNumber: true,
-      tableService: false,
-      maintenanceTicket: false,
-      subscriptions: false,
-    },
-  },
   maintenance: {
     key: 'maintenance',
     name: 'ورش صيانة ومراكز خدمة',
@@ -119,28 +100,6 @@ export const SECTOR_CONFIGS = {
       tableService: false,
       maintenanceTicket: false,
       subscriptions: false,
-    },
-  },
-  spare_parts: {
-    key: 'spare_parts',
-    name: 'قطع غيار وسيارات',
-    badge: 'كود القطعة OEM + موديل وسنة الصنع',
-    color: '#0284C7',
-    searchPlaceholder: 'ابحث برقم القطعة (OEM)، كود الصنف، ماركة/موديل السيارة، أو الباركود...',
-    orderTerm: 'طلب قطع غيار',
-    itemTerm: 'قطعة غيار',
-    unitTerm: 'قطعة',
-    quickFilters: ['الكل', 'محركات وسيور', 'فرامل وتيل', 'عفشة ومساعدين', 'فلاتر وزيوت', 'كهرباء وإنارة'],
-    features: {
-      variants: true,
-      scaleBarcode: false,
-      serialNumber: true,
-      tableService: false,
-      maintenanceTicket: false,
-      subscriptions: false,
-      batchExpiry: false,
-      speedKeys: false,
-      oemCode: true,
     },
   },
   subscriptions_gym: {
@@ -244,6 +203,5 @@ export const SECTOR_CONFIGS = {
 };
 
 export function getSectorConfig(sectorKey) {
-  if (sectorKey === 'auto_workshop') return SECTOR_CONFIGS.spare_parts || SECTOR_CONFIGS.auto_workshop;
   return SECTOR_CONFIGS[sectorKey] || SECTOR_CONFIGS.retail;
 }

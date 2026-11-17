@@ -165,7 +165,7 @@ function seedDefaultWorkflows(forceReset = false) {
       entity_type: 'purchase_order',
       name: 'سير عمل أوامر الشراء والتوريد',
       description: 'مسار المشتريات: مسودة ← موافقة الإدارة ← طلب صادر ← استلام المخزن',
-      business_profile_key: 'spare_parts',
+      business_profile_key: 'retail',
       is_active: 1
     });
 

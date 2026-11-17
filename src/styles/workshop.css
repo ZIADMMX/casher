@@ -1,0 +1,135 @@
+/* ==========================================================================
+   Auto workshop base kit (wk-*): tokens and the shared pieces of the workshop screens
+   (glass card, buttons, fields, pills, popover menu, macOS-style sheet).
+   Owns everything it uses: nothing here depends on another sector's styles.
+   ========================================================================== */
+
+.wk {
+  --wk-primary: #EA580C;
+  --wk-deep: #C2410C;
+  --wk-ink: #2A1D14;
+  --wk-muted: #8A6A52;
+  --wk-line: #F3E4D6;
+
+  display: grid; align-content: start; gap: 16px; min-height: 100%; padding: 22px 24px 48px; color: var(--wk-ink);
+  /* Glass needs something behind it to blur: soft orange light pools over a peach gradient. */
+  background:
+    radial-gradient(520px 380px at 12% -4%, rgb(251 146 60 / 0.30), transparent 70%),
+    radial-gradient(620px 460px at 96% 22%, rgb(253 186 116 / 0.34), transparent 70%),
+    radial-gradient(560px 420px at 40% 108%, rgb(234 88 12 / 0.16), transparent 70%),
+    linear-gradient(160deg, #FFFFFF 0%, #FFF4EA 45%, #FFE3CC 100%);
+}
+
+/* ---- glass card ---- */
+.wk-card {
+  position: relative; isolation: isolate; overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 0.85); border-radius: 22px;
+  background: linear-gradient(155deg, rgb(255 255 255 / 0.88), rgb(255 255 255 / 0.58));
+  backdrop-filter: blur(18px) saturate(1.5);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.95), inset 0 -1px 0 rgb(234 88 12 / 0.06), 0 1px 2px rgb(120 60 20 / 0.05), 0 16px 36px rgb(154 70 20 / 0.10);
+}
+.wk-card::after { content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none; background: linear-gradient(112deg, transparent 0 34%, rgb(255 255 255 / 0.55) 46%, transparent 58% 100%); opacity: 0.55; }
+
+/* ---- buttons ---- */
+.wk-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-block-size: 44px; padding: 0 18px;
+  border: 1px solid #F0DCCB; border-radius: 13px; background: rgb(255 255 255 / 0.9); color: var(--wk-ink);
+  font: inherit; font-size: 0.9rem; font-weight: 700; cursor: pointer; white-space: nowrap; box-shadow: inset 0 1px 0 #fff;
+  transition: transform 140ms, box-shadow 140ms, border-color 140ms, filter 140ms;
+}
+.wk-btn:hover:not(:disabled) { transform: translateY(-1px); border-color: var(--wk-primary); box-shadow: 0 8px 18px rgb(120 60 20 / 0.12); }
+.wk-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.wk-btn.is-primary { border-color: transparent; color: #fff; background: linear-gradient(160deg, #FB923C 0%, #EA580C 100%); box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.4), 0 10px 22px rgb(234 88 12 / 0.32); }
+.wk-btn.is-primary:hover:not(:disabled) { filter: brightness(1.06); }
+.wk-btn.is-danger { color: #fff; border-color: transparent; background: linear-gradient(160deg, #F0675B, #B3261E); box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.3), 0 8px 18px rgb(179 38 30 / 0.28); }
+.wk-btn--sm { min-block-size: 38px; padding: 0 12px; font-size: 0.84rem; }
+.wk-iconbtn { display: grid; place-items: center; inline-size: 42px; block-size: 42px; border: 1px solid #F0DCCB; border-radius: 12px; background: rgb(255 255 255 / 0.9); color: var(--wk-ink); cursor: pointer; box-shadow: inset 0 1px 0 #fff; transition: border-color 140ms, transform 140ms; }
+.wk-iconbtn:hover { border-color: var(--wk-primary); transform: translateY(-1px); }
+.wk :is(.wk-btn, .wk-iconbtn, .wk-chips button, .wk-menu button):focus-visible { outline: 3px solid rgb(251 146 60 / 0.55); outline-offset: 2px; }
+
+/* ---- small pieces ---- */
+.wk-avatar { display: grid; place-items: center; flex: none; inline-size: 44px; block-size: 44px; border-radius: 14px; background: linear-gradient(150deg, #FFE7D2, #FBC79B); border: 1px solid #F8D2B0; color: #9A3A0B; font-weight: 800; font-size: 1.1rem; box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.8); }
+.wk-pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 999px; font-size: 0.78rem; font-weight: 800; font-style: normal; white-space: nowrap; border: 1px solid transparent; }
+.wk-pill.is-ok { background: #E7F6EC; color: #15803D; border-color: #BFE6CD; }
+.wk-pill.is-warn { background: #FBF0D2; color: #8A5A06; border-color: #F0DC9B; }
+.wk-pill.is-bad { background: #FBE4E1; color: #B3261E; border-color: #F3C1BB; }
+.wk-pill.is-blue { background: #E6EEF8; color: #35567D; border-color: #C5D5EA; }
+.wk-pill.is-soft { background: #FFEBD9; color: #9A3A0B; border-color: #F8D2B0; }
+.wk-empty { margin: 0; padding: 26px 16px; text-align: center; color: var(--wk-muted); font-size: 0.92rem; }
+.wk-error { margin: 0; padding: 10px 14px; border-radius: 12px; background: #FBE4E1; border: 1px solid #F3C1BB; color: #B3261E; font-weight: 700; font-size: 0.88rem; }
+.wk-req { color: #C2410C; font-style: normal; }
+
+.wk-search { display: flex; align-items: center; gap: 10px; min-block-size: 46px; padding: 0 14px; border: 1px solid #F0DCCB; border-radius: 14px; background: rgb(255 250 245 / 0.9); color: var(--wk-muted); }
+.wk-search:focus-within { border-color: var(--wk-primary); box-shadow: 0 0 0 4px rgb(234 88 12 / 0.14); }
+.wk-search input { flex: 1; min-width: 0; border: 0; outline: none; background: transparent; color: var(--wk-ink); font: inherit; font-size: 0.9rem; }
+
+.wk-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.wk-chips button { min-block-size: 34px; padding: 0 14px; border: 1px solid #F0DCCB; border-radius: 999px; background: rgb(255 255 255 / 0.9); color: #7A5A45; font: inherit; font-size: 0.82rem; font-weight: 700; cursor: pointer; transition: background 140ms, border-color 140ms, color 140ms; }
+.wk-chips button:hover { border-color: var(--wk-primary); }
+.wk-chips .is-on { background: #FFEBD9; border-color: var(--wk-primary); color: #9A3A0B; }
+
+/* ---- form fields ---- */
+.wk-field { display: grid; gap: 6px; font-size: 0.88rem; font-weight: 700; }
+.wk-field :is(input, select, textarea) { min-block-size: 46px; padding: 0 14px; border: 1px solid #F0DCCB; border-radius: 13px; background: #fff; color: var(--wk-ink); font: inherit; }
+.wk-field textarea { padding: 10px 14px; resize: vertical; }
+.wk-field :is(input, select, textarea):focus { outline: none; border-color: var(--wk-primary); box-shadow: 0 0 0 4px rgb(234 88 12 / 0.14); }
+.wk-field :is(input, select, textarea).is-bad { border-color: #E0786E; box-shadow: 0 0 0 3px rgb(224 120 110 / 0.18); }
+.wk-field :is(input, select, textarea):disabled { opacity: 0.6; cursor: not-allowed; }
+.wk-formgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+/* ---- macOS-style popover menu (frosted, rendered in <body>) ---- */
+.wk-scrim { position: fixed; inset: 0; z-index: 1090; }
+.wk-menu {
+  position: fixed; z-index: 1100; inline-size: 224px; padding: 6px; direction: rtl; transform-origin: top center;
+  border: 1px solid rgb(255 255 255 / 0.7); border-radius: 14px; color: #2A1D14;
+  background: linear-gradient(160deg, rgb(255 255 255 / 0.93), rgb(255 246 238 / 0.9));
+  backdrop-filter: blur(26px) saturate(1.9);
+  box-shadow: 0 0 0 0.5px rgb(66 32 10 / 0.16), inset 0 1px 0 rgb(255 255 255 / 0.9), 0 18px 48px rgb(66 32 10 / 0.30);
+  animation: wk-pop 150ms cubic-bezier(0.2, 1.2, 0.4, 1);
+}
+.wk-menu button { display: flex; align-items: center; gap: 10px; inline-size: 100%; min-block-size: 36px; padding: 0 10px; border: 0; border-radius: 8px; background: transparent; color: inherit; font: inherit; font-size: 0.88rem; font-weight: 600; text-align: start; cursor: pointer; }
+.wk-menu button:hover:not(:disabled) { color: #fff; background: linear-gradient(160deg, #FB923C, #C2410C); }
+.wk-menu button:disabled { opacity: 0.4; cursor: default; }
+.wk-menu hr { margin: 5px 6px; border: 0; border-block-start: 1px solid rgb(120 60 20 / 0.14); }
+.wk-menu .is-danger { color: #B3261E; }
+.wk-menu .is-danger:hover:not(:disabled) { color: #fff; background: linear-gradient(160deg, #F0675B, #B3261E); }
+@keyframes wk-pop { from { opacity: 0; transform: scale(0.94) translateY(-4px); } to { opacity: 1; transform: none; } }
+
+/* ---- macOS-style sheet ---- */
+.wk-overlay { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 20px; background: rgb(66 32 10 / 0.34); backdrop-filter: blur(6px) saturate(1.2); animation: wk-fade 160ms ease-out; }
+.wk-sheet {
+  display: grid; gap: 14px; inline-size: min(100%, 540px); max-block-size: calc(100vh - 40px); overflow-y: auto; direction: rtl; color: #2A1D14;
+  border: 1px solid rgb(255 255 255 / 0.75); border-radius: 20px;
+  background: linear-gradient(165deg, rgb(255 255 255 / 0.95), rgb(255 246 238 / 0.9));
+  backdrop-filter: blur(34px) saturate(1.9);
+  box-shadow: 0 0 0 0.5px rgb(66 32 10 / 0.18), inset 0 1px 0 #fff, 0 36px 90px rgb(66 32 10 / 0.42);
+  animation: wk-sheet-in 260ms cubic-bezier(0.2, 1.15, 0.35, 1);
+}
+.wk-sheet__bar { position: relative; display: grid; place-items: center; padding: 16px 18px 12px; border-block-end: 1px solid rgb(120 60 20 / 0.10); background: linear-gradient(180deg, rgb(255 255 255 / 0.7), rgb(255 255 255 / 0)); text-align: center; }
+.wk-sheet__bar h2 { margin: 0; font-size: 1.05rem; font-weight: 800; }
+.wk-sheet__bar p { margin: 2px 0 0; color: var(--wk-muted); font-size: 0.82rem; }
+/* like macOS: the close dot is always on the physical left, even in RTL */
+.wk-sheet__dot { position: absolute; inset-block-start: 16px; left: 16px; display: grid; place-items: center; inline-size: 14px; block-size: 14px; padding: 0; border: 0.5px solid rgb(0 0 0 / 0.18); border-radius: 50%; background: radial-gradient(circle at 35% 30%, #FF8F86, #FF5F57); color: transparent; cursor: pointer; }
+.wk-sheet__dot:hover, .wk-sheet__dot:focus-visible { color: rgb(90 10 6 / 0.85); }
+.wk-sheet__dot:focus-visible { outline: 3px solid rgb(255 95 87 / 0.35); outline-offset: 2px; }
+.wk-form { display: grid; gap: 14px; padding: 4px 22px 0; }
+.wk-sheet > footer, .wk-form > footer { display: flex; justify-content: flex-end; gap: 10px; padding: 4px 0 20px; }
+.wk-sheet > footer { padding-inline: 22px; }
+.wk-done { display: grid; justify-items: center; gap: 8px; padding: 10px 22px 4px; text-align: center; }
+.wk-done p { margin: 0; color: #5A3A26; }
+@keyframes wk-sheet-in { from { opacity: 0; transform: scale(0.94) translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes wk-fade { from { opacity: 0; } to { opacity: 1; } }
+
+@media (max-width: 640px) { .wk { padding: 16px 14px 40px; } .wk-formgrid { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { .wk-menu, .wk-sheet, .wk-overlay { animation: none; } .wk-btn, .wk-iconbtn { transition: none; } }
+
+/* ---- panel-style sheet header (icon tile + title, close X on the physical left) ---- */
+.wk-sheet.is-panel { inline-size: min(100%, 660px); gap: 0; }
+.wk-panelbar { position: relative; display: flex; align-items: center; gap: 16px; padding: 24px 28px 20px; border-block-end: 1px solid rgb(120 60 20 / 0.10); }
+.wk-panelbar h2 { margin: 0; font-size: 1.35rem; font-weight: 800; }
+.wk-panelbar p { margin: 4px 0 0; color: var(--wk-muted); font-size: 0.86rem; }
+.wk-panelbar > div { flex: 1; min-width: 0; }
+.wk-panelbar__tile { display: grid; place-items: center; flex: none; inline-size: 52px; block-size: 52px; border-radius: 16px; color: #C2410C; background: linear-gradient(150deg, #FFF1E4, #FFD9B8); box-shadow: inset 0 1px 0 #fff, 0 6px 14px rgb(234 88 12 / 0.16); }
+.wk-panelbar__x { position: absolute; inset-block-start: 22px; left: 22px; display: grid; place-items: center; inline-size: 38px; block-size: 38px; border: 0; border-radius: 50%; background: transparent; color: var(--wk-ink); cursor: pointer; }
+.wk-panelbar__x:hover { background: #FFE9D6; }
+.wk-panelbar__x:focus-visible { outline: 3px solid rgb(251 146 60 / 0.55); outline-offset: 2px; }

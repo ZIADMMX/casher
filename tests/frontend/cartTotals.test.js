@@ -68,3 +68,23 @@ describe('computeCartTotals', () => {
     expect(computeCartTotals({ cart: [], paymentMethod: 'card', fixedCharge: 15 }).total).toBe(0);
   });
 });
+
+describe('computeCartTotals with loyalty points', () => {
+  test('points are an extra discount taken after the manual or offer discount', () => {
+    const { effectiveDiscount, loyaltyDiscount, total } = computeCartTotals({
+      cart: [item(100, 2)],
+      discount: 20,
+      loyaltyDiscount: 30,
+      paymentMethod: 'card',
+    });
+    expect(effectiveDiscount).toBe(20);
+    expect(loyaltyDiscount).toBe(30);
+    expect(total).toBe(150);
+  });
+
+  test('points never push the total below zero, and the service charge follows what is left', () => {
+    expect(computeCartTotals({ cart: [item(50)], loyaltyDiscount: 80, paymentMethod: 'card' }).total).toBe(0);
+    const { total } = computeCartTotals({ cart: [item(100)], loyaltyDiscount: 20, serviceChargePercent: 10, paymentMethod: 'card' });
+    expect(total).toBe(88); // (100 - 20) + 10% of 80
+  });
+});

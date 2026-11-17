@@ -2,6 +2,8 @@
 // Pages and components import named functions from src/api/<domain>.js instead,
 // e.g. `import * as crmApi from '../api/crm.js'` then `crmApi.getCRMLeads()`.
 
+import { normalizeErrorMessage } from '../utils/normalizeError.js';
+
 export class BridgeUnavailableError extends Error {
   constructor(method) {
     super(method
@@ -33,7 +35,17 @@ export function bridgeMethod(name) {
   function call(...args) {
     const target = lookup();
     if (!target) throw new BridgeUnavailableError(name);
-    return target(...args);
+    const result = target(...args);
+    // Electron wraps every handler error as "Error invoking remote method 'x': Error: <message>".
+    // Strip that once here so no screen ever shows the plumbing to the user.
+    if (result && typeof result.then === 'function') {
+      return result.catch((error) => {
+        const message = normalizeErrorMessage(error, error?.message);
+        if (error instanceof Error && error.message === message) throw error;
+        throw new Error(message, { cause: error });
+      });
+    }
+    return result;
   }
 
   // Whether this method exists right now (replaces `if (window.electronAPI?.x)` checks).

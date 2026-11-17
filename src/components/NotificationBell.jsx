@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import * as notificationsApi from '../api/notifications.js';
 import { useNotifications } from '../contexts/NotificationsContext.jsx';
 import { useUser } from '../contexts/UserContext.jsx';
 
@@ -25,8 +26,16 @@ function getNotificationIcon(type) {
       return '🚚';
     case 'supplier_payment':
       return '💰';
-    case 'activity':
-      return '📝';
+    case 'workshop_received':
+      return '🚘';
+    case 'workshop_ready':
+      return '✅';
+    case 'workshop_approval':
+      return '⏳';
+    case 'workshop_late':
+      return '⏰';
+    case 'service_due':
+      return '🔧';
     case 'welcome':
       return '👋';
     default:
@@ -57,6 +66,16 @@ function formatRelativeTime(dateString) {
   return `منذ ${diffInDays} يوم`;
 }
 
+const footerButton = {
+  background: 'transparent',
+  border: 'none',
+  color: '#94A3B8',
+  fontSize: '11.5px',
+  fontWeight: '600',
+  cursor: 'pointer',
+  padding: '2px 8px',
+};
+
 function NotificationBell({ onNavigate }) {
   const { notifications, unreadCount, markAsRead, markAllAsRead, clearAll } = useNotifications();
   const { currentUser } = useUser();
@@ -65,6 +84,18 @@ function NotificationBell({ onNavigate }) {
     || ['*', 'settings.manage'].some((p) => currentUser.permissions?.includes(p)));
   const [isOpen, setIsOpen] = useState(false);
   const [filter, setFilter] = useState('all'); // 'all' | 'unread'
+  const [testNote, setTestNote] = useState(null);
+
+  async function sendTest() {
+    try {
+      const result = await notificationsApi.sendTestNotification();
+      setTestNote(result.desktop
+        ? { ok: true, text: 'اتبعت إشعار تجريبي. لو مظهرش في ويندوز راجع إعدادات الإشعارات وFocus Assist.' }
+        : { ok: false, text: `الإشعار وصل للجرس بس. ${result.reason}` });
+    } catch (err) {
+      setTestNote({ ok: false, text: err.message || 'تعذر إرسال الإشعار التجريبي' });
+    }
+  }
   const dropdownRef = useRef(null);
 
   // إغلاق القائمة عند النقر خارجها
@@ -377,35 +408,35 @@ function NotificationBell({ onNavigate }) {
           </div>
 
           {/* Footer */}
-          {canClearAll && notifications.length > 0 && (
-            <div
-              style={{
-                padding: '10px 14px',
-                borderTop: '1px solid #E2E8F0',
-                background: '#F8FAFC',
-                display: 'flex',
-                justifyContent: 'center',
-              }}
-            >
-              <button
-                type="button"
-                onClick={clearAll}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  color: '#94A3B8',
-                  fontSize: '11.5px',
-                  fontWeight: '600',
-                  cursor: 'pointer',
-                  padding: '2px 8px',
-                }}
-                onMouseEnter={(e) => (e.target.style.color = '#EF4444')}
-                onMouseLeave={(e) => (e.target.style.color = '#94A3B8')}
-              >
-                🗑️ مسح كافة الإشعارات
-              </button>
+          <div
+            style={{
+              padding: '10px 14px',
+              borderTop: '1px solid #E2E8F0',
+              background: '#F8FAFC',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '6px',
+              alignItems: 'center',
+            }}
+          >
+            {testNote && (
+              <span role="status" style={{ fontSize: '11.5px', fontWeight: 700, color: testNote.ok ? '#15803D' : '#B3261E', textAlign: 'center' }}>{testNote.text}</span>
+            )}
+            <div style={{ display: 'flex', gap: '14px', justifyContent: 'center' }}>
+              <button type="button" onClick={sendTest} style={footerButton}>🔔 إشعار تجريبي</button>
+              {canClearAll && notifications.length > 0 && (
+                <button
+                  type="button"
+                  onClick={clearAll}
+                  style={footerButton}
+                  onMouseEnter={(e) => (e.target.style.color = '#EF4444')}
+                  onMouseLeave={(e) => (e.target.style.color = '#94A3B8')}
+                >
+                  🗑️ مسح كافة الإشعارات
+                </button>
+              )}
             </div>
-          )}
+          </div>
         </div>
       )}
     </div>

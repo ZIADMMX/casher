@@ -1,0 +1,28 @@
+/* Table reservations page */
+.resv { display: grid; gap: 16px; padding: 24px; max-inline-size: 980px; margin-inline: auto; }
+.resv-head { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; }
+.resv-head > div:first-child { flex: 1 1 200px; } .resv-head h1 { margin: 0; font-size: 1.5rem; } .resv-head p { margin: 2px 0 0; color: #8C7A69; font-weight: 600; }
+.resv-nav { display: flex; align-items: center; gap: 6px; }
+.resv-nav input { min-block-size: 40px; padding: 0 10px; border: 1px solid #F0DCCB; border-radius: 12px; font: inherit; background: #fff; }
+.resv-btn { min-block-size: 38px; padding: 0 14px; border: 1px solid #F0DCCB; border-radius: 12px; background: #fff; color: #2A1D14; font: inherit; font-weight: 700; cursor: pointer; transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.2s; }
+.resv-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 14px -8px rgba(120, 70, 20, 0.5); }
+.resv-btn:disabled { opacity: 0.5; cursor: default; }
+.resv-btn.is-primary { border: 0; color: #fff; background: linear-gradient(135deg, #FB923C, #F97316); }
+.resv-btn.is-danger { color: #B3261E; }
+.resv-error { margin: 0; padding: 10px 14px; border-radius: 12px; background: #FDECEA; color: #B3261E; font-weight: 700; }
+.resv-empty { padding: 40px 0; text-align: center; color: #8C7A69; }
+.resv-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.resv-card { display: grid; grid-template-columns: 64px 1fr auto; gap: 6px 14px; align-items: center; padding: 14px 16px; border: 1px solid #F3E4D6; border-radius: 16px; background: rgba(255, 255, 255, 0.9); animation: resv-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.resv-card time { font-size: 1.15rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.resv-body { display: grid; } .resv-body span, .resv-body small { color: #8C7A69; font-size: 0.85rem; }
+.resv-pill { padding: 2px 12px; border-radius: 99px; background: #FDEFC8; color: #9A6A0B; font-size: 0.78rem; font-weight: 800; }
+.resv-card.is-seated .resv-pill { background: #D8F1E3; color: #1F7A4D; }
+.resv-card.is-done, .resv-card.is-off { opacity: 0.62; } .resv-card.is-done .resv-pill, .resv-card.is-off .resv-pill { background: #EFE6DC; color: #8C7A69; }
+.resv-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; }
+.resv-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+@keyframes resv-in { from { opacity: 0; transform: translateY(10px); } }
+@media (prefers-reduced-motion: reduce) { .resv-card { animation: none; } .resv-btn { transition: none; } }
+@media (max-width: 640px) { .resv-card { grid-template-columns: 56px 1fr; } .resv-pill { grid-column: 2; justify-self: start; } .resv-row { grid-template-columns: 1fr; } }
+
+/* Floor view badge (POS tables) */
+.pos-table-card__booked { display: block; margin-top: 4px; padding: 0 8px; border-radius: 99px; background: #FDEFC8; color: #9A6A0B; font-size: 0.72rem; font-weight: 800; }

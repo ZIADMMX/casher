@@ -49,6 +49,21 @@ function getBusinessProfiles() {
   return db.prepare("SELECT * FROM business_profiles ORDER BY name ASC").all();
 }
 
+// A sector that was dropped from the product: its profile and onboarding card go, and a shop that had picked it is
+// recorded as the fallback sector (its own data stays).
+function removeBusinessProfile(key, fallbackKey) {
+  db.prepare('DELETE FROM business_profiles WHERE key = ?').run(key);
+  for (const sql of [
+    'DELETE FROM onboarding_presets WHERE sector_key = ?',
+    "UPDATE settings SET value = ? WHERE key IN ('business_type', 'onboarding_sector') AND value = ?",
+  ]) {
+    try {
+      if (sql.startsWith('UPDATE')) db.prepare(sql).run(fallbackKey, key);
+      else db.prepare(sql).run(key);
+    } catch { /* table missing on a very old install: nothing to clean */ }
+  }
+}
+
 function getActiveBusinessProfile() {
   try {
     const setting = db.prepare("SELECT value FROM settings WHERE key = 'business_type'").get();
@@ -481,6 +496,7 @@ function purgeTestFixtures() {
 
 module.exports = {
   hasSystemModulesTable,
+  removeBusinessProfile,
   purgeTestFixtures,
   getModules,
   setModuleEnabled,

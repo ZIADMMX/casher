@@ -48,12 +48,8 @@ export function NotificationsProvider({ children }) {
         if (newNotification) {
           if (newNotification.user_id != null
             && String(newNotification.user_id) !== String(currentUser?.id)) return;
-          // Per-action activity notes: admins only, in the bell without a pop-up.
-          const isActivity = newNotification.type === 'activity';
-          if (isActivity && currentUser?.role !== 'admin') return;
           setNotifications((prev) => [newNotification, ...prev.filter((n) => n.id !== newNotification.id)]);
           setUnreadCount((prev) => prev + 1);
-          if (isActivity) return;
           setToastNotification(newNotification);
 
           // إخفاء الـ Toast تلقائياً بعد 6 ثوانٍ

@@ -1,6 +1,6 @@
 ---
 name: sector-audit
-description: Audit how complete each business sector of this POS/ERP is (retail, grocery, cafe_restaurant, electronics, maintenance, auto_workshop, spare_parts, subscriptions_gym, salon_barbershop, law_firm, crm) - what is built, what is missing for 100%, and a readiness-to-sell percentage backed by file evidence. Use whenever the user asks which sector is most complete, how ready a sector is to sell or deploy, what a sector is missing, to compare sectors, to plan the next sector work, or says things like "مراجعة القطاعات", "نواقص القطاع", "جاهزية البيع", "كام في المية", "القطاع ده ناقصه إيه", even if they never say "audit".
+description: Audit how complete each business sector of this POS/ERP is (retail, grocery, cafe_restaurant, maintenance, auto_workshop, subscriptions_gym, salon_barbershop, law_firm, crm) - what is built, what is missing for 100%, and a readiness-to-sell percentage backed by file evidence. Use whenever the user asks which sector is most complete, how ready a sector is to sell or deploy, what a sector is missing, to compare sectors, to plan the next sector work, or says things like "مراجعة القطاعات", "نواقص القطاع", "جاهزية البيع", "كام في المية", "القطاع ده ناقصه إيه", even if they never say "audit".
 ---
 
 # Sector audit

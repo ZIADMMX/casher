@@ -14,6 +14,23 @@ describe('src/api/bridge', () => {
     expect(window.electronAPI.getThing).toHaveBeenCalledWith(7, { full: true });
   });
 
+  it('hands screens the plain message, without the Electron remote-method wrapper', async () => {
+    const save = bridgeMethod('save');
+    window.electronAPI = {
+      save: vi.fn(async () => { throw new Error("Error invoking remote method 'enterprise:addServiceReminder': Error: حدد تاريخ أو كيلومترات للتذكير"); }),
+    };
+
+    await expect(save()).rejects.toThrow(/^حدد تاريخ أو كيلومترات للتذكير$/);
+  });
+
+  it('leaves an error that is already clean untouched', async () => {
+    const original = new Error('الكمية غير صالحة');
+    const save = bridgeMethod('save');
+    window.electronAPI = { save: vi.fn(async () => { throw original; }) };
+
+    await expect(save()).rejects.toBe(original);
+  });
+
   it('returns synchronous results unchanged (subscriptions return an unsubscribe function)', () => {
     const unsubscribe = vi.fn();
     const onEvent = bridgeMethod('onEvent');

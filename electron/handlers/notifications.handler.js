@@ -6,26 +6,26 @@ const { notificationOptionsSchema, positiveIdSchema } = require('../validators/s
 // Every signed-in user reads their own notifications; the channel map would demand settings.* (cashiers lack it).
 const signedIn = { authorize: (event) => authService.requireAuth(event?.sender?.id) };
 
-// [userId, withActivity]: only admins see the per-action activity notes.
 function viewer() {
   authService.requireAuth();
-  const session = authService.getCurrentSession();
-  return [session?.id || null, session?.role === 'admin'];
+  return authService.getCurrentSession()?.id || null;
 }
 
 function registerNotificationsHandlers() {
   safeHandle('notifications:getAll', notificationOptionsSchema, (_event, options) => {
-    const [userId, withActivity] = viewer();
-    return NotificationsService.getAll(options, userId, withActivity);
+    const userId = viewer();
+    return NotificationsService.getAll(options, userId);
   }, signedIn);
 
-  safeHandle('notifications:getUnreadCount', () => NotificationsService.getUnreadCount(...viewer()), signedIn);
+  safeHandle('notifications:getUnreadCount', () => NotificationsService.getUnreadCount(viewer()), signedIn);
 
   safeHandle('notifications:markAsRead', positiveIdSchema, (_event, id) => (
-    NotificationsService.markAsRead(id, ...viewer())
+    NotificationsService.markAsRead(id, viewer())
   ), signedIn);
 
-  safeHandle('notifications:markAllAsRead', () => NotificationsService.markAllAsRead(...viewer()), signedIn);
+  safeHandle('notifications:sendTest', () => NotificationsService.sendTest(viewer()), signedIn);
+
+  safeHandle('notifications:markAllAsRead', () => NotificationsService.markAllAsRead(viewer()), signedIn);
 
   // Keeps the channel permission (settings.manage): requireAdmin lets role-based admins through only with it.
   safeHandle('notifications:clearAll', () => {

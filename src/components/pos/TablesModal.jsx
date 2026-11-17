@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import * as tablesApi from '../../api/tables.js';
+import '../../styles/reservations.css';
 import { CloseIcon, PlusIcon, TrashIcon } from '../icons/PosIcons.jsx';
 
 /**
@@ -11,6 +12,7 @@ export default function TablesModal({ isOpen, onClose, onSelectTable, canManage 
   const [newName, setNewName] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [upcoming, setUpcoming] = useState({}); // table id -> its next booking (starting within two hours)
 
   const run = useCallback(async (action) => {
     setBusy(true);
@@ -28,7 +30,11 @@ export default function TablesModal({ isOpen, onClose, onSelectTable, canManage 
   }, []);
 
   useEffect(() => {
-    if (isOpen) run(() => tablesApi.getTables());
+    if (!isOpen) return;
+    run(() => tablesApi.getTables());
+    Promise.resolve(tablesApi.getUpcomingReservations.ifAvailable())
+      .then((list) => setUpcoming(Object.fromEntries((Array.isArray(list) ? list : []).reverse().map((r) => [r.table_id, r]))))
+      .catch(() => setUpcoming({}));
   }, [isOpen, run]);
 
   if (!isOpen) return null;
@@ -74,6 +80,11 @@ export default function TablesModal({ isOpen, onClose, onSelectTable, canManage 
                       <span className="pos-table-card__state">
                         {isBusy ? `${Number(table.tab_total).toFixed(2)} ج.م` : 'فاضية'}
                       </span>
+                      {upcoming[table.id] && (
+                        <span className="pos-table-card__booked" title={`${upcoming[table.id].guest_name} · ${upcoming[table.id].party_size} أفراد`}>
+                          محجوزة {upcoming[table.id].reserved_at.slice(11)}
+                        </span>
+                      )}
                     </button>
                     {canManage && !isBusy && (
                       <button

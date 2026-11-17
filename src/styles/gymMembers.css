@@ -223,3 +223,10 @@
 .gms-profile__foot { display: flex; padding: 16px 28px 22px; }
 .gms-facts dd small { font-weight: 600; color: var(--gco-muted); }
 @media (max-width: 760px) { .gms-formgrid, .gms-sheet__facts { grid-template-columns: 1fr; } .gms-seg--5 { grid-template-columns: repeat(3, 1fr); } }
+
+/* Private trainer packages in the member profile */
+.gms-pt { padding: 0; } .gms-pt header { padding: 20px 28px 8px; } .gms-pt h3 { margin: 0; font-size: 1.05rem; font-weight: 800; }
+.gms-pt ul { list-style: none; margin: 0; padding: 0 28px 20px; display: grid; gap: 10px; }
+.gms-pt li { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.gms-pt__count { display: grid; text-align: center; min-inline-size: 64px; } .gms-pt__count strong { font-size: 1.6rem; line-height: 1; } .gms-pt__count span { font-size: 0.75rem; color: #8C7A69; }
+.gms-pt__info { display: grid; flex: 1; } .gms-pt__info small { color: #8C7A69; }

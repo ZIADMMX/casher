@@ -9,6 +9,7 @@ import '@fontsource/space-grotesk/700.css';
 import App from './App.jsx';
 import './styles/index.css';
 import './styles/sector-gym.css';
+import './styles/sector-workshop.css';
 // Redux & TanStack Query providers
 import { Provider } from 'react-redux';
 import { store } from './app/store';

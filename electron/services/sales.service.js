@@ -14,6 +14,7 @@ const inventoryRepo = require('../repositories/inventory.repository');
 const recipesRepo = require('../repositories/recipes.repository');
 const SettingsRepository = require('../repositories/settings.repository');
 const bundlePromotionsService = require('./bundlePromotions.service');
+const loyaltyService = require('./loyalty.service');
 const { resolveModifiers, cleanNote, getCatalog: getAddonCatalog } = require('./modifiers.service');
 const enterpriseRepo = require('../repositories/enterprise.repository');
 const { warrantyUntilFor } = require('./enterprise/workflows');
@@ -38,6 +39,8 @@ function createSale({
   tabItemIds,
   delivery,
   ticketId,
+  workOrderId,
+  loyaltyRedeemPoints,
 }) {
   try {
     const session = getCurrentSession();
@@ -69,6 +72,14 @@ function createSale({
         note: item.note,
       }));
       orderMode = 'dine_in';
+    }
+    // A work order is billed from the order itself: the till sends no items or prices.
+    let workOrder = null;
+    if (workOrderId !== undefined && workOrderId !== null) {
+      const billing = require('./autoWorkshop.service').getBilling(workOrderId);
+      workOrder = billing.order;
+      items = billing.items;
+      customerId = customerId || workOrder.customer_id;
     }
     if (!items || items.length === 0) {
       throw new Error('السلة فارغة');
@@ -136,8 +147,8 @@ function createSale({
           effectiveUnitPrice = Number(unit.selling_price);
           stockDeductionFactor = Number(unit.conversion_factor) || 1;
         }
-      } else if (tableTab) {
-        // A table check: the price was fixed by the server when the round was sent.
+      } else if (tableTab || workOrder) {
+        // A table check or a work order: the price was fixed by the server.
         effectiveUnitPrice = Number(item.unitPrice);
       } else if (item.scaleBarcode) {
         // A price-printed scale label: read the label again here instead of trusting the till.
@@ -252,7 +263,10 @@ function createSale({
     }
 
     const appliedPromotion = bundlePromotionsService.getBestBundlePromotion(verifiedItems);
-    const effectiveDiscount = Math.max(normalizedDiscount, appliedPromotion?.discount || 0);
+    const baseDiscount = Math.max(normalizedDiscount, appliedPromotion?.discount || 0);
+    // Points the customer spends: worked out here from the server's own settings and balance, never from the till.
+    const loyaltyRedeem = loyaltyService.planRedemption(customerId, loyaltyRedeemPoints, Math.max(subtotal - baseDiscount, 0));
+    const effectiveDiscount = Math.round((baseDiscount + loyaltyRedeem.discount) * 100) / 100;
     const afterDiscount = Math.round(Math.max(subtotal - effectiveDiscount, 0) * 100) / 100;
     // Dine-in service (a % after discount) or a fixed delivery fee, from settings.
     // Same formula as the till (src/utils/cartTotals.js).
@@ -263,6 +277,7 @@ function createSale({
       ? Math.round((afterDiscount * servicePercent / 100 + fixedCharge) * 100) / 100 : 0;
     const totalAmount = Math.round((afterDiscount + serviceCharge) * 100) / 100;
 
+    let loyaltyResult = null;
     const runTransaction = db.transaction(() => {
       // A new credit customer is saved together with the sale, or not at all.
       let resolvedCustomerId = customerId || null;
@@ -295,6 +310,10 @@ function createSale({
         warehouseId,
         serviceCharge,
         deliveryAddress: deliveryInfo?.address,
+      });
+
+      loyaltyResult = loyaltyService.recordSale({
+        customerId: resolvedCustomerId, saleId, redeemPoints: loyaltyRedeem.points, earnBase: afterDiscount, paymentMethod,
       });
 
       for (const item of verifiedItems) {
@@ -337,6 +356,8 @@ function createSale({
         }
       }
 
+      if (workOrder) require('./autoWorkshop.service').settleOrder(workOrder.id, saleId);
+
       // Inside the transaction: if the package cannot pay, the sale is not saved either.
       if (subscriptionId) {
         require('./subscriptions.service').consumeCredit(
@@ -374,7 +395,10 @@ function createSale({
       requestedVariantIds: Array.from(requestedByVariant.keys()),
     });
 
-    return { saleId, totalAmount, tabClosed: tableTab ? tablesRepo.countUnpaidItems(tableTab.id) === 0 : undefined };
+    return {
+      saleId, totalAmount, tabClosed: tableTab ? tablesRepo.countUnpaidItems(tableTab.id) === 0 : undefined,
+      loyalty: loyaltyResult && (loyaltyResult.earned || loyaltyResult.redeemed) ? { ...loyaltyResult, discount: loyaltyRedeem.discount } : undefined,
+    };
   } catch (err) {
     // سجل أي خطأ حرجي ثم أعد رميه ليتم التعامل معه في طبقة IPC
     logError('CreateSale', err);

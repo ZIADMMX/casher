@@ -13,6 +13,7 @@
     "verify:license-time": "node scripts/verify-license-time.js",
     "build": "vite build",
     "test": "npm run test:backend && npm run test:frontend",
+    "agent": "node agent-service/src/server.js",
     "test:backend": "jest --runInBand --cacheDirectory=\"./.jest-cache\"",
     "test:frontend": "vitest run",
     "test:watch": "jest --watch",
@@ -33,7 +34,8 @@
       "/node_modules/",
       "<rootDir>/e2e/",
       "<rootDir>/tests/frontend/",
-      "<rootDir>/license-server/"
+      "<rootDir>/license-server/",
+      "<rootDir>/agent-service/"
     ]
   },
   "keywords": [],
@@ -85,7 +87,14 @@
       ],
       "icon": "build/icon.icns"
     },
-    "publish": [{ "provider": "github", "owner": "ZIADMMX", "repo": "casher", "releaseType": "release" }],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "ZIADMMX",
+        "repo": "casher",
+        "releaseType": "release"
+      }
+    ],
     "npmRebuild": false,
     "nodeGypRebuild": false
   },

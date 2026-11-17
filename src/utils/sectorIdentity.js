@@ -260,7 +260,7 @@ export function getSectorIdentity(sectorKey) {
         primaryActionTitle: 'استقبل أول أوردر 🍽️',
       };
 
-    default: // retail, grocery, electronics, spare_parts, custom
+    default: // retail, grocery, custom
       return {
         type: 'retail',
         isService: false,

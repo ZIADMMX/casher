@@ -59,7 +59,12 @@ const { ensureWorkshopTickets } = require('./workshop');
 const { ensureProductLedger } = require('./productLedger');
 const { ensureSyncMetadata, ensureDeleteTombstones } = require('./syncMetadata');
 const { ensureWebhooks } = require('./webhooks');
+const { ensureLoyalty } = require('./loyalty');
+const { ensureReservations } = require('./reservations');
+const { ensureDeliveryOrders } = require('./deliveryOrders');
+const { ensureWarrantyClaims } = require('./warrantyClaims');
 const { ensureGymTraining } = require('./gym');
+const { ensureAutoWorkshop } = require('./autoWorkshop');
 const { addColumnIfMissing } = require('./helpers');
 
 // The v1 -> v2 upgrade steps. Every one checks before it alters, so re-running is safe.
@@ -433,13 +438,66 @@ function runAllMigrations(dbInstance = db) {
     console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 37 (أكواد QR فريدة لأعضاء الجيم).');
   }
 
+  if (currentVersion < 38) {
+    // ورش السيارات: سيارات العملاء، أوامر الشغل وتذكيرات الصيانة.
+    ensureAutoWorkshop(dbInstance);
+    dbInstance.pragma('user_version = 38');
+    console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 38 (سيارات وأوامر شغل ورش السيارات).');
+  }
+
+  if (currentVersion < 39) {
+    // سجل قراءات العدّاد وتتبع إرسال تذكيرات الصيانة.
+    ensureAutoWorkshop(dbInstance);
+    dbInstance.pragma('user_version = 39');
+    console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 39 (قراءات العدّاد وإرسال التذكيرات).');
+  }
+
+  if (currentVersion < 40) {
+    // ورقة استلام المركبة: الوقود، حالة الهيكل، المحتويات، التوقيع والصور.
+    ensureAutoWorkshop(dbInstance);
+    dbInstance.pragma('user_version = 40');
+    console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 40 (ورقة استلام المركبة).');
+  }
+
+  if (currentVersion < 41) {
+    // أوامر شراء القطع الناقصة لأوامر الشغل (parts_orders).
+    ensureAutoWorkshop(dbInstance);
+    dbInstance.pragma('user_version = 41');
+    console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 41 (أوامر شراء قطع الغيار).');
+  }
+
+  if (currentVersion < 42) {
+    // تذكيرات صيانة ورش السيارات: تاريخ حجز العميل بعد التذكير.
+    ensureAutoWorkshop(dbInstance);
+    dbInstance.pragma('user_version = 42');
+    console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 42 (تذكيرات صيانة السيارات).');
+  }
+
+  if (currentVersion < 43) {
+    // Tables added after v42 to files that only ran inside older steps: loyalty points, the customer tracking history
+    // and photos (auto workshop), and the webhook retry outbox. Without this step an install already at v42 never got them.
+    ensureLoyalty(dbInstance);
+    ensureReservations(dbInstance);
+    ensureDeliveryOrders(dbInstance);
+    ensureWarrantyClaims(dbInstance);
+    ensureAutoWorkshop(dbInstance);
+    ensureWebhooks(dbInstance);
+    dbInstance.pragma('user_version = 43');
+    console.log('[DB] تمت ترقية قاعدة البيانات بنجاح إلى الإصدار 43 (نقاط الولاء، حجز الطاولات، طلبات الدليفري، مطالبات الضمان، متابعة العميل، إعادة محاولة الويب هوكس)');
+  }
+
   // Earlier steps may rebuild the sales tables; make sure the guards exist at the end.
   ensureSalesLedgerGuards(dbInstance);
   ensureKitchenLedger(dbInstance);
   ensureProductLedger(dbInstance);
   ensureDeleteTombstones(dbInstance);
   ensureWebhooks(dbInstance);
+  ensureLoyalty(dbInstance);
+  ensureReservations(dbInstance);
+  ensureDeliveryOrders(dbInstance);
+  ensureWarrantyClaims(dbInstance);
   ensureGymTraining(dbInstance);
+  ensureAutoWorkshop(dbInstance);
 }
 
 module.exports = { runAllMigrations, findLegacySchemaDrift, repairLegacySchemaDrift };

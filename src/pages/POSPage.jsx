@@ -30,6 +30,7 @@ import { isBridgeAvailable } from '../api/bridge.js';
 import * as authApi from '../api/auth.js';
 import * as customersApi from '../api/customers.js';
 import * as groceryApi from '../api/grocery.js';
+import * as loyaltyApi from '../api/loyalty.js';
 import * as printingApi from '../api/printing.js';
 import * as productsApi from '../api/products.js';
 import * as salesApi from '../api/sales.js';
@@ -113,6 +114,9 @@ function POSPage({ onNavigate }) {
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
   const [activeSubscription, setActiveSubscription] = useState(null);
   const [useSubscriptionCredit, setUseSubscriptionCredit] = useState(false);
+  // Loyalty points of the selected customer, and whether the cashier is spending them on this sale.
+  const [loyalty, setLoyalty] = useState(null);
+  const [useLoyalty, setUseLoyalty] = useState(false);
   const [scaleModalItem, setScaleModalItem] = useState(null);
 
   useEffect(() => {
@@ -137,6 +141,18 @@ function POSPage({ onNavigate }) {
       .catch((error) => console.error('تعذر تحميل جلسة مستخدم نقطة البيع:', error));
     return () => { mounted = false; };
   }, []);
+
+  const refreshLoyalty = useCallback(async () => {
+    setUseLoyalty(false);
+    if (!selectedCustomerId || !loyaltyApi.getLoyaltyPoints.isAvailable()) { setLoyalty(null); return; }
+    try {
+      const info = await loyaltyApi.getLoyaltyPoints(Number(selectedCustomerId));
+      setLoyalty(info?.enabled ? info : null);
+    } catch {
+      setLoyalty(null);
+    }
+  }, [selectedCustomerId]);
+  useEffect(() => { refreshLoyalty(); }, [refreshLoyalty]);
 
   useEffect(() => {
     async function checkSubscription() {
@@ -579,7 +595,17 @@ function POSPage({ onNavigate }) {
   const saleOrderMode = sectorConfig.key === 'cafe_restaurant' ? (activeTab ? 'dine_in' : activeOrderMode) : null;
   const serviceChargePercent = saleOrderMode === 'dine_in' ? Number(settings.service_charge_percent) || 0 : 0;
   const deliveryFee = saleOrderMode === 'delivery' ? Number(settings.delivery_fee) || 0 : 0;
+  // Points being spent: the same rule the server applies (it recomputes it), never more than what is left to pay.
+  const loyaltyPlan = (() => {
+    if (!useLoyalty || !loyalty?.enabled || !(loyalty.redeemValuePer100 > 0)) return { points: 0, discount: 0 };
+    const cartSubtotal = cart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
+    const remaining = Math.max(cartSubtotal - Math.max(Number(discount || 0), bundlePromotion?.discount || 0), 0);
+    const points = Math.min(loyalty.points, Math.floor((remaining / loyalty.redeemValuePer100) * 100));
+    if (points < loyalty.minRedeem) return { points: 0, discount: 0 };
+    return { points, discount: Math.round((points / 100) * loyalty.redeemValuePer100 * 100) / 100 };
+  })();
   const { subtotal, effectiveDiscount, serviceCharge, total, changeDue, isCreditInvalid, isCashInvalid } = computeCartTotals({
+    loyaltyDiscount: loyaltyPlan.discount,
     cart,
     discount,
     bundlePromotion,
@@ -747,6 +773,7 @@ function POSPage({ onNavigate }) {
         ticketId: workshopTicket?.id || null,
         subscriptionId: useSubscriptionCredit && activeSubscription ? activeSubscription.id : null,
         creditsDeducted: useSubscriptionCredit ? 1 : 0,
+        loyaltyRedeemPoints: loyaltyPlan.points || undefined,
       });
 
       // A table's rounds already went to the kitchen when they were sent.
@@ -754,7 +781,7 @@ function POSPage({ onNavigate }) {
 
       const fullSale = await salesApi.getSaleById(result.saleId);
       if (fullSale) {
-        const receiptSale = activeTab ? { ...fullSale, tableName: activeTab.table_name } : fullSale;
+        const receiptSale = { ...fullSale, ...(activeTab ? { tableName: activeTab.table_name } : {}), ...(result.loyalty ? { loyalty: result.loyalty } : {}) };
         setPrintableSale({
           ...receiptSale,
           cashReceived: paymentMethod === 'cash' ? cashReceived : null,
@@ -809,9 +836,11 @@ function POSPage({ onNavigate }) {
       setWorkshopTicket(null);
       await loadProducts();
       refreshShift();
+      refreshLoyalty();
+      const earnedText = result.loyalty?.earned ? ` — كسب العميل ${result.loyalty.earned} نقطة` : '';
       setMessage((current) => printStatus.error
         ? current
-        : { type: 'success', text: `تم إتمام البيع بنجاح — فاتورة #${result.saleId}` });
+        : { type: 'success', text: `تم إتمام البيع بنجاح — فاتورة #${result.saleId}${earnedText}` });
 
       if (paymentMethod === 'credit' && onNavigate) {
         const customerPayload = {
@@ -836,7 +865,7 @@ function POSPage({ onNavigate }) {
       playErrorBeep();
       setMessage({ type: 'error', text: err.message });
     }
-  }, [cart, isCreditInvalid, isCashInvalid, activeShift, discount, paymentMethod, sectorConfig.key, creditCustomerName, creditCustomerPhone, creditDueDate, cashReceived, changeDue, clearCart, loadProducts, refreshShift, onNavigate, activeSubscription, posCustomers, selectedCustomerId, useSubscriptionCredit, settings.thermal_printer_name, settings.receipt_paper_size, settings.cash_drawer_pin, activeTab, payingTab, payingItemIds, saleOrderMode, deliveryInfo, workshopTicket?.id]);
+  }, [cart, isCreditInvalid, isCashInvalid, activeShift, discount, paymentMethod, sectorConfig.key, creditCustomerName, creditCustomerPhone, creditDueDate, cashReceived, changeDue, clearCart, loadProducts, refreshShift, onNavigate, activeSubscription, posCustomers, selectedCustomerId, useSubscriptionCredit, loyaltyPlan.points, refreshLoyalty, settings.thermal_printer_name, settings.receipt_paper_size, settings.cash_drawer_pin, activeTab, payingTab, payingItemIds, saleOrderMode, deliveryInfo, workshopTicket?.id]);
 
   // دوال إدارة الوردية من الـ POS
   const handleOpenStartShiftModal = async () => {
@@ -1003,6 +1032,7 @@ function POSPage({ onNavigate }) {
         onOpenKitchen={() => onNavigate?.('kitchen')}
         onOpenTables={() => setShowTablesModal(true)}
         onOpenWorkshopTickets={() => setShowWorkshopModal(true)}
+        onOpenPage={(page, options) => onNavigate?.(page, options)}
       />
 
       {/* Catalog (start side in RTL): search, categories, products */}
@@ -1192,6 +1222,10 @@ function POSPage({ onNavigate }) {
           activeSubscription={activeSubscription}
           useSubscriptionCredit={useSubscriptionCredit}
           setUseSubscriptionCredit={setUseSubscriptionCredit}
+          loyalty={loyalty}
+          useLoyalty={useLoyalty}
+          setUseLoyalty={setUseLoyalty}
+          loyaltyPlan={loyaltyPlan}
           sectorConfig={sectorConfig}
           paymentSectionRef={paymentSectionRef}
           isShiftOpen={Boolean(activeShift)}

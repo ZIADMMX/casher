@@ -4,8 +4,7 @@ const { db } = require('../database/db');
 const IS_READ = `(n.is_read = 1 OR EXISTS (
   SELECT 1 FROM notification_reads r WHERE r.notification_id = n.id AND r.user_id = @userId
 ))`;
-// Activity notes (every save/edit/delete) are for admins only.
-const VISIBLE = "(n.user_id IS NULL OR n.user_id = @userId) AND (@withActivity = 1 OR n.type != 'activity')";
+const VISIBLE = '(n.user_id IS NULL OR n.user_id = @userId)';
 
 const NotificationsRepository = {
   create({ userId = null, type, title, message, linkPage = null, dedupeKey = null }) {
@@ -30,24 +29,24 @@ const NotificationsRepository = {
     return db.prepare('SELECT * FROM notifications WHERE id = ?').get(id) || null;
   },
 
-  getAll({ limit = 50, onlyUnread = false, userId = null, withActivity = false } = {}) {
+  getAll({ limit = 50, onlyUnread = false, userId = null } = {}) {
     return db.prepare(`
       SELECT n.*, CASE WHEN ${IS_READ} THEN 1 ELSE 0 END AS is_read
       FROM notifications n
       WHERE ${VISIBLE} ${onlyUnread ? `AND NOT ${IS_READ}` : ''}
       ORDER BY n.id DESC LIMIT @limit
-    `).all({ userId, limit, withActivity: withActivity ? 1 : 0 });
+    `).all({ userId, limit });
   },
 
-  getUnreadCount(userId = null, withActivity = false) {
+  getUnreadCount(userId = null) {
     const row = db.prepare(`
       SELECT COUNT(*) AS count FROM notifications n WHERE ${VISIBLE} AND NOT ${IS_READ}
-    `).get({ userId, withActivity: withActivity ? 1 : 0 });
+    `).get({ userId });
     return row ? row.count : 0;
   },
 
-  markAsRead(id, userId = null, withActivity = false) {
-    const visible = db.prepare(`SELECT 1 FROM notifications n WHERE n.id = @id AND ${VISIBLE}`).get({ id, userId, withActivity: withActivity ? 1 : 0 });
+  markAsRead(id, userId = null) {
+    const visible = db.prepare(`SELECT 1 FROM notifications n WHERE n.id = @id AND ${VISIBLE}`).get({ id, userId });
     if (!visible) return null;
     if (userId != null) {
       db.prepare('INSERT OR IGNORE INTO notification_reads (notification_id, user_id) VALUES (?, ?)').run(id, userId);
@@ -57,13 +56,21 @@ const NotificationsRepository = {
     `).get({ id, userId }) || null;
   },
 
-  markAllAsRead(userId = null, withActivity = false) {
+  markAllAsRead(userId = null) {
     if (userId == null) return { affected: 0 };
     const res = db.prepare(`
       INSERT OR IGNORE INTO notification_reads (notification_id, user_id)
       SELECT n.id, @userId FROM notifications n WHERE ${VISIBLE} AND NOT ${IS_READ}
-    `).run({ userId, withActivity: withActivity ? 1 : 0 });
+    `).run({ userId });
     return { affected: res.changes };
+  },
+
+  // The old "activity" rows (one per save/edit/delete, with channel names in the text) are gone for good.
+  deleteActivity() {
+    return db.transaction(() => {
+      db.prepare("DELETE FROM notification_reads WHERE notification_id IN (SELECT id FROM notifications WHERE type = 'activity')").run();
+      return db.prepare("DELETE FROM notifications WHERE type = 'activity'").run().changes;
+    })();
   },
 
   clearAll() {

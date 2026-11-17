@@ -18,6 +18,13 @@ function registerEnterpriseHandlers() {
     return enterpriseService.getBusinessProfiles();
   });
 
+  // Maintenance workshop: the board and warranty claims
+  const warranty = require('../services/warrantyClaims.service');
+  safeHandle('enterprise:getMaintenanceBoard', () => warranty.getMaintenanceBoard());
+  safeHandle('enterprise:getWarrantyClaims', (event, status) => warranty.getClaims(status));
+  safeHandle('enterprise:openWarrantyClaim', (event, payload) => warranty.openClaim(payload?.ticketId, payload?.reason));
+  safeHandle('enterprise:decideWarrantyClaim', (event, payload) => warranty.decideClaim(payload?.claimId, payload?.decision, payload?.note));
+
   safeHandle('enterprise:getActiveProfile', () => {
     return enterpriseService.getActiveBusinessProfile();
   });

@@ -1,4 +1,6 @@
 import { getSectorSvgIcon } from '../icons/SectorIcons.jsx';
+import LineIcon from '../icons/LineIcons.jsx';
+import { hasPermission } from '../../utils/accessControl.js';
 import {
   ChartIcon,
   DrawerIcon,
@@ -7,6 +9,14 @@ import {
   TableIcon,
   ReceiptIcon,
 } from '../icons/PosIcons.jsx';
+
+// Spare parts POS: one click to the screens the counter depends on.
+const PARTS_LINKS = [
+  { label: 'المخزون', icon: 'box', page: 'branches', options: { tab: 'stock' }, permission: 'inventory.view', title: 'أرصدة القطع في المخازن' },
+  { label: 'الأصناف', icon: 'tag', page: 'products', options: {}, permission: 'products.view', title: 'إدارة الأصناف وأسعارها' },
+  { label: 'الموردين', icon: 'store', page: 'suppliers', options: {}, permission: 'suppliers.view', title: 'الموردين وفواتير الشراء' },
+  { label: 'جرد المخزن', icon: 'clipboard', page: 'branches', options: { tab: 'counts' }, permission: 'inventory.view', title: 'جرد المخزن ومطابقة الأرصدة' },
+];
 
 function formatShiftStart(startTime) {
   if (!startTime) return '';
@@ -43,6 +53,7 @@ export default function PosTopBar({
   onOpenKitchen,
   onOpenTables,
   onOpenWorkshopTickets,
+  onOpenPage,
 }) {
   const features = sectorConfig?.features || {};
   const showAttendance = Boolean(attendance?.canManage) && (Boolean(activeShift) || attendance.isCheckedIn);
@@ -128,6 +139,15 @@ export default function PosTopBar({
             <span>تذاكر الصيانة</span>
           </button>
         )}
+
+        {features.partsLinks && onOpenPage && PARTS_LINKS
+          .filter((link) => hasPermission(posSessionUser, link.permission))
+          .map((link) => (
+            <button key={link.label} type="button" className="pos-topbar-btn" onClick={() => onOpenPage(link.page, link.options)} title={link.title}>
+              <LineIcon name={link.icon} size={18} />
+              <span>{link.label}</span>
+            </button>
+          ))}
 
         {features.tableService && (
           <button type="button" className="pos-topbar-btn" onClick={onOpenKitchen}>

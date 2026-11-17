@@ -3,6 +3,7 @@ import LineIcon from '../icons/LineIcons.jsx';
 import * as customersApi from '../../api/customers.js';
 import * as subscriptionsApi from '../../api/subscriptions.js';
 import { ProfileSheet } from './GymMemberSheets.jsx';
+import GymMemberPtCard from './GymMemberPtCard.jsx';
 
 const DAY = 86400000;
 const WEEKS = 12;
@@ -190,6 +191,8 @@ export default function GymMemberDetail({ member, sub, customer, balance, busy, 
           )}
         </footer>
       </article>
+
+      <GymMemberPtCard customerId={member.id} />
 
       <article className="gms-card gms-pay">
         <header><h3>آخر المدفوعات</h3></header>

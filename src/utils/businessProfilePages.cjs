@@ -3,6 +3,9 @@
 const PAGE_MODULES = {
   pos: 'pos',
   kitchen: 'pos',
+  reservations: 'pos',
+  'delivery-orders': 'pos',
+  'maintenance-workshop': 'enterprise',
   subscriptions: 'subscriptions',
   trainers: 'subscriptions',
   'gym-gate': 'subscriptions',
@@ -33,6 +36,10 @@ const PAGE_MODULES = {
   courts: 'cases',
   appointments: 'appointments',
   salon: 'salon',
+  vehicles: null, // the workshop's own screen, not behind a module toggle
+  'work-orders': null,
+  'service-reminders': null,
+  'workshop-reports': null,
 };
 
 // سياسة الصفحات الصريحة لكل قطاع (White-list & Black-list Policy)
@@ -58,39 +65,32 @@ const SECTOR_PAGE_POLICIES = {
   },
   cafe_restaurant: {
     allowedPages: [
-      'today', 'pos', 'kitchen', 'returns', 'products', 'branches',
+      'today', 'pos', 'kitchen', 'reservations', 'delivery-orders', 'returns', 'products', 'branches',
       'customers', 'crm', 'suppliers', 'shifts', 'reports', 'users', 'attendance',
       'leaves', 'roles', 'salaries', 'settings', 'webhooks', 'enterprise', 'workflows',
       'screen-designer', 'profile',
     ],
     deniedPages: ['cases', 'salon', 'appointments', 'subscriptions', 'commissions'],
   },
-  electronics: {
-    allowedPages: [
-      'today', 'pos', 'returns', 'products', 'branches',
-      'customers', 'crm', 'suppliers', 'shifts', 'reports', 'users', 'attendance',
-      'leaves', 'roles', 'salaries', 'settings', 'webhooks', 'enterprise', 'workflows',
-      'screen-designer', 'profile',
-    ],
-    deniedPages: ['cases', 'salon', 'appointments', 'subscriptions'],
-  },
   maintenance: {
     allowedPages: [
       'today', 'pos', 'returns', 'products', 'branches',
       'customers', 'crm', 'suppliers', 'shifts', 'reports', 'users', 'attendance',
-      'leaves', 'roles', 'salaries', 'settings', 'webhooks', 'enterprise', 'workflows',
+      'leaves', 'roles', 'salaries', 'settings', 'webhooks', 'enterprise', 'workflows', 'maintenance-workshop',
       'screen-designer', 'profile', 'commissions',
     ],
     deniedPages: ['cases', 'salon', 'appointments', 'subscriptions'],
   },
-  spare_parts: {
+  // The auto workshop is its own sector: own page list, nothing inherited from spare parts or the gym.
+  auto_workshop: {
     allowedPages: [
-      'today', 'pos', 'returns', 'products', 'branches',
-      'customers', 'crm', 'suppliers', 'shifts', 'reports', 'users', 'attendance',
+      'today', 'pos', 'vehicles', 'work-orders', 'service-reminders', 'workshop-reports', 'returns', 'products', 'branches',
+      'customers', 'suppliers', 'shifts', 'users', 'attendance',
       'leaves', 'roles', 'salaries', 'settings', 'webhooks', 'enterprise', 'workflows',
-      'screen-designer', 'profile', 'commissions',
+      'screen-designer', 'profile',
     ],
-    deniedPages: ['cases', 'salon', 'appointments', 'subscriptions'],
+    // Hidden from the menu only: the workshop has its own reports page, and the pages stay in the code for other sectors.
+    deniedPages: ['cases', 'salon', 'appointments', 'subscriptions', 'crm', 'commissions', 'reports'],
   },
   subscriptions_gym: {
     allowedPages: [
@@ -147,7 +147,6 @@ const SECTOR_PAGE_POLICIES = {
 
 function normalizeSectorKey(rawKey) {
   if (!rawKey) return 'custom';
-  if (rawKey === 'auto_workshop') return 'spare_parts';
   return rawKey;
 }
 

@@ -19,6 +19,7 @@ import { NotificationsProvider } from './contexts/NotificationsContext.jsx';
 import ThreeLoadingScreen from './components/ThreeLoadingScreen.jsx';
 import { isBusinessProfilePageEnabled } from './utils/businessProfilePages.js';
 import PageTutorial from './components/PageTutorial.jsx';
+import AgentChat from './components/AgentChat.jsx';
 import { hasPermission } from './utils/accessControl.js';
 import * as inventoryApi from './api/inventory.js';
 import * as licenseApi from './api/license.js';
@@ -41,7 +42,14 @@ const LeavesPage = lazy(() => import('./pages/LeavesPage.jsx'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage.jsx'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage.jsx'));
 const KitchenDisplayPage = lazy(() => import('./pages/KitchenDisplayPage.jsx'));
+const ReservationsPage = lazy(() => import('./pages/ReservationsPage.jsx'));
+const DeliveryOrdersPage = lazy(() => import('./pages/DeliveryOrdersPage.jsx'));
+const MaintenanceWorkshopPage = lazy(() => import('./pages/MaintenanceWorkshopPage.jsx'));
 const SubscriptionsPage = lazy(() => import('./pages/SubscriptionsPage.jsx'));
+const VehiclesPage = lazy(() => import('./pages/VehiclesPage.jsx'));
+const WorkOrdersPage = lazy(() => import('./pages/WorkOrdersPage.jsx'));
+const MaintenanceRemindersPage = lazy(() => import('./pages/MaintenanceRemindersPage.jsx'));
+const WorkshopReportsPage = lazy(() => import('./pages/WorkshopReportsPage.jsx'));
 const GymTrainingPage = lazy(() => import('./pages/GymTrainingPage.jsx'));
 const GymGatePage = lazy(() => import('./pages/GymGatePage.jsx'));
 const GymCheckoutPage = lazy(() => import('./pages/GymCheckoutPage.jsx'));const GymAttendancePage = lazy(() => import('./pages/GymAttendancePage.jsx'));
@@ -65,6 +73,7 @@ function AppContent() {
   const [caseToOpen, setCaseToOpen] = useState(null);
   const [openNewCaseOnLoad, setOpenNewCaseOnLoad] = useState(false);
   const [appointmentsTab, setAppointmentsTab] = useState('appointments');
+  const [inventoryTab, setInventoryTab] = useState('branches'); // set by the spare parts POS shortcuts (stock / stock count)
   const [gymIntent, setGymIntent] = useState(null); // set by the gym members directory to open a member in the subscriptions hub
   const [memberIntent, setMemberIntent] = useState(null); // opens a specific member's profile in the gym members directory (e.g. from the gate)
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -75,6 +84,7 @@ function AppContent() {
     setCaseToOpen(page === 'cases' ? options.caseId || null : null);
     setOpenNewCaseOnLoad(page === 'cases' && options.createCase === true);
     setAppointmentsTab(page === 'appointments' && options.tab ? options.tab : 'appointments');
+    setInventoryTab(page === 'branches' && options.tab ? options.tab : 'branches');
     setGymIntent(page === 'gym-checkout' ? options.gymIntent || null : null);
     setMemberIntent(page === 'customers' ? options.memberIntent || null : null);
     setActivePage(page);
@@ -253,17 +263,24 @@ function AppContent() {
     if (!isBusinessProfilePageEnabled(page, profileKey, isModuleEnabled)) {
       if (profileKey === 'crm') return <CRMPage />;
       if (profileKey === 'law_firm') return <TodayPage onNavigate={navigateToPage} currentUser={currentUser} />;
-      return <POSPage onNavigate={setActivePage} />;
+      return <POSPage onNavigate={navigateToPage} />;
     }
 
     const pagePermissions = {
       today: profileKey === 'law_firm' ? 'cases.view' : 'pos.view',
       pos: 'pos.view',
       kitchen: 'pos.view',
+      reservations: 'pos.view',
+      'delivery-orders': 'pos.view',
+      'maintenance-workshop': 'enterprise.view',
       salon: 'pos.view',
       appointments: 'appointments.view',
       courts: 'cases.view',
       subscriptions: 'subscriptions.view',
+      vehicles: 'enterprise.view',
+      'work-orders': 'enterprise.view',
+      'service-reminders': 'enterprise.view',
+      'workshop-reports': 'reports.view',
       trainers: 'subscriptions.view',
       'gym-gate': 'subscriptions.view',
       'gym-checkout': 'subscriptions.view',
@@ -306,19 +323,33 @@ function AppContent() {
       case 'products':
         return <ProductsPage onNavigate={setActivePage} />;
       case 'branches':
-        return <InventoryManagementPage />;
+        return <InventoryManagementPage key={inventoryTab} initialTab={inventoryTab} />;
       case 'appointments':
         return <AppointmentsPage key={appointmentsTab} initialTab={appointmentsTab} onNavigate={navigateToPage} />;
       case 'pos':
         return (
-          <POSPage onNavigate={setActivePage} />
+          <POSPage onNavigate={navigateToPage} />
         );
       case 'kitchen':
         return <KitchenDisplayPage />;
+      case 'reservations':
+        return <ReservationsPage />;
+      case 'delivery-orders':
+        return <DeliveryOrdersPage />;
+      case 'maintenance-workshop':
+        return <MaintenanceWorkshopPage onNavigate={navigateToPage} />;
       case 'salon':
         return <SalonPage />;
       case 'subscriptions':
         return <SubscriptionsPage />;
+      case 'vehicles':
+        return <VehiclesPage />;
+      case 'work-orders':
+        return <WorkOrdersPage />;
+      case 'service-reminders':
+        return <MaintenanceRemindersPage />;
+      case 'workshop-reports':
+        return <WorkshopReportsPage onNavigate={navigateToPage} />;
       case 'trainers':
         return <GymTrainingPage />;
       case 'gym-gate':
@@ -340,7 +371,7 @@ function AppContent() {
       case 'crm':
         return <CRMPage />;
       case 'suppliers':
-        return <SuppliersPage />;
+        return <SuppliersPage onNavigate={navigateToPage} />;
       case 'users':
         return (
           <PageErrorBoundary key={activePage} pageName="users">
@@ -382,7 +413,7 @@ function AppContent() {
       default:
         return profileKey === 'law_firm'
           ? <TodayPage onNavigate={navigateToPage} currentUser={currentUser} />
-          : <POSPage onNavigate={setActivePage} />;
+          : <POSPage onNavigate={navigateToPage} />;
     }
   }
 
@@ -431,6 +462,10 @@ function AppContent() {
           <NotificationToast onNavigate={setActivePage} />
         )}
 
+        {activePage !== 'pos' && (
+          (currentUser.role === 'admin' && !currentUser.systemRoleKey) || hasPermission(currentUser, 'ai.view')
+        ) && <AgentChat />}
+
         <PageTutorial activePage={activePage} onNavigate={setActivePage} />
       </div>
     </PageErrorBoundary>
@@ -445,6 +480,7 @@ function App() {
           <NotificationsProvider>
             <AppContent />
             <RateLimitNotice />
+            <ConnectionBadge />
           </NotificationsProvider>
         </BusinessProfileProvider>
       </SettingsProvider>
@@ -453,4 +489,3 @@ function App() {
 }
 
 export default App;
-            <ConnectionBadge />

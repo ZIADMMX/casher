@@ -66,6 +66,10 @@ function CartPanel({
   activeSubscription = null,
   useSubscriptionCredit = false,
   setUseSubscriptionCredit,
+  loyalty = null,
+  useLoyalty = false,
+  setUseLoyalty,
+  loyaltyPlan = { points: 0, discount: 0 },
   sectorConfig,
   onOpenScaleEdit,
   onEditModifiers = null,
@@ -161,6 +165,22 @@ function CartPanel({
           </select>
           <ChevronDownIcon size={18} className="pos-customer-chevron" />
         </label>
+
+        {loyalty && (
+          <div className="pos-loyalty-card" role="group" aria-label="نقاط الولاء">
+            <div>
+              <strong>نقاط الولاء:</strong> {loyalty.points} نقطة <span className="pos-loyalty-worth">(= {money(loyalty.value)} ج.م)</span>
+            </div>
+            {setUseLoyalty && loyalty.points >= loyalty.minRedeem && (
+              <label className="pos-subscription-toggle">
+                <input type="checkbox" checked={useLoyalty} disabled={isEmpty} onChange={(e) => setUseLoyalty(e.target.checked)} />
+                {useLoyalty && loyaltyPlan.points > 0
+                  ? `استبدال ${loyaltyPlan.points} نقطة بخصم ${money(loyaltyPlan.discount)} ج.م`
+                  : 'استبدال النقاط بخصم'}
+              </label>
+            )}
+          </div>
+        )}
 
         {activeSubscription && (
           <div className="pos-subscription-card">
@@ -314,6 +334,13 @@ function CartPanel({
             )}
             <span className="summary-val">{hasDiscount ? `- ${money(discount)}` : money(0)} ج.م</span>
           </div>
+
+          {loyaltyPlan.discount > 0 && (
+            <div className="summary-line">
+              <span className="summary-label">خصم نقاط الولاء ({loyaltyPlan.points})</span>
+              <span className="summary-val">- {money(loyaltyPlan.discount)} ج.م</span>
+            </div>
+          )}
 
           {canDiscount && discountOpen && !isEmpty && (
             <CouponInput

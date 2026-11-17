@@ -143,6 +143,15 @@ function ReceiptPrint({ sale }) {
           </div>
         )}
 
+        {sale.loyalty && (sale.loyalty.earned > 0 || sale.loyalty.redeemed > 0) && (
+          <div className="receipt-row">
+            <span>نقاط الولاء</span>
+            <span>
+              {sale.loyalty.redeemed > 0 ? `استبدل ${sale.loyalty.redeemed} ` : ''}{sale.loyalty.earned > 0 ? `+${sale.loyalty.earned} ` : ''}| الرصيد {sale.loyalty.balance}
+            </span>
+          </div>
+        )}
+
         <div className="receipt-row receipt-grand-total">
           <span>الإجمالي المستحق</span>
           <span>{Number(sale.total_amount).toFixed(2)} ج.م</span>

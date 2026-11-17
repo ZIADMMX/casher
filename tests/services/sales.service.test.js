@@ -28,6 +28,7 @@ jest.mock('../../electron/repositories/grocery.repository', () => ({
   getUnitById: jest.fn(),
 }));
 jest.mock('../../electron/services/notifications.service', () => ({ notify: jest.fn() }));
+jest.mock('../../electron/services/autoWorkshop.service', () => ({ getBilling: jest.fn(), settleOrder: jest.fn() }));
 jest.mock('../../electron/services/subscriptions.service', () => ({ consumeCredit: jest.fn() }));
 jest.mock('../../electron/services/commissions.service', () => ({ evaluateSaleCommissions: jest.fn() }));
 jest.mock('../../electron/services/bundlePromotions.service', () => ({
@@ -45,6 +46,7 @@ const shiftsRepo = require('../../electron/repositories/shifts.repository');
 const inventoryRepo = require('../../electron/repositories/inventory.repository');
 const authService = require('../../electron/services/auth.service');
 const bundlePromotionsService = require('../../electron/services/bundlePromotions.service');
+const workshop = require('../../electron/services/autoWorkshop.service');
 const { createSale } = require('../../electron/services/sales.service');
 
 describe('sales.service.createSale', () => {
@@ -313,5 +315,28 @@ describe('sales.service.createSale packages and commissions', () => {
     const [saleData] = commissionsService.evaluateSaleCommissions.mock.calls[0];
     expect(saleData.totalAmount).toBe(39.98);
     expect(saleData.items[0]).toEqual(expect.objectContaining({ price: 19.99, productId: 5, categoryId: 3 }));
+  });
+  describe('work order billing', () => {
+    beforeEach(() => {
+      workshop.getBilling.mockReturnValue({
+        order: { id: 5, customer_id: 11 },
+        items: [{ variantId: 1, quantity: 2, unitPrice: 55 }, { variantId: 2, quantity: 1, unitPrice: 250, note: 'تغيير زيت' }],
+      });
+    });
+
+    test('bills the prices the order holds (not the catalog, not the till), then closes the order with the sale', () => {
+      const result = createSale({ workOrderId: 5, items: [{ variantId: 1, quantity: 99, unitPrice: 1 }], paymentMethod: 'cash' });
+      expect(result.totalAmount).toBe(360);
+      expect(salesRepo.createSaleItem).toHaveBeenCalledWith(42, expect.objectContaining({ variantId: 1, quantity: 2, unitPrice: 55 }));
+      expect(salesRepo.createSaleItem).toHaveBeenCalledWith(42, expect.objectContaining({ variantId: 2, unitPrice: 250 }));
+      expect(salesRepo.createSale).toHaveBeenCalledWith(expect.objectContaining({ customerId: 11 }));
+      expect(workshop.settleOrder).toHaveBeenCalledWith(5, 42);
+    });
+
+    test('an order that cannot be billed (not ready, already paid) saves no sale', () => {
+      workshop.getBilling.mockImplementation(() => { throw new Error('أمر الشغل لسه مش جاهز للتحصيل'); });
+      expect(() => createSale({ workOrderId: 5, paymentMethod: 'cash' })).toThrow('مش جاهز');
+      expect(salesRepo.createSale).not.toHaveBeenCalled();
+    });
   });
 });

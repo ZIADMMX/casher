@@ -45,7 +45,7 @@ export function getCategoryIcon(catName = '', prodName = '', sectorKey = 'retail
   }
 
   // إلكترونيات
-  if (sectorKey === 'electronics' || text.includes('هاتف') || text.includes('ايفون') || text.includes('سامسونج') || text.includes('شاحن') || text.includes('سماعة')) {
+  if (text.includes('هاتف') || text.includes('ايفون') || text.includes('سامسونج') || text.includes('شاحن') || text.includes('سماعة')) {
     if (text.includes('هاتف') || text.includes('موبايل') || text.includes('phone')) return '📱';
     if (text.includes('سماعة') || text.includes('ايربودز') || text.includes('headphone')) return '🎧';
     if (text.includes('شاحن') || text.includes('كابل') || text.includes('cable')) return '🔌';

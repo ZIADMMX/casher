@@ -305,7 +305,35 @@ function preparePurchaseDraftItemInsert() {
     stmt.run(purchaseId, variantId, productName, size, color, quantity, purchasePrice, sellingPrice);
 }
 
+// Active variants whose product name, SKU or barcode contains the text (assistant lookup).
+function searchVariants(text, limit = 10) {
+  const like = `%${String(text).replace(/[\\%_]/g, '\\$&')}%`;
+  return db.prepare(`
+    SELECT pv.id as variant_id, p.name as product_name, pv.size, pv.color, pv.sku, pv.barcode,
+           pv.selling_price, pv.purchase_price, pv.stock_quantity
+    FROM product_variants pv
+    JOIN products p ON p.id = pv.product_id
+    WHERE pv.is_active = 1 AND p.is_active = 1
+      AND (p.name LIKE @like ESCAPE '\\' OR pv.sku LIKE @like ESCAPE '\\' OR pv.barcode LIKE @like ESCAPE '\\')
+    ORDER BY p.name
+    LIMIT @limit
+  `).all({ like, limit });
+}
+
+// Active customers whose name contains the text (id and name only).
+function findCustomersByName(text, limit = 5) {
+  const like = `%${String(text).replace(/[\\%_]/g, '\\$&')}%`;
+  return db.prepare(`
+    SELECT id, name FROM customers
+    WHERE is_active = 1 AND name LIKE @like ESCAPE '\\'
+    ORDER BY name
+    LIMIT @limit
+  `).all({ like, limit });
+}
+
 module.exports = {
+  searchVariants,
+  findCustomersByName,
   getVariantSalesVelocity,
   getLastSupplierForVariant,
   getSalesAmountStats,

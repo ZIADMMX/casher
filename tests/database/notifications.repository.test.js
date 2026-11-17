@@ -47,22 +47,11 @@ describe('notifications repository', () => {
     expect(NotificationsService.notify({ ...alert, dedupeKey: 'low_stock:8' })).not.toBeNull();
   });
 
-  it('shows per-action activity notes to admins only', () => {
-    require('../../electron/services/activityNotifications').recordActivity('products:delete', { username: 'ali' });
+  it('purges the old technical activity rows', () => {
+    db.prepare("INSERT INTO notifications (type, title, message) VALUES ('activity', 'تعديل في إدارة النظام', 'admin نفّذ: setWorkOrderStatus')").run();
     repo.create({ type: 'info', title: 't', message: 'm' });
-
-    const note = repo.getAll({ userId: 1, withActivity: true }).find((n) => n.type === 'activity');
-    expect(repo.getAll({ userId: 1, withActivity: true })).toHaveLength(2);
-    expect(note).toMatchObject({ type: 'activity', title: 'حذف / إلغاء في المنتجات' });
-    expect(note.message).toContain('ali');
-    expect(repo.getAll({ userId: 2 })).toHaveLength(1);
-    expect(repo.getUnreadCount(2)).toBe(1);
-    expect(repo.markAsRead(note.id, 2)).toBeNull();
-  });
-
-  it('skips activity notes for the notifications screen itself', () => {
-    require('../../electron/services/activityNotifications').recordActivity('notifications:markAsRead', {});
-    expect(repo.getAll({ userId: 1, withActivity: true })).toHaveLength(0);
+    expect(repo.deleteActivity()).toBe(1);
+    expect(repo.getAll({ userId: 1 })).toHaveLength(1);
   });
 
   it('deletes notifications older than the cutoff with their read rows', () => {
@@ -74,5 +63,12 @@ describe('notifications repository', () => {
     repo.deleteOlderThan(90);
     expect(db.prepare('SELECT COUNT(*) c FROM notifications').get().c).toBe(1);
     expect(db.prepare('SELECT COUNT(*) c FROM notification_reads').get().c).toBe(0);
+  });
+
+  it('بيسجّل إشعار حقيقي ويقول ليه ويندوز مش هيعرضه لو مش مدعوم', () => {
+    const result = NotificationsService.sendTest(1);
+    expect(result).toMatchObject({ ok: true, desktop: false });
+    expect(result.reason).toContain('لا يدعم');
+    expect(repo.getAll({ userId: 1 }).some((n) => n.title === 'إشعار تجريبي')).toBe(true);
   });
 });

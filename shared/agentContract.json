@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "note": "The only boundary between the desktop app (tools, DB, permissions) and agent-service (LLM, prompts, policy). Messages use the OpenAI chat format.",
+  "endpoint": "POST /v1/turn (header x-agent-token when AGENT_TOKEN is set), GET /health",
+  "request": {
+    "messages": "[{role: user|assistant|tool, content, tool_calls?, tool_call_id?}] - no system role; the service adds its own prompt",
+    "tools": "[{name, description, parameters (JSON schema)}] - only tools the current user may use in the current sector",
+    "context": "{sector: business_type key, lang: 'ar'}",
+    "step": "0-based loop index; the service offers no tools on its last step",
+    "llm": "{apiUrl, apiKey, model} optional - the desktop AI settings; falls back to the service env"
+  },
+  "response": {
+    "tool_calls": "{type: 'tool_calls', calls: [{id, name, args, badArgs?}], message: <assistant message to append verbatim>}",
+    "final": "{type: 'final', text}"
+  },
+  "errors": "non-2xx with {error: <arabic message>}: 400 bad request, 401 token, 413 body, 502 LLM failure, 503 LLM not configured",
+  "rules": [
+    "The service never touches the database; tool results come back as role=tool messages.",
+    "Write tools (write:true in electron/services/agent/tools.js) never execute from a model call; they become a proposal the user confirms."
+  ]
+}

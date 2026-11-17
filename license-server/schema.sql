@@ -18,3 +18,17 @@ CREATE TABLE IF NOT EXISTS trial_ips (
   ip_hash TEXT PRIMARY KEY,
   first_seen INTEGER NOT NULL
 );
+
+-- Delivery-app orders waiting for the desktop to collect them. inbox_owners.key_hash = sha256 of the desktop's key.
+CREATE TABLE IF NOT EXISTS inbox_owners (
+  token TEXT PRIMARY KEY,
+  key_hash TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS inbox (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  token TEXT NOT NULL,
+  payload TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_inbox_token ON inbox(token, id);

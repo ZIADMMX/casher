@@ -37,7 +37,7 @@ describe('notifications IPC for a cashier', () => {
     await expect(call('notifications:markAsRead', 1)).resolves.toEqual({ id: 1, is_read: 1 });
     await expect(call('notifications:markAllAsRead')).resolves.toEqual({ affected: 2 });
     // A cashier does not get the admin-only activity notes.
-    expect(NotificationsService.getAll).toHaveBeenCalledWith({ limit: 40 }, 5, false);
+    expect(NotificationsService.getAll).toHaveBeenCalledWith({ limit: 40 }, 5);
   });
 
   test('still cannot clear everyone\'s notifications', async () => {

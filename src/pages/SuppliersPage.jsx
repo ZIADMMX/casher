@@ -2,8 +2,14 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import ImportExcelModal from '../components/ImportExcelModal.jsx';
 import * as productsApi from '../api/products.js';
 import * as purchasesApi from '../api/purchases.js';
+import * as inventoryApi from '../api/inventory.js';
+import LineIcon from '../components/icons/LineIcons.jsx';
+import '../styles/suppliers.css';
 
-function SuppliersPage() {
+const PAGE_SIZE = 8;
+const money = (v) => (Number(v) || 0).toLocaleString('en-US', { maximumFractionDigits: 2 });
+
+function SuppliersPage({ onNavigate }) {
   const [activeTab, setActiveTab] = useState('suppliers'); // 'suppliers' | 'invoices' | 'payments'
   const [suppliers, setSuppliers] = useState([]);
   const [purchases, setPurchases] = useState([]);
@@ -20,6 +26,9 @@ function SuppliersPage() {
   const [productsList, setProductsList] = useState([]);
   const [search, setSearch] = useState('');
   const [copiedId, setCopiedId] = useState(null);
+  const [page, setPage] = useState(1);
+  const [supplierFilter, setSupplierFilter] = useState('all'); // 'all' | 'due'
+  const [lowStock, setLowStock] = useState(null); // null = not available (no inventory permission)
 
   // Modals
   const [showImportModal, setShowImportModal] = useState(false);
@@ -91,6 +100,13 @@ function SuppliersPage() {
     } catch (err) {
       console.error('Failed to load suppliers data:', err);
     }
+    // The stock aside is optional: a user without the stock permission simply does not see it.
+    try {
+      const rows = await inventoryApi.getInventoryStock({ lowStockOnly: true });
+      setLowStock(Array.isArray(rows) ? rows : []);
+    } catch {
+      setLowStock(null);
+    }
   }, []);
 
   useEffect(() => {
@@ -122,6 +138,20 @@ function SuppliersPage() {
       return matchesStatus && matchesSearch;
     });
   }, [purchases, invoiceStatusFilter, search]);
+
+  const visibleSuppliers = useMemo(
+    () => (supplierFilter === 'due' ? filteredSuppliers.filter((x) => x.total_remaining > 0) : filteredSuppliers),
+    [filteredSuppliers, supplierFilter]
+  );
+  const filteredPayments = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return payments;
+    return payments.filter((p) => (p.supplier_name || '').toLowerCase().includes(q) || String(p.invoice_number || '').toLowerCase().includes(q));
+  }, [payments, search]);
+  const activeList = activeTab === 'suppliers' ? visibleSuppliers : activeTab === 'invoices' ? filteredInvoices : filteredPayments;
+  const pageCount = Math.max(1, Math.ceil(activeList.length / PAGE_SIZE));
+  const pageItems = (list) => list.slice((Math.min(page, pageCount) - 1) * PAGE_SIZE, Math.min(page, pageCount) * PAGE_SIZE);
+  const paidShare = kpis.totalPurchased > 0 ? Math.round((kpis.totalPaid / kpis.totalPurchased) * 100) : 0;
 
   // Click to Copy Phone
   const handleCopyPhone = (phone, id) => {
@@ -308,6 +338,38 @@ function SuppliersPage() {
     }, 0);
   }, [purchaseForm.items]);
 
+  const purchaseUnits = useMemo(
+    () => purchaseForm.items.reduce((sum, it) => sum + Number(it.quantity || 0), 0),
+    [purchaseForm.items]
+  );
+
+  // "Create a supply order" from the low-stock list: one line per short item, suggested quantity = up to twice its reorder level.
+  const openRestockPurchase = () => {
+    const seen = new Set();
+    const items = [];
+    for (const row of lowStock || []) {
+      if (seen.has(row.variant_id)) continue;
+      seen.add(row.variant_id);
+      let variant = null;
+      for (const prod of productsList) {
+        variant = prod.variants?.find((v) => v.id === row.variant_id) || null;
+        if (variant) break;
+      }
+      items.push({
+        _id: crypto.randomUUID(),
+        variant_id: String(row.variant_id),
+        product_name: row.product_name,
+        size: row.size || '',
+        color: row.color || '',
+        quantity: Math.max(Math.ceil(row.reorder_level * 2 - row.quantity), 1),
+        purchase_price: variant?.purchase_price ? String(variant.purchase_price) : '',
+        selling_price: variant?.selling_price ? String(variant.selling_price) : '',
+      });
+    }
+    setPurchaseForm({ supplierId: suppliers[0]?.id || '', invoiceNumber: '', dueDate: '', notes: '', paidAmount: '0', items });
+    setShowNewPurchaseModal(true);
+  };
+
   // Submit Purchase Invoice
   const handleSavePurchase = async (e) => {
     e.preventDefault();
@@ -350,420 +412,226 @@ function SuppliersPage() {
   };
 
   return (
-    <div className="suppliers-page-container">
-      {/* Header Row */}
-      <div className="page-header-row">
+    <div className="sp" dir="rtl">
+      {/* Header */}
+      <header className="sp-head">
         <div>
-          <h1>الموردين والمشتريات والآجل</h1>
-          <p className="page-subtitle">
-            إدارة فواتير التوريد من المصانع وتتبع المدفوعات والديون المتبقية وتحديث المخزون
-          </p>
+          <h1>الموردين والمشتريات</h1>
+          <p>فواتير التوريد من المصانع والتجار، متابعة المدفوعات والديون، وتحديث المخزون تلقائيًا عند الاستلام.</p>
         </div>
-
-        <div className="header-action-group" style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          <button 
-            type="button" 
-            className="secondary-btn" 
-            onClick={() => setShowImportModal(true)} 
-            title="استيراد موردين من ملف Excel"
-            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-          >
-            <span>📊</span>
-            <span>استيراد من Excel</span>
+        <div className="sp-head__actions">
+          <button type="button" className="sp-btn is-primary" onClick={openNewPurchase}>
+            <LineIcon name="plus" size={18} strokeWidth={2.2} /> تسجيل فاتورة توريد
           </button>
-          <button className="secondary-btn" onClick={() => openAddSupplier()}>
-            <span>+</span> مورد / مصنع جديد
+          <button type="button" className="sp-btn" onClick={() => openAddSupplier()}>
+            <LineIcon name="userPlus" size={18} /> مورد جديد
           </button>
-          <button className="primary-btn" onClick={openNewPurchase}>
-            <span>📦</span> تسجيل فاتورة توريد جديدة
+          <button type="button" className="sp-btn" onClick={() => setShowImportModal(true)} title="استيراد موردين من ملف Excel">
+            <LineIcon name="upload" size={18} /> استيراد من Excel
           </button>
         </div>
-      </div>
+      </header>
 
-      {/* KPI Stats Cards */}
-      <div className="fox-stats-row">
-        <div className="fox-stat-card fox-stat-blue fox-hover-lift">
-          <div className="fox-stat-icon">🏭</div>
-          <span className="fox-stat-label">إجمالي الموردين والمصانع</span>
-          <span className="fox-stat-value">{kpis.suppliersCount} مورد</span>
-        </div>
+      {/* KPIs */}
+      <section className="sp-kpis" aria-label="مؤشرات الموردين">
+        <article className="sp-card sp-kpi">
+          <span className="sp-kpi__label">إجمالي الموردين</span>
+          <span className="sp-kpi__tile is-brand"><LineIcon name="store" size={24} /></span>
+          <strong>{money(kpis.suppliersCount)} <small>مورد</small></strong>
+          <em>{suppliers.filter((s) => s.company).length} منهم مصانع وشركات</em>
+        </article>
+        <article className="sp-card sp-kpi">
+          <span className="sp-kpi__label">إجمالي فواتير الشراء</span>
+          <span className="sp-kpi__tile is-violet"><LineIcon name="file" size={24} /></span>
+          <strong>{money(kpis.totalPurchased)} <small>ج.م</small></strong>
+          <em>{money(kpis.totalInvoices)} فاتورة مسجلة</em>
+        </article>
+        <article className="sp-card sp-kpi">
+          <span className="sp-kpi__label">إجمالي المبالغ المسدَّدة</span>
+          <span className="sp-kpi__tile is-green"><LineIcon name="banknote" size={24} /></span>
+          <strong>{money(kpis.totalPaid)} <small>ج.م</small></strong>
+          <em className="is-ok">{paidShare}% من إجمالي الفواتير</em>
+        </article>
+        <article className={`sp-card sp-kpi${kpis.totalRemaining > 0 ? ' is-due' : ''}`}>
+          <span className="sp-kpi__label">المستحق للموردين</span>
+          <span className="sp-kpi__tile is-red"><LineIcon name="alert" size={24} /></span>
+          <strong className={kpis.totalRemaining > 0 ? 'is-bad' : ''}>{money(kpis.totalRemaining)} <small>ج.م</small></strong>
+          <em className={kpis.unpaidCount > 0 ? 'is-bad' : ''}>{kpis.unpaidCount > 0 ? `${kpis.unpaidCount} فاتورة غير مكتملة` : 'لا توجد مستحقات'}</em>
+        </article>
+      </section>
 
-        <div className="fox-stat-card fox-stat-purple fox-hover-lift">
-          <div className="fox-stat-icon">📦</div>
-          <span className="fox-stat-label">إجمالي فواتير الشراء</span>
-          <span className="fox-stat-value">{kpis.totalPurchased?.toLocaleString('ar-EG')} ج.م</span>
-          <span className="fox-stat-growth growth-neutral">{kpis.totalInvoices} فاتورة مسجلة</span>
-        </div>
+      {/* Tabs */}
+      <nav className="sp-tabs" role="tablist" aria-label="أقسام الموردين">
+        {[
+          ['suppliers', 'دليل الموردين', suppliers.length],
+          ['invoices', 'فواتير الشراء والتوريد', purchases.length],
+          ['payments', 'سجل دفعات السداد', payments.length],
+        ].map(([key, label, count]) => (
+          <button key={key} type="button" role="tab" aria-selected={activeTab === key} className={activeTab === key ? 'is-on' : ''} onClick={() => { setActiveTab(key); setPage(1); }}>
+            {label} <small>{count}</small>
+          </button>
+        ))}
+      </nav>
 
-        <div className="fox-stat-card fox-stat-green fox-hover-lift">
-          <div className="fox-stat-icon">💵</div>
-          <span className="fox-stat-label">إجمالي المبالغ المسددة</span>
-          <span className="fox-stat-value">{kpis.totalPaid?.toLocaleString('ar-EG')} ج.م</span>
-        </div>
-
-        <div className="fox-stat-card fox-stat-amber fox-hover-lift">
-          <div className="fox-stat-icon">⚠️</div>
-          <span className="fox-stat-label">المستحقات والديون المتبقية للموردين</span>
-          <span className="fox-stat-value" style={{ color: '#DC2626' }}>
-            {kpis.totalRemaining?.toLocaleString('ar-EG')} ج.م
-          </span>
-          {kpis.unpaidCount > 0 && (
-            <span className="fox-stat-growth growth-down">{kpis.unpaidCount} فاتورة غير مكتملة</span>
-          )}
-        </div>
-      </div>
-
-      {/* Navigation Tabs */}
-      <div className="suppliers-tabs-nav">
-        <button
-          className={`sup-tab-btn ${activeTab === 'suppliers' ? 'active' : ''}`}
-          onClick={() => setActiveTab('suppliers')}
-        >
-          <span>🏭 دليل الموردين والمصانع</span>
-          <span className="sup-tab-badge">{suppliers.length}</span>
-        </button>
-
-        <button
-          className={`sup-tab-btn ${activeTab === 'invoices' ? 'active' : ''}`}
-          onClick={() => setActiveTab('invoices')}
-        >
-          <span>📦 فواتير الشراء والتوريد</span>
-          <span className="sup-tab-badge">{purchases.length}</span>
-        </button>
-
-        <button
-          className={`sup-tab-btn ${activeTab === 'payments' ? 'active' : ''}`}
-          onClick={() => setActiveTab('payments')}
-        >
-          <span>💵 سجل دفعات السداد</span>
-          <span className="sup-tab-badge">{payments.length}</span>
-        </button>
-      </div>
-
-      {/* Search & Filter Bar */}
-      <div className="suppliers-filter-bar">
-        <div className="search-bar-wrapper">
-          <span className="search-icon">🔍</span>
-          <input
-            type="text"
-            placeholder={
-              activeTab === 'suppliers'
-                ? 'ابحث باسم المورد، اسم المصنع، أو رقم الهاتف...'
-                : activeTab === 'invoices'
-                ? 'ابحث برقم الفاتورة أو اسم المورد...'
-                : 'ابحث في الدفعات...'
-            }
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          {search && (
-            <button className="clear-search-btn" onClick={() => setSearch('')}>
-              ✕
-            </button>
-          )}
-        </div>
-
-        {activeTab === 'invoices' && (
-          <div className="period-toggle">
-            <button
-              className={invoiceStatusFilter === 'all' ? 'active' : ''}
-              onClick={() => setInvoiceStatusFilter('all')}
-            >
-              الكل ({purchases.length})
-            </button>
-            <button
-              className={invoiceStatusFilter === 'unpaid' ? 'active' : ''}
-              onClick={() => setInvoiceStatusFilter('unpaid')}
-            >
-              آجلة / غير مسددة
-            </button>
-            <button
-              className={invoiceStatusFilter === 'partial' ? 'active' : ''}
-              onClick={() => setInvoiceStatusFilter('partial')}
-            >
-              مدفوعة جزئياً
-            </button>
-            <button
-              className={invoiceStatusFilter === 'paid' ? 'active' : ''}
-              onClick={() => setInvoiceStatusFilter('paid')}
-            >
-              مسددة بالكامل
-            </button>
+      <div className="sp-layout">
+        <section className="sp-card sp-panel" aria-label={activeTab === 'suppliers' ? 'دليل الموردين' : activeTab === 'invoices' ? 'فواتير الشراء' : 'دفعات السداد'}>
+          {/* toolbar */}
+          <div className="sp-tools">
+            <label className="sp-search">
+              <LineIcon name="search" size={18} />
+              <input
+                type="search"
+                value={search}
+                onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+                aria-label="بحث"
+                placeholder={activeTab === 'suppliers' ? 'ابحث باسم المورد أو المصنع أو رقم الهاتف' : activeTab === 'invoices' ? 'ابحث برقم الفاتورة أو اسم المورد' : 'ابحث باسم المورد أو رقم الفاتورة'}
+              />
+            </label>
+            {activeTab === 'suppliers' && (
+              <div className="sp-chips" role="group" aria-label="تصفية الموردين">
+                <button type="button" className={supplierFilter === 'all' ? 'is-on' : ''} aria-pressed={supplierFilter === 'all'} onClick={() => { setSupplierFilter('all'); setPage(1); }}>الكل <small>{suppliers.length}</small></button>
+                <button type="button" className={supplierFilter === 'due' ? 'is-on' : ''} aria-pressed={supplierFilter === 'due'} onClick={() => { setSupplierFilter('due'); setPage(1); }}><i className="sp-dot" aria-hidden="true" />عليهم مستحقات <small>{suppliers.filter((s) => s.total_remaining > 0).length}</small></button>
+              </div>
+            )}
+            {activeTab === 'invoices' && (
+              <div className="sp-chips" role="group" aria-label="حالة الفاتورة">
+                {[['all', 'الكل', purchases.length], ['unpaid', 'آجلة / غير مسددة', purchases.filter((p) => p.payment_status === 'unpaid').length], ['partial', 'مدفوعة جزئيًا', purchases.filter((p) => p.payment_status === 'partial').length], ['paid', 'مسددة بالكامل', purchases.filter((p) => p.payment_status === 'paid').length]].map(([key, label, count]) => (
+                  <button key={key} type="button" className={invoiceStatusFilter === key ? 'is-on' : ''} aria-pressed={invoiceStatusFilter === key} onClick={() => { setInvoiceStatusFilter(key); setPage(1); }}>{label} <small>{count}</small></button>
+                ))}
+              </div>
+            )}
           </div>
-        )}
-      </div>
 
-      {/* TAB 1: Suppliers Directory */}
-      {activeTab === 'suppliers' && (
-        <div className="suppliers-grid">
-          {filteredSuppliers.length === 0 ? (
-            <div className="products-empty">
-              <strong>لا يوجد موردين مسجلين</strong>
-              <p>اضغط على زر &quot;مورد جديد&quot; بالأعلى لإضافة الموردين والمصانع ومتابعة حساباتهم</p>
+          {/* TAB 1: suppliers */}
+          {activeTab === 'suppliers' && (<>
+            <div className="sp-row is-head sp-cols-sup" role="row">
+              <span>المورد</span><span>الهاتف</span><span>إجمالي المسحوبات</span><span>المسدَّد</span><span>المستحق</span><span />
             </div>
-          ) : (
-            filteredSuppliers.map((sup) => {
-              const hasRemaining = sup.total_remaining > 0;
+            {pageItems(visibleSuppliers).map((sup) => {
+              const due = sup.total_remaining > 0;
               return (
-                <div key={sup.id} className="supplier-card fox-hover-lift">
-                  <div className="supplier-card-header">
-                    <div className="supplier-avatar-badge">
-                      {sup.company ? '🏭' : '👤'}
-                    </div>
-                    <div className="supplier-title-wrap">
-                      <h3 className="supplier-name">{sup.name}</h3>
-                      {sup.company && <span className="supplier-company">{sup.company}</span>}
-                    </div>
-
-                    <div className="supplier-card-actions">
-                      <button
-                        className="icon-btn"
-                        onClick={() => openAddSupplier(sup)}
-                        title="تعديل بيانات المورد"
-                      >
-                        ✏️
-                      </button>
-                      <button
-                        className="icon-btn icon-btn-danger"
-                        onClick={() => handleDeleteSupplier(sup.id, sup.name)}
-                        title="حذف المورد"
-                      >
-                        🗑️
-                      </button>
-                    </div>
+                <div key={sup.id} className="sp-row sp-cols-sup" role="row">
+                  <div className="sp-who">
+                    <span className={`sp-avatar tone-${sup.id % 3}`} aria-hidden="true">{(sup.name || '؟').trim().charAt(0)}</span>
+                    <div><b>{sup.name}</b><small>{sup.company || 'مورد'}{sup.address ? ` · ${sup.address}` : ''}</small></div>
                   </div>
-
-                  {/* Contact info */}
-                  <div className="supplier-contact-row">
-                    {sup.phone ? (
-                      <span
-                        className={`phone-badge ${copiedId === sup.id ? 'copied' : ''}`}
-                        onClick={() => handleCopyPhone(sup.phone, sup.id)}
-                        title="انقر لنسخ رقم الهاتف"
-                      >
-                        <span>{sup.phone}</span>
-                        <span className="phone-copy-icon">
-                          {copiedId === sup.id ? '✓ تم النسخ' : '📋'}
-                        </span>
-                      </span>
-                    ) : (
-                      <span className="text-muted" style={{ fontSize: '11.5px' }}>بدون رقم هاتف</span>
-                    )}
-
-                    {sup.address && (
-                      <span className="supplier-address-tag">📍 {sup.address}</span>
-                    )}
-                  </div>
-
-                  {/* Balances Summary */}
-                  <div className="supplier-balance-box">
-                    <div className="balance-col">
-                      <span className="bal-label">إجمالي المسحوبات</span>
-                      <span className="bal-val">{sup.total_purchased.toLocaleString('ar-EG')} ج.م</span>
-                    </div>
-                    <div className="balance-col">
-                      <span className="bal-label">إجمالي المسدد</span>
-                      <span className="bal-val text-success">{sup.total_paid.toLocaleString('ar-EG')} ج.م</span>
-                    </div>
-                    <div className="balance-col bal-highlight">
-                      <span className="bal-label">المستحق المتبقي</span>
-                      <span className={`bal-val ${hasRemaining ? 'text-danger' : 'text-neutral'}`}>
-                        {sup.total_remaining.toLocaleString('ar-EG')} ج.م
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Card Bottom Actions */}
-                  <div className="supplier-card-footer">
-                    <button
-                      className="sup-action-btn sup-ledger-btn"
-                      onClick={() => openSupplierLedger(sup.id)}
-                    >
-                      📄 كشف حساب
+                  {sup.phone ? (
+                    <button type="button" className={`sp-phone${copiedId === sup.id ? ' is-copied' : ''}`} dir="ltr" onClick={() => handleCopyPhone(sup.phone, sup.id)} title="انقر لنسخ رقم الهاتف">
+                      {copiedId === sup.id ? 'تم النسخ' : sup.phone}
                     </button>
-
-                    <button
-                      className="sup-action-btn sup-pay-btn"
-                      onClick={() => openPaymentModal(sup)}
-                    >
-                      💵 سداد دفعة
-                    </button>
+                  ) : <span className="sp-muted">بدون هاتف</span>}
+                  <b className="sp-num">{money(sup.total_purchased)} ج.م</b>
+                  <span className="sp-num is-ok">{money(sup.total_paid)} ج.م</span>
+                  <span className={`sp-pill ${due ? 'is-bad' : 'is-ok'}`}><b aria-hidden="true" />{due ? `${money(sup.total_remaining)} ج.م` : 'مسدَّد'}</span>
+                  <div className="sp-acts">
+                    {due && <button type="button" className="sp-mini is-primary" onClick={() => openPaymentModal(sup)}>سداد</button>}
+                    <button type="button" className="sp-mini" onClick={() => openSupplierLedger(sup.id)}>كشف حساب</button>
+                    <button type="button" className="sp-icon" onClick={() => openAddSupplier(sup)} aria-label={`تعديل ${sup.name}`} title="تعديل"><LineIcon name="edit" size={16} /></button>
+                    <button type="button" className="sp-icon is-danger" onClick={() => handleDeleteSupplier(sup.id, sup.name)} aria-label={`حذف ${sup.name}`} title="حذف"><LineIcon name="trash" size={16} /></button>
                   </div>
                 </div>
               );
-            })
+            })}
+            {visibleSuppliers.length === 0 && (
+              <div className="sp-empty">
+                <span><LineIcon name="store" size={30} /></span>
+                <h2>{search || supplierFilter !== 'all' ? 'لا يوجد موردون مطابقون' : 'لا يوجد موردون مسجلون'}</h2>
+                <p>{search || supplierFilter !== 'all' ? 'غيّر البحث أو التصفية.' : 'سجّل أول مورد لتتابع فواتيره ومستحقاته وتحدّث المخزون من فواتير التوريد.'}</p>
+                {!search && supplierFilter === 'all' && <button type="button" className="sp-btn is-primary" onClick={() => openAddSupplier()}><LineIcon name="plus" size={16} /> مورد جديد</button>}
+              </div>
+            )}
+          </>)}
+
+          {/* TAB 2: invoices */}
+          {activeTab === 'invoices' && (<>
+            <div className="sp-row is-head sp-cols-inv" role="row">
+              <span>رقم الفاتورة</span><span>المورد</span><span>الإجمالي</span><span>المدفوع</span><span>الحالة</span><span>الاستحقاق</span><span />
+            </div>
+            {pageItems(filteredInvoices).map((inv) => {
+              const status = inv.payment_status === 'paid' ? ['is-ok', 'مسدَّدة'] : inv.payment_status === 'partial' ? ['is-warn', `باقي ${money(inv.remaining_amount)}`] : ['is-bad', `باقي ${money(inv.remaining_amount)}`];
+              return (
+                <div key={inv.id} className="sp-row sp-cols-inv" role="row">
+                  <b className="sp-code" dir="ltr">{inv.invoice_number ? `#${inv.invoice_number}` : `INV-${inv.id}`}</b>
+                  <div className="sp-who"><div><b>{inv.supplier_name}</b><small>{inv.items_count} أصناف · {inv.total_units || 0} قطعة · {new Date(inv.created_at).toLocaleDateString('ar-EG-u-nu-latn')}</small></div></div>
+                  <b className="sp-num">{money(inv.total_amount)}</b>
+                  <span className="sp-num is-ok">{money(inv.paid_amount)}</span>
+                  <span className={`sp-pill ${status[0]}`}><b aria-hidden="true" />{status[1]}</span>
+                  <span className={inv.due_date && inv.remaining_amount > 0 ? 'sp-due' : 'sp-muted'}>{inv.due_date ? new Date(inv.due_date).toLocaleDateString('ar-EG-u-nu-latn') : '—'}</span>
+                  <div className="sp-acts">
+                    {inv.remaining_amount > 0 && <button type="button" className="sp-mini is-primary" onClick={() => openPaymentModal(null, inv)}>سداد</button>}
+                    <button type="button" className="sp-mini" onClick={() => handlePreviewInvoice(inv.id)}>تفاصيل</button>
+                  </div>
+                </div>
+              );
+            })}
+            {filteredInvoices.length === 0 && (
+              <div className="sp-empty">
+                <span><LineIcon name="file" size={30} /></span>
+                <h2>لا توجد فواتير شراء</h2>
+                <p>سجّل فاتورة توريد لتدخل الأصناف المستلمة في رصيد المخزن.</p>
+              </div>
+            )}
+          </>)}
+
+          {/* TAB 3: payments */}
+          {activeTab === 'payments' && (<>
+            <div className="sp-row is-head sp-cols-pay" role="row">
+              <span>رقم الحركة</span><span>المورد</span><span>المبلغ</span><span>الفاتورة المرتبطة</span><span>الطريقة</span><span>التاريخ</span>
+            </div>
+            {pageItems(filteredPayments).map((p) => (
+              <div key={p.id} className="sp-row sp-cols-pay" role="row">
+                <b className="sp-code" dir="ltr">PAY-{p.id}</b>
+                <div className="sp-who"><div><b>{p.supplier_name}</b>{p.notes && <small>{p.notes}</small>}</div></div>
+                <b className="sp-num is-ok">{money(p.amount)} ج.م</b>
+                <span>{p.invoice_number ? `#${p.invoice_number}` : <em className="sp-muted">سداد عام لحساب المورد</em>}</span>
+                <span className="sp-pill is-soft">{p.payment_method === 'cash' ? 'نقدي' : p.payment_method === 'bank_transfer' ? 'تحويل بنكي / محفظة' : 'شيك'}</span>
+                <span className="sp-muted">{new Date(p.payment_date).toLocaleDateString('ar-EG-u-nu-latn')}</span>
+              </div>
+            ))}
+            {filteredPayments.length === 0 && (
+              <div className="sp-empty">
+                <span><LineIcon name="banknote" size={30} /></span>
+                <h2>لا توجد دفعات سداد</h2>
+                <p>دفعات السداد للموردين هتظهر هنا.</p>
+              </div>
+            )}
+          </>)}
+
+          {/* pager */}
+          {activeList.length > PAGE_SIZE && (
+            <footer className="sp-pager">
+              <span>عرض {Math.min(page * PAGE_SIZE, activeList.length) - (page - 1) * PAGE_SIZE} من {activeList.length}</span>
+              <nav aria-label="الصفحات">
+                <button type="button" disabled={page <= 1} onClick={() => setPage(page - 1)} aria-label="السابقة"><LineIcon name="chevronRight" size={16} /></button>
+                {Array.from({ length: pageCount }, (_, i) => i + 1).map((n) => (
+                  <button key={n} type="button" className={n === page ? 'is-on' : ''} aria-current={n === page ? 'page' : undefined} onClick={() => setPage(n)}>{n}</button>
+                ))}
+                <button type="button" disabled={page >= pageCount} onClick={() => setPage(page + 1)} aria-label="التالية"><LineIcon name="chevronLeft" size={16} /></button>
+              </nav>
+            </footer>
           )}
-        </div>
-      )}
+        </section>
 
-      {/* TAB 2: Purchase Invoices */}
-      {activeTab === 'invoices' && (
-        <div className="customers-table-card">
-          <table className="customers-table">
-            <thead>
-              <tr>
-                <th>رقم الفاتورة</th>
-                <th>المورد / المصنع</th>
-                <th>إجمالي الفاتورة</th>
-                <th>المدفوع</th>
-                <th>المتبقي (الآجل)</th>
-                <th>حالة السداد</th>
-                <th>تاريخ الاستحقاق</th>
-                <th>تاريخ الفاتورة</th>
-                <th>الإجراءات</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredInvoices.length === 0 ? (
-                <tr>
-                  <td colSpan="9" className="empty-table-cell">
-                    لا توجد فواتير شراء مسجلة
-                  </td>
-                </tr>
-              ) : (
-                filteredInvoices.map((inv) => {
-                  const statusClass =
-                    inv.payment_status === 'paid'
-                      ? 'pay-cash'
-                      : inv.payment_status === 'partial'
-                      ? 'pay-card'
-                      : 'pay-credit';
-                  const statusText =
-                    inv.payment_status === 'paid'
-                      ? 'مسددة بالكامل'
-                      : inv.payment_status === 'partial'
-                      ? 'مدفوعة جزئياً'
-                      : 'آجلة / غير مسددة';
-
-                  return (
-                    <tr key={inv.id}>
-                      <td>
-                        <span className="invoice-id-badge">
-                          {inv.invoice_number ? `#${inv.invoice_number}` : `INV-${inv.id}`}
-                        </span>
-                      </td>
-                      <td>
-                        <div className="customer-name-cell">
-                          <span className="customer-name-text">{inv.supplier_name}</span>
-                          {inv.supplier_company && (
-                            <span className="badge-neutral">{inv.supplier_company}</span>
-                          )}
-                        </div>
-                      </td>
-                      <td>
-                        <strong>{inv.total_amount.toLocaleString('ar-EG')} ج.م</strong>
-                        <div style={{ fontSize: '11px', color: '#64748B' }}>
-                          {inv.items_count} أصناف ({inv.total_units || 0} قطعة)
-                        </div>
-                      </td>
-                      <td style={{ color: '#16A34A', fontWeight: 600 }}>
-                        {inv.paid_amount.toLocaleString('ar-EG')} ج.م
-                      </td>
-                      <td style={{ color: inv.remaining_amount > 0 ? '#DC2626' : '#64748B', fontWeight: 700 }}>
-                        {inv.remaining_amount.toLocaleString('ar-EG')} ج.م
-                      </td>
-                      <td>
-                        <span className={`pay-badge ${statusClass}`}>{statusText}</span>
-                      </td>
-                      <td>
-                        {inv.due_date ? (
-                          <span style={{ fontSize: '12px', fontWeight: 600, color: '#D97706' }}>
-                            📅 {new Date(inv.due_date).toLocaleDateString('ar-EG')}
-                          </span>
-                        ) : (
-                          <span className="text-muted">—</span>
-                        )}
-                      </td>
-                      <td style={{ fontSize: '12px', color: '#64748B' }}>
-                        {new Date(inv.created_at).toLocaleDateString('ar-EG')}
-                      </td>
-                      <td>
-                        <div className="product-card-actions">
-                          <button
-                            className="small-btn-outline"
-                            onClick={() => handlePreviewInvoice(inv.id)}
-                            title="معاينة تفاصيل الفاتورة"
-                          >
-                            👁️ تفاصيل
-                          </button>
-                          {inv.remaining_amount > 0 && (
-                            <button
-                              className="apply-date-btn"
-                              style={{ padding: '3px 8px', fontSize: '11px' }}
-                              onClick={() => openPaymentModal(null, inv)}
-                              title="سداد دفعة لهذه الفاتورة"
-                            >
-                              سداد
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* TAB 3: Payments History */}
-      {activeTab === 'payments' && (
-        <div className="customers-table-card">
-          <table className="customers-table">
-            <thead>
-              <tr>
-                <th>رقم الحركة</th>
-                <th>المورد / المصنع</th>
-                <th>المبلغ المسدد</th>
-                <th>رقم الفاتورة المرتبطة</th>
-                <th>طريقة السداد</th>
-                <th>ملاحظات / رقم الحوالة</th>
-                <th>تاريخ السداد</th>
-              </tr>
-            </thead>
-            <tbody>
-              {payments.length === 0 ? (
-                <tr>
-                  <td colSpan="7" className="empty-table-cell">
-                    لا توجد دفعات سداد مسجلة
-                  </td>
-                </tr>
-              ) : (
-                payments.map((p) => (
-                  <tr key={p.id}>
-                    <td>
-                      <span className="invoice-id-badge">PAY-{p.id}</span>
-                    </td>
-                    <td>
-                      <strong>{p.supplier_name}</strong>
-                    </td>
-                    <td style={{ color: '#16A34A', fontSize: '15px', fontWeight: 800 }}>
-                      {p.amount.toLocaleString('ar-EG')} ج.م
-                    </td>
-                    <td>
-                      {p.invoice_number ? `#${p.invoice_number}` : <span className="text-muted">سداد عام لحساب المورد</span>}
-                    </td>
-                    <td>
-                      <span className="badge-neutral">
-                        {p.payment_method === 'cash'
-                          ? '💵 نقدي (كاش)'
-                          : p.payment_method === 'bank_transfer'
-                          ? '🏦 تحويل بنكي / فودافون كاش'
-                          : '📜 شيك'}
-                      </span>
-                    </td>
-                    <td>{p.notes || <span className="text-muted">—</span>}</td>
-                    <td style={{ fontSize: '12px', color: '#64748B' }}>
-                      {new Date(p.payment_date).toLocaleString('ar-EG')}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
+        {/* stock-linked aside */}
+        {lowStock && lowStock.length > 0 && (
+          <aside className="sp-card sp-aside" aria-label="قطع تحت حد الطلب">
+            <div className="sp-aside__head"><h2>تحت حد الطلب</h2><span className="sp-pill is-warn">{lowStock.length} صنف</span></div>
+            <p>من أرصدة المخزن مباشرة. أنشئ أمر توريد بالكميات المقترحة.</p>
+            <ul>
+              {lowStock.slice(0, 5).map((row) => (
+                <li key={`${row.warehouse_id}-${row.variant_id}`}>
+                  <div><b>{row.product_name}</b><small><bdi>{[row.size, row.color].filter(Boolean).join(' · ') || row.sku || row.warehouse_name}</bdi></small></div>
+                  <span className={`sp-pill ${row.quantity <= 0 ? 'is-bad' : 'is-warn'}`}>{row.quantity <= 0 ? 'نفدت' : `${row.quantity} متبقي`}</span>
+                </li>
+              ))}
+            </ul>
+            <div className="sp-aside__acts">
+              <button type="button" className="sp-btn is-primary" onClick={openRestockPurchase}>إنشاء أمر توريد</button>
+              {onNavigate && <button type="button" className="sp-btn" onClick={() => onNavigate('branches', { tab: 'counts' })}>فتح الجرد</button>}
+            </div>
+          </aside>
+        )}
+      </div>
 
       {/* =========================================
           MODAL 1: Add / Edit Supplier Modal
@@ -865,236 +733,74 @@ function SuppliersPage() {
       )}
 
       {/* =========================================
-          MODAL 2: New Purchase Invoice Modal (With Auto Stock)
+          MODAL 2: New Purchase Invoice (stock is updated on save)
           ========================================= */}
       {showNewPurchaseModal && (
-        <div className="modal-overlay" onClick={() => setShowNewPurchaseModal(false)}>
-          <div className="product-modal-dialog" style={{ width: '840px' }} onClick={(e) => e.stopPropagation()}>
-            <div className="product-modal-header">
-              <h3>📦 تسجيل فاتورة شراء / توريد بضاعة جديدة</h3>
-              <button className="modal-close" onClick={() => setShowNewPurchaseModal(false)}>
-                ×
-              </button>
-            </div>
+        <div className="sp-overlay" onClick={() => setShowNewPurchaseModal(false)}>
+          <div className="sp-dialog" role="dialog" aria-modal="true" aria-label="تسجيل فاتورة توريد" onClick={(e) => e.stopPropagation()}>
+            <header className="sp-dialog__head">
+              <span className="sp-dialog__tile"><LineIcon name="file" size={24} /></span>
+              <div><h2>تسجيل فاتورة توريد</h2><p>الأصناف المستلمة بتتضاف لرصيد المخزن، والمتبقي بيتسجّل دين على المورد.</p></div>
+              <button type="button" className="sp-dialog__x" onClick={() => setShowNewPurchaseModal(false)} aria-label="إغلاق"><LineIcon name="x" size={20} /></button>
+            </header>
 
-            <form onSubmit={handleSavePurchase}>
-              {/* Header Info Grid */}
-              <div className="add-variant-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
-                <div className="profile-field-group">
-                  <label className="profile-label">المورد / المصنع *</label>
-                  <select
-                    required
-                    className="custom-date-input"
-                    style={{ width: '100%', height: '38px', background: '#fff' }}
-                    value={purchaseForm.supplierId}
-                    onChange={(e) => setPurchaseForm({ ...purchaseForm, supplierId: e.target.value })}
-                  >
-                    <option value="">-- اختر المورد --</option>
-                    {suppliers.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name} {s.company ? `(${s.company})` : ''}
-                      </option>
-                    ))}
+            <form onSubmit={handleSavePurchase} className="sp-dialog__body">
+              <div className="sp-grid3">
+                <label className="sp-field"><span>المورد <i className="sp-req">*</i></span>
+                  <select required value={purchaseForm.supplierId} onChange={(e) => setPurchaseForm({ ...purchaseForm, supplierId: e.target.value })}>
+                    <option value="">اختر المورد</option>
+                    {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}{s.company ? ` (${s.company})` : ''}</option>)}
                   </select>
-                </div>
+                </label>
+                <label className="sp-field"><span>رقم فاتورة المورد</span>
+                  <input type="text" dir="ltr" placeholder="اختياري، مثل A-77310" value={purchaseForm.invoiceNumber} onChange={(e) => setPurchaseForm({ ...purchaseForm, invoiceNumber: e.target.value })} />
+                </label>
+                <label className="sp-field"><span>تاريخ استحقاق الآجل</span>
+                  <input type="date" dir="ltr" value={purchaseForm.dueDate} onChange={(e) => setPurchaseForm({ ...purchaseForm, dueDate: e.target.value })} />
+                </label>
+              </div>
 
-                <div className="profile-field-group">
-                  <label className="profile-label">رقم فاتورة المورد (اختياري)</label>
-                  <input
-                    type="text"
-                    className="custom-date-input"
-                    style={{ height: '38px' }}
-                    placeholder="مثال: 1042"
-                    value={purchaseForm.invoiceNumber}
-                    onChange={(e) => setPurchaseForm({ ...purchaseForm, invoiceNumber: e.target.value })}
-                  />
-                </div>
+              <section className="sp-lines" aria-label="أصناف الفاتورة">
+                <div className="sp-lines__head"><span>القطعة</span><span>الكمية</span><span>تكلفة الوحدة</span><span>سعر البيع</span><span>الإجمالي</span><span /></div>
+                {purchaseForm.items.map((item, idx) => (
+                  <div key={item._id || idx} className="sp-line">
+                    <div className="sp-line__item">
+                      <input type="text" required placeholder="اسم القطعة" aria-label="اسم القطعة" value={item.product_name} onChange={(e) => updatePurchaseItem(idx, 'product_name', e.target.value)} />
+                      <select aria-label="ربط بصنف موجود" value={item.variant_id} onChange={(e) => updatePurchaseItem(idx, 'variant_id', e.target.value)}>
+                        <option value="">أو اختر من أصناف المخزن</option>
+                        {productsList.map((p) => p.variants?.map((v) => (
+                          <option key={v.id} value={v.id}>{p.name}{v.size ? ` - ${v.size}` : ''}{v.color ? ` ${v.color}` : ''} (مخزون: {v.stock_quantity})</option>
+                        )))}
+                      </select>
+                    </div>
+                    <input type="number" min="1" required aria-label="الكمية" value={item.quantity} onChange={(e) => updatePurchaseItem(idx, 'quantity', e.target.value)} />
+                    <input type="number" min="0" step="any" required placeholder="0.00" aria-label="تكلفة الوحدة" value={item.purchase_price} onChange={(e) => updatePurchaseItem(idx, 'purchase_price', e.target.value)} />
+                    <input type="number" min="0" step="any" placeholder="0.00" aria-label="سعر البيع المقترح" value={item.selling_price} onChange={(e) => updatePurchaseItem(idx, 'selling_price', e.target.value)} />
+                    <b className="sp-num">{money(Number(item.quantity || 0) * Number(item.purchase_price || 0))}</b>
+                    <button type="button" className="sp-icon" disabled={purchaseForm.items.length <= 1} onClick={() => removePurchaseItemLine(idx)} aria-label="حذف الصنف"><LineIcon name="x" size={16} /></button>
+                  </div>
+                ))}
+                <button type="button" className="sp-addline" onClick={addPurchaseItemLine}><LineIcon name="plus" size={18} /> أضف صنفًا آخر</button>
+              </section>
 
-                <div className="profile-field-group">
-                  <label className="profile-label">تاريخ استحقاق الآجل</label>
-                  <input
-                    type="date"
-                    className="custom-date-input"
-                    style={{ height: '38px' }}
-                    value={purchaseForm.dueDate}
-                    onChange={(e) => setPurchaseForm({ ...purchaseForm, dueDate: e.target.value })}
-                  />
-                </div>
-
-                <div className="profile-field-group">
-                  <label className="profile-label">المبلغ المدفوع كاش (مقدماً)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="any"
-                    className="custom-date-input"
-                    style={{ height: '38px', fontWeight: 700, color: '#16A34A' }}
-                    placeholder="0.00"
-                    value={purchaseForm.paidAmount}
-                    onChange={(e) => setPurchaseForm({ ...purchaseForm, paidAmount: e.target.value })}
-                  />
+              <div className="sp-grid2">
+                <label className="sp-field"><span>المبلغ المدفوع الآن</span>
+                  <div className="sp-money"><input type="number" min="0" step="any" placeholder="0.00" value={purchaseForm.paidAmount} onChange={(e) => setPurchaseForm({ ...purchaseForm, paidAmount: e.target.value })} /><em>ج.م</em></div>
+                </label>
+                <div className="sp-sum">
+                  <div><span>إجمالي الأصناف</span><b>{money(purchaseCalculatedTotal)}</b></div>
+                  <div><span>المدفوع الآن</span><b>{money(Number(purchaseForm.paidAmount || 0))}</b></div>
+                  <div className="is-total"><span>المتبقي دين على المورد</span><strong>{money(Math.max(purchaseCalculatedTotal - Number(purchaseForm.paidAmount || 0), 0))} <small>ج.م</small></strong></div>
                 </div>
               </div>
 
-              {/* Items Section */}
-              <div style={{ marginTop: '16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <h4 style={{ margin: 0, fontSize: '14px', color: '#0F172A' }}>
-                    الأصناف والكميات المستلمة (تضاف تلقائياً لرصيد المخزن):
-                  </h4>
-                  <button
-                    type="button"
-                    className="apply-date-btn"
-                    onClick={addPurchaseItemLine}
-                  >
-                    + إضافة صنف آخر
-                  </button>
-                </div>
+              <p className="sp-stocknote"><LineIcon name="check" size={16} strokeWidth={3} />{purchaseUnits} قطعة هتتضاف لرصيد المخزن عند الحفظ</p>
 
-                <div style={{ maxHeight: '240px', overflowY: 'auto', border: '1px solid #E2E8F0', borderRadius: '10px' }}>
-                  <table className="variants-details-table" style={{ margin: 0 }}>
-                    <thead>
-                      <tr>
-                        <th style={{ width: '28%' }}>ربط بمنتج موجود أو اسم الصنف *</th>
-                        <th style={{ width: '12%' }}>المقاس</th>
-                        <th style={{ width: '12%' }}>اللون</th>
-                        <th style={{ width: '12%' }}>الكمية *</th>
-                        <th style={{ width: '15%' }}>سعر الشراء (التكلفة) *</th>
-                        <th style={{ width: '15%' }}>سعر البيع المقترح</th>
-                        <th style={{ width: '6%' }}></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {purchaseForm.items.map((item, idx) => (
-                        <tr key={item._id || idx}>
-                          <td>
-                            <input
-                              type="text"
-                              required
-                              placeholder="اسم المنتج..."
-                              style={{ width: '100%', padding: '5px', border: '1px solid #CBD5E1', borderRadius: '5px' }}
-                              value={item.product_name}
-                              onChange={(e) => updatePurchaseItem(idx, 'product_name', e.target.value)}
-                            />
-                            {/* Option to select from existing variants */}
-                            <select
-                              style={{ width: '100%', marginTop: '3px', fontSize: '11px', color: '#64748B' }}
-                              value={item.variant_id}
-                              onChange={(e) => updatePurchaseItem(idx, 'variant_id', e.target.value)}
-                            >
-                              <option value="">-- أو اختر من منتجات المحل --</option>
-                              {productsList.map((p) =>
-                                p.variants?.map((v) => (
-                                  <option key={v.id} value={v.id}>
-                                    {p.name} - مقاس: {v.size || '—'} {v.color || ''} (مخزون: {v.stock_quantity})
-                                  </option>
-                                ))
-                              )}
-                            </select>
-                          </td>
-                          <td>
-                            <input
-                              type="text"
-                              placeholder="L, XL..."
-                              style={{ width: '100%', padding: '5px', border: '1px solid #CBD5E1', borderRadius: '5px' }}
-                              value={item.size}
-                              onChange={(e) => updatePurchaseItem(idx, 'size', e.target.value)}
-                            />
-                          </td>
-                          <td>
-                            <input
-                              type="text"
-                              placeholder="أزرق، أسود..."
-                              style={{ width: '100%', padding: '5px', border: '1px solid #CBD5E1', borderRadius: '5px' }}
-                              value={item.color}
-                              onChange={(e) => updatePurchaseItem(idx, 'color', e.target.value)}
-                            />
-                          </td>
-                          <td>
-                            <input
-                              type="number"
-                              min="1"
-                              required
-                              style={{ width: '100%', padding: '5px', border: '1px solid #CBD5E1', borderRadius: '5px', fontWeight: 700 }}
-                              value={item.quantity}
-                              onChange={(e) => updatePurchaseItem(idx, 'quantity', e.target.value)}
-                            />
-                          </td>
-                          <td>
-                            <input
-                              type="number"
-                              min="0"
-                              step="any"
-                              required
-                              placeholder="0.00"
-                              style={{ width: '100%', padding: '5px', border: '1px solid #CBD5E1', borderRadius: '5px', fontWeight: 700 }}
-                              value={item.purchase_price}
-                              onChange={(e) => updatePurchaseItem(idx, 'purchase_price', e.target.value)}
-                            />
-                          </td>
-                          <td>
-                            <input
-                              type="number"
-                              min="0"
-                              step="any"
-                              placeholder="0.00"
-                              style={{ width: '100%', padding: '5px', border: '1px solid #CBD5E1', borderRadius: '5px' }}
-                              value={item.selling_price}
-                              onChange={(e) => updatePurchaseItem(idx, 'selling_price', e.target.value)}
-                            />
-                          </td>
-                          <td>
-                            <button
-                              type="button"
-                              className="pos-item-remove-btn"
-                              disabled={purchaseForm.items.length <= 1}
-                              onClick={() => removePurchaseItemLine(idx)}
-                              title="حذف هذا السطر"
-                            >
-                              ×
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* Summary Bar */}
-              <div className="product-modal-quick-stats" style={{ marginTop: '16px' }}>
-                <div className="quick-stat-box">
-                  <span>إجمالي قيمة الفاتورة:</span>
-                  <span style={{ color: '#F2600C', fontSize: '18px' }}>
-                    {purchaseCalculatedTotal.toFixed(2)} ج.م
-                  </span>
-                </div>
-                <div className="quick-stat-box">
-                  <span>المدفوع مقدماً:</span>
-                  <span style={{ color: '#16A34A', fontSize: '18px' }}>
-                    {Number(purchaseForm.paidAmount || 0).toFixed(2)} ج.م
-                  </span>
-                </div>
-                <div className="quick-stat-box">
-                  <span>المتبقي ديون عليك للمورد (آجل):</span>
-                  <span style={{ color: '#DC2626', fontSize: '18px' }}>
-                    {Math.max(purchaseCalculatedTotal - Number(purchaseForm.paidAmount || 0), 0).toFixed(2)} ج.م
-                  </span>
-                </div>
-              </div>
-
-              <div className="profile-modal-actions" style={{ marginTop: '16px' }}>
-                <button
-                  type="button"
-                  className="profile-cancel-btn"
-                  onClick={() => setShowNewPurchaseModal(false)}
-                >
-                  إلغاء
-                </button>
-                <button type="submit" className="profile-save-btn">
-                  حفظ الفاتورة وتحديث المخزون 📦
-                </button>
-              </div>
+              <footer className="sp-dialog__foot">
+                <button type="submit" className="sp-btn is-primary">حفظ الفاتورة <LineIcon name="check" size={16} /></button>
+                <button type="button" className="sp-btn" onClick={() => setShowNewPurchaseModal(false)}>إلغاء</button>
+                <span>{purchaseForm.items.length} أصناف · {purchaseUnits} قطعة</span>
+              </footer>
             </form>
           </div>
         </div>

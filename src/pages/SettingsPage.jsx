@@ -4,6 +4,7 @@ import { useBusinessProfile } from '../contexts/BusinessProfileContext.jsx';
 import Modal from '../components/Modal.jsx';
 import AddonsSettingsCard from '../components/settings/AddonsSettingsCard.jsx';
 import RestaurantSettingsCard from '../components/settings/RestaurantSettingsCard.jsx';
+import LoyaltySettingsCard from '../components/settings/LoyaltySettingsCard.jsx';
 import CloudSyncSettingsCard from '../components/settings/CloudSyncSettingsCard.jsx';
 import EInvoiceSettingsCard from '../components/settings/EInvoiceSettingsCard.jsx';
 import PrivacyPolicyCard from '../components/settings/PrivacyPolicyCard.jsx';
@@ -369,6 +370,7 @@ function SettingsPage() {
 
           {!isLawFirm && <AddonsSettingsCard />}
           {configuration?.profile?.key === 'cafe_restaurant' && <RestaurantSettingsCard />}
+          {!isLawFirm && <LoyaltySettingsCard />}
           <CloudSyncSettingsCard />
           <EInvoiceSettingsCard />
           <PrivacyPolicyCard />

@@ -2524,8 +2524,9 @@
 }
 
 .invoice-preview-modal {
-  width: min(760px, calc(100vw - 32px));
-  max-height: min(820px, calc(100vh - 40px));
+  width: min(980px, calc(100vw - 32px));
+  max-width: none;
+  max-height: min(900px, calc(100vh - 40px));
   padding: 0;
   gap: 0;
   border-radius: 18px;
@@ -2538,7 +2539,7 @@
 .invoice-preview-modal .modal-header h3 {
   margin: 0;
   color: #172554;
-  font-size: 18px;
+  font-size: 22px;
   font-weight: 800;
 }
 
@@ -2577,7 +2578,7 @@
 }
 
 .invoice-preview-table-wrap {
-  max-height: 300px;
+  max-height: 420px;
   margin: 0 24px;
   overflow: auto;
   border: 1px solid #E2E8F0;
@@ -2591,8 +2592,8 @@
 
 .invoice-preview-table th,
 .invoice-preview-table td {
-  padding: 12px 14px;
-  font-size: 13px;
+  padding: 14px 18px;
+  font-size: 15px;
 }
 
 .invoice-preview-table th {
@@ -4146,3 +4147,7 @@
   color: #64748b;
   line-height: 1.4;
 }
+
+/* Loyalty points card in the POS cart */
+.pos-loyalty-card { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; margin-top: 8px; padding: 8px 12px; border: 1px solid #F5D9A8; border-radius: 12px; background: #FFF8EA; color: #7A4B00; font-size: 13px; }
+.pos-loyalty-worth { color: #9A6A0B; font-weight: 600; }

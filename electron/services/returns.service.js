@@ -161,6 +161,14 @@ function processReturn({
       shiftId: activeShift.id,
     });
 
+    // The points that sale earned are taken back in proportion to the money returned.
+    // Points never block a refund: if they cannot be adjusted the money still goes back.
+    try {
+      require('./loyalty.service').reverseForReturn(parsedSaleId, refundAmount);
+    } catch (loyaltyError) {
+      console.warn('تعذر عكس نقاط الولاء للمرتجع:', loyaltyError.message);
+    }
+
     return { returnId, exchangeInfo };
   });
 
