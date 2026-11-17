@@ -30,6 +30,6 @@ describe('permission routing', () => {
     expect(getPermissionForApi('/api/inventory/branches/3', 'PUT')).toBe('inventory.manage');
     expect(getPermissionForApi('/api/users', 'GET')).toBe('team.view');
     expect(getPermissionForApi('/api/auth/session', 'GET')).toBeNull();
-    expect(getPermissionForApi('/api/unknown/private', 'GET')).toBeNull();
+    expect(getPermissionForApi('/api/unknown/private', 'GET')).toBe('settings.manage');
   });
 });

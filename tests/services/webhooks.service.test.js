@@ -107,7 +107,7 @@ describe('webhooks service', () => {
 
   test('a failing endpoint is recorded, not thrown', async () => {
     global.fetch = jest.fn().mockRejectedValue(new Error('ECONNREFUSED'));
-    const hook = webhooks.create({ name: 'dead', url: 'http://localhost:1', events: ['sale.created'] });
+    const hook = webhooks.create({ name: 'dead', url: 'https://localhost:1', events: ['sale.created'] });
     await expect(webhooks.test(hook.id)).resolves.toMatchObject({ ok: false, error: 'ECONNREFUSED' });
     expect(webhooks.list()[0].last_error).toBe('ECONNREFUSED');
   });

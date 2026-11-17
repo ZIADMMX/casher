@@ -16,7 +16,7 @@ function clean(data) {
   } catch {
     throw new Error('رابط الويب هوك غير صالح');
   }
-  if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('الرابط لازم يبدأ بـ http أو https');
+  if (parsed.protocol !== 'https:') throw new Error('الرابط لازم يبدأ بـ https');
   const events = Array.isArray(data?.events) ? data.events.filter((e) => WEBHOOK_EVENTS.includes(e)) : [];
   if (!events.length) throw new Error('اختر حدثًا واحدًا على الأقل');
   return { name, url, events, is_active: data?.is_active !== false };
@@ -29,6 +29,12 @@ function sign(secret, body) {
 // One signed POST of an already built body; the result is stored on the row so the page shows the last delivery.
 // retry = worth sending again later (no connection, timeout, 5xx, 429); a 4xx is the receiver refusing it.
 async function send(hook, event, body) {
+  // Hooks saved before HTTPS became mandatory are refused too; the user must edit them to an https:// address.
+  if (!String(hook.url).startsWith('https://')) {
+    const error = 'الرابط لازم يكون https';
+    repo.recordDelivery(hook.id, null, error);
+    return { ok: false, status: null, error, retry: false };
+  }
   try {
     const response = await fetch(hook.url, {
       method: 'POST',

@@ -30,5 +30,9 @@ jobs:
       - run: pnpm run release:win
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Code signing: base64 of the .pfx and its password, under Settings > Secrets > Actions.
+          # Without them the installer is built unsigned.
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           # Required by verify-license-time and the obfuscation step. Add it under Settings > Secrets > Actions.
           FOX_LICENSE_TIME_URL: ${{ secrets.FOX_LICENSE_TIME_URL }}

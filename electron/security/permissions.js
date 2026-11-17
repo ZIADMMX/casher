@@ -223,7 +223,8 @@ function getPermissionForApi(pathname, method) {
   if (pathname.startsWith('/api/auth/')) return null;
   const resource = pathname.split('/')[2];
   const domain = RESOURCE_PERMISSIONS[resource];
-  if (!domain) return null;
+  // An unlisted route is admin-only, so a forgotten route can never be open to every logged-in user.
+  if (!domain) return 'settings.manage';
   const action = method === 'GET' ? 'view' : 'manage';
   if (pathname === '/api/attendance/me/today' || pathname === '/api/attendance/check-in'
     || pathname === '/api/attendance/check-out') return 'pos.sell';

@@ -11,11 +11,16 @@ const {
   mount,
 } = require('@workspace/boosthis-runtime-node');
 
-enableTelemetry({
-  installId: process.env.BOOSTHIS_INSTALL_ID,
-  inviteKey: process.env.BOOSTHIS_INVITE_KEY,
-  issuesOnly: true,
-});
+const { isProduction } = require('./electron/security/securityHeaders');
+
+// The monitoring dashboard and its telemetry are development tools; production sends nothing out and exposes no dashboard.
+if (!isProduction()) {
+  enableTelemetry({
+    installId: process.env.BOOSTHIS_INSTALL_ID,
+    inviteKey: process.env.BOOSTHIS_INVITE_KEY,
+    issuesOnly: true,
+  });
+}
 
 const express = require('express');
 const { applyCorsPolicy } = require('./electron/security/corsPolicy');
@@ -44,12 +49,15 @@ resilienceService.startSystemBackbone().catch((err) => {
 });
 
 const app = express();
+app.disable('x-powered-by');
 
 // -------------------------------------------------------------
 // Boosthis Performance Monitoring & Local Dashboard
 // -------------------------------------------------------------
-app.use(boosthis({ bubble: true }));
-mount(app);
+if (!isProduction()) {
+  app.use(boosthis({ bubble: true }));
+  mount(app);
+}
 
 // -------------------------------------------------------------
 // Middleware: CORS
@@ -227,7 +235,9 @@ app.use((req, res) => {
 app.use((err, req, res, next) => {
   console.error('API Error:', err.message);
   const statusCode = err.statusCode || (err.message && err.message.includes('صلاحية') ? 403 : 400);
-  res.status(statusCode).json({ error: err.message || 'Internal Server Error' });
+  // Database/engine errors expose table and column names: the client gets a generic message.
+  const internal = /^SQLITE_|^SqliteError/.test(String(err.code || err.name));
+  res.status(internal ? 500 : statusCode).json({ error: internal ? 'حدث خطأ داخلي في الخادم' : (err.message || 'Internal Server Error') });
 });
 
 // -------------------------------------------------------------

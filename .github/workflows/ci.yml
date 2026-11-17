@@ -17,6 +17,8 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # Fails on known high/critical vulnerabilities in shipped (non-dev) dependencies.
+      - run: pnpm audit --prod --audit-level=high
       # Jest keeps open handles after the run, so it needs --forceExit.
       - run: pnpm exec jest --runInBand --forceExit
       - run: pnpm exec vitest run

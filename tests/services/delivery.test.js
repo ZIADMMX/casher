@@ -107,6 +107,14 @@ describe('the Worker inbox', () => {
 
   afterEach(() => jest.restoreAllMocks());
 
+  test('write keys are stored encrypted but read back as the original value', () => {
+    SettingsRepository.set('eta_client_secret', 'plain-secret-123');
+    expect(db.prepare("SELECT value FROM settings WHERE key = 'eta_client_secret'").get().value).toMatch(/^enc:/);
+    expect(SettingsRepository.get('eta_client_secret')).toBe('plain-secret-123');
+    expect(SettingsRepository.getAll()).not.toHaveProperty('eta_client_secret');
+    db.prepare("DELETE FROM settings WHERE key = 'eta_client_secret'").run();
+  });
+
   test('registers the inbox once and gives the public address', async () => {
     db.prepare("DELETE FROM settings WHERE key = 'delivery_inbox_token'").run();
     const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue(reply({ ok: true }));

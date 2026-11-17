@@ -1,4 +1,5 @@
 const { db } = require('../database/db');
+const { encryptSecret, decryptSecret } = require('../security/vault');
 
 // Internal secrets: readable only through get(key) by the main process, never
 // returned by getAll() or writable through setMany() from the settings screen.
@@ -26,12 +27,22 @@ const PROTECTED_KEYS = new Set([
   'license_server_trial_start',
   // Open admin-recovery challenge (electron/services/auth.service.js).
   'recovery_challenge',
+  // Failed-login counters and lockouts (electron/services/auth.service.js): must not be wipeable from the settings screen.
+  'login_lockouts',
+  // Write keys / inbox tokens for the Worker (tracking.service.js, delivery.service.js).
+  'tracking_write_key',
+  'delivery_inbox_token',
   // ETA e-invoice API secret (electron/services/einvoice/config.js): written and
   // read only through the e-invoice screen, never echoed back to the renderer.
   'eta_client_secret',
   // AI provider key (electron/services/ai/llmClient.js): sealed by the vault, read only by the main process.
   'codecraft_api_key',
 ]);
+
+// Stored encrypted (vault): a copied database file or backup does not reveal them.
+// Old plain-text values are still read as they are and get sealed the next time they are saved.
+const SEALED_KEYS = new Set(['eta_client_secret', 'tracking_write_key', 'delivery_inbox_token']);
+const seal = (key, value) => (SEALED_KEYS.has(key) && value ? encryptSecret(value) : value);
 
 const SettingsRepository = {
   PROTECTED_KEYS,
@@ -48,7 +59,8 @@ const SettingsRepository = {
 
   get(key) {
     const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key);
-    return row ? row.value : null;
+    if (!row) return null;
+    return SEALED_KEYS.has(key) ? decryptSecret(row.value) : row.value;
   },
 
   set(key, value) {
@@ -57,7 +69,7 @@ const SettingsRepository = {
       VALUES (?, ?)
       ON CONFLICT(key) DO UPDATE SET value = excluded.value
     `);
-    stmt.run(key, String(value ?? ''));
+    stmt.run(key, seal(key, String(value ?? '')));
     return { key, value };
   },
 

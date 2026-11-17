@@ -1,5 +1,8 @@
-const DEFAULT_ALLOWED_ORIGINS = [
-  'null',
+const { applySecurityHeaders, isProduction } = require('./securityHeaders');
+
+// The packaged app loads from file:// (origin 'null'); the Vite dev servers are allowed only outside production.
+const DEFAULT_ALLOWED_ORIGINS = ['null'];
+const DEV_ORIGINS = [
   'http://localhost:5173',
   'http://127.0.0.1:5173',
   'http://localhost:5174',
@@ -15,10 +18,11 @@ function getAllowedOrigins() {
     .map((origin) => origin.trim())
     .filter(Boolean);
 
-  return new Set([...DEFAULT_ALLOWED_ORIGINS, ...configuredOrigins]);
+  return new Set([...DEFAULT_ALLOWED_ORIGINS, ...(isProduction() ? [] : DEV_ORIGINS), ...configuredOrigins]);
 }
 
 function applyCorsPolicy(req, res, { methods = DEFAULT_METHODS, headers = DEFAULT_HEADERS } = {}) {
+  applySecurityHeaders(res);
   const origin = req.headers.origin;
   const vary = res.getHeader('Vary');
   const varyValues = String(vary || '')

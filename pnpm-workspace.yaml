@@ -1,5 +1,22 @@
 allowBuilds:
   '@parcel/watcher': true
   better-sqlite3: true
+  electron-winstaller: false
   esbuild: true
   unrs-resolver: true
+overrides:
+  # GHSA-27r3-jxmh-p828 (DoS): express 4 still pulls a 1.20.x older than the fix.
+  body-parser: ^1.20.9
+  glob@>=9.0.0 <=14.0.1: ^14.0.2
+  minimatch@>=7.0.0 <11.0.1: ^11.0.1
+  source-map-js@>=1.0.0 <1.2.2: ^1.2.2
+  undici@>=4.0.0 <6.29.1: ^6.29.1
+  undici@>=4.2.1 <6.29.1: ^6.29.1
+  undici@>=5.15.0 <6.29.1: ^6.29.1
+  undici@>=6.23.0 <6.29.1: ^6.29.1
+  undici@>=6.5.0 <6.29.1: ^6.29.1
+  undici@>=7.0.0 <7.30.1: ^7.30.1
+  undici@>=7.15.0 <7.30.1: ^7.30.1
+  undici@>=7.18.0 <7.30.1: ^7.30.1
+  uuid@<11.1.1: ^11.1.1
+  zod@<4.6.6: ^4.6.6

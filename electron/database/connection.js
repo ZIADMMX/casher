@@ -23,6 +23,8 @@ const userDataDir = app?.getPath
 if (userDataDir !== ':memory:' && !fs.existsSync(userDataDir)) {
   try { fs.mkdirSync(userDataDir, { recursive: true }); } catch {}
 }
+// Only the account running the app may read the database folder (skipped for tests, which use a shared temp folder).
+if (process.env.NODE_ENV !== 'test') require('../security/dataLock').lockToOwner(userDataDir);
 const dbPath = userDataDir === ':memory:' ? ':memory:' : path.join(userDataDir, 'shop.db');
 const DATABASE_SCHEMA_VERSION = 43;
 const SALES_SCHEMA_VERSION = 6;

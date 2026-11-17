@@ -1,21 +1,24 @@
 const { safeHandle } = require('./safeHandle');
 const channelsService = require('../services/channels.service');
 
+// The renderer never receives the stored keys, only whether they are set.
+const hideKeys = (channel) => channel && { ...channel, api_key: undefined, api_secret: undefined, has_api_key: Boolean(channel.api_key), has_api_secret: Boolean(channel.api_secret) };
+
 function registerChannelsHandlers() {
   safeHandle('channels:getAll', () => {
-    return channelsService.getAllChannels();
+    return channelsService.getAllChannels().map(hideKeys);
   });
 
   safeHandle('channels:getById', (event, id) => {
-    return channelsService.getChannelById(id);
+    return hideKeys(channelsService.getChannelById(id));
   });
 
   safeHandle('channels:create', (event, data) => {
-    return channelsService.createChannel(data);
+    return hideKeys(channelsService.createChannel(data));
   });
 
   safeHandle('channels:update', (event, { id, data }) => {
-    return channelsService.updateChannel(id, data);
+    return hideKeys(channelsService.updateChannel(id, data));
   });
 
   safeHandle('channels:delete', (event, id) => {

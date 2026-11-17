@@ -761,6 +761,23 @@ describe('auth.service', () => {
       expect(() => authService.login('admin', 'admin123')).toThrow(/تم قفل الحساب مؤقتًا بسبب كثرة المحاولات الخاطئة/);
     });
 
+    test('a lockout is saved to settings (survives restart) and a repeat lockout lasts longer', () => {
+      usersRepo.getByUsername.mockReturnValue(admin);
+      const fail = () => { try { authService.login('admin', 'wrong-pass'); } catch (e) { return e.message; } };
+      for (let i = 0; i < 4; i++) fail();
+      expect(fail()).toMatch(/لمدة 1 دقيقة/);
+      expect(JSON.parse(settingsRepo._store.get('login_lockouts')).admin.lockoutUntil).toBeGreaterThan(Date.now());
+
+      const realNow = Date.now;
+      Date.now = () => realNow() + 61 * 1000;
+      try {
+        for (let i = 0; i < 4; i++) fail();
+        expect(fail()).toMatch(/لمدة 5 دقائق/);
+      } finally {
+        Date.now = realNow;
+      }
+    });
+
     test('a missing password fails with the generic error and counts as a failed attempt', () => {
       usersRepo.getByUsername.mockReturnValue(admin);
       expect(() => authService.login('admin', undefined)).toThrow('اسم المستخدم أو كلمة المرور غير صحيحة');

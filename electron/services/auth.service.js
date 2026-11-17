@@ -10,23 +10,44 @@ const permissionContext = new AsyncLocalStorage();
 const { personalProfileSchema } = require('../validators/schema');
 
 const MAX_FAILED_LOGIN_ATTEMPTS = 5;
-const LOGIN_LOCKOUT_MS = 60 * 1000; // 1 minute lockout
+// Each repeated lockout lasts longer: 1, 5, then 15 minutes (until a successful login).
+const LOGIN_LOCKOUT_STEPS_MIN = [1, 5, 15];
+const LOGIN_ATTEMPTS_KEY = 'login_lockouts';
 const loginAttempts = new Map();
+let loginAttemptsLoaded = false;
 const REMOTE_CALLERS = new Set(['lan-api', 'rest-api']);
 const requestSession = new AsyncLocalStorage();
 
+// Lockouts live in the settings table, so restarting the app does not clear them.
+function loadLoginAttempts() {
+  if (loginAttemptsLoaded) return;
+  loginAttemptsLoaded = true;
+  try {
+    const saved = JSON.parse(settingsRepo.get(LOGIN_ATTEMPTS_KEY) || '{}');
+    for (const [key, value] of Object.entries(saved)) loginAttempts.set(key, value);
+  } catch { /* unreadable state starts clean */ }
+}
+
+function saveLoginAttempts() {
+  try { settingsRepo.set(LOGIN_ATTEMPTS_KEY, JSON.stringify(Object.fromEntries(loginAttempts))); } catch { /* lockout still holds in memory */ }
+}
+
 function recordFailedLoginAttempt(usernameKey) {
   if (!usernameKey) return;
-  const current = loginAttempts.get(usernameKey) || { count: 0, lockoutUntil: 0 };
+  loadLoginAttempts();
+  const current = loginAttempts.get(usernameKey) || { count: 0, lockoutUntil: 0, strikes: 0 };
   current.count += 1;
   if (current.count >= MAX_FAILED_LOGIN_ATTEMPTS) {
-    current.lockoutUntil = Date.now() + LOGIN_LOCKOUT_MS;
+    const minutes = LOGIN_LOCKOUT_STEPS_MIN[Math.min(current.strikes || 0, LOGIN_LOCKOUT_STEPS_MIN.length - 1)];
+    current.lockoutUntil = Date.now() + minutes * 60 * 1000;
+    current.strikes = (current.strikes || 0) + 1;
     current.count = 0;
     loginAttempts.set(usernameKey, current);
-    throw new Error(`تم تجاوز الحد الأقصى للمحاولات الخاطئة (${MAX_FAILED_LOGIN_ATTEMPTS} محاولات). تم قفل الحساب مؤقتًا لمدة دقيقة.`);
-  } else {
-    loginAttempts.set(usernameKey, current);
+    saveLoginAttempts();
+    throw new Error(`تم تجاوز الحد الأقصى للمحاولات الخاطئة (${MAX_FAILED_LOGIN_ATTEMPTS} محاولات). تم قفل الحساب مؤقتًا لمدة ${minutes} ${minutes === 1 ? 'دقيقة' : 'دقائق'}.`);
   }
+  loginAttempts.set(usernameKey, current);
+  saveLoginAttempts();
 }
 
 const activeSessions = new Map();
@@ -150,6 +171,7 @@ function login(username, password, callerId = 'default', { remember = true } = {
     + String(username || '').trim().toLowerCase();
 
   // Check brute-force lockout
+  loadLoginAttempts();
   const attemptInfo = loginAttempts.get(normUser);
   if (attemptInfo && attemptInfo.lockoutUntil && Date.now() < attemptInfo.lockoutUntil) {
     const remainingSeconds = Math.ceil((attemptInfo.lockoutUntil - Date.now()) / 1000);
@@ -204,7 +226,7 @@ function login(username, password, callerId = 'default', { remember = true } = {
   }
 
   // Clear failed attempts upon successful login
-  loginAttempts.delete(normUser);
+  if (loginAttempts.delete(normUser)) saveLoginAttempts();
 
   // Generate JWT token using session service
   const payload = {
@@ -974,6 +996,8 @@ function resetAdminPasswordWithChallenge({ challengeCode, responseOtp, newPasswo
 
 function resetLoginAttempts() {
   loginAttempts.clear();
+  loginAttemptsLoaded = true;
+  saveLoginAttempts();
 }
 
 module.exports = {
