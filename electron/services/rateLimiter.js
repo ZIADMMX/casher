@@ -177,6 +177,8 @@ function getClientIp(req, { trustProxy = false } = {}) {
 async function checkRequestActionRateLimit(req, userId = null, options = {}) {
   const method = String(req.method || 'GET').toUpperCase();
   if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) return null;
+  // The shared-handler bridge limits by channel (reads are POST too).
+  if (String(req.url || '').startsWith('/api/ipc/')) return null;
   const identity = userId != null
     ? `user:${userId}`
     : `ip:${getClientIp(req, options)}`;

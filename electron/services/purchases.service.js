@@ -46,7 +46,7 @@ function createPurchase(data) {
     throw new Error('المبلغ المدفوع يجب أن يكون بين 0 وإجمالي الفاتورة');
   }
 
-  const activeShift = shiftsRepo.getCurrentOpenShift(session?.id) || shiftsRepo.getCurrentOpenShift();
+  const activeShift = shiftsRepo.getCurrentOpenShift(session?.id);
   if (paidAmount > 0 && paymentMethod === 'cash' && !activeShift) {
     throw new Error('لا يمكن دفع مبلغ نقدي للمورد لعدم وجود وردية مفتوحة. يرجى فتح وردية أولاً أو استخدام وسيلة دفع غير نقدية');
   }
@@ -115,7 +115,7 @@ function recordSupplierPayment(data) {
   }
 
   const paymentMethod = data.paymentMethod || 'cash';
-  const activeShift = shiftsRepo.getCurrentOpenShift(session?.id) || shiftsRepo.getCurrentOpenShift();
+  const activeShift = shiftsRepo.getCurrentOpenShift(session?.id);
 
   if (paymentMethod === 'cash' && !activeShift) {
     throw new Error('لا يمكن تسجيل سداد نقدي للمورد لعدم وجود وردية مفتوحة. يرجى فتح وردية أولاً');

@@ -8,6 +8,24 @@ const tlsPin = require('../security/tlsPin');
 const configPath = path.join(app.getPath('userData'), 'central-server.json');
 let accessToken = null;
 let cachedSession = null;
+const deviceIdPath = path.join(app.getPath('userData'), 'device-id');
+let deviceId = null;
+
+/** Stable id of this terminal, so the host can tell two devices using one account apart. */
+function getDeviceId() {
+  if (deviceId) return deviceId;
+  try {
+    deviceId = fs.readFileSync(deviceIdPath, 'utf8').trim();
+  } catch {}
+  if (!deviceId) {
+    deviceId = crypto.randomUUID();
+    try {
+      fs.writeFileSync(deviceIdPath, deviceId, 'utf8');
+    } catch {}
+  }
+  return deviceId;
+}
+
 const courtsCache = new Map();
 const courtsRequestsInFlight = new Map();
 const COURTS_CACHE_TTL_MS = 4 * 60 * 60 * 1000;
@@ -192,6 +210,7 @@ async function request(method, route, body) {
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
   if (warehouseId) headers['X-Branch-Warehouse-Id'] = String(warehouseId);
+  headers['X-Device-Id'] = getDeviceId();
   const payload = body === undefined ? undefined : JSON.stringify(body);
 
   let response;
@@ -350,6 +369,7 @@ function isAllowedRoute(method, route) {
     ['POST', /^\/api\/(sales\/(create|kitchen-orders\/status)|purchases\/create|products\/(add|add-variant|update|update-variant|delete|delete-variant)|shifts\/(open|close|expense)|returns\/process|customers\/(add|payment)|inventory\/(branches|warehouses|transfers|adjust|reorder-level|count))$/],
     ['POST', /^\/api\/appointments\/(resources|services|holidays|holidays\/delete|create|status|reschedule|convert)$/],
     ['POST', /^\/api\/courts$/],
+    ['POST', /^\/api\/ipc\/(tables|enterprise)\/[A-Za-z]+$/],
     ['PUT', /^\/api\/(inventory\/(branches|warehouses)\/\d+)$/],
     ['PUT', /^\/api\/courts\/[0-9a-f-]{36}$/i],
     ['DELETE', /^\/api\/courts\/[0-9a-f-]{36}$/i],

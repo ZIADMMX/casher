@@ -32,6 +32,8 @@ const PROTECTED_KEYS = new Set([
   // Write keys / inbox tokens for the Worker (tracking.service.js, delivery.service.js).
   'tracking_write_key',
   'delivery_inbox_token',
+  // Claims this device's cloud customer store before activation (cloudCustomerSync.service.js).
+  'cloud_customer_sync_key',
   // ETA e-invoice API secret (electron/services/einvoice/config.js): written and
   // read only through the e-invoice screen, never echoed back to the renderer.
   'eta_client_secret',
@@ -41,7 +43,7 @@ const PROTECTED_KEYS = new Set([
 
 // Stored encrypted (vault): a copied database file or backup does not reveal them.
 // Old plain-text values are still read as they are and get sealed the next time they are saved.
-const SEALED_KEYS = new Set(['eta_client_secret', 'tracking_write_key', 'delivery_inbox_token']);
+const SEALED_KEYS = new Set(['eta_client_secret', 'tracking_write_key', 'delivery_inbox_token', 'cloud_customer_sync_key']);
 const seal = (key, value) => (SEALED_KEYS.has(key) && value ? encryptSecret(value) : value);
 
 const SettingsRepository = {

@@ -39,7 +39,7 @@ function processReturn({
   const session = getCurrentSession();
   if (!session) throw new Error('يجب تسجيل الدخول أولاً');
 
-  const activeShift = shiftsRepo.getCurrentOpenShift(session?.id) || shiftsRepo.getCurrentOpenShift();
+  const activeShift = shiftsRepo.getCurrentOpenShift(session?.id);
   if (!activeShift) {
     throw new Error('لا يمكن إتمام عملية المرتجع أو الاستبدال لعدم وجود وردية مفتوحة. يرجى فتح وردية أولاً');
   }

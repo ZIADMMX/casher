@@ -24,15 +24,15 @@ jobs:
           node-version: 24
       - name: Set the rollout share on the latest release
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
           PERCENT: ${{ inputs.percent }}
         run: |
-          release=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest")
+          release=$(gh api "repos/ZIADMMX/fox-releases/releases/latest")
           release_id=$(echo "$release" | jq -r .id)
           asset_id=$(echo "$release" | jq -r '.assets[] | select(.name=="latest.yml") | .id')
-          gh api -H "Accept: application/octet-stream" "repos/$GITHUB_REPOSITORY/releases/assets/$asset_id" > latest.yml
+          gh api -H "Accept: application/octet-stream" "repos/ZIADMMX/fox-releases/releases/assets/$asset_id" > latest.yml
           node scripts/set-rollout.js latest.yml "$PERCENT"
-          gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$asset_id"
-          gh api --method POST "https://uploads.github.com/repos/$GITHUB_REPOSITORY/releases/$release_id/assets?name=latest.yml" \
+          gh api --method DELETE "repos/ZIADMMX/fox-releases/releases/assets/$asset_id"
+          gh api --method POST "https://uploads.github.com/repos/ZIADMMX/fox-releases/releases/$release_id/assets?name=latest.yml" \
             -H "Content-Type: application/x-yaml" --input latest.yml
           cat latest.yml

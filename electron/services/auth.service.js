@@ -164,7 +164,7 @@ function getDummyHash() {
  * remember: false issues a token without binding it to a caller key. Remote
  * clients (LAN API) keep their token themselves and send it with each request.
  */
-function login(username, password, callerId = 'default', { remember = true } = {}) {
+function login(username, password, callerId = 'default', { remember = true, deviceId = null } = {}) {
   // Remote clients (LAN / REST) get their own lockout bucket, so guessing an owner's
   // password from the network cannot lock the owner out of the till itself.
   const normUser = (REMOTE_CALLERS.has(callerId) ? `${callerId}:` : '')
@@ -225,6 +225,10 @@ function login(username, password, callerId = 'default', { remember = true } = {
     throw new Error('هذا الحساب معطل حاليًا. تواصل مع المدير');
   }
 
+  // Only after the password is right, so a wrong guess never reveals who is signed in.
+  const owner = deviceId ? `device:${deviceId}` : `caller:${callerId}`;
+  sessionService.assertUserFree(user.id, owner);
+
   // Clear failed attempts upon successful login
   if (loginAttempts.delete(normUser)) saveLoginAttempts();
 
@@ -237,6 +241,7 @@ function login(username, password, callerId = 'default', { remember = true } = {
     pwv: passwordStamp(user),
   };
   const token = sessionService.generateToken(payload);
+  sessionService.bindUser(user.id, token, owner);
 
   if (remember) setSessionForCaller(callerId, token);
 

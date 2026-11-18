@@ -256,12 +256,259 @@ function ipGroup(ip) {
   return [...a, ...Array(Math.max(0, 8 - a.length - b.length)).fill('0'), ...b].slice(0, 4).join(':');
 }
 
+// Public half of the vendor's Ed25519 licence signing key, the same one the desktop ships
+// (electron/security/license-public-key.js). It verifies licence keys, it cannot mint them.
+const LICENSE_PUBLIC_KEY = 'MCowBQYDK2VwAyEA8Gr3qbGT4lKKbU3nsqmOin2uCMF5HaJGt4qfPtX/Q4k=';
+const LICENSE_PREFIX = 'FOX1';
+const LICENSE_DOMAIN = new TextEncoder().encode('foxcloud-license-v1:');
+const LICENSE_PAYLOAD_BYTES = 9; // version (1) + HWID (4) + expiry seconds (4)
+const LICENSE_SIGNATURE_BYTES = 64;
+// Crockford base32, as the desktop encodes keys (O reads as 0, I and L as 1).
+const CROCKFORD = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+
+function base32Decode(text) {
+  let bits = 0;
+  let value = 0;
+  const bytes = [];
+  for (const ch of text) {
+    let digit = CROCKFORD.indexOf(ch);
+    if (digit < 0) digit = ch === 'O' ? 0 : (ch === 'I' || ch === 'L') ? 1 : -1;
+    if (digit < 0) return null;
+    value = ((value << 5) | digit) & 0xffff;
+    bits += 5;
+    if (bits >= 8) {
+      bytes.push((value >>> (bits - 8)) & 0xff);
+      bits -= 8;
+    }
+  }
+  return new Uint8Array(bytes);
+}
+
+// Customer rows carry names, phones and emails, so the caller proves it owns the device's
+// store: with the licence key the vendor signed for that machine, or, before activation, with
+// a key of its own that claims the device on first sync. Every copy backs its customers up,
+// activated or not. Expiry is deliberately not checked — a shop whose licence ran out must
+// still be able to pull its own customers back. The key travels in a header, never in the URL.
+// Returns an error Response, or null when the caller may proceed.
+async function customerSyncOwner(request, env, device) {
+  if (!device || !DEVICE_PATTERN.test(device)) return json({ error: 'invalid device id' }, 400);
+
+  const raw = (request.headers.get('Authorization') || '')
+    .replace(/^Bearer\s+/i, '').trim().toUpperCase().replace(/[\s-]/g, '');
+
+  const licensed = raw.startsWith(LICENSE_PREFIX);
+  if (licensed) {
+    const bytes = base32Decode(raw.slice(LICENSE_PREFIX.length));
+    if (!bytes || bytes.length !== LICENSE_PAYLOAD_BYTES + LICENSE_SIGNATURE_BYTES || bytes[0] !== 1) {
+      return json({ error: 'malformed licence key' }, 401);
+    }
+    const payload = bytes.subarray(0, LICENSE_PAYLOAD_BYTES);
+    const signature = bytes.subarray(LICENSE_PAYLOAD_BYTES);
+
+    // A licence is bound to the HWID: the first 4 bytes of the device id.
+    const hwid = [...payload.subarray(1, 5)].map((b) => b.toString(16).padStart(2, '0')).join('');
+    if (hwid !== device.slice(0, 8)) return json({ error: 'licence is for another device' }, 403);
+
+    const verifier = await crypto.subtle.importKey(
+      'spki', base64ToBytes(env.LICENSE_PUBLIC_KEY || LICENSE_PUBLIC_KEY), { name: 'Ed25519' }, false, ['verify']
+    );
+    const message = new Uint8Array([...LICENSE_DOMAIN, ...payload]);
+    if (!(await crypto.subtle.verify({ name: 'Ed25519' }, verifier, signature, message))) {
+      return json({ error: 'invalid licence signature' }, 403);
+    }
+  } else if (!KEY_PATTERN.test(raw.toLowerCase())) {
+    return json({ error: 'sync key required' }, 401);
+  }
+
+  // Registering happens at /api/license/time, which every copy calls. Doing it here instead
+  // would let a sync start a stranger's trial clock.
+  const known = await env.DB.prepare('SELECT first_seen FROM devices WHERE device_id = ?').bind(device).first();
+  if (!known) return json({ error: 'unknown device' }, 403);
+
+  // Two ways to own a store. A licence is proof: it is signed for this machine and nobody
+  // else can produce it, so it always takes the device over. A trial copy has no licence, so
+  // it claims the device with a key of its own on first sync and must keep presenting it.
+  // The claim is not a lock-out: the moment the shop activates, its licence overrides whoever
+  // claimed the device.
+  const keyHash = await sha256Hex(raw);
+  const owner = await env.DB.prepare('SELECT key_hash FROM customer_sync_owners WHERE device_id = ?').bind(device).first();
+  if (licensed) {
+    if (!owner || owner.key_hash !== keyHash) {
+      await env.DB.prepare(
+        'INSERT INTO customer_sync_owners (device_id, key_hash, created_at) VALUES (?, ?, ?) ON CONFLICT(device_id) DO UPDATE SET key_hash = excluded.key_hash'
+      ).bind(device, keyHash, Date.now()).run();
+    }
+    return null;
+  }
+  if (owner) return owner.key_hash === keyHash ? null : json({ error: 'forbidden' }, 403);
+  await env.DB.prepare('INSERT OR IGNORE INTO customer_sync_owners (device_id, key_hash, created_at) VALUES (?, ?, ?)')
+    .bind(device, keyHash, Date.now()).run();
+  return null;
+}
+
+async function customerSyncRoutes(request, env, url, now) {
+  if (url.pathname !== '/api/sync/customers') return null;
+
+  // POST: Push customers to cloud
+  if (request.method === 'POST') {
+    let body;
+    try {
+      body = JSON.parse(await request.text());
+    } catch {
+      return json({ error: 'bad json' }, 400);
+    }
+
+    const { device, customers } = body || {};
+    const denied = await customerSyncOwner(request, env, device);
+    if (denied) return denied;
+    if (!Array.isArray(customers) || customers.length === 0) {
+      return json({ success: true, count: 0, syncedAt: now });
+    }
+
+    const batch = customers.slice(0, 500);
+    const statements = batch.map((c) => {
+      const uuid = String(c.uuid || c.sync_uuid || '').trim();
+      const name = String(c.name || 'عميل').slice(0, 150);
+      const phone = c.phone ? String(c.phone).slice(0, 50) : null;
+      const email = c.email ? String(c.email).slice(0, 150) : null;
+      const loyalty = Number(c.loyalty_points) || 0;
+      const active = c.is_active === 0 ? 0 : 1;
+      const tier = c.tier ? String(c.tier).slice(0, 50) : null;
+      const rating = Number(c.rating) || 5;
+      const extraJson = c.extra_json ? String(c.extra_json) : null;
+      const updatedAt = Number(c.updated_at) || now;
+
+      return env.DB.prepare(`
+        INSERT INTO cloud_customers (
+          uuid, device_id, name, phone, email, loyalty_points, is_active, tier, rating, extra_json, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(device_id, uuid) DO UPDATE SET
+          name = excluded.name,
+          phone = excluded.phone,
+          email = excluded.email,
+          loyalty_points = excluded.loyalty_points,
+          is_active = excluded.is_active,
+          tier = excluded.tier,
+          rating = excluded.rating,
+          extra_json = excluded.extra_json,
+          updated_at = excluded.updated_at
+      `).bind(uuid, device, name, phone, email, loyalty, active, tier, rating, extraJson, updatedAt);
+    });
+
+    await env.DB.batch(statements);
+    return json({ success: true, count: statements.length, syncedAt: now });
+  }
+
+  // GET: Pull customers from cloud
+  if (request.method === 'GET') {
+    const device = url.searchParams.get('device') || '';
+    const denied = await customerSyncOwner(request, env, device);
+    if (denied) return denied;
+    const since = Number(url.searchParams.get('since')) || 0;
+
+    const { results } = await env.DB.prepare(`
+      SELECT uuid, name, phone, email, loyalty_points, is_active, tier, rating, extra_json, updated_at
+      FROM cloud_customers
+      WHERE device_id = ? AND updated_at >= ?
+      ORDER BY updated_at ASC
+      LIMIT 1000
+    `).bind(device, since).all();
+
+    return json({ success: true, customers: results || [], syncedAt: now });
+  }
+
+  return json({ error: 'method not allowed' }, 405);
+}
+
+async function subscriptionRoutes(request, env, url, now) {
+  if (url.pathname !== '/api/sync/subscription') return null;
+
+  if (request.method === 'POST') {
+    let body;
+    try {
+      body = JSON.parse(await request.text());
+    } catch {
+      return json({ error: 'bad json' }, 400);
+    }
+
+    const {
+      device, hwid, store_name, owner_name, phone, business_type,
+      plan_type, license_key, activated_at, expires_at, certificate_number, certificate_data
+    } = body || {};
+
+    const denied = await customerSyncOwner(request, env, device);
+    if (denied) return denied;
+
+    await env.DB.prepare(`
+      INSERT INTO cloud_subscriptions (
+        device_id, hwid, store_name, owner_name, phone, business_type,
+        plan_type, license_key, activated_at, expires_at, certificate_number, certificate_data, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(device_id) DO UPDATE SET
+        hwid = excluded.hwid,
+        store_name = excluded.store_name,
+        owner_name = excluded.owner_name,
+        phone = excluded.phone,
+        business_type = excluded.business_type,
+        plan_type = excluded.plan_type,
+        license_key = excluded.license_key,
+        activated_at = excluded.activated_at,
+        expires_at = excluded.expires_at,
+        certificate_number = excluded.certificate_number,
+        certificate_data = excluded.certificate_data,
+        updated_at = excluded.updated_at
+    `).bind(
+      device,
+      String(hwid || device.slice(0, 8)).toUpperCase(),
+      String(store_name || 'متجر جديد').slice(0, 150),
+      owner_name ? String(owner_name).slice(0, 150) : null,
+      phone ? String(phone).slice(0, 50) : null,
+      business_type ? String(business_type).slice(0, 50) : null,
+      String(plan_type || 'lifetime'),
+      license_key ? String(license_key).slice(0, 200) : null,
+      Number(activated_at) || now,
+      expires_at ? Number(expires_at) : null,
+      certificate_number ? String(certificate_number).slice(0, 100) : null,
+      certificate_data ? (typeof certificate_data === 'string' ? certificate_data : JSON.stringify(certificate_data)) : null,
+      now
+    ).run();
+
+    return json({ success: true, message: 'تم حفظ وتوثيق شهادة الترخيص في السحابة بنجاح', syncedAt: now });
+  }
+
+  if (request.method === 'GET') {
+    const device = url.searchParams.get('device') || '';
+    const certNum = url.searchParams.get('cert') || '';
+
+    let row;
+    if (certNum) {
+      row = await env.DB.prepare('SELECT * FROM cloud_subscriptions WHERE certificate_number = ?').bind(certNum).first();
+    } else if (device) {
+      const denied = await customerSyncOwner(request, env, device);
+      if (denied) return denied;
+      row = await env.DB.prepare('SELECT * FROM cloud_subscriptions WHERE device_id = ?').bind(device).first();
+    }
+
+    if (!row) {
+      return json({ success: false, error: 'الشهادة أو الاشتراك غير موجود' }, 404);
+    }
+
+    return json({ success: true, subscription: row });
+  }
+
+  return json({ error: 'method not allowed' }, 405);
+}
+
 export async function handle(request, env, now = Date.now()) {
   const url = new URL(request.url);
   const tracked = await trackingRoutes(request, env, url, now);
   if (tracked) return tracked;
   const inbox = await inboxRoutes(request, env, url, now);
   if (inbox) return inbox;
+  const customers = await customerSyncRoutes(request, env, url, now);
+  if (customers) return customers;
+  const subscription = await subscriptionRoutes(request, env, url, now);
+  if (subscription) return subscription;
   if (url.pathname !== '/api/license/time' || request.method !== 'GET') {
     return json({ error: 'not found' }, 404);
   }

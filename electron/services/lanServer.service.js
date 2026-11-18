@@ -22,8 +22,12 @@ const { logError } = require('./logger.service');
 const inventoryService = require('./inventory.service');
 const inventoryRepo = require('../repositories/inventory.repository');
 const appointmentsService = require('./appointments.service');
+const kitchenService = require('./kitchen.service');
+const { getRegisteredHandler, getRateLimitedAction } = require('../handlers/safeHandle');
+const { getPermissionForChannel } = require('../security/permissions');
 const { applyCorsPolicy } = require('../security/corsPolicy');
 const {
+  checkActionRateLimit,
   checkRequestActionRateLimit,
   tryAcquireRequestSlot,
 } = require('./rateLimiter');
@@ -172,7 +176,9 @@ async function handleApiRequest(req, res) {
       const body = await parseBody(req);
       // The terminal keeps its token; it is never stored under a caller key here,
       // so no other client can reach this session by naming that key.
-      const result = authService.login(body.username, body.password, 'lan-api', { remember: false });
+      // Each terminal sends its own id, so one account cannot be open on two terminals at once.
+      const deviceId = String(req.headers['x-device-id'] || '').slice(0, 64) || null;
+      const result = authService.login(body.username, body.password, 'lan-api', { remember: false, deviceId });
       let defaultWarehouseId = null;
       try {
         defaultWarehouseId = inventoryRepo.getDefaultWarehouseId();
@@ -191,6 +197,28 @@ async function handleApiRequest(req, res) {
         defaultWarehouseId = inventoryRepo.getDefaultWarehouseId();
       } catch {}
       return sendJSON(res, 200, { session, defaultWarehouseId });
+    }
+
+    // The terminal's centralClient asks for these (session check, own profile).
+    if (pathname === '/api/auth/me' && method === 'GET') {
+      const user = authenticateRequest(req);
+      if (!user) return sendJSON(res, 401, { error: 'انتهت الجلسة أو بيانات الدخول غير صالحة' });
+      let defaultWarehouseId = null;
+      try {
+        defaultWarehouseId = inventoryRepo.getDefaultWarehouseId();
+      } catch {}
+      return sendJSON(res, 200, { user, defaultWarehouseId });
+    }
+
+    if (pathname === '/api/auth/profile' && (method === 'GET' || method === 'PUT')) {
+      const token = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '').trim();
+      if (!token || !authenticateRequest(req)) {
+        return sendJSON(res, 401, { error: 'انتهت الجلسة أو بيانات الدخول غير صالحة' });
+      }
+      const profile = method === 'GET'
+        ? authService.getMyProfile(token)
+        : authService.saveMyProfile(await parseBody(req), token);
+      return sendJSON(res, 200, { profile });
     }
 
     if (pathname === '/api/auth/refresh' && method === 'POST') {
@@ -264,6 +292,43 @@ async function handleApiRequest(req, res) {
         warehouseId,
         branchId: warehouse.branch_id,
       };
+    }
+
+    // Tables and workshop orders: run the same handler the host's own screen uses.
+    const bridgeMatch = pathname.match(/^\/api\/ipc\/(tables|enterprise)\/([A-Za-z]+)$/);
+    if (bridgeMatch && method === 'POST') {
+      const channel = bridgeMatch[1] + ':' + bridgeMatch[2];
+      const entry = getRegisteredHandler(channel);
+      if (!entry || /^enterprise:(print|export)/.test(channel)) {
+        return sendJSON(res, 404, { error: 'Route not found: ' + pathname });
+      }
+      const body = await parseBody(req);
+      const args = Array.isArray(body.args) ? body.args : [];
+      return await authService.runWithSession(requestSession, async () => {
+        const action = getRateLimitedAction(channel, args);
+        if (action) {
+          const limit = await checkActionRateLimit('user:' + session.id, action);
+          if (!limit.allowed) {
+            res.setHeader('Retry-After', String(Math.ceil(limit.retryAfterMs / 1000)));
+            return sendJSON(res, 429, { error: 'تم إيقاف هذه العملية مؤقتًا بسبب تكرار المحاولة.', retryAfterMs: limit.retryAfterMs });
+          }
+        }
+        const event = { sender: { id: undefined } };
+        const run = async () => {
+          if (entry.schema && typeof entry.schema.validate === 'function') entry.schema.validate(args[0]);
+          const result = await entry.handler(event, ...args);
+          return sendJSON(res, 200, result === undefined ? null : result);
+        };
+        if (typeof entry.options?.authorize === 'function') {
+          await entry.options.authorize(event, ...args);
+          return run();
+        }
+        const channelPermission = getPermissionForChannel(channel, args);
+        return authService.runWithPermission(channelPermission, async () => {
+          authService.requirePermission(channelPermission);
+          return run();
+        });
+      });
     }
 
     return await authService.runWithSession(requestSession, async () => {
@@ -374,8 +439,20 @@ async function handleApiRequest(req, res) {
       return sendJSON(res, 201, require('./purchases.service').createPurchase(body));
     }
 
+    // Kitchen display / waiter terminals read and move orders held on the host.
+    if (pathname === '/api/sales/kitchen-orders' && method === 'GET') {
+      return sendJSON(res, 200, kitchenService.getKitchenOrders());
+    }
+
+    if (pathname === '/api/sales/kitchen-orders/status' && method === 'POST') {
+      return sendJSON(res, 200, kitchenService.updateKitchenOrderStatus(await parseBody(req)));
+    }
+
     if (pathname.startsWith('/api/sales/') && method === 'GET') {
       const saleId = parseInt(pathname.replace('/api/sales/', ''), 10);
+      if (!Number.isSafeInteger(saleId) || saleId <= 0) {
+        return sendJSON(res, 400, { error: 'رقم الفاتورة غير صالح' });
+      }
       const sale = salesService.getSaleById(saleId);
       return sendJSON(res, 200, sale);
     }

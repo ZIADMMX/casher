@@ -15,6 +15,7 @@ import LegalIcon from '../components/legal/LegalIcon.jsx';
 import LegalPageHero from '../components/legal/LegalPageHero.jsx';
 import * as crmApi from '../api/crm.js';
 import * as importExportApi from '../api/importExport.js';
+import { syncCustomersToCloud, pullCustomersFromCloud } from '../api/customers.js';
 import CRMHeader from '../components/crm/CRMHeader.jsx';
 import CRMContactsTable from '../components/crm/CRMContactsTable.jsx';
 import { DownloadIcon, PlusIcon, UploadIcon, UserIcon } from '../components/icons/PosIcons.jsx';
@@ -39,6 +40,7 @@ function CustomersPage({ crmMode = false, crmTabs = null, onNavigate, startWithF
   const [campaignLoading, setCampaignLoading] = useState(false);
   const [campaignError, setCampaignError] = useState('');
   const [toast, setToast] = useState(null);
+  const [cloudBusy, setCloudBusy] = useState(false);
   const [campaignForm, setCampaignForm] = useState({
     name: '',
     product_keyword: '',
@@ -185,6 +187,30 @@ function CustomersPage({ crmMode = false, crmTabs = null, onNavigate, startWithF
     } catch (err) {
       setToast({ id: Date.now(), type: 'danger', message: err.message || 'تعذر تصدير بيانات العملاء' });
     }
+  }
+
+  // The service answers { success, error } instead of throwing, so both buttons read it the same way.
+  async function runCloudSync(action, label) {
+    setCloudBusy(true);
+    try {
+      const result = await action();
+      setToast({
+        id: Date.now(),
+        type: result?.success ? 'success' : 'danger',
+        message: result?.success ? (result.message || `تم ${label}`) : (result?.error || `تعذر ${label}`),
+      });
+      if (result?.success) await refetch();
+    } catch (err) {
+      setToast({ id: Date.now(), type: 'danger', message: err.message || `تعذر ${label}` });
+    } finally {
+      setCloudBusy(false);
+    }
+  }
+
+  function handleCloudRestore() {
+    // A restore writes the cloud copy over customers that are already here.
+    if (!window.confirm('هيتم استرجاع العملاء من النسخة السحابية والكتابة فوق أي بيانات مختلفة هنا. تكمل؟')) return;
+    runCloudSync(pullCustomersFromCloud, 'الاسترجاع من السحابة');
   }
 
   useEffect(() => {
@@ -394,6 +420,28 @@ function CustomersPage({ crmMode = false, crmTabs = null, onNavigate, startWithF
               <button className="secondary-btn" onClick={handleExport} title="تصدير بيانات العملاء إلى Excel">
                 📥 تصدير البيانات (Excel)
               </button>
+              {isAdmin && (
+                <>
+                  <button
+                    type="button"
+                    className="secondary-btn"
+                    onClick={() => runCloudSync(syncCustomersToCloud, 'الرفع للسحابة')}
+                    disabled={cloudBusy}
+                    title="رفع نسخة من بيانات العملاء على السحابة"
+                  >
+                    ☁️ {cloudBusy ? 'جارٍ العمل…' : 'رفع للسحابة'}
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary-btn"
+                    onClick={handleCloudRestore}
+                    disabled={cloudBusy}
+                    title="استرجاع بيانات العملاء من النسخة السحابية"
+                  >
+                    ⬇️ استرجاع من السحابة
+                  </button>
+                </>
+              )}
             </>
           )}
           <button className="primary-btn" onClick={() => setShowForm((v) => !v)}>

@@ -5,7 +5,7 @@ const attendanceService = require('./attendance.service');
 
 function getCurrentShift() {
   const session = requireAuth();
-  const openShift = shiftsRepo.getCurrentOpenShift(session?.id) || (session?.role === 'admin' ? shiftsRepo.getCurrentOpenShift() : null);
+  const openShift = shiftsRepo.getCurrentOpenShift(session?.id);
   if (!openShift) return null;
   const liveTotals = shiftsRepo.getShiftLiveTotals(openShift.id);
   return {
@@ -92,7 +92,7 @@ function closeShift({ shiftId, actualCash, cashBreakdown, notes } = {}) {
 
   let targetShiftId = shiftId;
   if (!targetShiftId) {
-    const current = shiftsRepo.getCurrentOpenShift(session?.id) || shiftsRepo.getCurrentOpenShift();
+    const current = shiftsRepo.getCurrentOpenShift(session?.id);
     if (!current) throw new Error('لا توجد وردية مفتوحة لإغلاقها');
     targetShiftId = current.id;
   }
@@ -184,7 +184,7 @@ function getShiftXReport(shiftId) {
   let targetShiftId = shiftId;
   if (!targetShiftId) {
     const session = getCurrentSession();
-    const current = shiftsRepo.getCurrentOpenShift(session?.id) || shiftsRepo.getCurrentOpenShift();
+    const current = shiftsRepo.getCurrentOpenShift(session?.id);
     if (!current) return null;
     targetShiftId = current.id;
   }
@@ -197,7 +197,7 @@ function addShiftExpense({ shiftId, amount, category, notes } = {}) {
 
   let targetShiftId = shiftId;
   if (!targetShiftId) {
-    const current = shiftsRepo.getCurrentOpenShift(session?.id) || shiftsRepo.getCurrentOpenShift();
+    const current = shiftsRepo.getCurrentOpenShift(session?.id);
     if (!current) {
       throw new Error('لا يمكن تسجيل مصروف للدرج لعدم وجود وردية مفتوحة حالياً');
     }
@@ -256,7 +256,7 @@ function getShiftExpenses(shiftId) {
   let targetShiftId = shiftId;
   if (!targetShiftId) {
     const session = getCurrentSession();
-    const current = shiftsRepo.getCurrentOpenShift(session?.id) || shiftsRepo.getCurrentOpenShift();
+    const current = shiftsRepo.getCurrentOpenShift(session?.id);
     if (!current) return [];
     targetShiftId = current.id;
   }

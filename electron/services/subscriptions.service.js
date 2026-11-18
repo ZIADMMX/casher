@@ -55,7 +55,7 @@ function recordSubscriptionSale(sub, payment = {}, userSession = {}) {
   }
 
   const session = sessionOf(userSession);
-  const shift = shiftsRepo.getCurrentOpenShift(session.id) || shiftsRepo.getCurrentOpenShift();
+  const shift = shiftsRepo.getCurrentOpenShift(session.id);
   if (!shift) throw new Error('لا يمكن تحصيل الاشتراك لعدم وجود وردية مفتوحة. يرجى فتح وردية أولاً');
 
   const warehouseId = inventoryRepo.getDefaultWarehouseId();

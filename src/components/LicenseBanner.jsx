@@ -27,7 +27,7 @@ function LicenseBanner({ status, onActivateSuccess }) {
       if (licenseApi.activateSoftware.isAvailable()) {
         const result = await licenseApi.activateSoftware(serialKey.trim());
         if (result?.success) {
-          onActivateSuccess(result.status);
+          onActivateSuccess(result.status, result.certificate);
           setShowModal(false);
         }
       }

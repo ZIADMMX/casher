@@ -12,6 +12,7 @@ import RateLimitNotice from './components/RateLimitNotice.jsx';
 import ConnectionBadge from './components/ConnectionBadge.jsx';
 import LicenseLockScreen from './components/LicenseLockScreen.jsx';
 import LicenseBanner from './components/LicenseBanner.jsx';
+import LicenseCertificateModal from './components/LicenseCertificateModal.jsx';
 import { UserProvider, useUser } from './contexts/UserContext.jsx';
 import { SettingsProvider, useSettings } from './contexts/SettingsContext.jsx';
 import { BusinessProfileProvider, useBusinessProfile } from './contexts/BusinessProfileContext.jsx';
@@ -81,6 +82,7 @@ function AppContent() {
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [licenseStatus, setLicenseStatus] = useState(null);
   const [licenseError, setLicenseError] = useState('');
+  const [activeCertificate, setActiveCertificate] = useState(null);
   function navigateToPage(page, options = {}) {
     setCaseToOpen(page === 'cases' ? options.caseId || null : null);
     setOpenNewCaseOnLoad(page === 'cases' && options.createCase === true);
@@ -435,7 +437,10 @@ function AppContent() {
         <main className="main-content">
           <LicenseBanner
             status={licenseStatus}
-            onActivateSuccess={(newStatus) => setLicenseStatus(newStatus)}
+            onActivateSuccess={(newStatus, cert) => {
+              setLicenseStatus(newStatus);
+              if (cert) setActiveCertificate(cert);
+            }}
           />
           <div className="main-content-body">
             <Suspense
@@ -460,6 +465,14 @@ function AppContent() {
 
         {showReviewModal && (
           <ReviewModal onClose={() => setShowReviewModal(false)} />
+        )}
+
+        {activeCertificate && (
+          <LicenseCertificateModal
+            isOpen={Boolean(activeCertificate)}
+            onClose={() => setActiveCertificate(null)}
+            initialCertificate={activeCertificate}
+          />
         )}
 
         {currentUser.role === 'admin' && (

@@ -52,3 +52,29 @@ FOX_LICENSE_TIME_URL=https://foxcloud-license.<اسمك>.workers.dev/api/license
 ## الحدود المجانية
 
 الخطة المجانية فيها 100,000 طلب في اليوم. البرنامج بيسأل السيرفر مرة كل 15 دقيقة وهو شغال، يعني حوالي 100 طلب في اليوم لكل جهاز كاشير، فالخطة المجانية تكفي حوالي 1,000 جهاز.
+
+## تسليم نسخة عملاء لمحل (أو نقلها لجهاز جديد)
+
+عملاء كل محل متخزنين في `cloud_customers` تحت رقم جهازه (`device_id`). البرنامج نفسه بيقرا عملاء جهازه بس — التحقق بيربط كل جهاز بترخيصه — لكن انت صاحب حساب Cloudflare، فبتقدر تقرا أي محل من هنا.
+
+الربط بين المحل ورقم جهازه: أول ٨ خانات من `device_id` هي نفسها كود الجهاز (HWID) اللي العميل بيقراهولك وقت التفعيل.
+
+**١. تشوف عملاء محل:**
+
+```bash
+npx wrangler d1 execute foxcloud-license --remote --command "SELECT device_id, name, phone, email, loyalty_points FROM cloud_customers WHERE device_id LIKE 'ادخل_الـHWID_هنا%';"
+```
+
+**٢. تسلّمه نسخة كملف:**
+
+```bash
+npx wrangler d1 execute foxcloud-license --remote --json --command "SELECT * FROM cloud_customers WHERE device_id LIKE 'ادخل_الـHWID_هنا%';" > backup-shop.json
+```
+
+**٣. جهازه اتغير أو اتفرمت:** الجهاز الجديد له `device_id` جديد، فعملاءه القدام مش هيرجعوله لوحدهم. بعد ما تطلّعله ترخيص للجهاز الجديد، حوّل صفوفه للرقم الجديد:
+
+```bash
+npx wrangler d1 execute foxcloud-license --remote --command "UPDATE cloud_customers SET device_id = 'رقم_الجهاز_الجديد_بالكامل' WHERE device_id = 'رقم_الجهاز_القديم_بالكامل';"
+```
+
+بعدها يضغط استرجاع من جهازه الجديد فيرجعوا كلهم. خد نسخة بخطوة ٢ قبل ما تعمل التحويل.

@@ -27,6 +27,8 @@ jest.mock('../../electron/services/session.service', () => {
   const revoked = new Set();
 
   return {
+    assertUserFree: jest.fn(),
+    bindUser: jest.fn(),
     generateToken: jest.fn((payload) => {
       const token = `token-${sessions.size + 1}`;
       sessions.set(token, payload);

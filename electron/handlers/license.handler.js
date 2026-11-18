@@ -3,6 +3,7 @@ const authService = require('../services/auth.service');
 const { exportAllData } = require('../services/export.service');
 const { safeHandle } = require('./safeHandle');
 const { trustedNowFor } = require('../services/licenseGuard.service');
+const licenseCertificateService = require('../services/licenseCertificate.service');
 
 function registerLicenseHandlers() {
   safeHandle('license:getStatus', async () => {
@@ -17,7 +18,27 @@ function registerLicenseHandlers() {
       ? { key: payload, acceptedEulaVersion: null }
       : (payload || {});
     const now = await trustedNowFor(key);
-    return licenseService.activateSoftware(key, now, { acceptedEulaVersion });
+    const result = licenseService.activateSoftware(key, now, { acceptedEulaVersion });
+    
+    // عند نجاح التفعيل، إنشاء ومزامنة شهادة الترخيص فوراً مع السحابة
+    let certificate = null;
+    try {
+      certificate = licenseCertificateService.getCertificate();
+      licenseCertificateService.syncCertificateToCloud(certificate).catch(() => {});
+    } catch {}
+
+    return {
+      ...result,
+      certificate,
+    };
+  });
+
+  safeHandle('license:getCertificate', () => {
+    return licenseCertificateService.getCertificate();
+  });
+
+  safeHandle('license:syncCertificate', async () => {
+    return licenseCertificateService.syncCertificateToCloud();
   });
 
   // Is the licence server really reachable (not just a wifi icon)? Runs the cached check, so it costs at most one request a quarter hour.

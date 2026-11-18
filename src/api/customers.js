@@ -8,3 +8,5 @@ export const addManualDebt = bridgeMethod('addManualDebt');
 export const recordCustomerPayment = bridgeMethod('recordCustomerPayment');
 export const getCustomerLedger = bridgeMethod('getCustomerLedger');
 export const getCustomerRecentSales = bridgeMethod('getCustomerRecentSales');
+export const syncCustomersToCloud = bridgeMethod('syncCustomersToCloud');
+export const pullCustomersFromCloud = bridgeMethod('pullCustomersFromCloud');

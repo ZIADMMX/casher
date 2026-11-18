@@ -3,6 +3,8 @@ const salesRepo = require('../repositories/sales.repository');
 const shiftsRepo = require('../repositories/shifts.repository');
 const { requireAdmin, requireAuth, getCurrentSession } = require('./auth.service');
 const crmAdvancedRepo = require('../repositories/crmAdvanced.repository');
+const eventBus = require('./eventBus.service');
+require('../listeners/customers.listener');
 
 function addCustomer({
   name, phone, email, initialDebt, debtNotes, dueDate, company_id, lead_source,
@@ -43,6 +45,11 @@ function addCustomer({
     }
   }
 
+  // إطلاق حدث حفظ العميل لتشغيل المزامنة السحابية في الخلفية تلقائياً
+  try {
+    eventBus.emit('customer:saved', { id });
+  } catch {}
+
   return { id };
 }
 
@@ -52,7 +59,7 @@ function addManualDebt({ customerId, amount, notes, dueDate }) {
   if (!amount || amount <= 0) throw new Error('مبلغ المديونية غير صحيح');
 
   const session = getCurrentSession();
-  const activeShift = shiftsRepo.getCurrentOpenShift(session?.id) || shiftsRepo.getCurrentOpenShift();
+  const activeShift = shiftsRepo.getCurrentOpenShift(session?.id);
 
   const saleId = salesRepo.createSale({
     shiftId: activeShift ? activeShift.id : null,
@@ -72,7 +79,7 @@ function addManualDebt({ customerId, amount, notes, dueDate }) {
 function recordCustomerPayment({ customerId, amount, paymentMethod = 'cash', notes }) {
   const session = requireAuth();
 
-  const activeShift = shiftsRepo.getCurrentOpenShift(session?.id) || shiftsRepo.getCurrentOpenShift();
+  const activeShift = shiftsRepo.getCurrentOpenShift(session?.id);
   if (paymentMethod === 'cash' && !activeShift) {
     throw new Error('لا يمكن تسجيل سداد نقدي لعدم وجود وردية مفتوحة. يرجى فتح وردية أولاً');
   }

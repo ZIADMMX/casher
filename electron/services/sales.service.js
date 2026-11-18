@@ -103,7 +103,7 @@ function createSale({
       }
     }
 
-    const activeShift = shiftsRepo.getCurrentOpenShift(session?.id) || shiftsRepo.getCurrentOpenShift();
+    const activeShift = shiftsRepo.getCurrentOpenShift(session?.id);
     if (!activeShift) {
       throw new Error('لا يمكن إتمام عملية البيع لعدم وجود وردية مفتوحة. يرجى فتح وردية أولاً');
     }

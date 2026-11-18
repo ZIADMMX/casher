@@ -46,3 +46,45 @@ describe('session.service', () => {
     expect(() => sessionService.refreshToken(token)).toThrow('TokenRevoked');
   });
 });
+
+describe('one live login per user', () => {
+  const login = (userId, owner) => {
+    sessionService.assertUserFree(userId, owner);
+    const token = sessionService.generateToken({ id: userId, username: `u${userId}`, role: 'cashier' });
+    sessionService.bindUser(userId, token, owner);
+    return token;
+  };
+
+  test('a second device is refused while the first is signed in, and allowed after logout', () => {
+    const first = login(101, 'device:A');
+    expect(() => sessionService.assertUserFree(101, 'device:B')).toThrow('مسجّل دخوله حاليًا');
+    sessionService.invalidateToken(first);
+    expect(() => sessionService.assertUserFree(101, 'device:B')).not.toThrow();
+  });
+
+  test('the same device can sign in again and the old token stops working', () => {
+    const first = login(102, 'device:A');
+    const second = login(102, 'device:A');
+    expect(() => sessionService.verifyToken(first)).toThrow('TokenRevoked');
+    expect(sessionService.verifyToken(second).id).toBe(102);
+  });
+
+  test('a refreshed token keeps the account claimed by the same device', () => {
+    const first = login(103, 'device:A');
+    const refreshed = sessionService.refreshToken(first);
+    expect(() => sessionService.assertUserFree(103, 'device:B')).toThrow('مسجّل دخوله حاليًا');
+    sessionService.invalidateToken(refreshed);
+    expect(() => sessionService.assertUserFree(103, 'device:B')).not.toThrow();
+  });
+
+  test('an account nobody has used for ten minutes is free again', () => {
+    login(104, 'device:A');
+    const now = Date.now();
+    const spy = jest.spyOn(Date, 'now').mockReturnValue(now + 11 * 60 * 1000);
+    try {
+      expect(() => sessionService.assertUserFree(104, 'device:B')).not.toThrow();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+});

@@ -11,12 +11,20 @@ const {
 
 const MUTATING_ACTION = /^(add|create|update|delete|remove|save|process|open|close|record|change|reset|import|restore|transfer|adjust|count|sync|submit|approve|reject|reschedule|cancel|receive|pay|activate|deactivate|generate|start|stop|set|toggle|assign|mark|clear|void|archive|complete|convert|reorder|move|anonymize|selectAttachment|checkIn|checkOut|clockIn|clockOut)/i;
 
+// Handlers by channel, so the LAN server can run the same code for a terminal.
+const registry = new Map();
+function getRegisteredHandler(channel) {
+  return registry.get(channel) || null;
+}
+
 function getRateLimitedAction(channel, args) {
   if (channel === 'auth:login' || channel === 'central:login') return 'POST /auth/login';
   if (channel === 'central:request') {
     const request = args[0];
     const method = String(request?.method || 'GET').toUpperCase();
     if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) return null;
+    // Shared handlers are limited by channel on the host, where reads are POST too.
+    if (String(request?.route || '').startsWith('/api/ipc/')) return null;
     if (HIGH_VOLUME_ACTIONS.has(`${method} ${normalizeActionPath(request?.route)}`)) return null;
     return `${method} ${request?.route || '/'}`;
   }
@@ -48,6 +56,8 @@ function safeHandle(channel, schemaOrHandler, maybeHandler, options = {}) {
   if (!hasSchema && maybeHandler && typeof maybeHandler === 'object') {
     options = maybeHandler;
   }
+
+  registry.set(channel, { handler, schema, options });
 
   ipcMain.handle(channel, async (event, ...args) => {
     const releaseSlot = tryAcquireRequestSlot();
@@ -114,4 +124,4 @@ function safeHandle(channel, schemaOrHandler, maybeHandler, options = {}) {
   });
 }
 
-module.exports = { safeHandle };
+module.exports = { safeHandle, getRegisteredHandler, getRateLimitedAction };

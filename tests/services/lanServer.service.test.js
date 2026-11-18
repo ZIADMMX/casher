@@ -7,8 +7,15 @@ jest.mock('../../electron/services/auth.service', () => ({
   getCurrentSession: jest.fn(() => ({ id: 1, role: 'admin' })),
   getSessionByToken: jest.fn((token) => (token === 'valid-token' ? { id: 1, role: 'admin' } : null)),
   runWithSession: jest.fn((session, callback) => callback()),
+  runWithPermission: jest.fn((permission, callback) => callback()),
   setPermissionContext: jest.fn(),
   requirePermission: jest.fn(),
+}));
+
+jest.mock('../../electron/handlers/safeHandle', () => ({
+  getRegisteredHandler: jest.fn((channel) => (channel === 'tables:getTables' || channel === 'enterprise:printTicketReceipt'
+    ? { handler: jest.fn(() => [{ id: 1, name: 'T1' }]) } : null)),
+  getRateLimitedAction: jest.fn(() => null),
 }));
 
 jest.mock('../../electron/services/session.service', () => ({
@@ -305,7 +312,26 @@ describe('LAN Server Service (Multi-Terminal Master Hub)', () => {
   test('a terminal login is not bound to a caller key on this machine', async () => {
     const authService = require('../../electron/services/auth.service');
     await makeRequest('/api/auth/login', { method: 'POST' }, { username: 'admin', password: '123' });
-    expect(authService.login).toHaveBeenLastCalledWith('admin', '123', 'lan-api', { remember: false });
+    expect(authService.login).toHaveBeenLastCalledWith('admin', '123', 'lan-api', { remember: false, deviceId: null });
+  });
+
+  test('a terminal runs the host table handler and gets the host data', async () => {
+    const response = await makeRequest('/api/ipc/tables/getTables', { method: 'POST' }, { args: [] });
+    expect(response.statusCode).toBe(200);
+    expect(response.data).toEqual([{ id: 1, name: 'T1' }]);
+  });
+
+  test('printing and unknown channels are not available through the host bridge', async () => {
+    const printing = await makeRequest('/api/ipc/enterprise/printTicketReceipt', { method: 'POST' }, { args: [1] });
+    const unknown = await makeRequest('/api/ipc/users/getAll', { method: 'POST' }, { args: [] });
+    expect(printing.statusCode).toBe(404);
+    expect(unknown.statusCode).toBe(404);
+  });
+
+  test('a terminal login carries its device id so one account cannot be open on two terminals', async () => {
+    const authService = require('../../electron/services/auth.service');
+    await makeRequest('/api/auth/login', { method: 'POST', headers: { 'X-Device-Id': 'till-2' } }, { username: 'admin', password: '123' });
+    expect(authService.login).toHaveBeenLastCalledWith('admin', '123', 'lan-api', { remember: false, deviceId: 'till-2' });
   });
 
   test('requires a warehouse assignment before returning branch product stock', async () => {

@@ -124,6 +124,27 @@ function revoke(decoded, graceSeconds = 0) {
   }
 }
 
+// ---------- One live login per user ----------
+// userId -> { jti, owner, seen }. A second device cannot log in with the same account
+// while the first one is in use (any verified request counts as use). An owner is a
+// device or window; it can always log in again itself, e.g. after a crash.
+const _live = new Map();
+const LIVE_WINDOW_MS = 10 * 60 * 1000;
+
+function assertUserFree(userId, owner) {
+  const live = _live.get(userId);
+  if (live && live.owner !== owner && Date.now() - live.seen < LIVE_WINDOW_MS) {
+    throw new Error('هذا المستخدم مسجّل دخوله حاليًا على جهاز آخر. يجب تسجيل الخروج منه أولاً.');
+  }
+}
+
+function bindUser(userId, token, owner) {
+  const jti = jwt.decode(token)?.jti;
+  const old = _live.get(userId);
+  if (old && old.jti !== jti) revoke({ jti: old.jti });
+  _live.set(userId, { jti, owner, seen: Date.now() });
+}
+
 /**
  * Generate a JWT for a given user payload.
  * Payload should contain at minimum: { id, username, role }.
@@ -146,6 +167,11 @@ function verifyToken(token) {
   if (decoded.jti && isRevoked(decoded.jti)) {
     throw new Error('TokenRevoked');
   }
+  if (decoded.jti) {
+    const live = _live.get(decoded.id);
+    if (!live) _live.set(decoded.id, { jti: decoded.jti, owner: null, seen: Date.now() }); // login survived a restart
+    else if (live.jti === decoded.jti) live.seen = Date.now();
+  }
   return decoded;
 }
 
@@ -156,7 +182,9 @@ function verifyToken(token) {
 function invalidateToken(token) {
   try {
     // Decode without verification so we can blacklist even if it's about to expire
-    revoke(jwt.decode(token));
+    const decoded = jwt.decode(token);
+    revoke(decoded);
+    if (_live.get(decoded?.id)?.jti === decoded?.jti) _live.delete(decoded.id);
   } catch {
     // Silently ignore decode failures – token was probably garbage
   }
@@ -174,6 +202,8 @@ function refreshToken(oldToken) {
   delete rest.exp;
   delete rest.jti;
   const newToken = generateToken(rest);
+  const live = _live.get(payload.id);
+  if (live?.jti === payload.jti) _live.set(payload.id, { ...live, jti: jwt.decode(newToken).jti, seen: Date.now() });
   revoke(payload, REFRESH_GRACE_SECONDS);
   return newToken;
 }
@@ -193,6 +223,8 @@ function getTokenTTL(token) {
 }
 
 module.exports = {
+  assertUserFree,
+  bindUser,
   generateToken,
   verifyToken,
   invalidateToken,

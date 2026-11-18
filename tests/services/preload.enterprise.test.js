@@ -7,7 +7,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 require('../../electron/preload');
 
 describe('Enterprise preload API', () => {
-  test('sends the role payload in the shape expected by the main-process handler', () => {
+  test('sends the role payload in the shape expected by the main-process handler', async () => {
     const api = contextBridge.exposeInMainWorld.mock.calls[0][1];
     const payload = {
       roleKey: 'floor_manager',
@@ -15,7 +15,7 @@ describe('Enterprise preload API', () => {
       description: 'إدارة الصالة',
     };
 
-    api.createSystemRole(payload);
+    await api.createSystemRole(payload);
 
     expect(ipcRenderer.invoke).toHaveBeenCalledWith('enterprise:createRole', payload);
   });

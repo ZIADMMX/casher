@@ -106,6 +106,14 @@ describe('sales.service.createSale', () => {
     })).toThrow('لا يمكن إتمام عملية البيع لعدم وجود وردية مفتوحة');
   });
 
+  test('a cashier with no shift of their own never sells into another cashier\'s drawer', () => {
+    const otherCashiersShift = { id: 9, user_id: 3, status: 'open' };
+    shiftsRepo.getCurrentOpenShift.mockImplementation((userId) => (userId == null ? otherCashiersShift : null));
+    expect(() => createSale({ items: [{ variantId: 1, quantity: 1 }], paymentMethod: 'cash' }))
+      .toThrow('لا يمكن إتمام عملية البيع لعدم وجود وردية مفتوحة');
+    expect(salesRepo.createSale).not.toHaveBeenCalled();
+  });
+
   test('calculates decimal totals and applies the discount exactly to cents', () => {
     const result = createSale({
       items: [{ variantId: 1, quantity: 3 }],

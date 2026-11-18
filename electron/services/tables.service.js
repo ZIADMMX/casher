@@ -18,7 +18,7 @@ function positiveId(value, label) {
 // Same rule as a normal sale: no open shift (which needs attendance), no orders.
 function requireOpenShift() {
   const session = getCurrentSession();
-  const shift = shiftsRepo.getCurrentOpenShift(session?.id) || shiftsRepo.getCurrentOpenShift();
+  const shift = shiftsRepo.getCurrentOpenShift(session?.id);
   if (!shift) throw new Error('افتح الوردية أولاً قبل استقبال طلبات الطاولات');
 }
 

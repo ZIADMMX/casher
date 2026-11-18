@@ -29,6 +29,16 @@ function registerCustomersHandlers() {
   safeHandle('customers:getRecentSales', positiveIdSchema, (event, customerId, limit) => {
     return customersService.getCustomerRecentSales(customerId, limit);
   });
+
+  safeHandle('customers:syncCloud', async () => {
+    const cloudCustomerSync = require('../services/cloudCustomerSync.service');
+    return cloudCustomerSync.pushCustomersToCloud();
+  });
+
+  safeHandle('customers:pullCloud', async () => {
+    const cloudCustomerSync = require('../services/cloudCustomerSync.service');
+    return cloudCustomerSync.pullCustomersFromCloud();
+  });
 }
 
 module.exports = { registerCustomersHandlers };
