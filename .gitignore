@@ -31,3 +31,5 @@ logs/
 # Local reports, screenshots and research notes
 /reports/
 /research_notes/
+
+jest-result.txt
