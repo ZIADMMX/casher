@@ -90,6 +90,8 @@ function setActiveBusinessProfile(profileKey, enabledModuleKeys = null) {
 
     db.prepare("UPDATE business_profiles SET is_active = 0").run();
     db.prepare("UPDATE business_profiles SET is_active = 1, updated_at = CURRENT_TIMESTAMP WHERE key = ?").run(profileKey);
+    // getActiveBusinessProfile() reads business_type first, so keep it in step or the switch is undone.
+    db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('business_type', ?)").run(profileKey);
 
     if (Array.isArray(enabledModuleKeys)) {
       const enabledKeys = new Set(enabledModuleKeys);

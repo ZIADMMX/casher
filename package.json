@@ -35,7 +35,8 @@
       "<rootDir>/e2e/",
       "<rootDir>/tests/frontend/",
       "<rootDir>/license-server/",
-      "<rootDir>/agent-service/"
+      "<rootDir>/agent-service/",
+      "<rootDir>/.claude/"
     ]
   },
   "keywords": [],
