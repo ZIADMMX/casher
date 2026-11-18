@@ -6,6 +6,9 @@ jest.mock('electron', () => ({
   },
 }));
 
+// الاختبار بيجرب safeHandle الحقيقي، وده بيسأل عن الترخيص من قاعدة البيانات قبل أي حاجة.
+jest.mock('../../electron/services/licenseGuard.service', () => ({ requireActiveLicense: jest.fn() }));
+
 jest.mock('../../electron/services/returns.service', () => ({
   findSale: jest.fn(),
   processReturn: jest.fn(),

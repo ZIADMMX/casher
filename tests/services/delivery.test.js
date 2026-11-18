@@ -147,6 +147,20 @@ describe('the Worker inbox', () => {
     await expect(delivery.pollInbox()).rejects.toThrow('offline');
   });
 
+  test('a slow round does not let the next one pile up', async () => {
+    SettingsRepository.set('delivery_inbox_token', 'tok_ABCDEFGHIJKLMNOP');
+    let release;
+    const fetchMock = jest.spyOn(global, 'fetch').mockImplementation(
+      () => new Promise((resolve) => { release = () => resolve(reply({ items: [] })); }),
+    );
+    const first = delivery.pollInbox();
+    const second = delivery.pollInbox();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    release();
+    expect(await first).toBe(0);
+    expect(await second).toBe(0);
+  });
+
   test('does nothing until an inbox exists', async () => {
     db.prepare("DELETE FROM settings WHERE key = 'delivery_inbox_token'").run();
     const fetchMock = jest.spyOn(global, 'fetch');

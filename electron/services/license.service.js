@@ -2,7 +2,7 @@ const dbRepo = require('../repositories/settings.repository');
 const { parseLicenseKey } = require('../security/licenseSigning');
 const { getMachineHardwareId } = require('../security/deviceId');
 
-const TRIAL_DURATION_DAYS = 14;
+const TRIAL_DURATION_DAYS = 30;
 
 // Keys issued before the switch to Ed25519 (KASH-...). They were signed with a
 // shared secret that never shipped, so they cannot be verified. The copy asks
@@ -95,7 +95,7 @@ function getLicenseStatus(now = Date.now(), { updateClock = true } = {}) {
     };
   }
 
-  // 2. Otherwise handle 14-Day Trial Period
+  // 2. Otherwise handle 30-Day Trial Period
   // The license time server remembers each machine's first run (licenseClock
   // saves it), so deleting the database or reinstalling cannot restart the trial.
   const known = [Number(trialStartStr), Number(dbRepo.get('license_server_trial_start'))]

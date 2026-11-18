@@ -1,4 +1,6 @@
 // اتصال منظومة الفاتورة الإلكترونية: رمز الدخول، إرسال المستندات، وحالة المستند.
+const { guardedFetch } = require('../circuitBreaker.service');
+
 const TOKEN_SAFETY_MARGIN_MS = 60_000;
 const REQUEST_TIMEOUT_MS = 30_000;
 
@@ -9,7 +11,7 @@ function resetTokenCache() {
 }
 
 async function request(url, options) {
-  const response = await fetch(url, { ...options, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
+  const response = await guardedFetch(url, { ...options, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
   const text = await response.text();
   let body = null;
   if (text) {

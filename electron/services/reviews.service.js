@@ -139,6 +139,7 @@ async function saveReview(input, callerId = 'default') {
   reviewsRepo.markPrompted(context.tenantId, context.userId);
   let syncPending = true;
   let syncError = null;
+  const reviewsCloud = require('./reviewsCloud.service');
   if (!context.offline && context.isRemote) {
     try {
       const syncResult = await centralClient.syncQueuedReviews(context.tenantId, context.userId);
@@ -147,8 +148,12 @@ async function saveReview(input, callerId = 'default') {
     } catch (error) {
       syncError = error.message;
     }
+    reviewsCloud.syncPending(); // the vendor's copy; failures retry on the next interval
   } else if (!context.isRemote) {
-    syncError = 'هذا الحساب المحلي غير مرتبط بالخادم المركزي؛ حُفظ التقييم على هذا الجهاز فقط.';
+    // Local accounts have no central server: the vendor's cloud is where the review goes.
+    const cloud = await reviewsCloud.syncPending();
+    syncPending = reviewsRepo.getPendingSyncCount(context.tenantId, context.userId) > 0;
+    syncError = cloud.error || null;
   }
 
   return { review: savedReview, syncPending, syncError };

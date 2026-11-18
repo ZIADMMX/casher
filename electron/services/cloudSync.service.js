@@ -12,6 +12,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { app } = require('electron');
 const { db } = require('../database/db');
+const { guardedFetch } = require('./circuitBreaker.service');
 const { SYNC_TABLES } = require('../database/migrations/syncMetadata');
 const { encryptSecret, decryptSecret } = require('../security/vault');
 
@@ -124,7 +125,7 @@ function toTombstone(row) {
 async function push(baseUrl, deviceKey, records) {
   let response;
   try {
-    response = await fetch(`${baseUrl}/api/sync/push`, {
+    response = await guardedFetch(`${baseUrl}/api/sync/push`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${deviceKey}` },
       body: JSON.stringify({ records }),

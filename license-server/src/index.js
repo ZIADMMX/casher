@@ -499,6 +499,146 @@ async function subscriptionRoutes(request, env, url, now) {
   return json({ error: 'method not allowed' }, 405);
 }
 
+// Error reports from installed copies, so a crash reaches the vendor before the shop calls.
+//   POST /api/errors   body { device, version, items: [{ context, message, stack, count, at }] }
+// The device must already be known (it asked for the time), the body is capped, and each device
+// gets at most MAX_ERRORS_PER_HOUR rows an hour. Rows older than KEEP_ERRORS_MS are dropped.
+// Read them: npx wrangler d1 execute foxcloud-license --remote --command
+//   "SELECT substr(device_id,1,8) AS hwid, version, context, message, count, datetime(created_at/1000,'unixepoch') AS at FROM error_reports ORDER BY id DESC LIMIT 50"
+const MAX_ERROR_BYTES = 32_000;
+const MAX_ERROR_ITEMS = 20;
+const MAX_ERRORS_PER_HOUR = 200;
+const KEEP_ERRORS_MS = 30 * 24 * 3600 * 1000;
+
+async function errorRoutes(request, env, url, now) {
+  if (url.pathname !== '/api/errors') return null;
+  if (request.method !== 'POST') return json({ error: 'not found' }, 404);
+  const raw = await request.text();
+  if (raw.length > MAX_ERROR_BYTES) return json({ error: 'too large' }, 413);
+  let body;
+  try { body = JSON.parse(raw); } catch { return json({ error: 'bad json' }, 400); }
+
+  const device = String(body?.device || '');
+  if (!DEVICE_PATTERN.test(device)) return json({ error: 'device is required' }, 400);
+  const known = await env.DB.prepare('SELECT first_seen FROM devices WHERE device_id = ?').bind(device).first();
+  if (!known) return json({ error: 'unknown device' }, 403);
+
+  const items = Array.isArray(body.items) ? body.items.slice(0, MAX_ERROR_ITEMS) : [];
+  if (items.length === 0) return json({ ok: true, stored: 0 });
+
+  const recent = await env.DB.prepare('SELECT COUNT(*) AS n FROM error_reports WHERE device_id = ? AND created_at > ?')
+    .bind(device, now - 3600 * 1000).first();
+  const room = MAX_ERRORS_PER_HOUR - Number(recent?.n || 0);
+  if (room <= 0) return json({ error: 'rate limited' }, 429);
+
+  const version = String(body.version || '').slice(0, 32);
+  const insert = env.DB.prepare(
+    'INSERT INTO error_reports (device_id, version, context, message, stack, count, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+  );
+  const rows = items.slice(0, room).map((item) => insert.bind(
+    device,
+    version,
+    String(item?.context || 'unknown').slice(0, 120),
+    String(item?.message || '').slice(0, 1000),
+    String(item?.stack || '').slice(0, 6000),
+    Math.max(1, Math.min(Number(item?.count) || 1, 100000)),
+    now,
+  ));
+  await env.DB.batch(rows);
+  await env.DB.prepare('DELETE FROM error_reports WHERE created_at < ?').bind(now - KEEP_ERRORS_MS).run();
+  return json({ ok: true, stored: rows.length });
+}
+
+// "Rate Fox" reviews from installed copies.
+//   POST /api/reviews          body { device, reviews: [{ tenantId, userId, rating, tags, comment, consent,
+//                                     sector, appVersion, businessName, businessLogo }] }
+//        One row per (device, tenant, user): a new review from the same person replaces the old one.
+//        The device must already be known. Business name and logo are kept only with consent and rating >= 4.
+//   GET  /api/reviews/public   consented 4-5 star reviews for the website (no device ids), newest first.
+// Read all: npx wrangler d1 execute foxcloud-license --remote --command
+//   "SELECT substr(device_id,1,8) AS hwid, rating, tags, comment, consent, business_name, sector, app_version, datetime(updated_at/1000,'unixepoch') AS at FROM fox_reviews ORDER BY updated_at DESC"
+const MAX_REVIEW_BYTES = 1_000_000;
+const MAX_REVIEWS_PER_REQUEST = 20;
+const MAX_LOGO_CHARS = 400_000;
+const LOGO_PATTERN = /^data:image\/(png|jpe?g|webp|gif|svg\+xml);base64,[A-Za-z0-9+/=]+$/;
+
+async function reviewRoutes(request, env, url, now) {
+  if (url.pathname === '/api/reviews/public' && request.method === 'GET') {
+    const rows = await env.DB.prepare(
+      'SELECT rating, tags, comment, business_name, business_logo, sector, updated_at FROM fox_reviews '
+      + 'WHERE consent = 1 AND rating >= 4 ORDER BY updated_at DESC LIMIT 50'
+    ).all();
+    const reviews = (rows?.results || []).map((row) => ({
+      rating: row.rating,
+      tags: safeJsonArray(row.tags),
+      comment: row.comment,
+      businessName: row.business_name,
+      businessLogo: row.business_logo,
+      sector: row.sector,
+      updatedAt: row.updated_at,
+    }));
+    return new Response(JSON.stringify({ reviews }), {
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=300', 'Access-Control-Allow-Origin': '*' },
+    });
+  }
+  if (url.pathname !== '/api/reviews') return null;
+  if (request.method !== 'POST') return json({ error: 'not found' }, 404);
+
+  const raw = await request.text();
+  if (raw.length > MAX_REVIEW_BYTES) return json({ error: 'too large' }, 413);
+  let body;
+  try { body = JSON.parse(raw); } catch { return json({ error: 'bad json' }, 400); }
+
+  const device = String(body?.device || '');
+  if (!DEVICE_PATTERN.test(device)) return json({ error: 'device is required' }, 400);
+  const known = await env.DB.prepare('SELECT first_seen FROM devices WHERE device_id = ?').bind(device).first();
+  if (!known) return json({ error: 'unknown device' }, 403);
+
+  const incoming = Array.isArray(body.reviews) ? body.reviews.slice(0, MAX_REVIEWS_PER_REQUEST) : [];
+  const upsert = env.DB.prepare(
+    'INSERT INTO fox_reviews (device_id, tenant_id, user_id, rating, tags, comment, consent, sector, app_version, '
+    + 'business_name, business_logo, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) '
+    + 'ON CONFLICT(device_id, tenant_id, user_id) DO UPDATE SET rating = excluded.rating, tags = excluded.tags, '
+    + 'comment = excluded.comment, consent = excluded.consent, sector = excluded.sector, app_version = excluded.app_version, '
+    + 'business_name = excluded.business_name, business_logo = excluded.business_logo, updated_at = excluded.updated_at'
+  );
+  const statements = [];
+  for (const review of incoming) {
+    const rating = Number(review?.rating);
+    if (!Number.isInteger(rating) || rating < 1 || rating > 5) continue;
+    const consent = review.consent === true && rating >= 4;
+    const tags = Array.isArray(review.tags) ? review.tags.slice(0, 10).map((tag) => String(tag).slice(0, 60)) : [];
+    const logo = consent && typeof review.businessLogo === 'string'
+      && review.businessLogo.length <= MAX_LOGO_CHARS && LOGO_PATTERN.test(review.businessLogo)
+      ? review.businessLogo : null;
+    statements.push(upsert.bind(
+      device,
+      String(review.tenantId ?? 'local').slice(0, 60),
+      String(review.userId ?? '').slice(0, 60),
+      rating,
+      JSON.stringify(tags),
+      review.comment ? String(review.comment).slice(0, 2000) : null,
+      consent ? 1 : 0,
+      review.sector ? String(review.sector).slice(0, 60) : null,
+      review.appVersion ? String(review.appVersion).slice(0, 32) : null,
+      consent && review.businessName ? String(review.businessName).slice(0, 150) : null,
+      logo,
+      now,
+    ));
+  }
+  if (statements.length) await env.DB.batch(statements);
+  return json({ ok: true, stored: statements.length });
+}
+
+function safeJsonArray(text) {
+  try {
+    const value = JSON.parse(text || '[]');
+    return Array.isArray(value) ? value : [];
+  } catch {
+    return [];
+  }
+}
+
 export async function handle(request, env, now = Date.now()) {
   const url = new URL(request.url);
   const tracked = await trackingRoutes(request, env, url, now);
@@ -509,6 +649,10 @@ export async function handle(request, env, now = Date.now()) {
   if (customers) return customers;
   const subscription = await subscriptionRoutes(request, env, url, now);
   if (subscription) return subscription;
+  const errors = await errorRoutes(request, env, url, now);
+  if (errors) return errors;
+  const reviews = await reviewRoutes(request, env, url, now);
+  if (reviews) return reviews;
   if (url.pathname !== '/api/license/time' || request.method !== 'GET') {
     return json({ error: 'not found' }, 404);
   }

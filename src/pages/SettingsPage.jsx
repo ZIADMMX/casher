@@ -10,6 +10,7 @@ import EInvoiceSettingsCard from '../components/settings/EInvoiceSettingsCard.js
 import PrivacyPolicyCard from '../components/settings/PrivacyPolicyCard.jsx';
 import EulaCard from '../components/settings/EulaCard.jsx';
 import LicenseCertificateCard from '../components/settings/LicenseCertificateCard.jsx';
+import ExternalBackupCard from '../components/settings/ExternalBackupCard.jsx';
 
 function SettingsPage() {
   const { settings, saveSettings, uploadLogo, backupDatabase, restoreDatabase } = useSettings();
@@ -372,6 +373,7 @@ function SettingsPage() {
           {!isLawFirm && <AddonsSettingsCard />}
           {configuration?.profile?.key === 'cafe_restaurant' && <RestaurantSettingsCard />}
           {!isLawFirm && <LoyaltySettingsCard />}
+          <ExternalBackupCard />
           <LicenseCertificateCard />
           <CloudSyncSettingsCard />
           <EInvoiceSettingsCard />

@@ -39,6 +39,10 @@ const PROTECTED_KEYS = new Set([
   'eta_client_secret',
   // AI provider key (electron/services/ai/llmClient.js): sealed by the vault, read only by the main process.
   'codecraft_api_key',
+  // External backup folder (externalBackup.service.js): set only through the folder picker, so the
+  // settings screen cannot point backups at an arbitrary path or fake the last copy time.
+  'external_backup_dir',
+  'external_backup_last_at',
 ]);
 
 // Stored encrypted (vault): a copied database file or backup does not reveal them.

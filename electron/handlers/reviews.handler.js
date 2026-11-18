@@ -25,11 +25,13 @@ function registerReviewsHandlers() {
   safeHandle('reviews:sync', async (event) => {
     const context = await reviewsService.getSessionContext(event?.sender?.id ?? 'default');
     if (!context.isRemote) {
+      const cloud = await require('../services/reviewsCloud.service').syncPending();
       return {
-        syncedCount: 0,
+        syncedCount: cloud.sent,
         pendingCount: require('../repositories/reviews.repository')
           .getPendingSyncCount(context.tenantId, context.userId),
-        error: 'يلزم تسجيل الدخول إلى الخادم المركزي لمزامنة هذا التقييم',
+        error: cloud.error || null,
+        syncError: cloud.error || null,
       };
     }
     const result = await centralClient.syncQueuedReviews(context.tenantId, context.userId);

@@ -2,7 +2,7 @@ const ACCEPTED_EULA = { acceptedEulaVersion: require('../../shared/eula.json').v
 /**
  * @file license.flow.test.js
  * @description Full end-to-end license flow tests covering:
- *   - Fresh install trial period (14 days)
+ *   - Fresh install trial period (30 days)
  *   - Activation with a valid / invalid key
  *   - State persistence (save & reload)
  *   - Trial expiry simulation → LicenseLockScreen trigger condition
@@ -56,14 +56,14 @@ describe('License Flow – Full End-to-End', () => {
 
 
   // ── 1. Fresh install ─────────────────────────────────────────────────────
-  describe('1. Fresh install – 14-day trial', () => {
-    test('status is trial, not activated, not expired, 14 days left', () => {
+  describe('1. Fresh install – 30-day trial', () => {
+    test('status is trial, not activated, not expired, 30 days left', () => {
       const status = licenseService.getLicenseStatus();
 
       expect(status.isActivated).toBe(false);
       expect(status.isTrial).toBe(true);
       expect(status.isExpired).toBe(false);
-      expect(status.remainingDays).toBe(14);
+      expect(status.remainingDays).toBe(30);
     });
 
     test('trial_start_date is persisted to DB on first call', () => {
@@ -82,12 +82,12 @@ describe('License Flow – Full End-to-End', () => {
     });
   });
 
-  // ── 2. Trial expiry after 14 days ─────────────────────────────────────────
-  describe('2. Trial expiry – simulate 15 days later', () => {
-    test('isExpired becomes true after 15 days', () => {
+  // ── 2. Trial expiry after 30 days ─────────────────────────────────────────
+  describe('2. Trial expiry – simulate 31 days later', () => {
+    test('isExpired becomes true after 31 days', () => {
       licenseService.getLicenseStatus();
 
-      dateSpy.mockReturnValue(FIXED_NOW + 15 * DAY_MS);
+      dateSpy.mockReturnValue(FIXED_NOW + 31 * DAY_MS);
       const status = licenseService.getLicenseStatus();
 
       expect(status.isExpired).toBe(true);
@@ -97,7 +97,7 @@ describe('License Flow – Full End-to-End', () => {
 
     test('expired status triggers LicenseLockScreen condition (isExpired && !isActivated)', () => {
       licenseService.getLicenseStatus();
-      dateSpy.mockReturnValue(FIXED_NOW + 15 * DAY_MS);
+      dateSpy.mockReturnValue(FIXED_NOW + 31 * DAY_MS);
       const status = licenseService.getLicenseStatus();
 
       // This is the exact condition checked in App.jsx line 59
@@ -105,9 +105,9 @@ describe('License Flow – Full End-to-End', () => {
       expect(shouldShowLockScreen).toBe(true);
     });
 
-    test('exactly on day 14 last second is NOT expired', () => {
+    test('exactly on day 30 last second is NOT expired', () => {
       licenseService.getLicenseStatus();
-      dateSpy.mockReturnValue(FIXED_NOW + 14 * DAY_MS - 1000);
+      dateSpy.mockReturnValue(FIXED_NOW + 30 * DAY_MS - 1000);
       const status = licenseService.getLicenseStatus();
 
       expect(status.isExpired).toBe(false);
@@ -249,7 +249,7 @@ describe('License Flow – Full End-to-End', () => {
       dateSpy.mockReturnValue(FIXED_NOW + 3 * DAY_MS);
       const status = licenseService.getLicenseStatus();
 
-      expect(status.remainingDays).toBe(11); // 14 - 3
+      expect(status.remainingDays).toBe(27); // 30 - 3
       expect(status.isExpired).toBe(false);
     });
 

@@ -78,3 +78,19 @@ npx wrangler d1 execute foxcloud-license --remote --command "UPDATE cloud_custom
 ```
 
 بعدها يضغط استرجاع من جهازه الجديد فيرجعوا كلهم. خد نسخة بخطوة ٢ قبل ما تعمل التحويل.
+
+## تقارير الأخطاء
+
+النسخ المتثبتة عند العملاء بتبعت أخطاءها لـ `POST /api/errors`، وبتتخزن في جدول `error_reports` لمدة 30 يوم. الإرسال بيشتغل في النسخة المغلّفة بس، وكل جهاز ليه حد 200 خطأ في الساعة.
+
+لو السيرفر كان متنشر قبل الميزة دي، ضيف الجدول مرة واحدة:
+
+```bash
+npx wrangler d1 execute foxcloud-license --remote --file schema.sql
+```
+
+آخر 50 خطأ (أول 8 خانات من `hwid` هي كود جهاز العميل):
+
+```bash
+npx wrangler d1 execute foxcloud-license --remote --command "SELECT substr(device_id,1,8) AS hwid, version, context, message, count, datetime(created_at/1000,'unixepoch') AS at FROM error_reports ORDER BY id DESC LIMIT 50"
+```

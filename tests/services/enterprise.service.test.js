@@ -68,6 +68,7 @@ describe('Enterprise Framework Service Unit Tests', () => {
   });
 
   test('CRM migration restores last_interaction_at on older customer schemas', () => {
+    migrateCRMTables(); // مفيش ضمان إن مجموعة اختبارات تانية شغلت المايجريشن قبل كدا على نفس قاعدة البيانات
     db.exec('ALTER TABLE customers DROP COLUMN last_interaction_at');
 
     expect(() => migrateCRMTables()).not.toThrow();

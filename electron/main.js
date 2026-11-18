@@ -463,6 +463,8 @@ app.whenReady().then(async () => {
   startSafeInterval('CourtSessionReminders', () => casesService.checkDueCourtSessionReminders(48), 60_000);
     startSafeInterval('LegalTaskReminders', () => casesService.checkDueCaseTaskReminders(), 60_000);
   startSafeInterval('DailyDatabaseBackup', () => autoBackupDaily(), 6 * 60 * 60 * 1000);
+  // "Rate Fox" reviews saved while offline go to the vendor's cloud when the connection is back.
+  startSafeInterval('ReviewsCloudSync', () => require('./services/reviewsCloud.service').syncPending(), 30 * 60_000);
   // الإشعارات أقدم من 90 يوم بتتمسح عشان الجدول ما يكبرش من غير حد.
   startSafeInterval('NotificationsCleanup', () => {
     const notificationsRepo = require('./repositories/notifications.repository');

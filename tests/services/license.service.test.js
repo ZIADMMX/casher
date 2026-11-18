@@ -99,8 +99,8 @@ describe('license.service', () => {
   });
 
   test('after deleting the database, the server-recorded first run still ends the trial', () => {
-    const fifteenDays = 15 * 24 * 60 * 60 * 1000;
-    // Fresh database, but the license server remembers this machine from 15 days ago.
+    const fifteenDays = 31 * 24 * 60 * 60 * 1000;
+    // Fresh database, but the license server remembers this machine from 31 days ago.
     mockStore = { license_server_trial_start: String(1700000000000 - fifteenDays) };
 
     const status = licenseService.getLicenseStatus();
@@ -112,7 +112,7 @@ describe('license.service', () => {
   test('a later local trial date cannot override the server one', () => {
     mockStore = {
       trial_start_date: String(1700000000000),
-      license_server_trial_start: String(1700000000000 - 20 * 24 * 60 * 60 * 1000),
+      license_server_trial_start: String(1700000000000 - 40 * 24 * 60 * 60 * 1000),
     };
 
     expect(licenseService.getLicenseStatus().trialDeadlineReached).toBe(true);
@@ -192,16 +192,16 @@ describe('license.service', () => {
     expect(status.isActivated).toBe(false);
     expect(status.isTrial).toBe(true);
     expect(status.isExpired).toBe(false);
-    expect(status.remainingDays).toBe(14);
+    expect(status.remainingDays).toBe(30);
     expect(mockStore.trial_start_date).toBe(String(Date.now()));
   });
 
-  test('9. getLicenseStatus returns expired after 14+ days (mock Date.now)', () => {
+  test('9. getLicenseStatus returns expired after 30+ days (mock Date.now)', () => {
     // Fresh install
     licenseService.getLicenseStatus();
     
-    // Move time forward 15 days
-    const fifteenDaysMs = 15 * 24 * 60 * 60 * 1000;
+    // Move time forward 31 days
+    const fifteenDaysMs = 31 * 24 * 60 * 60 * 1000;
     dateSpy.mockImplementation(() => 1700000000000 + fifteenDaysMs);
     
     const status = licenseService.getLicenseStatus();
@@ -213,7 +213,7 @@ describe('license.service', () => {
 
   test('warns during the final two days of the trial', () => {
     licenseService.getLicenseStatus();
-    const twelveDaysMs = 12 * 24 * 60 * 60 * 1000;
+    const twelveDaysMs = 28 * 24 * 60 * 60 * 1000;
     dateSpy.mockImplementation(() => 1700000000000 + twelveDaysMs);
 
     const status = licenseService.getLicenseStatus();

@@ -211,6 +211,7 @@ describe('backup.service.autoBackupDaily', () => {
       expect(result).toEqual({
         success: true,
         filePath: expect.stringMatching(/kashiear-daily-/),
+        external: expect.any(Object), // نتيجة نسخ النسخة بره الجهاز
       });
     } finally {
       fs.existsSync.mockRestore();

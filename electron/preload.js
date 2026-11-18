@@ -70,6 +70,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Backups
   backupNow: () => ipcRenderer.invoke('backup:now'),
 restoreBackup: () => ipcRenderer.invoke('backup:restore'),
+  getExternalBackupStatus: () => ipcRenderer.invoke('backup:getExternalStatus'),
+  chooseExternalBackupFolder: () => ipcRenderer.invoke('backup:chooseExternalFolder'),
+  clearExternalBackupFolder: () => ipcRenderer.invoke('backup:clearExternalFolder'),
 
   // Categories
   getAllCategories: () => invokeRemoteOrLocal('GET', '/api/categories', 'categories:getAll'),

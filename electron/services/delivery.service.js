@@ -10,6 +10,7 @@ const crypto = require('node:crypto');
 const { db } = require('../database/db');
 const SettingsRepository = require('../repositories/settings.repository');
 const { requireAuth } = require('./auth.service');
+const { guardedFetch } = require('./circuitBreaker.service');
 
 const MAX_ITEMS = 60;
 const text = (v, max) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
@@ -134,7 +135,7 @@ const credentials = () => ({
 });
 
 async function call(path, body, method = 'POST') {
-  const res = await fetch(`${baseUrl()}${path}`, {
+  const res = await guardedFetch(`${baseUrl()}${path}`, {
     method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...credentials(), ...body }), signal: AbortSignal.timeout(15_000),
   });
   if (!res.ok) throw new Error(`inbox request failed (${res.status})`);
@@ -152,7 +153,7 @@ async function getInboxInfo() {
 }
 
 /** Every 20 s once an inbox exists: takes the waiting orders, saves them, then confirms them (a crash in between only re-sends, never loses). */
-async function pollInbox() {
+async function pullInbox() {
   const token = SettingsRepository.get('delivery_inbox_token');
   if (!token || !baseUrl()) return 0;
   const { items = [] } = await call(`/api/inbox/${token}/pull`, {});
@@ -163,6 +164,15 @@ async function pollInbox() {
   }
   if (done.length) await call(`/api/inbox/${token}/ack`, { ids: done });
   return done.length;
+}
+
+let polling = null;
+
+// دورة واحدة في المرة: لو السيرفر بطيء والدورة الجديدة جات قبل ما اللي فاتتها تخلص،
+// بتشارك نفس الطلب بدل ما تبعت طلب جديد ويتراكموا.
+function pollInbox() {
+  if (!polling) polling = pullInbox().finally(() => { polling = null; });
+  return polling;
 }
 
 module.exports = { receive, getOrders, accept, reject, updateDetails, getInboxInfo, pollInbox, normalize };

@@ -15,6 +15,9 @@ jest.mock('../../electron/repositories/reviews.repository', () => ({
   markPrompted: jest.fn(),
   saveReview: jest.fn((_tenantId, _userId, review) => review),
 }));
+jest.mock('../../electron/services/reviewsCloud.service', () => ({
+  syncPending: jest.fn(async () => ({ sent: 1 })),
+}));
 jest.mock('../../electron/repositories/shifts.repository', () => ({
   getCurrentOpenShift: jest.fn(),
 }));
@@ -27,6 +30,7 @@ const centralClient = require('../../electron/services/centralClient.service');
 const reviewsRepo = require('../../electron/repositories/reviews.repository');
 const shiftsRepo = require('../../electron/repositories/shifts.repository');
 const reviewsService = require('../../electron/services/reviews.service');
+const reviewsCloud = require('../../electron/services/reviewsCloud.service');
 
 describe('reviews service', () => {
   beforeEach(() => {
@@ -95,5 +99,20 @@ describe('reviews service', () => {
     expect(centralClient.syncQueuedReviews).not.toHaveBeenCalled();
     expect(reviewsRepo.markPrompted).toHaveBeenCalledWith('local', 3);
     expect(authService.requireAuth).toHaveBeenCalledWith('renderer-1');
+  });
+  test('a local review goes to the vendor cloud', async () => {
+    const result = await reviewsService.saveReview({ rating: 5, tags: ['سهولة الاستخدام'], consent: true }, 'renderer-1');
+
+    expect(reviewsCloud.syncPending).toHaveBeenCalled();
+    expect(result).toMatchObject({ syncPending: false, syncError: null });
+  });
+
+  test('a failed cloud send is reported and kept pending', async () => {
+    reviewsCloud.syncPending.mockResolvedValueOnce({ sent: 0, error: 'تعذر الاتصال بالسحابة' });
+    reviewsRepo.getPendingSyncCount.mockReturnValueOnce(1);
+
+    const result = await reviewsService.saveReview({ rating: 3, tags: ['ميزة ناقصة'] }, 'renderer-1');
+
+    expect(result).toMatchObject({ syncPending: true, syncError: 'تعذر الاتصال بالسحابة' });
   });
 });

@@ -4,6 +4,7 @@ const { getDeviceId, getMachineHardwareId } = require('../security/deviceId');
 const { getLicenseStatus } = require('./license.service');
 const { db } = require('../database/db');
 const { logError } = require('./logger.service');
+const { guardedFetch } = require('./circuitBreaker.service');
 
 function getSubscriptionEndpoint() {
   if (process.env.FOX_SUBSCRIPTION_SYNC_URL) {
@@ -61,7 +62,7 @@ function getCertificate() {
   const activatedAt = Number(Settings.get('license_activated_at')) || Date.now();
   const planType = licenseStatus.licenseType?.includes('مدى الحياة')
     ? 'مدى الحياة (Lifetime)'
-    : (licenseStatus.licenseType || (licenseStatus.isTrial ? 'فترة تجريبية (14 يوم)' : 'سنوي (Annual)'));
+    : (licenseStatus.licenseType || (licenseStatus.isTrial ? 'فترة تجريبية (30 يوم)' : 'سنوي (Annual)'));
 
   const certificate = {
     certificateNumber: certNumber,
@@ -121,7 +122,7 @@ async function syncCertificateToCloud(certificate = getCertificate()) {
     const headers = { 'Content-Type': 'application/json' };
     if (key) headers.Authorization = `Bearer ${key}`;
 
-    const response = await fetch(getSubscriptionEndpoint(), {
+    const response = await guardedFetch(getSubscriptionEndpoint(), {
       method: 'POST',
       headers,
       body: JSON.stringify(payload),

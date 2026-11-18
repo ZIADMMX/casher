@@ -274,7 +274,7 @@ async function flushReceipts(config, summary) {
  * بيعالج النوعين، فلو المنشأة غيّرت نظامها المستندات القديمة بتكمّل طريقها.
  * @returns {Promise<{sent: number, failed: number, updated: number, skipped?: string}>}
  */
-async function flush() {
+async function runFlush() {
   const config = getConfig();
   const summary = { sent: 0, failed: 0, updated: 0 };
   if (!config.enabled) return { ...summary, skipped: 'disabled' };
@@ -285,6 +285,15 @@ async function flush() {
   await flushInvoices(config, summary);
   await flushReceipts(config, summary);
   return summary;
+}
+
+let flushing = null;
+
+// دفعة واحدة في المرة. بدون ده دفعة بطيءة تتعدى مدة المؤقت (5 دقايق) أو ضغطة من المستخدم
+// تخلي نسختين تقرأ نفس listSendable وتبعتوا نفس المستند للمنظومة مرتين.
+function flush() {
+  if (!flushing) flushing = runFlush().finally(() => { flushing = null; });
+  return flushing;
 }
 
 /** إعادة إرسال المرفوض. */

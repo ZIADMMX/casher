@@ -85,3 +85,35 @@ CREATE TABLE IF NOT EXISTS customer_sync_owners (
   key_hash TEXT NOT NULL,
   created_at INTEGER NOT NULL
 );
+
+-- Errors sent by installed copies (POST /api/errors). Kept 30 days.
+CREATE TABLE IF NOT EXISTS error_reports (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  device_id TEXT NOT NULL,
+  version TEXT,
+  context TEXT NOT NULL,
+  message TEXT,
+  stack TEXT,
+  count INTEGER NOT NULL DEFAULT 1,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_error_reports_device ON error_reports(device_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_error_reports_created ON error_reports(created_at);
+
+-- "Rate Fox" reviews (POST /api/reviews). One row per person per device; a new review replaces the old one.
+CREATE TABLE IF NOT EXISTS fox_reviews (
+  device_id TEXT NOT NULL,
+  tenant_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
+  tags TEXT,
+  comment TEXT,
+  consent INTEGER NOT NULL DEFAULT 0,
+  sector TEXT,
+  app_version TEXT,
+  business_name TEXT,
+  business_logo TEXT,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (device_id, tenant_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_fox_reviews_public ON fox_reviews(consent, rating, updated_at);

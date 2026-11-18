@@ -291,7 +291,7 @@ async function autoBackupDaily() {
   if (fs.existsSync(backupPath)) {
     try {
       verifyDatabase(backupPath);
-      return { success: true, skipped: true, filePath: backupPath };
+      return { success: true, skipped: true, filePath: backupPath, external: syncExternalBackup(backupPath) };
     } catch (error) {
       logError('VerifyExistingDailyBackup', error);
     }
@@ -313,7 +313,21 @@ async function autoBackupDaily() {
     }
   }
 
-  return { success: true, filePath: backupPath };
+  return { success: true, filePath: backupPath, external: syncExternalBackup(backupPath) };
+}
+
+// Copies today's backup off this PC and reminds the owner when that has not happened lately.
+// Errors stay here: the local backup above already succeeded.
+function syncExternalBackup(backupPath) {
+  try {
+    const externalBackup = require('./externalBackup.service');
+    const result = externalBackup.copyToExternal(backupPath);
+    externalBackup.remindIfStale();
+    return result;
+  } catch (error) {
+    logError('SyncExternalBackup', error);
+    return { success: false, reason: 'error', message: error.message };
+  }
 }
 
 module.exports = {

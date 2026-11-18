@@ -3,6 +3,7 @@ const { getDeviceId } = require('../security/deviceId');
 const { logError } = require('./logger.service');
 const { db } = require('../database/db');
 const Settings = require('../repositories/settings.repository');
+const { guardedFetch } = require('./circuitBreaker.service');
 
 // What this copy proves it owns its cloud store with. Once activated that is the licence key,
 // which the Worker verifies against this machine. Before activation there is no licence, so a
@@ -83,7 +84,7 @@ async function pushCustomersToCloud(options = {}) {
         })),
       };
 
-      const response = await fetch(getSyncEndpoint(), {
+      const response = await guardedFetch(getSyncEndpoint(), {
         method: 'POST',
         headers: syncHeaders(true),
         body: JSON.stringify(payload),
@@ -135,7 +136,7 @@ async function pullCustomersFromCloud() {
     }
 
     const url = `${getSyncEndpoint()}?device=${encodeURIComponent(device)}&since=0`;
-    const response = await fetch(url, { method: 'GET', headers: syncHeaders() });
+    const response = await guardedFetch(url, { method: 'GET', headers: syncHeaders() });
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -238,7 +239,7 @@ async function syncSingleCustomer(customerId) {
       }],
     };
 
-    const response = await fetch(getSyncEndpoint(), {
+    const response = await guardedFetch(getSyncEndpoint(), {
       method: 'POST',
       headers: syncHeaders(true),
       body: JSON.stringify(payload),

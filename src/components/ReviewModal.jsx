@@ -82,7 +82,7 @@ export default function ReviewModal({ onClose }) {
       });
       setSyncPending(Boolean(result.syncPending));
       setMessage(result.syncPending
-        ? 'تم حفظ تقييمك على هذا الجهاز، وسيتم مزامنته مع الخادم المركزي عند عودة الاتصال.'
+        ? 'تم حفظ تقييمك على هذا الجهاز، وهيتبعت لـ FOX.CLOUD تلقائيًا أول ما النت يرجع.'
         : 'شكرًا لك، وصل تقييمك إلى FOX.CLOUD.');
       if (result.syncError) setError(`تعذرت المزامنة الآن: ${result.syncError}`);
     } catch (saveError) {
@@ -139,7 +139,7 @@ export default function ReviewModal({ onClose }) {
             {message && <div className="review-message" role="status">{message}</div>}
             {syncPending && (
               <div className="review-sync-status">
-                <span>يوجد تقييم محفوظ بانتظار الاتصال بالخادم المركزي.</span>
+                <span>يوجد تقييم محفوظ بانتظار الاتصال بـ FOX.CLOUD.</span>
                 <button type="button" onClick={handleSync}>إعادة المزامنة</button>
               </div>
             )}
