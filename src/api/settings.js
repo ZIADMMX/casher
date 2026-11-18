@@ -4,6 +4,9 @@ import { bridgeMethod } from './bridge.js';
 
 export const backupNow = bridgeMethod('backupNow');
 export const restoreBackup = bridgeMethod('restoreBackup');
+export const getExternalBackupStatus = bridgeMethod('getExternalBackupStatus');
+export const chooseExternalBackupFolder = bridgeMethod('chooseExternalBackupFolder');
+export const clearExternalBackupFolder = bridgeMethod('clearExternalBackupFolder');
 export const getSettings = bridgeMethod('getSettings');
 export const saveSettings = bridgeMethod('saveSettings');
 export const backupDatabase = bridgeMethod('backupDatabase');
